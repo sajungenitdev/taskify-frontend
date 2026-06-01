@@ -3,12 +3,12 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function DepartmentsMainPage() {
+export default function ProjectsMainPage() {
   const router = useRouter();
-
+  
   useEffect(() => {
-    router.push("/departments/all");
+    router.push("/projects/active");
   }, [router]);
-
+  
   return null;
 }
