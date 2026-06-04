@@ -12,7 +12,10 @@ import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Export the context itself
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
+);
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -100,7 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    // Clear any cached data
     sessionStorage.clear();
     toast.success("Logged out successfully");
     router.push("/login");
