@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => window.removeEventListener("popstate", handleRouteChange);
   }, [user]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<void> => {
     try {
       const response = await api.post("/auth/login", { email, password });
 
@@ -85,7 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         localStorage.setItem("user", JSON.stringify(user));
 
         toast.success(`Welcome back, ${user.fullName}!`);
-        return true;
+      } else {
+        toast.error(response.data.message || "Login failed");
       }
     } catch (error: any) {
       console.error("Login error:", error);
