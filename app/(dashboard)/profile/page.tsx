@@ -313,16 +313,23 @@ export default function ProfilePage() {
     });
   };
 
+  // Replace the existing updateNotificationPreference function with this:
+
   const updateNotificationPreference = (
-    key: keyof typeof formData.notificationPreferences,
+    key: keyof NonNullable<UserProfile["notificationPreferences"]>,
   ) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       notificationPreferences: {
-        ...formData.notificationPreferences,
-        [key]: !formData.notificationPreferences?.[key],
+        email: prev.notificationPreferences?.email ?? true,
+        push: prev.notificationPreferences?.push ?? true,
+        desktop: prev.notificationPreferences?.desktop ?? false,
+        taskReminder: prev.notificationPreferences?.taskReminder ?? true,
+        deadlineAlert: prev.notificationPreferences?.deadlineAlert ?? true,
+        teamUpdate: prev.notificationPreferences?.teamUpdate ?? true,
+        [key]: !prev.notificationPreferences?.[key],
       },
-    });
+    }));
   };
 
   const updateSocialLink = (
@@ -986,29 +993,54 @@ export default function ProfilePage() {
                       </p>
                       <p className="text-xs text-slate-400">{item.desc}</p>
                     </div>
-                    {isEditing ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateNotificationPreference(
-                            item.key as keyof typeof formData.notificationPreferences,
-                          )
-                        }
-                        className={`relative w-10 h-5 rounded-full transition-colors ${formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences] ? "bg-indigo-500" : "bg-slate-700"}`}
-                      >
-                        <span
-                          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences] ? "translate-x-5" : "translate-x-0.5"}`}
-                        />
-                      </button>
-                    ) : (
-                      <div
-                        className={`w-8 h-4 rounded-full ${formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences] ? "bg-indigo-500" : "bg-slate-700"}`}
-                      >
-                        <div
-                          className={`w-3 h-3 rounded-full bg-white mt-0.5 transition-transform ${formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences] ? "translate-x-4" : "translate-x-0.5"}`}
-                        />
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentValue =
+                          formData.notificationPreferences?.[
+                            item.key as keyof typeof formData.notificationPreferences
+                          ] ?? true;
+                        setFormData({
+                          ...formData,
+                          notificationPreferences: {
+                            email:
+                              formData.notificationPreferences?.email ?? true,
+                            push:
+                              formData.notificationPreferences?.push ?? true,
+                            desktop:
+                              formData.notificationPreferences?.desktop ??
+                              false,
+                            taskReminder:
+                              formData.notificationPreferences?.taskReminder ??
+                              true,
+                            deadlineAlert:
+                              formData.notificationPreferences?.deadlineAlert ??
+                              true,
+                            teamUpdate:
+                              formData.notificationPreferences?.teamUpdate ??
+                              true,
+                            [item.key]: !currentValue,
+                          },
+                        });
+                      }}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${
+                        formData.notificationPreferences?.[
+                          item.key as keyof typeof formData.notificationPreferences
+                        ]
+                          ? "bg-indigo-500"
+                          : "bg-slate-700"
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                          formData.notificationPreferences?.[
+                            item.key as keyof typeof formData.notificationPreferences
+                          ]
+                            ? "translate-x-5"
+                            : "translate-x-0.5"
+                        }`}
+                      />
+                    </button>
                   </label>
                 ))}
               </div>
