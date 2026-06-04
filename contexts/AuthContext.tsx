@@ -1,18 +1,11 @@
 "use client";
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import { User, AuthContextType } from "@/types";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-// Export the context itself
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
 );
@@ -55,29 +48,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     initAuth();
   }, []);
 
-  // Handle page navigation - revalidate token on route change
-  useEffect(() => {
-    const handleRouteChange = () => {
-      const storedToken = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("user");
-
-      if (storedToken && storedUser && !user) {
-        try {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          console.error("Error restoring session:", error);
-        }
-      }
-    };
-
-    window.addEventListener("popstate", handleRouteChange);
-    return () => window.removeEventListener("popstate", handleRouteChange);
-  }, [user]);
-
   const login = async (email: string, password: string): Promise<void> => {
     try {
+      console.log("Login attempt:", email);
+
       const response = await api.post("/auth/login", { email, password });
+
+      console.log("Login response:", response.data);
 
       if (response.data.success) {
         const { user, accessToken } = response.data.data;
@@ -90,10 +67,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         toast.success(`Welcome back, ${user.fullName}!`);
       } else {
         toast.error(response.data.message || "Login failed");
+        throw new Error(response.data.message);
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error.response?.data?.message || "Login failed");
+
+      if (error.response?.status === 404) {
+        toast.error("Login service unavailable. Please try again later.");
+      } else if (error.response?.status === 401) {
+        toast.error("Invalid email or password");
+      } else if (error.code === "ERR_NETWORK") {
+        toast.error("Cannot connect to server. Please check your connection.");
+      } else {
+        toast.error(error.response?.data?.message || "Login failed");
+      }
+
       throw error;
     }
   };

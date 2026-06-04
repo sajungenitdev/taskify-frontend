@@ -1,13 +1,14 @@
 import axios from "axios";
 import toast from "react-hot-toast";
 
-// Use window.location.origin to get the current origin
+// Dynamically set base URL based on environment
 const getBaseUrl = () => {
-  // For development, use localhost:5000
-  if (process.env.NODE_ENV === "development") {
-    return "http://localhost:5000/api/v1";
+  // For production (Vercel), use relative URL
+  if (process.env.NODE_ENV === "production") {
+    return "/api/v1";
   }
-  return "/api/v1";
+  // For development, use localhost
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 };
 
 const api = axios.create({
@@ -16,7 +17,7 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
   timeout: 30000,
-  withCredentials: true, // Important for CORS
+  withCredentials: true,
 });
 
 // Request interceptor
@@ -32,7 +33,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
-    console.error("Request Error:", error);
+    console.error("Request error:", error);
     return Promise.reject(error);
   },
 );
@@ -43,45 +44,50 @@ api.interceptors.response.use(
     console.log(`📥 ${response.status} ${response.config.url}`);
     return response;
   },
-  (error) => {
-    // Log full error for debugging
-    console.error("Full Error Object:", {
+  async (error) => {
+    const originalRequest = error.config;
+
+    console.error("API Error:", {
+      status: error.response?.status,
+      url: error.config?.url,
       message: error.message,
-      code: error.code,
-      config: {
-        url: error.config?.url,
-        baseURL: error.config?.baseURL,
-        method: error.config?.method,
-        headers: error.config?.headers,
-      },
-      response: error.response
-        ? {
-            status: error.response.status,
-            data: error.response.data,
-          }
-        : null,
     });
 
-    // Handle specific errors
+    // Handle 401 Unauthorized - Token expired
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        // Try to refresh token
+        const refreshResponse = await api.post("/auth/refresh-token");
+        if (refreshResponse.data.success) {
+          const newToken = refreshResponse.data.data.accessToken;
+          localStorage.setItem("token", newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh failed, redirect to login
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+        toast.error("Session expired. Please login again.");
+        return Promise.reject(error);
+      }
+    }
+
+    // Handle 404 - Endpoint not found
+    if (error.response?.status === 404) {
+      console.error(`Endpoint not found: ${error.config?.url}`);
+      // Don't show error for demo-users endpoint
+      if (!error.config?.url?.includes("/demo-users")) {
+        toast.error("Service unavailable. Please try again later.");
+      }
+    }
+
+    // Handle network errors
     if (error.code === "ERR_NETWORK") {
-      toast.error(
-        "Cannot connect to backend server. Please make sure it's running on port 5000.",
-      );
-    } else if (error.code === "ECONNREFUSED") {
-      toast.error("Connection refused. Backend server is not running.");
-    } else if (error.response?.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-      toast.error("Session expired. Please login again.");
-    } else if (error.response?.status === 403) {
-      toast.error(error.response?.data?.message || "Access denied");
-    } else if (error.response?.status === 404) {
-      toast.error(`API endpoint not found: ${error.config?.url}`);
-    } else if (error.response?.status === 429) {
-      toast.error("Too many requests. Please wait a moment.");
-    } else {
-      toast.error(error.response?.data?.message || "An error occurred");
+      toast.error("Cannot connect to server. Please check your connection.");
     }
 
     return Promise.reject(error);
