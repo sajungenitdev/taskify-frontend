@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   X,
   Calendar,
@@ -16,7 +16,6 @@ import {
   Timer,
   Paperclip,
   Link2,
-  CheckCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -26,11 +25,13 @@ interface User {
   fullName: string;
   email: string;
   role: string;
-  departmentId?: {
-    _id: string;
-    name: string;
-    code: string;
-  };
+  departmentId?:
+    | {
+        _id: string;
+        name: string;
+        code: string;
+      }
+    | string;
 }
 
 interface Department {
@@ -59,6 +60,7 @@ export default function CreateTaskModal({
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -77,30 +79,8 @@ export default function CreateTaskModal({
     endTime: "",
   });
 
-  // Fetch departments on mount
-  useEffect(() => {
-    if (isOpen) {
-      fetchDepartments();
-      fetchAllUsers();
-    }
-  }, [isOpen]);
-
-  // Filter users when department changes
-  useEffect(() => {
-    if (selectedDepartment) {
-      const filtered = users.filter(
-        (user) =>
-          user.departmentId?._id === selectedDepartment ||
-          user.departmentId === selectedDepartment,
-      );
-      setFilteredUsers(filtered);
-      setFormData((prev) => ({ ...prev, assignedTo: "" }));
-    } else {
-      setFilteredUsers(users);
-    }
-  }, [selectedDepartment, users]);
-
-  const fetchDepartments = async () => {
+  // Fetch departments
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.get("/departments");
       if (response.data.success) {
@@ -109,9 +89,10 @@ export default function CreateTaskModal({
     } catch (error) {
       console.error("Error fetching departments:", error);
     }
-  };
+  }, []);
 
-  const fetchAllUsers = async () => {
+  // Fetch all users
+  const fetchAllUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
       const response = await api.get("/auth/users");
@@ -124,7 +105,47 @@ export default function CreateTaskModal({
     } finally {
       setLoadingUsers(false);
     }
-  };
+  }, []);
+
+  // Load data when modal opens - using a separate effect to avoid warnings
+  useEffect(() => {
+    if (isOpen && !isDataLoaded) {
+      const loadData = async () => {
+        await Promise.all([fetchDepartments(), fetchAllUsers()]);
+        setIsDataLoaded(true);
+      };
+      loadData();
+    }
+
+    // Reset data loaded flag when modal closes
+    if (!isOpen) {
+      setIsDataLoaded(false);
+    }
+  }, [isOpen, fetchDepartments, fetchAllUsers, isDataLoaded]);
+
+  // Filter users by selected department
+  useEffect(() => {
+    if (selectedDepartment) {
+      const filtered = users.filter((user) => {
+        let userDeptId: string | null = null;
+        if (user.departmentId) {
+          if (
+            typeof user.departmentId === "object" &&
+            "_id" in user.departmentId
+          ) {
+            userDeptId = user.departmentId._id;
+          } else if (typeof user.departmentId === "string") {
+            userDeptId = user.departmentId;
+          }
+        }
+        return userDeptId === selectedDepartment;
+      });
+      setFilteredUsers(filtered);
+      setFormData((prev) => ({ ...prev, assignedTo: "" }));
+    } else {
+      setFilteredUsers(users);
+    }
+  }, [selectedDepartment, users]);
 
   const handleAddEvidenceUrl = () => {
     if (newUrl && newUrl.trim()) {
@@ -153,10 +174,21 @@ export default function CreateTaskModal({
     setLoading(true);
     try {
       const taskData = {
-        ...formData,
-        evidenceUrls: evidenceUrls,
-        estimatedHours: parseFloat(formData.estimatedHours.toString()),
-        actualMinutes: parseInt(formData.actualMinutes.toString()),
+        title: formData.title,
+        description: formData.description,
+        assignedTo: formData.assignedTo,
+        deadline: formData.deadline,
+        revisedDeadline: formData.revisedDeadline || undefined,
+        priority: formData.priority,
+        estimatedHours: Number(formData.estimatedHours),
+        actualMinutes: Number(formData.actualMinutes),
+        project: formData.project || undefined,
+        departmentId: selectedDepartment,
+        isApprovalRequired: formData.isApprovalRequired,
+        evidenceRequired: formData.evidenceRequired,
+        startTime: formData.startTime || undefined,
+        endTime: formData.endTime || undefined,
+        evidenceUrls: evidenceUrls.length > 0 ? evidenceUrls : undefined,
       };
 
       const response = await api.post("/tasks", taskData);
@@ -241,7 +273,7 @@ export default function CreateTaskModal({
                 onChange={(e) =>
                   setFormData({ ...formData, title: e.target.value })
                 }
-                className="w-full px-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                className="w-full px-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                 placeholder="Enter task title"
                 required
               />
@@ -259,7 +291,7 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({ ...formData, project: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                   placeholder="Project name"
                 />
               </div>
@@ -277,7 +309,7 @@ export default function CreateTaskModal({
                 setFormData({ ...formData, description: e.target.value })
               }
               rows={3}
-              className="w-full px-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition resize-none"
+              className="w-full px-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition resize-none"
               placeholder="Describe the task details..."
               required
             />
@@ -294,7 +326,7 @@ export default function CreateTaskModal({
                 <select
                   value={selectedDepartment}
                   onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition appearance-none cursor-pointer"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
                   required
                 >
                   <option value="">Select Department</option>
@@ -318,7 +350,7 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({ ...formData, assignedTo: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition appearance-none cursor-pointer"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
                   required
                   disabled={!selectedDepartment}
                 >
@@ -341,7 +373,7 @@ export default function CreateTaskModal({
             </div>
           </div>
 
-          {/* Priority & Estimated Hours Row */}
+          {/* Priority, Estimated Hours, Actual Minutes */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
@@ -354,7 +386,7 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({ ...formData, priority: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition appearance-none cursor-pointer"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                 >
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
@@ -381,7 +413,7 @@ export default function CreateTaskModal({
                       estimatedHours: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                   placeholder="Hours"
                 />
               </div>
@@ -389,7 +421,7 @@ export default function CreateTaskModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Actual Minutes (Tracked)
+                Actual Minutes
               </label>
               <div className="relative">
                 <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -404,14 +436,14 @@ export default function CreateTaskModal({
                       actualMinutes: parseInt(e.target.value),
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                   placeholder="Minutes"
                 />
               </div>
             </div>
           </div>
 
-          {/* Start Time & End Time Row */}
+          {/* Start Time & End Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
@@ -425,7 +457,7 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({ ...formData, startTime: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                 />
               </div>
             </div>
@@ -442,13 +474,13 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({ ...formData, endTime: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                 />
               </div>
             </div>
           </div>
 
-          {/* Deadlines Row */}
+          {/* Deadlines */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
@@ -462,7 +494,7 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({ ...formData, deadline: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                   required
                   min={new Date().toISOString().split("T")[0]}
                 />
@@ -471,7 +503,7 @@ export default function CreateTaskModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Revised Deadline (Optional)
+                Revised Deadline
               </label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -484,7 +516,7 @@ export default function CreateTaskModal({
                       revisedDeadline: e.target.value,
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                   min={
                     formData.deadline || new Date().toISOString().split("T")[0]
                   }
@@ -493,7 +525,7 @@ export default function CreateTaskModal({
             </div>
           </div>
 
-          {/* Evidence URLs Section */}
+          {/* Evidence URLs */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">
               Evidence URLs
@@ -505,7 +537,7 @@ export default function CreateTaskModal({
                   type="url"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
                   placeholder="https://example.com/evidence"
                 />
               </div>
