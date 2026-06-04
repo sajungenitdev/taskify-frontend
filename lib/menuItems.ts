@@ -1,4 +1,4 @@
-// lucide-react icons (all verified)
+// lucide-react icons (only verified, commonly available icons)
 import {
   LayoutDashboard,
   CheckSquare,
@@ -128,220 +128,7 @@ import {
   Train,
   Plane,
   Ship,
-  Bike,
-  Run,
-  Walk,
 } from "lucide-react";
-
-// react-icons/fa (only verified icons)
-import {
-  FaLinkedin,
-  FaGithub,
-  FaTwitter,
-  FaFacebook,
-  FaInstagram,
-  FaYoutube,
-  FaWhatsapp,
-  FaTelegram,
-  FaDiscord,
-  FaSlack,
-  FaMicrosoft,
-  FaApple,
-  FaAndroid,
-  FaWindows,
-  FaLinux,
-  FaDocker,
-  FaAws,
-  FaGoogle,
-  FaDropbox,
-  FaSalesforce,
-  FaTrello,
-  FaJira,
-  FaSlack as FaSlackIcon,
-  FaZoom,
-  FaSkype,
-  FaGoogleDrive,
-  FaFigma,
-  FaWordpress,
-  FaShopify,
-  FaStripe,
-  FaPaypal,
-  FaBitcoin,
-  FaEthereum,
-  FaFilePdf,
-  FaFileWord,
-  FaFileExcel,
-  FaFilePowerpoint,
-  FaFileArchive,
-  FaFileImage,
-  FaFileVideo,
-  FaFileAudio,
-  FaFileCode,
-  FaFolder,
-  FaFolderOpen,
-  FaTrash,
-  FaEdit,
-  FaPlus,
-  FaMinus,
-  FaTimes,
-  FaCheck,
-  FaExclamation,
-  FaQuestion,
-  FaInfo,
-  FaLock,
-  FaUnlock,
-  FaKey,
-  FaUser,
-  FaUserPlus,
-  FaUserMinus,
-  FaUsers,
-  FaUserCheck,
-  FaUserTimes,
-  FaEnvelope,
-  FaPhone,
-  FaMobile,
-  FaTablet,
-  FaLaptop,
-  FaDesktop,
-  FaPrint,
-  FaCamera,
-  FaVideo,
-  FaMusic,
-  FaHeadphones,
-  FaMicrophone,
-  FaVolumeUp,
-  FaVolumeDown,
-  FaVolumeMute,
-  FaPlay,
-  FaPause,
-  FaStop,
-  FaForward,
-  FaBackward,
-  FaSearch,
-  FaFilter,
-  FaCalendar,
-  FaClock,
-  FaBell,
-  FaComment,
-  FaComments,
-  FaStar,
-  FaHeart,
-  FaThumbsUp,
-  FaThumbsDown,
-  FaSmile,
-  FaFrown,
-  FaMeh,
-} from "react-icons/fa";
-
-// react-icons/md (Material Design - verified)
-import {
-  MdDashboard,
-  MdTask,
-  MdAssignment,
-  MdPeople,
-  MdBusiness,
-  MdReport,
-  MdAnalytics,
-  MdSettings,
-  MdHelp,
-  MdSupport,
-  MdEmail,
-  MdNotifications,
-  MdCalendarToday,
-  MdTimeline,
-  MdBarChart,
-  MdPieChart,
-  MdLineStyle,
-  MdShowChart,
-  MdTrendingUp,
-  MdTrendingDown,
-  MdAttachMoney,
-  MdPayment,
-  MdAccountBalance,
-  MdCreditCard,
-  MdMoney,
-  MdWallet,
-  MdShoppingCart,
-  MdStore,
-  MdLocalShipping,
-  MdInventory,
-  MdWarehouse,
-  MdFactory,
-  MdConstruction,
-  MdEngineering,
-  MdScience,
-  MdHealthAndSafety,
-  MdMedicalServices,
-  MdLocalHospital,
-  MdHealing,
-  MdVaccines,
-  MdBiotech,
-  MdPsychology,
-  MdChildCare,
-  MdPets,
-  MdPark,
-  MdBeachAccess,
-  MdFitnessCenter,
-  MdSportsBasketball,
-  MdSportsSoccer,
-  MdSportsFootball,
-  MdSportsTennis,
-  MdSportsVolleyball,
-  MdGaming,
-  MdVideogameAsset,
-  MdMovie,
-  MdTheaters,
-  MdLocalMovies,
-  MdMusicNote,
-  MdAudiotrack,
-  MdLibraryMusic,
-  MdAlbum,
-  MdPodcasts,
-  MdRadio,
-  MdMic,
-  MdSkipNext,
-  MdSkipPrevious,
-  MdPlayArrow,
-  MdPause,
-  MdStop,
-  MdRepeat,
-  MdShuffle,
-  MdVolumeUp,
-  MdVolumeDown,
-  MdVolumeMute,
-  MdVolumeOff,
-  MdEqualizer,
-  MdGraphicEq,
-  MdSettingsVoice,
-  MdVoiceChat,
-  MdChat,
-  MdMessage,
-  MdSms,
-  MdWhatsapp,
-  MdTelegram,
-  MdDiscord,
-  MdForum,
-  MdQuestionAnswer,
-  MdContactSupport,
-  MdHelpOutline,
-  MdInfo,
-  MdWarning,
-  MdError,
-  MdCancel,
-  MdCheckCircle,
-  MdRadioButtonChecked,
-  MdRadioButtonUnchecked,
-  MdCheckBox,
-  MdCheckBoxOutlineBlank,
-  MdIndeterminateCheckBox,
-  MdStar,
-  MdStarBorder,
-  MdStarHalf,
-  MdFavorite,
-  MdFavoriteBorder,
-  MdThumbUp,
-  MdThumbDown,
-} from "react-icons/md";
 
 export interface NavItem {
   name: string;
@@ -365,7 +152,7 @@ export interface SubNavItem {
 
 // Main Menu Items
 export const menuItems: NavItem[] = [
-  // MAIN SECTION
+  // ==================== MAIN SECTION ====================
   {
     name: "Dashboard",
     href: "/dashboard",
@@ -420,7 +207,7 @@ export const menuItems: NavItem[] = [
     badgeColor: "bg-emerald-500",
   },
 
-  // ADMIN SECTION
+  // ==================== ADMIN SECTION ====================
   {
     name: "User Management",
     href: "/users",
@@ -464,7 +251,7 @@ export const menuItems: NavItem[] = [
     section: "admin",
   },
 
-  // HR SECTION
+  // ==================== HR SECTION ====================
   {
     name: "Employee Directory",
     href: "/employees",
@@ -526,7 +313,7 @@ export const menuItems: NavItem[] = [
     section: "hr",
   },
 
-  // REPORTS SECTION
+  // ==================== REPORTS SECTION ====================
   {
     name: "Reports",
     href: "/reports",
@@ -556,7 +343,7 @@ export const menuItems: NavItem[] = [
     section: "reports",
   },
 
-  // COMMUNICATION SECTION
+  // ==================== COMMUNICATION SECTION ====================
   {
     name: "Announcements",
     href: "/announcements",
@@ -590,7 +377,7 @@ export const menuItems: NavItem[] = [
     section: "communication",
   },
 
-  // WORKFLOW SECTION
+  // ==================== WORKFLOW SECTION ====================
   {
     name: "Approval Requests",
     href: "/approvals",
@@ -608,7 +395,7 @@ export const menuItems: NavItem[] = [
     section: "workflow",
   },
 
-  // SYSTEM SECTION
+  // ==================== SYSTEM SECTION ====================
   {
     name: "Settings",
     href: "/settings",
@@ -659,7 +446,7 @@ export const menuItems: NavItem[] = [
     section: "system",
   },
 
-  // SUPPORT SECTION
+  // ==================== SUPPORT SECTION ====================
   {
     name: "Help Center",
     href: "/help",
@@ -684,7 +471,7 @@ export const menuItems: NavItem[] = [
   {
     name: "API Documentation",
     href: "/api-docs",
-    icon: FileCode,
+    icon: FileText,
     roles: ["all"],
     section: "support",
   },
@@ -906,15 +693,3 @@ export const sectionIcons: Record<string, React.ElementType> = {
   system: Settings,
   support: HelpCircle,
 };
-
-// Section order for sidebar
-export const sectionOrder: string[] = [
-  "main",
-  "admin",
-  "hr",
-  "reports",
-  "communication",
-  "workflow",
-  "system",
-  "support",
-];
