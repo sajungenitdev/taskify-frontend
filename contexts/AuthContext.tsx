@@ -26,35 +26,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Initialize auth from localStorage
   useEffect(() => {
-    const initAuth = () => {
-      const storedToken = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("user");
+    const storedToken = localStorage.getItem("token");
+    const storedUser = localStorage.getItem("user");
 
-      if (storedToken && storedUser) {
-        try {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-        } catch (error) {
-          console.error("Error parsing stored user:", error);
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-        }
+    if (storedToken && storedUser) {
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Error parsing stored user:", error);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
       }
-      setIsLoading(false);
-    };
-
-    initAuth();
+    }
+    setIsLoading(false);
   }, []);
 
   const login = async (email: string, password: string): Promise<void> => {
     try {
-      console.log("Login attempt:", email);
-
       const response = await api.post("/auth/login", { email, password });
-
-      console.log("Login response:", response.data);
 
       if (response.data.success) {
         const { user, accessToken } = response.data.data;
@@ -65,23 +56,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         localStorage.setItem("user", JSON.stringify(user));
 
         toast.success(`Welcome back, ${user.fullName}!`);
-      } else {
-        toast.error(response.data.message || "Login failed");
-        throw new Error(response.data.message);
       }
     } catch (error: any) {
       console.error("Login error:", error);
-
-      if (error.response?.status === 404) {
-        toast.error("Login service unavailable. Please try again later.");
-      } else if (error.response?.status === 401) {
-        toast.error("Invalid email or password");
-      } else if (error.code === "ERR_NETWORK") {
-        toast.error("Cannot connect to server. Please check your connection.");
-      } else {
-        toast.error(error.response?.data?.message || "Login failed");
-      }
-
+      toast.error(error.response?.data?.message || "Login failed");
       throw error;
     }
   };
@@ -91,7 +69,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    sessionStorage.clear();
     toast.success("Logged out successfully");
     router.push("/login");
   };
