@@ -22,15 +22,16 @@ import {
   User,
   Crown,
   Star,
-  Orbit,
 } from "lucide-react";
 import { Button } from "@/components/UI/Button";
 import api from "@/lib/axios";
 
 interface DemoUser {
+  id: string;
   role: string;
   email: string;
   name: string;
+  fullName: string;
   badge: string;
   icon: React.ReactNode;
   gradient: string;
@@ -50,7 +51,7 @@ const DemoUserButton = memo(
       <button
         onClick={onClick}
         type="button"
-        className={`group relative overflow-hidden rounded-xl transition-all duration-300 ${
+        className={`w-full group relative overflow-hidden rounded-xl transition-all duration-300 ${
           isActive
             ? `bg-gradient-to-r ${user.gradient} border-indigo-500/40 shadow-lg shadow-indigo-500/20 scale-[1.02]`
             : "bg-slate-900/30 border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 hover:scale-[1.01]"
@@ -69,10 +70,10 @@ const DemoUserButton = memo(
             </div>
             <div className="text-left">
               <p className="text-[10px] font-bold text-slate-200 group-hover:text-white transition-colors tracking-wide">
-                {user.role}
+                {user.role.replace(/_/g, " ").toUpperCase()}
               </p>
               <p className="text-[9px] text-slate-500 font-medium">
-                {user.name.split(" ")[0]}
+                {user.fullName?.split(" ")[0] || user.name}
               </p>
             </div>
           </div>
@@ -96,92 +97,97 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [demoUsers, setDemoUsers] = useState<DemoUser[]>([]);
   const [loadingDemo, setLoadingDemo] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeDemo, setActiveDemo] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState({ email: false, password: false });
   const [formData, setFormData] = useState({ email: "", password: "" });
 
-  useEffect(() => {
-    const fetchDemoUsers = async () => {
-      try {
-        const response = await api.get("/auth/demo-users");
-        if (response.data.success && response.data.data.length > 0) {
-          setDemoUsers(
-            response.data.data.slice(0, 5).map((user: any) => ({
-              ...user,
-              icon: getRoleIcon(user.role),
-              gradient: getRoleGradient(user.role),
-            })),
-          );
-        } else {
-          throw new Error("No users found");
-        }
-      } catch (error) {
-        setDemoUsers([
-          {
-            role: "SUPER ADMIN",
-            email: "superadmin@taskmanager.com",
-            name: "Super Admin",
-            badge: "Full",
-            icon: <Crown className="w-3 h-3 text-white" />,
-            gradient: "from-purple-600 to-pink-600",
-          },
-          {
-            role: "ADMIN",
-            email: "admin@taskmanager.com",
-            name: "Admin",
-            badge: "Mgmt",
-            icon: <Shield className="w-3 h-3 text-white" />,
-            gradient: "from-blue-600 to-cyan-600",
-          },
-          {
-            role: "HR MANAGER",
-            email: "hr@taskmanager.com",
-            name: "HR Manager",
-            badge: "HR",
-            icon: <Users className="w-3 h-3 text-white" />,
-            gradient: "from-emerald-600 to-teal-600",
-          },
-          {
-            role: "DEPT MANAGER",
-            email: "manager@taskmanager.com",
-            name: "Dept Mgr",
-            badge: "Lead",
-            icon: <Briefcase className="w-3 h-3 text-white" />,
-            gradient: "from-orange-600 to-red-600",
-          },
-          {
-            role: "EMPLOYEE",
-            email: "employee1@taskmanager.com",
-            name: "Employee",
-            badge: "Staff",
-            icon: <User className="w-3 h-3 text-white" />,
-            gradient: "from-indigo-600 to-purple-600",
-          },
-        ]);
-      } finally {
-        setLoadingDemo(false);
-      }
-    };
-    fetchDemoUsers();
-  }, []);
-
+  // Helper functions
   const getRoleIcon = (role: string) => {
-    if (role.includes("SUPER")) return <Crown className="w-3 h-3 text-white" />;
-    if (role.includes("ADMIN"))
-      return <Shield className="w-3 h-3 text-white" />;
-    if (role.includes("HR")) return <Users className="w-3 h-3 text-white" />;
-    if (role.includes("MANAGER"))
+    if (role === "super_admin") return <Crown className="w-3 h-3 text-white" />;
+    if (role === "admin") return <Shield className="w-3 h-3 text-white" />;
+    if (role === "hr_manager") return <Users className="w-3 h-3 text-white" />;
+    if (role === "dept_manager")
       return <Briefcase className="w-3 h-3 text-white" />;
+    if (role === "project_manager")
+      return <Briefcase className="w-3 h-3 text-white" />;
+    if (role === "line_manager")
+      return <Users className="w-3 h-3 text-white" />;
     return <User className="w-3 h-3 text-white" />;
   };
 
   const getRoleGradient = (role: string) => {
-    if (role.includes("SUPER")) return "from-purple-600 to-pink-600";
-    if (role.includes("ADMIN")) return "from-blue-600 to-cyan-600";
-    if (role.includes("HR")) return "from-emerald-600 to-teal-600";
-    if (role.includes("MANAGER")) return "from-orange-600 to-red-600";
-    return "from-indigo-600 to-purple-600";
+    switch (role) {
+      case "super_admin":
+        return "from-purple-600 to-pink-600";
+      case "admin":
+        return "from-blue-600 to-cyan-600";
+      case "hr_manager":
+        return "from-emerald-600 to-teal-600";
+      case "dept_manager":
+        return "from-orange-600 to-red-600";
+      case "project_manager":
+        return "from-cyan-600 to-blue-600";
+      case "line_manager":
+        return "from-indigo-600 to-purple-600";
+      default:
+        return "from-slate-600 to-slate-700";
+    }
   };
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case "super_admin":
+        return "Full Access";
+      case "admin":
+        return "Management";
+      case "hr_manager":
+        return "HR Panel";
+      case "dept_manager":
+        return "Team Lead";
+      case "project_manager":
+        return "Project Lead";
+      case "line_manager":
+        return "Team Manager";
+      default:
+        return "Staff Access";
+    }
+  };
+
+  // Fetch all active users from database - FULLY DYNAMIC
+  useEffect(() => {
+    const fetchActiveUsers = async () => {
+      try {
+        setLoadingDemo(true);
+        setError(null);
+
+        const response = await api.get("/auth/active-users");
+
+        if (response.data.success && response.data.data.length > 0) {
+          const formattedUsers = response.data.data.map((user: any) => ({
+            id: user.id || user._id,
+            role: user.role,
+            email: user.email,
+            name: user.fullName?.split(" ")[0] || user.fullName,
+            fullName: user.fullName,
+            badge: getRoleBadge(user.role),
+            icon: getRoleIcon(user.role),
+            gradient: getRoleGradient(user.role),
+          }));
+          setDemoUsers(formattedUsers);
+        } else {
+          setError("No active users found in the system");
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch active users:", err);
+        setError(err.response?.data?.message || "Failed to load users");
+      } finally {
+        setLoadingDemo(false);
+      }
+    };
+
+    fetchActiveUsers();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,7 +214,6 @@ export default function LoginPage() {
         <div className="absolute bottom-[15%] right-[5%] w-[30%] h-[30%] rounded-full bg-gradient-to-r from-blue-600/15 to-cyan-600/15 blur-[120px] animate-float-slow delay-2000" />
         <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[40%] h-[40%] rounded-full bg-gradient-to-r from-emerald-600/8 to-teal-600/8 blur-[140px] animate-pulse-slow" />
 
-        {/* Grid Pattern */}
         <div
           className="absolute inset-0 opacity-[0.02]"
           style={{
@@ -217,7 +222,6 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Animated Scan Lines */}
         <div className="absolute inset-0">
           <div className="absolute top-1/3 left-0 w-full h-px bg-gradient-to-r from-transparent via-indigo-500/15 to-transparent animate-slide" />
           <div className="absolute top-2/3 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/15 to-transparent animate-slide delay-1000" />
@@ -261,7 +265,6 @@ export default function LoginPage() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* Email Field */}
             <div>
               <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider ml-0.5 mb-1">
                 Email
@@ -287,7 +290,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Password Field */}
             <div>
               <div className="flex justify-between items-center mb-1 ml-0.5">
                 <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -328,7 +330,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Submit Button */}
             <Button
               type="submit"
               loading={isLoading}
@@ -348,34 +349,48 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Divider */}
-          <div className="relative my-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-slate-800" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-slate-900/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
-                Demo Access
-              </span>
-            </div>
-          </div>
+          {/* Active Users Section - Only show if users exist and no error */}
+          {!loadingDemo && !error && demoUsers.length > 0 && (
+            <>
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-800" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-slate-900/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
+                    Active Users ({demoUsers.length})
+                  </span>
+                </div>
+              </div>
 
-          {/* Demo Users Grid - Compact */}
-          {loadingDemo ? (
+              <div className="grid grid-cols-2 gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {demoUsers.map((user) => (
+                  <DemoUserButton
+                    key={user.id}
+                    user={user}
+                    onClick={() => handleQuickFill(user.email)}
+                    isActive={activeDemo === user.email}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Loading State */}
+          {loadingDemo && (
             <div className="flex justify-center py-4">
               <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-1.5">
-              {demoUsers.map((user) => (
-                <DemoUserButton
-                  key={user.email}
-                  user={user}
-                  onClick={() => handleQuickFill(user.email)}
-                  isActive={activeDemo === user.email}
-                />
-              ))}
+          )}
+
+          {/* Error State - No users found */}
+          {!loadingDemo && error && (
+            <div className="text-center py-4">
+              <p className="text-xs text-amber-400">{error}</p>
+              <p className="text-[10px] text-slate-500 mt-2">
+                Please contact your administrator
+              </p>
             </div>
           )}
 
@@ -416,7 +431,6 @@ export default function LoginPage() {
             transform: translateY(0);
           }
         }
-
         @keyframes float-slow {
           0%,
           100% {
@@ -429,7 +443,6 @@ export default function LoginPage() {
             transform: translateY(8px) translateX(-8px);
           }
         }
-
         @keyframes pulse-slow {
           0%,
           100% {
@@ -441,7 +454,6 @@ export default function LoginPage() {
             transform: scale(1.05);
           }
         }
-
         @keyframes pulse-glow {
           0%,
           100% {
@@ -451,7 +463,6 @@ export default function LoginPage() {
             opacity: 0.6;
           }
         }
-
         @keyframes slide {
           from {
             transform: translateX(-100%);
@@ -460,7 +471,6 @@ export default function LoginPage() {
             transform: translateX(100%);
           }
         }
-
         @keyframes float-particle {
           0% {
             transform: translateY(0px) translateX(0px);
@@ -474,35 +484,38 @@ export default function LoginPage() {
             opacity: 0;
           }
         }
-
         .animate-fade-in-up {
           animation: fadeIn 0.5s ease-out forwards;
         }
-
         .animate-float-slow {
           animation: float-slow 12s ease-in-out infinite;
         }
-
         .animate-pulse-slow {
           animation: pulse-slow 8s ease-in-out infinite;
         }
-
         .animate-pulse-glow {
           animation: pulse-glow 3s ease-in-out infinite;
         }
-
         .animate-slide {
           animation: slide 6s ease-in-out infinite;
         }
-
         .animate-float-particle {
           animation: float-particle 5s ease-in-out infinite;
         }
-
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(30, 41, 59, 0.5);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(99, 102, 241, 0.4);
+          border-radius: 10px;
+        }
         .delay-1000 {
           animation-delay: 1s;
         }
-
         .delay-2000 {
           animation-delay: 2s;
         }
