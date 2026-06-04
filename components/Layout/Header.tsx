@@ -370,7 +370,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         setShowProfileDropdown(false);
                         logout();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                      className="w-full cursor-pointer flex items-center gap-2 px-3 py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
                     >
                       <LogOut size={14} />
                       Sign out

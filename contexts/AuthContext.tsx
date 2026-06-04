@@ -1,41 +1,51 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { User, AuthContextType } from "@/types";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
 
-export const AuthContext = createContext<AuthContextType | undefined>(
-  undefined,
-);
+interface User {
+  _id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  employeeId?: string;
+  departmentId?: any;
+}
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
-};
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+  hasRole: (roles: string | string[]) => boolean;
+}
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("token");
+    const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
-    if (storedToken && storedUser) {
+    if (token && storedUser) {
       try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
+        // Set default authorization header
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       } catch (error) {
-        console.error("Error parsing stored user:", error);
+        console.error("Error parsing user:", error);
         localStorage.removeItem("token");
         localStorage.removeItem("user");
       }
@@ -43,19 +53,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsLoading(false);
   }, []);
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = async (email: string, password: string) => {
     try {
       const response = await api.post("/auth/login", { email, password });
 
       if (response.data.success) {
-        const { user, accessToken } = response.data.data;
+        const { token, user: userData } = response.data.data;
 
-        setUser(user);
-        setToken(accessToken);
-        localStorage.setItem("token", accessToken);
-        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(userData));
 
-        toast.success(`Welcome back, ${user.fullName}!`);
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        setUser(userData);
+
+        toast.success(`Welcome back, ${userData.fullName}!`);
+      } else {
+        throw new Error(response.data.message || "Login failed");
       }
     } catch (error: any) {
       console.error("Login error:", error);
@@ -65,33 +78,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    delete api.defaults.headers.common["Authorization"];
+    setUser(null);
     toast.success("Logged out successfully");
-    router.push("/login");
   };
 
   const hasRole = (roles: string | string[]): boolean => {
     if (!user) return false;
-    const roleArray = Array.isArray(roles) ? roles : [roles];
-    return roleArray.includes(user.role);
+
+    const roleList = Array.isArray(roles) ? roles : [roles];
+    const userRole = user.role?.toLowerCase();
+
+    // Super admin has all access
+    if (userRole === "super_admin") return true;
+
+    // Check if user has any of the required roles
+    return roleList.some((role) => role.toLowerCase() === userRole);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
+        isAuthenticated: !!user,
         login,
         logout,
-        isAuthenticated: !!user && !!token,
         hasRole,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-};
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+}

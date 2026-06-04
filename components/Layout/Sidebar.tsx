@@ -1,3 +1,5 @@
+// components/Layout/Sidebar.tsx
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -7,19 +9,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   ChevronLeft,
   ChevronRight,
-  Menu,
   LogOut,
   X,
-  Zap,
   CheckSquare,
   ChevronDown,
   ChevronUp,
+  LayoutDashboard,
 } from "lucide-react";
 import {
+  personalItems,
   menuItems,
   sectionTitles,
   sectionIcons,
   subMenuItems,
+  hasAccess,
 } from "@/lib/menuItems";
 
 interface SidebarProps {
@@ -37,9 +40,7 @@ export default function Sidebar({
   const { user, logout, hasRole } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   // Load collapsed state from localStorage
   useEffect(() => {
@@ -49,19 +50,42 @@ export default function Sidebar({
     onCollapseChange?.(initialState);
   }, [onCollapseChange]);
 
-  // Save collapsed state and notify parent
+  // Auto-open the menu that contains the current active route
+  useEffect(() => {
+    if (!pathname) return;
+
+    // Find which parent menu contains the current path
+    for (const subItem of subMenuItems) {
+      if (pathname.startsWith(subItem.href)) {
+        setOpenMenu(subItem.parent);
+        return;
+      }
+    }
+
+    // Check if any personal item is active
+    for (const item of personalItems) {
+      if (pathname === item.href || pathname.startsWith(item.href)) {
+        setOpenMenu(null);
+        return;
+      }
+    }
+
+    // Check if any parent menu item itself is active
+    for (const item of menuItems) {
+      if (pathname === item.href) {
+        setOpenMenu(item.name);
+        return;
+      }
+    }
+  }, [pathname]);
+
   const toggleCollapse = useCallback(() => {
     const newState = !isCollapsed;
     setIsCollapsed(newState);
     localStorage.setItem("sidebarCollapsed", String(newState));
     onCollapseChange?.(newState);
-
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("sidebarToggle"));
-    }
   }, [isCollapsed, onCollapseChange]);
 
-  // Handle scroll effect
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 10);
@@ -71,10 +95,7 @@ export default function Sidebar({
   }, []);
 
   const toggleSubmenu = (menuName: string) => {
-    setExpandedMenus((prev) => ({
-      ...prev,
-      [menuName]: !prev[menuName],
-    }));
+    setOpenMenu(openMenu === menuName ? null : menuName);
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -96,28 +117,57 @@ export default function Sidebar({
     }
   };
 
-  const filteredItems = menuItems.filter((item) => {
-    if (item.roles.includes("all")) return true;
-    return hasRole(item.roles);
-  });
+  const userRole = user?.role || "employee";
 
-  // Group items by section
-  const groupedItems = filteredItems.reduce(
+  const filteredPersonalItems = personalItems.filter((item) =>
+    hasAccess(userRole, item.roles)
+  );
+
+  const filteredParentItems = menuItems.filter((item) =>
+    hasAccess(userRole, item.roles)
+  );
+
+  const groupedParentItems = filteredParentItems.reduce(
     (acc, item) => {
       const section = item.section || "main";
       if (!acc[section]) acc[section] = [];
       acc[section].push(item);
       return acc;
     },
-    {} as Record<string, typeof menuItems>,
+    {} as Record<string, typeof menuItems>
   );
 
-  // Get submenu items for a parent
   const getSubItems = (parentName: string) => {
     return subMenuItems.filter(
-      (item) => item.parent === parentName && hasRole(item.roles),
+      (item) => item.parent === parentName && hasAccess(userRole, item.roles)
     );
   };
+
+  const isParentActive = (parentName: string) => {
+    const subItems = getSubItems(parentName);
+    for (const subItem of subItems) {
+      if (pathname.startsWith(subItem.href)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const isActive = (href: string) => {
+    if (href === "/dashboard") return pathname === href;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const sectionOrder = [
+    "main",
+    "projects",
+    "tasks",
+    "team",
+    "hr",
+    "reports",
+    "system",
+    "support",
+  ];
 
   const sidebarContent = (
     <aside
@@ -125,15 +175,17 @@ export default function Sidebar({
         isCollapsed ? "w-20" : "w-72"
       }`}
     >
-      {/* Header - Fixed */}
+      {/* Header */}
       <div
-        className={`p-4 border-b border-slate-800/80 transition-all duration-300 sticky top-0 z-10 ${
+        className={`p-4 py-3.5 border-b border-slate-800/80 transition-all duration-300 sticky top-0 z-10 ${
           scrolled ? "bg-slate-900/95 backdrop-blur-md" : ""
         }`}
       >
         <div className="flex items-center justify-between">
           <div
-            className={`flex items-center gap-3 ${isCollapsed ? "justify-center w-full" : ""}`}
+            className={`flex items-center gap-3 ${
+              isCollapsed ? "justify-center w-full" : ""
+            }`}
           >
             <div className="relative">
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-md opacity-50" />
@@ -175,14 +227,14 @@ export default function Sidebar({
         )}
       </button>
 
-      {/* User Profile Card - Fixed */}
+      {/* User Profile Card */}
       <div className="sticky top-[73px] z-10 mx-3 mt-4 p-2 rounded-xl bg-gradient-to-r from-slate-800/50 to-slate-900/50 border border-slate-800/50 backdrop-blur-sm">
         <div
           className={`flex items-center gap-2 ${isCollapsed ? "flex-col" : ""}`}
         >
           <div
             className={`w-8 h-8 rounded-xl bg-gradient-to-br ${getRoleBadgeColor(
-              user?.role || "employee",
+              userRole
             )} flex items-center justify-center shadow-lg shrink-0`}
           >
             <span className="text-white text-xs font-bold">
@@ -196,7 +248,7 @@ export default function Sidebar({
                   {user?.fullName || "User"}
                 </p>
                 <p className="text-slate-400 text-[9px] font-medium uppercase">
-                  {user?.role?.replace(/_/g, " ") || "Employee"}
+                  {userRole.replace(/_/g, " ")}
                 </p>
               </div>
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50 shrink-0" />
@@ -205,13 +257,86 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Navigation - Scrollable Area */}
+      {/* Navigation */}
       <nav
         className="flex-1 overflow-y-auto py-3 px-3 space-y-4 custom-scrollbar"
         style={{ maxHeight: "calc(100vh - 200px)" }}
       >
-        {Object.entries(groupedItems).map(([section, items]) => {
+        {/* Personal Items */}
+        {filteredPersonalItems.length > 0 && !isCollapsed && (
+          <div>
+            <div className="px-2 mb-2 flex items-center gap-2">
+              <LayoutDashboard size={10} className="text-indigo-400" />
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                PERSONAL
+              </p>
+            </div>
+            <div className="space-y-1">
+              {filteredPersonalItems.map((item) => {
+                const active = isActive(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onClose}
+                    className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 group relative ${
+                      isCollapsed ? "justify-center" : ""
+                    } ${
+                      active
+                        ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400 border border-indigo-500/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    }`}
+                    title={isCollapsed ? item.name : ""}
+                  >
+                    <div className="relative">
+                      <Icon
+                        size={18}
+                        className={`transition-all duration-200 ${
+                          active
+                            ? "text-indigo-400"
+                            : "text-slate-500 group-hover:text-slate-300"
+                        }`}
+                      />
+                      {item.badge && !isCollapsed && (
+                        <span
+                          className={`absolute -top-1 -right-2 w-4 h-4 rounded-full ${item.badgeColor || "bg-indigo-500"} text-white text-[8px] font-bold flex items-center justify-center`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
+                    {!isCollapsed && (
+                      <>
+                        <span className="text-sm font-medium flex-1">
+                          {item.name}
+                        </span>
+                        {item.badge && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded-full ${item.badgeColor || "bg-indigo-500/20"} text-${item.badgeColor?.replace("bg-", "").replace("500", "400") || "indigo-400"} font-medium`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {active && !isCollapsed && (
+                      <div className="w-1 h-6 rounded-full bg-indigo-400 shadow-lg shadow-indigo-400/50 absolute right-0" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Parent Menu Items */}
+        {sectionOrder.map((section) => {
+          const items = groupedParentItems[section];
+          if (!items || items.length === 0) return null;
+
           const SectionIcon = sectionIcons[section];
+
           return (
             <div key={section}>
               {!isCollapsed && (
@@ -226,28 +351,26 @@ export default function Sidebar({
               )}
               <div className="space-y-1">
                 {items.map((item) => {
-                  const isActive = pathname === item.href;
                   const Icon = item.icon;
                   const subItems = getSubItems(item.name);
-                  const isExpanded = expandedMenus[item.name];
                   const hasSubmenu = subItems.length > 0;
+                  const isExpanded = openMenu === item.name;
+                  const isParentActiveFlag = isParentActive(item.name);
 
                   return (
-                    <div key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={(e) => {
+                    <div key={item.name}>
+                      <button
+                        onClick={() => {
                           if (hasSubmenu) {
-                            e.preventDefault();
                             toggleSubmenu(item.name);
                           } else {
                             onClose?.();
                           }
                         }}
-                        className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 group relative ${
+                        className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 group relative ${
                           isCollapsed ? "justify-center" : ""
                         } ${
-                          isActive && !hasSubmenu
+                          isParentActiveFlag && !hasSubmenu
                             ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400 border border-indigo-500/30"
                             : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
                         }`}
@@ -257,7 +380,7 @@ export default function Sidebar({
                           <Icon
                             size={18}
                             className={`transition-all duration-200 ${
-                              isActive
+                              isParentActiveFlag
                                 ? "text-indigo-400"
                                 : "text-slate-500 group-hover:text-slate-300"
                             }`}
@@ -272,7 +395,7 @@ export default function Sidebar({
                         </div>
                         {!isCollapsed && (
                           <>
-                            <span className="text-sm font-medium flex-1">
+                            <span className="text-sm font-medium flex-1 text-left">
                               {item.name}
                             </span>
                             {hasSubmenu && (
@@ -293,22 +416,22 @@ export default function Sidebar({
                             )}
                           </>
                         )}
-                        {isActive && !isCollapsed && !hasSubmenu && (
+                        {isParentActiveFlag && !isCollapsed && !hasSubmenu && (
                           <div className="w-1 h-6 rounded-full bg-indigo-400 shadow-lg shadow-indigo-400/50 absolute right-0" />
                         )}
-                      </Link>
+                      </button>
 
                       {/* Submenu Items */}
                       {!isCollapsed && hasSubmenu && isExpanded && (
                         <div className="ml-6 mt-1 space-y-1 border-l border-slate-800/50 pl-2">
                           {subItems.map((subItem) => {
-                            const isSubActive = pathname === subItem.href;
+                            const isSubActive = isActive(subItem.href);
                             const SubIcon = subItem.icon;
                             return (
                               <Link
                                 key={subItem.href}
                                 href={subItem.href}
-                                onClick={onClose}
+                                onClick={() => onClose?.()}
                                 className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 group ${
                                   isSubActive
                                     ? "bg-gradient-to-r from-indigo-600/15 to-purple-600/15 text-indigo-400"
@@ -340,18 +463,8 @@ export default function Sidebar({
         })}
       </nav>
 
-      {/* Footer - Fixed at bottom */}
+      {/* Footer */}
       <div className="sticky bottom-0 p-3 border-t border-slate-800/80 bg-gradient-to-b from-transparent to-slate-950">
-        {/* {!isCollapsed && (
-          <div className="mb-2 p-2 rounded-lg bg-slate-800/30 border border-slate-800/50">
-            <div className="flex items-center gap-2">
-              <Zap className="w-3 h-3 text-amber-500" />
-              <p className="text-[9px] text-slate-500 font-medium">
-                System: <span className="text-emerald-400">Operational</span>
-              </p>
-            </div>
-          </div>
-        )} */}
         <button
           onClick={logout}
           className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-red-500/10 transition-all duration-200 group ${
@@ -373,12 +486,10 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <div className="hidden lg:block fixed left-0 top-0 h-full z-20">
         {sidebarContent}
       </div>
 
-      {/* Mobile Sidebar Overlay */}
       {isMobileOpen && (
         <>
           <div
@@ -403,7 +514,6 @@ export default function Sidebar({
         .animate-slide-in-right {
           animation: slide-in-right 0.3s ease-out forwards;
         }
-
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;
         }

@@ -9,6 +9,8 @@ import {
   Calendar,
   BarChart3,
   PlusCircle,
+  Upload,
+  FolderKanban,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -27,7 +29,7 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
             title: "Add User",
             description: "Create new employee account",
             icon: Users,
-            onClick: () => router.push("/users"),
+            onClick: () => router.push("/dashboard/users"),
             color: "from-indigo-500 to-purple-500",
           },
         ]
@@ -38,27 +40,45 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
             title: "Create Department",
             description: "Add new department",
             icon: Building2,
-            onClick: () => router.push("/departments"),
+            onClick: () => router.push("/dashboard/departments"),
             color: "from-emerald-500 to-teal-500",
           },
         ]
       : []),
-    ...(userRole === "employee" || hasRole(["line_manager", "dept_manager"])
+    ...(userRole === "employee" ||
+    hasRole(["line_manager", "dept_manager", "project_manager"])
       ? [
           {
             title: "New Task",
             description: "Create a new task",
             icon: PlusCircle,
-            onClick: () => router.push("/tasks/create"),
+            onClick: () => {
+              // Dispatch event to open create task modal
+              document.dispatchEvent(new CustomEvent("openCreateTaskModal"));
+            },
             color: "from-blue-500 to-cyan-500",
+          },
+          {
+            title: "Bulk Upload",
+            description: "Upload multiple tasks",
+            icon: Upload,
+            onClick: () => router.push("/tasks/bulk-upload"),
+            color: "from-emerald-500 to-teal-500",
           },
         ]
       : []),
     {
+      title: "Projects",
+      description: "View all projects",
+      icon: FolderKanban,
+      onClick: () => router.push("/dashboard/projects"),
+      color: "from-purple-500 to-pink-500",
+    },
+    {
       title: "Time Tracking",
       description: "Log working hours",
       icon: Clock,
-      onClick: () => router.push("/time-tracking"),
+      onClick: () => router.push("/dashboard/time-tracking"),
       color: "from-amber-500 to-orange-500",
     },
     ...(hasRole(["super_admin", "admin", "hr_manager"])
@@ -67,7 +87,7 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
             title: "Leave Requests",
             description: "Review pending leaves",
             icon: FileText,
-            onClick: () => router.push("/leaves"),
+            onClick: () => router.push("/dashboard/leaves"),
             color: "from-rose-500 to-pink-500",
           },
         ]
@@ -76,8 +96,8 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
       title: "View Reports",
       description: "Analytics & insights",
       icon: BarChart3,
-      onClick: () => router.push("/reports"),
-      color: "from-purple-500 to-indigo-500",
+      onClick: () => router.push("/dashboard/reports"),
+      color: "from-cyan-500 to-blue-500",
     },
   ];
 
@@ -91,12 +111,12 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {actions.map((action, index) => (
           <button
             key={action.title}
             onClick={action.onClick}
-            className="group relative overflow-hidden bg-slate-900/40 backdrop-blur-sm rounded-xl p-4 border border-slate-800 hover:border-slate-700 transition-all duration-300 text-left"
+            className="group relative overflow-hidden bg-slate-900/40 backdrop-blur-sm rounded-xl p-4 border border-slate-800 hover:border-slate-700 transition-all duration-300 text-left hover:shadow-lg hover:shadow-indigo-500/5"
             style={{ animationDelay: `${index * 0.05}s` }}
           >
             <div
@@ -110,7 +130,9 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
             <h3 className="text-sm font-medium text-white mb-0.5">
               {action.title}
             </h3>
-            <p className="text-[10px] text-slate-500">{action.description}</p>
+            <p className="text-[10px] text-slate-500 line-clamp-1">
+              {action.description}
+            </p>
           </button>
         ))}
       </div>

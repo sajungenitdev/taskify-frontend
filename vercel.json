@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/v1/(.*)",
-      "destination": "https://taskify-server-5gat.onrender.com/"
+      "destination": "http://localhost:5000/"
     }
   ]
 }

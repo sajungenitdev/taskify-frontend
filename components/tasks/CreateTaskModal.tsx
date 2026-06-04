@@ -16,6 +16,7 @@ import {
   Timer,
   Paperclip,
   Link2,
+  FolderKanban,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -41,6 +42,15 @@ interface Department {
   employeeCount: number;
 }
 
+interface Project {
+  _id: string;
+  name: string;
+  code: string;
+  description: string;
+  status: string;
+  departmentId: { _id: string; name: string };
+}
+
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -55,8 +65,10 @@ export default function CreateTaskModal({
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [selectedProject, setSelectedProject] = useState("");
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
@@ -71,7 +83,6 @@ export default function CreateTaskModal({
     priority: "normal",
     estimatedHours: 1,
     actualMinutes: 0,
-    project: "",
     departmentId: "",
     isApprovalRequired: false,
     evidenceRequired: false,
@@ -91,6 +102,18 @@ export default function CreateTaskModal({
     }
   }, []);
 
+  // Fetch projects
+  const fetchProjects = useCallback(async () => {
+    try {
+      const response = await api.get("/projects");
+      if (response.data.success) {
+        setProjects(response.data.data);
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+    }
+  }, []);
+
   // Fetch all users
   const fetchAllUsers = useCallback(async () => {
     try {
@@ -107,21 +130,24 @@ export default function CreateTaskModal({
     }
   }, []);
 
-  // Load data when modal opens - using a separate effect to avoid warnings
+  // Load data when modal opens
   useEffect(() => {
     if (isOpen && !isDataLoaded) {
       const loadData = async () => {
-        await Promise.all([fetchDepartments(), fetchAllUsers()]);
+        await Promise.all([
+          fetchDepartments(),
+          fetchProjects(),
+          fetchAllUsers(),
+        ]);
         setIsDataLoaded(true);
       };
       loadData();
     }
 
-    // Reset data loaded flag when modal closes
     if (!isOpen) {
       setIsDataLoaded(false);
     }
-  }, [isOpen, fetchDepartments, fetchAllUsers, isDataLoaded]);
+  }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
   // Filter users by selected department
   useEffect(() => {
@@ -147,6 +173,16 @@ export default function CreateTaskModal({
     }
   }, [selectedDepartment, users]);
 
+  // Auto-select department when project is selected
+  useEffect(() => {
+    if (selectedProject) {
+      const project = projects.find((p) => p._id === selectedProject);
+      if (project && project.departmentId) {
+        setSelectedDepartment(project.departmentId._id);
+      }
+    }
+  }, [selectedProject, projects]);
+
   const handleAddEvidenceUrl = () => {
     if (newUrl && newUrl.trim()) {
       setEvidenceUrls([...evidenceUrls, newUrl.trim()]);
@@ -165,9 +201,10 @@ export default function CreateTaskModal({
       !formData.title ||
       !formData.description ||
       !formData.assignedTo ||
-      !formData.deadline
+      !formData.deadline ||
+      !selectedProject
     ) {
-      toast.error("Please fill in all required fields");
+      toast.error("Please fill in all required fields including project");
       return;
     }
 
@@ -178,11 +215,11 @@ export default function CreateTaskModal({
         description: formData.description,
         assignedTo: formData.assignedTo,
         deadline: formData.deadline,
+        projectId: selectedProject,
         revisedDeadline: formData.revisedDeadline || undefined,
         priority: formData.priority,
         estimatedHours: Number(formData.estimatedHours),
         actualMinutes: Number(formData.actualMinutes),
-        project: formData.project || undefined,
         departmentId: selectedDepartment,
         isApprovalRequired: formData.isApprovalRequired,
         evidenceRequired: formData.evidenceRequired,
@@ -216,7 +253,6 @@ export default function CreateTaskModal({
       priority: "normal",
       estimatedHours: 1,
       actualMinutes: 0,
-      project: "",
       departmentId: "",
       isApprovalRequired: false,
       evidenceRequired: false,
@@ -224,6 +260,7 @@ export default function CreateTaskModal({
       endTime: "",
     });
     setSelectedDepartment("");
+    setSelectedProject("");
     setEvidenceUrls([]);
     setNewUrl("");
   };
@@ -281,19 +318,23 @@ export default function CreateTaskModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Project
+                Project <span className="text-rose-400">*</span>
               </label>
               <div className="relative">
-                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input
-                  type="text"
-                  value={formData.project}
-                  onChange={(e) =>
-                    setFormData({ ...formData, project: e.target.value })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
-                  placeholder="Project name"
-                />
+                <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <select
+                  value={selectedProject}
+                  onChange={(e) => setSelectedProject(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
+                  required
+                >
+                  <option value="">Select Project</option>
+                  {projects.map((project) => (
+                    <option key={project._id} value={project._id}>
+                      {project.name} ({project.code}) - {project.status}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -328,6 +369,7 @@ export default function CreateTaskModal({
                   onChange={(e) => setSelectedDepartment(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
                   required
+                  disabled={!!selectedProject}
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
@@ -337,6 +379,11 @@ export default function CreateTaskModal({
                   ))}
                 </select>
               </div>
+              {selectedProject && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Department auto-selected from project
+                </p>
+              )}
             </div>
 
             <div>

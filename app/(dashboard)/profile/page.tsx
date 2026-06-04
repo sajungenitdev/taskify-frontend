@@ -30,6 +30,7 @@ import {
   Globe,
   Plus,
   Trash2,
+  ImageOff,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -113,6 +114,7 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const [newSkill, setNewSkill] = useState("");
   const [newLanguage, setNewLanguage] = useState("");
   const [newAchievement, setNewAchievement] = useState({
@@ -135,7 +137,7 @@ export default function ProfilePage() {
   const fetchProfile = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get("/users/me");
+      const response = await api.get("/auth/me");
       if (response.data.success) {
         setProfile(response.data.data);
         setFormData(response.data.data);
@@ -151,7 +153,7 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const response = await api.put("/users/profile", formData);
+      const response = await api.put("/auth/profile", formData);
       if (response.data.success) {
         setProfile(response.data.data);
         setFormData(response.data.data);
@@ -168,14 +170,19 @@ export default function ProfilePage() {
     }
   };
 
-  // Get full image URL
-  const getImageUrl = (imagePath: string | undefined): string => {
-    if (!imagePath) return "";
+  // Get full image URL with fallback
+  const getImageUrl = (imagePath: string | undefined): string | null => {
+    if (!imagePath || imageError) return null;
+
     // If it's already a full URL, return it
     if (imagePath.startsWith("http")) return imagePath;
+
     // Use base URL without /api/v1 for static files
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://taskify-server-5gat.onrender.com";
-    return `${baseUrl}${imagePath}`;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000";
+    const fullUrl = `${baseUrl}${imagePath}`;
+
+    // Add timestamp to prevent caching
+    return `${fullUrl}?t=${Date.now()}`;
   };
 
   const handleProfilePhotoUpload = async (
@@ -196,16 +203,18 @@ export default function ProfilePage() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("profilePhoto", file);
+    const uploadFormData = new FormData();
+    uploadFormData.append("profilePhoto", file);
 
     setIsUploading(true);
+    setImageError(false);
     try {
-      const response = await api.post("/users/profile/photo", formData, {
+      const response = await api.post("/auth/profile/photo", uploadFormData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       if (response.data.success) {
         toast.success("Profile photo updated");
+        setImageError(false);
         // Refresh profile data to get the new photo URL
         await fetchProfile();
       }
@@ -312,8 +321,6 @@ export default function ProfilePage() {
     });
   };
 
-  // Replace the existing updateNotificationPreference function with this:
-
   const updateNotificationPreference = (
     key: keyof NonNullable<UserProfile["notificationPreferences"]>,
   ) => {
@@ -358,6 +365,7 @@ export default function ProfilePage() {
   if (!profile) return null;
 
   const profileImageUrl = getImageUrl(profile.profilePhoto);
+  const hasImage = profileImageUrl && !imageError;
 
   const getStats = () => {
     return [
@@ -420,16 +428,17 @@ export default function ProfilePage() {
             <div className="absolute -bottom-12 left-6 flex items-end gap-4">
               <div className="relative">
                 <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center border-4 border-slate-900 shadow-xl overflow-hidden">
-                  {profile.profilePhoto ? (
-                    <Image
-                      src={getImageUrl(profile.profilePhoto)}
+                  {isUploading ? (
+                    <div className="flex items-center justify-center w-full h-full bg-slate-800">
+                      <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
+                    </div>
+                  ) : hasImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profileImageUrl}
                       alt={profile.fullName}
-                      fill
-                      className="object-cover"
-                      unoptimized={true}
-                      onError={() => {
-                        console.error("Image failed to load");
-                      }}
+                      className="w-full h-full object-cover"
+                      onError={() => setImageError(true)}
                     />
                   ) : (
                     <span className="text-3xl font-bold text-white">
@@ -982,34 +991,13 @@ export default function ProfilePage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        const currentValue =
-                          formData.notificationPreferences?.[
-                            item.key as keyof typeof formData.notificationPreferences
-                          ] ?? true;
-                        setFormData({
-                          ...formData,
-                          notificationPreferences: {
-                            email:
-                              formData.notificationPreferences?.email ?? true,
-                            push:
-                              formData.notificationPreferences?.push ?? true,
-                            desktop:
-                              formData.notificationPreferences?.desktop ??
-                              false,
-                            taskReminder:
-                              formData.notificationPreferences?.taskReminder ??
-                              true,
-                            deadlineAlert:
-                              formData.notificationPreferences?.deadlineAlert ??
-                              true,
-                            teamUpdate:
-                              formData.notificationPreferences?.teamUpdate ??
-                              true,
-                            [item.key]: !currentValue,
-                          },
-                        });
-                      }}
+                      onClick={() =>
+                        updateNotificationPreference(
+                          item.key as keyof NonNullable<
+                            UserProfile["notificationPreferences"]
+                          >,
+                        )
+                      }
                       className={`relative w-10 h-5 rounded-full transition-colors ${
                         formData.notificationPreferences?.[
                           item.key as keyof typeof formData.notificationPreferences

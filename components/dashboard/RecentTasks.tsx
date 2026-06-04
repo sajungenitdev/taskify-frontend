@@ -15,13 +15,15 @@ interface Task {
   priority: string;
   status: string;
   deadline: string;
+  description?: string;
+  assignedTo?: { fullName: string };
 }
 
 interface RecentTasksProps {
   tasks: Task[];
 }
 
-export default function RecentTasks({ tasks }: RecentTasksProps) {
+export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
   const router = useRouter();
 
   const getPriorityColor = (priority: string) => {
@@ -38,8 +40,10 @@ export default function RecentTasks({ tasks }: RecentTasksProps) {
     const colors = {
       pending: "bg-slate-800 text-slate-300",
       in_progress: "bg-sky-500/10 text-sky-400",
+      submitted: "bg-purple-500/10 text-purple-400",
       completed: "bg-emerald-500/10 text-emerald-400",
       overdue: "bg-rose-500/10 text-rose-400",
+      rejected: "bg-red-500/10 text-red-400",
     };
     return colors[status as keyof typeof colors] || colors.pending;
   };
@@ -57,7 +61,7 @@ export default function RecentTasks({ tasks }: RecentTasksProps) {
     return `${diffDays} days left`;
   };
 
-  if (tasks.length === 0) {
+  if (!tasks || tasks.length === 0) {
     return (
       <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl p-8 border border-slate-800 text-center">
         <CheckCircle className="w-12 h-12 text-slate-600 mx-auto mb-3" />
@@ -80,8 +84,8 @@ export default function RecentTasks({ tasks }: RecentTasksProps) {
             </p>
           </div>
           <button
-            onClick={() => router.push("/tasks")}
-            className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+            onClick={() => router.push("/dashboard/tasks")}
+            className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
           >
             View All
             <ArrowRight size={12} />
@@ -92,12 +96,12 @@ export default function RecentTasks({ tasks }: RecentTasksProps) {
         {tasks.slice(0, 5).map((task) => (
           <div
             key={task._id}
-            className="p-4 hover:bg-slate-800/30 transition-all cursor-pointer"
-            onClick={() => router.push(`/tasks/${task._id}`)}
+            className="p-4 hover:bg-slate-800/30 transition-all cursor-pointer group"
+            onClick={() => router.push(`/dashboard/tasks/${task._id}`)}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h4 className="text-white text-sm font-medium mb-2">
+                <h4 className="text-white text-sm font-medium mb-2 line-clamp-1">
                   {task.title}
                 </h4>
                 <div className="flex flex-wrap items-center gap-2">

@@ -1,70 +1,65 @@
 import axios from "axios";
-import toast from "react-hot-toast";
 
-const getBaseUrl = () => {
-  // In production, use the full Render URL
-  if (process.env.NODE_ENV === "production") {
-    return "https://taskify-server-5gat.onrender.com/api/v1";
-  }
-  // In development, use localhost
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
-};
+// Get base URL from environment variable
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:5000/api/v1";
+
+console.log("API Base URL:", API_BASE_URL); // Debug log
 
 const api = axios.create({
-  baseURL: getBaseUrl(),
+  baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 30000,
+  withCredentials: false,
 });
 
 // Request interceptor
 api.interceptors.request.use(
   (config) => {
-    const publicEndpoints = [
-      "/auth/login",
-      "/auth/active-users",
-      "/auth/forgot-password",
-      "/auth/reset-password",
-      "/auth/refresh-token",
-    ];
-    
-    const isPublic = publicEndpoints.some((endpoint) =>
-      config.url?.includes(endpoint),
-    );
-
-    if (!isPublic) {
-      const token = localStorage.getItem("token");
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(
+      `API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+    );
     return config;
   },
-  (error) => Promise.reject(error),
+  (error) => {
+    console.error("Request Error:", error);
+    return Promise.reject(error);
+  },
 );
 
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
-    // Log responses in development for debugging
-    if (process.env.NODE_ENV === "development") {
-      console.log(`API Response [${response.config.url}]:`, response.data);
-    }
+    console.log(`API Response: ${response.status} ${response.config.url}`);
     return response;
   },
   (error) => {
-    console.error("API Error:", error.response?.data || error.message);
-    
-    if (
-      error.response?.status === 401 &&
-      !window.location.pathname.includes("/login")
-    ) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-      toast.error("Session expired. Please login again.");
+    if (error.response) {
+      console.error("API Error Response:", {
+        status: error.response.status,
+        data: error.response.data,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL,
+      });
+
+      // Handle 401 unauthorized
+      if (error.response.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/login";
+      }
+    } else if (error.request) {
+      console.error("No response received:", error.request);
+    } else {
+      console.error("Error setting up request:", error.message);
     }
+
     return Promise.reject(error);
   },
 );
