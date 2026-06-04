@@ -134,19 +134,67 @@ export default function LoginPage() {
       try {
         setLoadingUsers(true);
         setError(null);
+
+        // Make the API call
         const response = await api.get("/auth/active-users");
-        if (response.data.success && response.data.data.length > 0) {
-          setActiveUsers(response.data.data);
+
+        // Debug log - remove in production
+        console.log("Active users response:", response.data);
+
+        // Handle different response structures safely
+        let usersData = [];
+
+        // Check if response.data exists
+        if (response.data) {
+          // Case 1: response.data.data is the array (your backend structure)
+          if (response.data.data && Array.isArray(response.data.data)) {
+            usersData = response.data.data;
+          }
+          // Case 2: response.data itself is the array
+          else if (Array.isArray(response.data)) {
+            usersData = response.data;
+          }
+          // Case 3: response.data has a users array
+          else if (response.data.users && Array.isArray(response.data.users)) {
+            usersData = response.data.users;
+          }
+          // Case 4: response.data has success and data properties but data is an object
+          else if (response.data.success && response.data.data) {
+            usersData = Array.isArray(response.data.data)
+              ? response.data.data
+              : [];
+          }
+        }
+
+        // Set the users if we have any
+        if (usersData.length > 0) {
+          setActiveUsers(usersData);
+          setError(null);
         } else {
           setError("No active users found in the system");
         }
       } catch (err: any) {
         console.error("Failed to fetch active users:", err);
-        setError(err.response?.data?.message || "Failed to load users");
+
+        // More detailed error message
+        let errorMessage = "Failed to load users";
+        if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.message === "Network Error") {
+          errorMessage =
+            "Cannot connect to server. Please check your connection.";
+        } else if (err.response?.status === 404) {
+          errorMessage = "API endpoint not found. Please contact support.";
+        } else if (err.response?.status === 500) {
+          errorMessage = "Server error. Please try again later.";
+        }
+
+        setError(errorMessage);
       } finally {
         setLoadingUsers(false);
       }
     };
+
     fetchActiveUsers();
   }, []);
 
@@ -336,6 +384,7 @@ export default function LoginPage() {
               </span>
             </div>
           )}
+
           {!loadingUsers && error && (
             <div className="text-center py-4">
               <p className="text-xs text-amber-400">{error}</p>
