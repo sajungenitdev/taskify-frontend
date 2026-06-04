@@ -5,7 +5,7 @@ const getBaseUrl = () => {
   if (process.env.NODE_ENV === "production") {
     return "/api/v1";
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+  return process.env.NEXT_PUBLIC_API_URL || "https://taskify-server-5gat.onrender.com/api/v1";
 };
 
 const api = axios.create({
