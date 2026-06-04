@@ -45,9 +45,10 @@ export default function TaskStatusChart({ data }: TaskStatusChartProps) {
               outerRadius={80}
               paddingAngle={2}
               dataKey="count"
-              label={({ name, percent }) =>
-                `${name} ${(percent * 100).toFixed(0)}%`
-              }
+              label={({ name, percent }) => {
+                if (percent === undefined) return name;
+                return `${name} ${(percent * 100).toFixed(0)}%`;
+              }}
               labelLine={false}
             >
               {data.map((entry, index) => (
