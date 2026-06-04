@@ -169,13 +169,12 @@ export default function ProfilePage() {
   };
 
   // Get full image URL
-  const getImageUrl = (imagePath: string | undefined) => {
-    if (!imagePath) return null;
+  const getImageUrl = (imagePath: string | undefined): string => {
+    if (!imagePath) return "";
     // If it's already a full URL, return it
     if (imagePath.startsWith("http")) return imagePath;
-    // Otherwise, construct the full URL
-    const baseUrl =
-      process.env.NEXT_PUBLIC_API_URL_UPLOAD || "http://localhost:5000";
+    // Use base URL without /api/v1 for static files
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000";
     return `${baseUrl}${imagePath}`;
   };
 
@@ -422,26 +421,14 @@ export default function ProfilePage() {
               <div className="relative">
                 <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center border-4 border-slate-900 shadow-xl overflow-hidden">
                   {profile.profilePhoto ? (
-                    <img
+                    <Image
                       src={getImageUrl(profile.profilePhoto)}
                       alt={profile.fullName}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        console.error(
-                          "Image failed to load:",
-                          getImageUrl(profile.profilePhoto),
-                        );
-                        (e.target as HTMLImageElement).style.display = "none";
-                        // Show fallback
-                        const parent = (e.target as HTMLImageElement)
-                          .parentElement;
-                        if (parent) {
-                          const span = document.createElement("span");
-                          span.className = "text-3xl font-bold text-white";
-                          span.textContent =
-                            profile.fullName?.charAt(0).toUpperCase() || "U";
-                          parent.appendChild(span);
-                        }
+                      fill
+                      className="object-cover"
+                      unoptimized={true}
+                      onError={() => {
+                        console.error("Image failed to load");
                       }}
                     />
                   ) : (
