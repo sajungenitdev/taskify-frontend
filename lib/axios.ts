@@ -3,7 +3,7 @@ import axios from "axios";
 // Get base URL from environment variable
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:5000/api/v1";
+  "https://taskify-server-5gat.onrender.com/api/v1";
 
 console.log("API Base URL:", API_BASE_URL); // Debug log
 

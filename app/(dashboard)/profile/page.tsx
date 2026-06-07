@@ -178,7 +178,7 @@ export default function ProfilePage() {
     if (imagePath.startsWith("http")) return imagePath;
 
     // Use base URL without /api/v1 for static files
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:5000";
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://taskify-server-5gat.onrender.com";
     const fullUrl = `${baseUrl}${imagePath}`;
 
     // Add timestamp to prevent caching
