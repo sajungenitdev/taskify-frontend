@@ -35,12 +35,16 @@ import {
   ChevronUp,
   Award,
   Info,
+  Reply,
+  MoreVertical,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 
+// Types
 interface Task {
   _id: string;
   title: string;
@@ -60,6 +64,10 @@ interface Task {
   assignedBy: { _id: string; fullName: string };
   projectId?: { _id: string; name: string; code: string };
   evidenceUrls?: string[];
+  commentsCount?: number;
+  attachmentsCount?: number;
+  reviewsCount?: number;
+  averageRating?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -67,8 +75,14 @@ interface Task {
 interface Comment {
   _id: string;
   content: string;
-  author: { _id: string; fullName: string; email: string };
+  author: { _id: string; fullName: string; email: string; avatar?: string };
+  parentCommentId?: string | null;
+  replies?: Comment[];
+  likes: string[];
+  isEdited: boolean;
+  editedAt?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 interface Attachment {
@@ -78,7 +92,8 @@ interface Attachment {
   mimeType: string;
   size: number;
   url: string;
-  uploadedBy: { _id: string; fullName: string };
+  thumbnailUrl?: string;
+  uploadedBy: { _id: string; fullName: string; email: string };
   createdAt: string;
 }
 
@@ -86,8 +101,14 @@ interface Review {
   _id: string;
   rating: number;
   comment: string;
-  reviewer: { _id: string; fullName: string; email: string };
+  reviewer: { _id: string; fullName: string; email: string; avatar?: string };
+  response?: {
+    content: string;
+    respondedBy: { _id: string; fullName: string };
+    respondedAt: string;
+  };
   createdAt: string;
+  updatedAt: string;
 }
 
 export default function TaskDetailPage() {
@@ -109,12 +130,14 @@ export default function TaskDetailPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [commentsEnabled, setCommentsEnabled] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyContent, setReplyContent] = useState("");
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
 
   // Attachments state
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
-  const [attachmentsEnabled, setAttachmentsEnabled] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reviews state
@@ -123,7 +146,11 @@ export default function TaskDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
-  const [reviewsEnabled, setReviewsEnabled] = useState(true);
+  const [reviewStats, setReviewStats] = useState({
+    total: 0,
+    averageRating: 0,
+    ratingDistribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+  });
 
   // UI state
   const [showComments, setShowComments] = useState(true);
@@ -155,13 +182,13 @@ export default function TaskDetailPage() {
   useEffect(() => {
     if (isAuthenticated && id) {
       fetchTask();
-      // Try to fetch optional features, but don't fail if they don't exist
-      fetchComments().catch(() => setCommentsEnabled(false));
-      fetchAttachments().catch(() => setAttachmentsEnabled(false));
-      fetchReviews().catch(() => setReviewsEnabled(false));
+      fetchComments();
+      fetchAttachments();
+      fetchReviews();
     }
   }, [isAuthenticated, id]);
 
+  // Fetch Task
   const fetchTask = async () => {
     try {
       setLoading(true);
@@ -193,6 +220,10 @@ export default function TaskDetailPage() {
           assignedBy: taskData.assignedBy || { _id: "", fullName: "Unknown" },
           createdAt: taskData.createdAt || new Date().toISOString(),
           updatedAt: taskData.updatedAt || new Date().toISOString(),
+          commentsCount: taskData.commentsCount || 0,
+          attachmentsCount: taskData.attachmentsCount || 0,
+          reviewsCount: taskData.reviewsCount || 0,
+          averageRating: taskData.averageRating || 0,
         };
         setTask(formattedTask);
       } else {
@@ -213,53 +244,22 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Comments API
   const fetchComments = async () => {
     try {
       const response = await api.get(`/tasks/${id}/comments`);
       if (response.data.success) {
         setComments(response.data.data || []);
-        setCommentsEnabled(true);
       }
     } catch (error: any) {
-      console.log("Comments feature not available:", error.response?.status);
-      setCommentsEnabled(false);
-    }
-  };
-
-  const fetchAttachments = async () => {
-    try {
-      const response = await api.get(`/tasks/${id}/attachments`);
-      if (response.data.success) {
-        setAttachments(response.data.data || []);
-        setAttachmentsEnabled(true);
-      }
-    } catch (error: any) {
-      console.log("Attachments feature not available:", error.response?.status);
-      setAttachmentsEnabled(false);
-    }
-  };
-
-  const fetchReviews = async () => {
-    try {
-      const response = await api.get(`/tasks/${id}/reviews`);
-      if (response.data.success) {
-        setReviews(response.data.data || []);
-        setReviewsEnabled(true);
-      }
-    } catch (error: any) {
-      console.log("Reviews feature not available:", error.response?.status);
-      setReviewsEnabled(false);
+      console.error("Error fetching comments:", error);
+      toast.error("Failed to load comments");
     }
   };
 
   const handleAddComment = async () => {
     if (!newComment.trim()) {
       toast.error("Please enter a comment");
-      return;
-    }
-
-    if (!commentsEnabled) {
-      toast.error("Comments feature is not available yet");
       return;
     }
 
@@ -273,12 +273,75 @@ export default function TaskDetailPage() {
         toast.success("Comment added successfully");
         setNewComment("");
         fetchComments();
+        fetchTask(); // Update task to refresh comment count
       }
     } catch (error: any) {
       console.error("Error adding comment:", error);
       toast.error(error.response?.data?.message || "Failed to add comment");
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const handleAddReply = async (commentId: string) => {
+    if (!replyContent.trim()) {
+      toast.error("Please enter a reply");
+      return;
+    }
+
+    try {
+      const response = await api.post(`/tasks/${id}/comments`, {
+        content: replyContent,
+        parentCommentId: commentId,
+      });
+
+      if (response.data.success) {
+        toast.success("Reply added successfully");
+        setReplyContent("");
+        setReplyingTo(null);
+        fetchComments();
+        fetchTask();
+      }
+    } catch (error: any) {
+      console.error("Error adding reply:", error);
+      toast.error(error.response?.data?.message || "Failed to add reply");
+    }
+  };
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (!editContent.trim()) {
+      toast.error("Please enter content");
+      return;
+    }
+
+    try {
+      const response = await api.put(`/tasks/${id}/comments/${commentId}`, {
+        content: editContent,
+      });
+
+      if (response.data.success) {
+        toast.success("Comment updated successfully");
+        setEditingComment(null);
+        setEditContent("");
+        fetchComments();
+      }
+    } catch (error: any) {
+      console.error("Error updating comment:", error);
+      toast.error(error.response?.data?.message || "Failed to update comment");
+    }
+  };
+
+  const handleLikeComment = async (commentId: string) => {
+    try {
+      const response = await api.post(
+        `/tasks/${id}/comments/${commentId}/like`,
+      );
+      if (response.data.success) {
+        fetchComments();
+      }
+    } catch (error: any) {
+      console.error("Error liking comment:", error);
+      toast.error(error.response?.data?.message || "Failed to like comment");
     }
   };
 
@@ -290,9 +353,23 @@ export default function TaskDetailPage() {
       if (response.data.success) {
         toast.success("Comment deleted successfully");
         fetchComments();
+        fetchTask();
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to delete comment");
+    }
+  };
+
+  // Attachments API
+  const fetchAttachments = async () => {
+    try {
+      const response = await api.get(`/tasks/${id}/attachments`);
+      if (response.data.success) {
+        setAttachments(response.data.data || []);
+      }
+    } catch (error: any) {
+      console.error("Error fetching attachments:", error);
+      toast.error("Failed to load attachments");
     }
   };
 
@@ -301,11 +378,6 @@ export default function TaskDetailPage() {
   ) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-
-    if (!attachmentsEnabled) {
-      toast.error("Attachments feature is not available yet");
-      return;
-    }
 
     setUploadingFiles(true);
     const formData = new FormData();
@@ -322,6 +394,7 @@ export default function TaskDetailPage() {
       if (response.data.success) {
         toast.success(`${files.length} file(s) uploaded successfully`);
         fetchAttachments();
+        fetchTask();
       }
     } catch (error: any) {
       console.error("Error uploading files:", error);
@@ -367,6 +440,7 @@ export default function TaskDetailPage() {
       if (response.data.success) {
         toast.success("Attachment deleted successfully");
         fetchAttachments();
+        fetchTask();
       }
     } catch (error: any) {
       toast.error(
@@ -375,14 +449,24 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Reviews API
+  const fetchReviews = async () => {
+    try {
+      const response = await api.get(`/tasks/${id}/reviews`);
+      if (response.data.success) {
+        setReviews(response.data.data || []);
+        if (response.data.stats) {
+          setReviewStats(response.data.stats);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching reviews:", error);
+    }
+  };
+
   const handleAddReview = async () => {
     if (!reviewComment.trim()) {
       toast.error("Please enter a review comment");
-      return;
-    }
-
-    if (!reviewsEnabled) {
-      toast.error("Reviews feature is not available yet");
       return;
     }
 
@@ -399,6 +483,7 @@ export default function TaskDetailPage() {
         setReviewRating(5);
         setReviewComment("");
         fetchReviews();
+        fetchTask();
       }
     } catch (error: any) {
       console.error("Error submitting review:", error);
@@ -408,6 +493,22 @@ export default function TaskDetailPage() {
     }
   };
 
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!confirm("Are you sure you want to delete this review?")) return;
+
+    try {
+      const response = await api.delete(`/tasks/${id}/reviews/${reviewId}`);
+      if (response.data.success) {
+        toast.success("Review deleted successfully");
+        fetchReviews();
+        fetchTask();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete review");
+    }
+  };
+
+  // Task Status Updates
   const updateTaskStatus = async (newStatus: string) => {
     setUpdating(true);
     try {
@@ -446,9 +547,7 @@ export default function TaskDetailPage() {
       if (response.data.success) {
         toast.success("✅ Task approved and completed!");
         fetchTask();
-        if (reviewsEnabled) {
-          setShowReviewModal(true);
-        }
+        setShowReviewModal(true);
       }
     } catch (error: any) {
       console.error("Error approving task:", error);
@@ -509,6 +608,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Helper Functions
   const getPriorityConfig = (priority: string) => {
     const config = {
       low: {
@@ -607,10 +707,174 @@ export default function TaskDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  const averageRating =
-    reviews.length > 0
-      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
-      : 0;
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType?.startsWith("image/")) return <ImageIcon size={20} />;
+    if (mimeType === "application/pdf") return <FileText size={20} />;
+    return <File size={20} />;
+  };
+
+  // Render Comment Component
+  const CommentItem = ({
+    comment,
+    depth = 0,
+  }: {
+    comment: Comment;
+    depth?: number;
+  }) => {
+    const [showReply, setShowReply] = useState(false);
+    const [localReplyContent, setLocalReplyContent] = useState("");
+    const isLiked = comment.likes?.includes(user?._id || "");
+
+    return (
+      <div className={`${depth > 0 ? "ml-8 mt-3" : "mb-4"}`}>
+        <div className="bg-slate-900 rounded-lg p-3">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-bold">
+                {comment.author?.fullName?.charAt(0) || "?"}
+              </span>
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <div>
+                  <span className="text-white text-sm font-medium">
+                    {comment.author?.fullName}
+                  </span>
+                  <span className="text-slate-500 text-xs ml-2">
+                    {formatDateTime(comment.createdAt)}
+                  </span>
+                  {comment.isEdited && (
+                    <span className="text-slate-500 text-xs ml-2">
+                      (edited)
+                    </span>
+                  )}
+                </div>
+                {(comment.author?._id === user?._id || canManage) && (
+                  <div className="flex items-center gap-1">
+                    {comment.author?._id === user?._id && (
+                      <button
+                        onClick={() => {
+                          setEditingComment(comment._id);
+                          setEditContent(comment.content);
+                        }}
+                        className="p-1 text-slate-500 hover:text-blue-400 transition"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteComment(comment._id)}
+                      className="p-1 text-slate-500 hover:text-rose-400 transition"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {editingComment === comment._id ? (
+                <div className="mt-2">
+                  <textarea
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-indigo-500 outline-none"
+                    rows={2}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => handleUpdateComment(comment._id)}
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded transition"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingComment(null);
+                        setEditContent("");
+                      }}
+                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-slate-300 text-sm">{comment.content}</p>
+              )}
+
+              <div className="flex items-center gap-4 mt-2">
+                <button
+                  onClick={() => handleLikeComment(comment._id)}
+                  className={`flex items-center gap-1 text-xs transition ${
+                    isLiked
+                      ? "text-indigo-400"
+                      : "text-slate-500 hover:text-indigo-400"
+                  }`}
+                >
+                  <ThumbsUp size={12} />
+                  {comment.likes?.length || 0} Likes
+                </button>
+                <button
+                  onClick={() => setShowReply(!showReply)}
+                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-400 transition"
+                >
+                  <Reply size={12} />
+                  Reply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {showReply && (
+          <div className="mt-2 ml-8">
+            <div className="flex gap-2">
+              <textarea
+                value={localReplyContent}
+                onChange={(e) => setLocalReplyContent(e.target.value)}
+                placeholder="Write a reply..."
+                rows={2}
+                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:border-indigo-500 outline-none resize-none"
+              />
+              <button
+                onClick={async () => {
+                  if (!localReplyContent.trim()) return;
+                  try {
+                    const response = await api.post(`/tasks/${id}/comments`, {
+                      content: localReplyContent,
+                      parentCommentId: comment._id,
+                    });
+                    if (response.data.success) {
+                      toast.success("Reply added successfully");
+                      setLocalReplyContent("");
+                      setShowReply(false);
+                      fetchComments();
+                      fetchTask();
+                    }
+                  } catch (error: any) {
+                    toast.error(
+                      error.response?.data?.message || "Failed to add reply",
+                    );
+                  }
+                }}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition"
+              >
+                <Send size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="mt-2">
+            {comment.replies.map((reply) => (
+              <CommentItem key={reply._id} comment={reply} depth={depth + 1} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (authLoading || loading) {
     return (
@@ -629,7 +893,7 @@ export default function TaskDetailPage() {
         <div className="p-6 lg:p-8">
           <div className="max-w-5xl mx-auto">
             <Link
-              href="/tasks"
+              href="/tasks/my"
               className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6"
             >
               <ArrowLeft size={18} />
@@ -647,7 +911,7 @@ export default function TaskDetailPage() {
                   "The task you're looking for doesn't exist or has been deleted."}
               </p>
               <Link
-                href="/tasks"
+                href="/tasks/my"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition"
               >
                 <ArrowLeft size={16} />
@@ -686,7 +950,7 @@ export default function TaskDetailPage() {
 
           {/* Main Content */}
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left Column */}
+            {/* Left Column - Task Details */}
             <div className="lg:col-span-2 space-y-6">
               {/* Task Header */}
               <motion.div
@@ -742,7 +1006,7 @@ export default function TaskDetailPage() {
                 </div>
               </motion.div>
 
-              {/* Task Details */}
+              {/* Task Information */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -828,228 +1092,205 @@ export default function TaskDetailPage() {
               </motion.div>
 
               {/* Comments Section */}
-              {commentsEnabled && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
+              >
+                <button
+                  onClick={() => setShowComments(!showComments)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
                 >
-                  <button
-                    onClick={() => setShowComments(!showComments)}
-                    className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <MessageSquare className="w-5 h-5 text-indigo-400" />
-                      <h3 className="text-lg font-semibold text-white">
-                        Comments ({comments.length})
-                      </h3>
-                    </div>
-                    {showComments ? (
-                      <ChevronUp size={20} className="text-slate-400" />
-                    ) : (
-                      <ChevronDown size={20} className="text-slate-400" />
-                    )}
-                  </button>
-
-                  {showComments && (
-                    <div className="p-5 pt-0 space-y-5">
-                      <div className="flex gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-sm font-bold">
-                            {user?.fullName?.charAt(0) || "?"}
-                          </span>
-                        </div>
-                        <div className="flex-1">
-                          <textarea
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Write a comment..."
-                            rows={3}
-                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 outline-none resize-none"
-                          />
-                          <div className="flex justify-end mt-2">
-                            <button
-                              onClick={handleAddComment}
-                              disabled={submittingComment || !newComment.trim()}
-                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
-                            >
-                              {submittingComment ? (
-                                <Loader2 size={16} className="animate-spin" />
-                              ) : (
-                                <Send size={16} />
-                              )}
-                              Post Comment
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {comments.length === 0 ? (
-                          <div className="text-center py-8 text-slate-500">
-                            No comments yet. Be the first to comment!
-                          </div>
-                        ) : (
-                          comments.map((comment) => (
-                            <div key={comment._id} className="flex gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0">
-                                <span className="text-white text-xs font-bold">
-                                  {comment.author?.fullName?.charAt(0) || "?"}
-                                </span>
-                              </div>
-                              <div className="flex-1">
-                                <div className="bg-slate-900 rounded-lg p-3">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <div>
-                                      <span className="text-white text-sm font-medium">
-                                        {comment.author?.fullName}
-                                      </span>
-                                      <span className="text-slate-500 text-xs ml-2">
-                                        {formatDateTime(comment.createdAt)}
-                                      </span>
-                                    </div>
-                                    {(comment.author?._id === user?._id ||
-                                      canManage) && (
-                                      <button
-                                        onClick={() =>
-                                          handleDeleteComment(comment._id)
-                                        }
-                                        className="text-slate-500 hover:text-rose-400 transition"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    )}
-                                  </div>
-                                  <p className="text-slate-300 text-sm">
-                                    {comment.content}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="w-5 h-5 text-indigo-400" />
+                    <h3 className="text-lg font-semibold text-white">
+                      Comments ({comments.length})
+                    </h3>
+                  </div>
+                  {showComments ? (
+                    <ChevronUp size={20} className="text-slate-400" />
+                  ) : (
+                    <ChevronDown size={20} className="text-slate-400" />
                   )}
-                </motion.div>
-              )}
+                </button>
 
-              {/* Attachments Section */}
-              {attachmentsEnabled && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
-                >
-                  <button
-                    onClick={() => setShowAttachments(!showAttachments)}
-                    className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Paperclip className="w-5 h-5 text-indigo-400" />
-                      <h3 className="text-lg font-semibold text-white">
-                        Attachments ({attachments.length})
-                      </h3>
-                    </div>
-                    {showAttachments ? (
-                      <ChevronUp size={20} className="text-slate-400" />
-                    ) : (
-                      <ChevronDown size={20} className="text-slate-400" />
-                    )}
-                  </button>
-
-                  {showAttachments && (
-                    <div className="p-5 pt-0">
-                      <div className="mb-4">
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          multiple
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id="file-upload"
-                        />
-                        <label
-                          htmlFor="file-upload"
-                          className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-slate-700 rounded-lg cursor-pointer hover:border-indigo-500 transition bg-slate-900/30"
-                        >
-                          {uploadingFiles ? (
-                            <Loader2
-                              size={20}
-                              className="animate-spin text-indigo-400"
-                            />
-                          ) : (
-                            <>
-                              <Upload size={20} className="text-slate-400" />
-                              <span className="text-slate-400">
-                                Click to upload files
-                              </span>
-                            </>
-                          )}
-                        </label>
+                {showComments && (
+                  <div className="p-5 pt-0 space-y-5">
+                    {/* Add Comment */}
+                    <div className="flex gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-bold">
+                          {user?.fullName?.charAt(0) || "?"}
+                        </span>
                       </div>
+                      <div className="flex-1">
+                        <textarea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Write a comment..."
+                          rows={3}
+                          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 outline-none resize-none"
+                        />
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={handleAddComment}
+                            disabled={submittingComment || !newComment.trim()}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+                          >
+                            {submittingComment ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Send size={16} />
+                            )}
+                            Post Comment
+                          </button>
+                        </div>
+                      </div>
+                    </div>
 
-                      {attachments.length === 0 ? (
+                    {/* Comments List */}
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto">
+                      {comments.length === 0 ? (
                         <div className="text-center py-8 text-slate-500">
-                          No attachments yet.
+                          No comments yet. Be the first to comment!
                         </div>
                       ) : (
-                        <div className="space-y-2">
-                          {attachments.map((attachment) => (
-                            <div
-                              key={attachment._id}
-                              className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-700 hover:border-indigo-500 transition"
-                            >
-                              <div className="flex items-center gap-3 flex-1">
-                                <FileText
-                                  size={20}
-                                  className="text-slate-400"
-                                />
-                                <div className="flex-1">
-                                  <p className="text-white text-sm">
-                                    {attachment.originalName}
-                                  </p>
-                                  <p className="text-slate-500 text-xs">
-                                    {formatFileSize(attachment.size)}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() =>
-                                    handleDownloadAttachment(attachment)
-                                  }
-                                  className="p-2 text-slate-400 hover:text-indigo-400 transition"
-                                  title="Download"
-                                >
-                                  <Download size={16} />
-                                </button>
-                                {(canManage ||
-                                  attachment.uploadedBy?._id === user?._id) && (
-                                  <button
-                                    onClick={() =>
-                                      handleDeleteAttachment(attachment._id)
-                                    }
-                                    className="p-2 text-slate-400 hover:text-rose-400 transition"
-                                    title="Delete"
-                                  >
-                                    <Trash size={16} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        comments.map((comment) => (
+                          <CommentItem key={comment._id} comment={comment} />
+                        ))
                       )}
                     </div>
+                  </div>
+                )}
+              </motion.div>
+
+              {/* Attachments Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
+              >
+                <button
+                  onClick={() => setShowAttachments(!showAttachments)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <Paperclip className="w-5 h-5 text-indigo-400" />
+                    <h3 className="text-lg font-semibold text-white">
+                      Attachments ({attachments.length})
+                    </h3>
+                  </div>
+                  {showAttachments ? (
+                    <ChevronUp size={20} className="text-slate-400" />
+                  ) : (
+                    <ChevronDown size={20} className="text-slate-400" />
                   )}
-                </motion.div>
-              )}
+                </button>
+
+                {showAttachments && (
+                  <div className="p-5 pt-0">
+                    {/* Upload Area */}
+                    <div className="mb-4">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <label
+                        htmlFor="file-upload"
+                        className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-slate-700 rounded-lg cursor-pointer hover:border-indigo-500 transition bg-slate-900/30"
+                      >
+                        {uploadingFiles ? (
+                          <Loader2
+                            size={20}
+                            className="animate-spin text-indigo-400"
+                          />
+                        ) : (
+                          <>
+                            <Upload size={20} className="text-slate-400" />
+                            <span className="text-slate-400">
+                              Click to upload files
+                            </span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+
+                    {/* Attachments List */}
+                    {attachments.length === 0 ? (
+                      <div className="text-center py-8 text-slate-500">
+                        No attachments yet.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {attachments.map((attachment) => (
+                          <div
+                            key={attachment._id}
+                            className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-700 hover:border-indigo-500 transition"
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              {attachment.mimeType?.startsWith("image/") ? (
+                                <div
+                                  className="w-10 h-10 rounded bg-slate-800 flex items-center justify-center cursor-pointer hover:opacity-80 transition"
+                                  onClick={() =>
+                                    setSelectedImage(attachment.url)
+                                  }
+                                >
+                                  <ImageIcon
+                                    size={20}
+                                    className="text-slate-400"
+                                  />
+                                </div>
+                              ) : (
+                                getFileIcon(attachment.mimeType)
+                              )}
+                              <div className="flex-1">
+                                <p className="text-white text-sm">
+                                  {attachment.originalName}
+                                </p>
+                                <p className="text-slate-500 text-xs">
+                                  {formatFileSize(attachment.size)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() =>
+                                  handleDownloadAttachment(attachment)
+                                }
+                                className="p-2 text-slate-400 hover:text-indigo-400 transition"
+                                title="Download"
+                              >
+                                <Download size={16} />
+                              </button>
+                              {(canManage ||
+                                attachment.uploadedBy?._id === user?._id) && (
+                                <button
+                                  onClick={() =>
+                                    handleDeleteAttachment(attachment._id)
+                                  }
+                                  className="p-2 text-slate-400 hover:text-rose-400 transition"
+                                  title="Delete"
+                                >
+                                  <Trash size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
 
               {/* Reviews Section */}
-              {reviewsEnabled && reviews.length > 0 && (
+              {reviews.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1065,11 +1306,11 @@ export default function TaskDetailPage() {
                       <h3 className="text-lg font-semibold text-white">
                         Reviews ({reviews.length})
                       </h3>
-                      {averageRating > 0 && (
+                      {reviewStats.averageRating > 0 && (
                         <div className="flex items-center gap-1">
                           <span className="text-yellow-400">★</span>
                           <span className="text-white text-sm">
-                            {averageRating.toFixed(1)}
+                            {reviewStats.averageRating.toFixed(1)}
                           </span>
                         </div>
                       )}
@@ -1082,21 +1323,21 @@ export default function TaskDetailPage() {
                   </button>
 
                   {showReviews && (
-                    <div className="p-5 pt-0 space-y-4">
+                    <div className="p-5 pt-0 space-y-4 max-h-[400px] overflow-y-auto">
                       {reviews.map((review) => (
                         <div
                           key={review._id}
                           className="bg-slate-900 rounded-lg p-4"
                         >
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
-                                <span className="text-white text-xs font-bold">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">
                                   {review.reviewer?.fullName?.charAt(0) || "?"}
                                 </span>
                               </div>
                               <div>
-                                <p className="text-white text-sm font-medium">
+                                <p className="text-white font-medium">
                                   {review.reviewer?.fullName}
                                 </p>
                                 <p className="text-slate-500 text-xs">
@@ -1104,23 +1345,45 @@ export default function TaskDetailPage() {
                                 </p>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  size={14}
-                                  className={
-                                    i < review.rating
-                                      ? "fill-yellow-400 text-yellow-400"
-                                      : "text-slate-600"
-                                  }
-                                />
-                              ))}
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    size={16}
+                                    className={
+                                      i < review.rating
+                                        ? "fill-yellow-400 text-yellow-400"
+                                        : "text-slate-600"
+                                    }
+                                  />
+                                ))}
+                              </div>
+                              {(canManage ||
+                                review.reviewer?._id === user?._id) && (
+                                <button
+                                  onClick={() => handleDeleteReview(review._id)}
+                                  className="p-1 text-slate-500 hover:text-rose-400 transition"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           </div>
                           <p className="text-slate-300 text-sm">
                             {review.comment}
                           </p>
+                          {review.response && (
+                            <div className="mt-3 pl-4 border-l-2 border-indigo-500">
+                              <p className="text-indigo-400 text-xs font-medium">
+                                Response from{" "}
+                                {review.response.respondedBy?.fullName}
+                              </p>
+                              <p className="text-slate-400 text-sm mt-1">
+                                {review.response.content}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1229,8 +1492,7 @@ export default function TaskDetailPage() {
                     </div>
                   )}
 
-                  {reviewsEnabled &&
-                    canReview &&
+                  {canReview &&
                     !reviews.some((r) => r.reviewer?._id === user?._id) && (
                       <button
                         onClick={() => setShowReviewModal(true)}
@@ -1243,6 +1505,7 @@ export default function TaskDetailPage() {
                 </div>
               </motion.div>
 
+              {/* Quick Stats */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -1265,30 +1528,31 @@ export default function TaskDetailPage() {
                       {formatDateTime(task.updatedAt)}
                     </span>
                   </div>
-                  {commentsEnabled && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 text-sm">Comments</span>
+                    <span className="text-white text-sm">
+                      {comments.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 text-sm">Attachments</span>
+                    <span className="text-white text-sm">
+                      {attachments.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 text-sm">Reviews</span>
+                    <span className="text-white text-sm">{reviews.length}</span>
+                  </div>
+                  {reviewStats.averageRating > 0 && (
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-sm">Comments</span>
-                      <span className="text-white text-sm">
-                        {comments.length}
-                      </span>
-                    </div>
-                  )}
-                  {attachmentsEnabled && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-sm">
-                        Attachments
-                      </span>
-                      <span className="text-white text-sm">
-                        {attachments.length}
-                      </span>
-                    </div>
-                  )}
-                  {reviewsEnabled && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-sm">Reviews</span>
-                      <span className="text-white text-sm">
-                        {reviews.length}
-                      </span>
+                      <span className="text-slate-400 text-sm">Avg Rating</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-yellow-400">★</span>
+                        <span className="text-white text-sm">
+                          {reviewStats.averageRating.toFixed(1)}
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1298,7 +1562,30 @@ export default function TaskDetailPage() {
         </div>
       </div>
 
-      {/* Modals */}
+      {/* Image Lightbox Modal */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-sm"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh]">
+            <img
+              src={`https://taskify-server-5gat.onrender.com${selectedImage}`}
+              alt="Preview"
+              className="max-w-full max-h-[90vh] object-contain"
+            />
+            <button
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-4 right-4 p-2 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition"
+            >
+              <X size={24} />
+            </button>
+            https://taskify-server-5gat.onrender.com{selectedImage}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
@@ -1330,6 +1617,7 @@ export default function TaskDetailPage() {
         </div>
       )}
 
+      {/* Reject Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
@@ -1378,7 +1666,8 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {showReviewModal && reviewsEnabled && (
+      {/* Review Modal */}
+      {showReviewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
             <div className="p-6">
@@ -1421,7 +1710,7 @@ export default function TaskDetailPage() {
                   rows={4}
                   value={reviewComment}
                   onChange={(e) => setReviewComment(e.target.value)}
-                  placeholder="Share your thoughts..."
+                  placeholder="Share your thoughts about this task..."
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
                 />
               </div>
@@ -1437,7 +1726,7 @@ export default function TaskDetailPage() {
                   ) : (
                     <Star size={14} />
                   )}
-                  Submit
+                  Submit Review
                 </button>
                 <button
                   onClick={() => setShowReviewModal(false)}
