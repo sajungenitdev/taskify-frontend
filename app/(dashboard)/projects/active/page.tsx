@@ -712,11 +712,12 @@ export default function ProjectsPage() {
                                 {formatCurrency(project.budget?.allocated || 0)}
                               </span>
                             </div>
-                            {project.budget?.spent > 0 && (
-                              <p className="text-xs text-slate-500 mt-1">
-                                Spent: {formatCurrency(project.budget.spent)}
-                              </p>
-                            )}
+                            {project.budget?.spent &&
+                              project.budget.spent > 0 && (
+                                <p className="text-xs text-slate-500 mt-1">
+                                  Spent: {formatCurrency(project.budget.spent)}
+                                </p>
+                              )}
                           </td>
                           <td
                             className="px-6 py-4 text-right"
