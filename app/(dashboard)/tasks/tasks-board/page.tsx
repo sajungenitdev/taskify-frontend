@@ -873,11 +873,11 @@ export default function TasksPage() {
       </div>
 
       {/* Create Task Modal */}
-      {/* Create Task Modal */}
       <CreateTaskModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={() => {
+        onTaskCreated={() => {
+          // Use the actual prop name
           fetchTasks();
           setShowCreateModal(false);
         }}
