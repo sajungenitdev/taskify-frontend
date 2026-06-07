@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -31,12 +31,13 @@ import {
   Plus,
   Trash2,
   ImageOff,
+  Crown,
+  UserCheck,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { LiaLinkedin } from "react-icons/lia";
 import { FaFacebook, FaGithub, FaInstagram, FaTwitter } from "react-icons/fa";
-import Image from "next/image";
 
 interface UserProfile {
   _id: string;
@@ -102,10 +103,11 @@ interface UserProfile {
     date: string;
     description: string;
   }[];
+  isSystemRole?: boolean;
 }
 
 export default function ProfilePage() {
-  const { user, token } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -115,6 +117,7 @@ export default function ProfilePage() {
   const [isUploading, setIsUploading] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
   const [newSkill, setNewSkill] = useState("");
   const [newLanguage, setNewLanguage] = useState("");
   const [newAchievement, setNewAchievement] = useState({
@@ -129,28 +132,92 @@ export default function ProfilePage() {
   });
   const [formData, setFormData] = useState<Partial<UserProfile>>({});
 
-  // Fetch profile data
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
-    setIsLoading(true);
-    try {
-      const response = await api.get("/auth/me");
-      if (response.data.success) {
-        setProfile(response.data.data);
-        setFormData(response.data.data);
-      }
-    } catch (error: any) {
-      console.error("Error fetching profile:", error);
-      toast.error("Failed to load profile");
-    } finally {
-      setIsLoading(false);
-    }
+  // Helper functions for role display
+  const getRoleLevel = (role: string): number => {
+    const levels: Record<string, number> = {
+      super_admin: 100,
+      admin: 90,
+      hr_manager: 80,
+      dept_manager: 70,
+      project_manager: 65,
+      line_manager: 60,
+      employee: 10,
+    };
+    return levels[role] || 50;
   };
 
-  const handleSave = async () => {
+  const getRoleDescription = (role: string): string => {
+    const descriptions: Record<string, string> = {
+      super_admin:
+        "Full system access with all permissions. Can manage everything including users, roles, departments, and system settings.",
+      admin:
+        "Administrative access with limited system control. Can manage users, departments, and view reports.",
+      hr_manager:
+        "Human resources management access. Can manage employees, attendance, leaves, and recruitment.",
+      dept_manager:
+        "Department-level management access. Can manage team tasks, approve work, and view department reports.",
+      project_manager:
+        "Project-specific management access. Can manage project tasks, assign members, and track progress.",
+      line_manager:
+        "Team management access. Can assign daily tasks, review submissions, and provide feedback.",
+      employee:
+        "Basic user access. Can view and manage own tasks, track time, and submit work.",
+    };
+    return descriptions[role] || "Standard user access.";
+  };
+
+  const getRoleIcon = (role: string) => {
+    const icons: Record<string, JSX.Element> = {
+      super_admin: <Crown size={16} className="text-purple-400" />,
+      admin: <Shield size={16} className="text-red-400" />,
+      hr_manager: <Users size={16} className="text-pink-400" />,
+      dept_manager: <Building2 size={16} className="text-orange-400" />,
+      project_manager: <Briefcase size={16} className="text-cyan-400" />,
+      line_manager: <UserCheck size={16} className="text-green-400" />,
+      employee: <User size={16} className="text-slate-400" />,
+    };
+    return icons[role] || <Shield size={16} className="text-slate-400" />;
+  };
+
+  const getRoleColor = (role: string) => {
+    const colors: Record<string, string> = {
+      super_admin: "text-purple-400 bg-purple-500/20",
+      admin: "text-red-400 bg-red-500/20",
+      hr_manager: "text-pink-400 bg-pink-500/20",
+      dept_manager: "text-orange-400 bg-orange-500/20",
+      project_manager: "text-cyan-400 bg-cyan-500/20",
+      line_manager: "text-green-400 bg-green-500/20",
+      employee: "text-slate-400 bg-slate-500/20",
+    };
+    return colors[role] || "text-indigo-400 bg-indigo-500/20";
+  };
+
+  // Get full image URL with timestamp for cache busting
+  const getImageUrl = useCallback(
+    (imagePath: string | undefined): string | null => {
+      if (!imagePath || imageError) return null;
+      if (imagePath.startsWith("http")) return imagePath;
+      const baseUrl =
+        process.env.NEXT_PUBLIC_BASE_URL ||
+        "https://taskify-server-5gat.onrender.com";
+      let cleanPath = imagePath;
+      if (!cleanPath.startsWith("/")) {
+        cleanPath = `/${cleanPath}`;
+      }
+      const fullUrl = `${baseUrl}${cleanPath}`;
+      return `${fullUrl}?t=${imageTimestamp}`;
+    },
+    [imageError, imageTimestamp],
+  );
+
+  // Refresh image after upload
+  const refreshImage = useCallback(() => {
+    setImageTimestamp(Date.now());
+    setImageError(false);
+  }, []);
+
+  // Handle save profile
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
     try {
       const response = await api.put("/auth/profile", formData);
@@ -159,77 +226,76 @@ export default function ProfilePage() {
         setFormData(response.data.data);
         setIsEditing(false);
         toast.success("Profile updated successfully");
-        // Update auth context user
         const updatedUser = { ...user, ...response.data.data };
         localStorage.setItem("user", JSON.stringify(updatedUser));
+        refreshImage();
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update profile");
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [formData, user, refreshImage]);
 
-  // Get full image URL with fallback
-  const getImageUrl = (imagePath: string | undefined): string | null => {
-    if (!imagePath || imageError) return null;
+  // Handle profile photo upload
+  const handleProfilePhotoUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-    // If it's already a full URL, return it
-    if (imagePath.startsWith("http")) return imagePath;
-
-    // Use base URL without /api/v1 for static files
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://taskify-server-5gat.onrender.com";
-    const fullUrl = `${baseUrl}${imagePath}`;
-
-    // Add timestamp to prevent caching
-    return `${fullUrl}?t=${Date.now()}`;
-  };
-
-  const handleProfilePhotoUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File size should be less than 5MB");
-      return;
-    }
-
-    const uploadFormData = new FormData();
-    uploadFormData.append("profilePhoto", file);
-
-    setIsUploading(true);
-    setImageError(false);
-    try {
-      const response = await api.post("/auth/profile/photo", uploadFormData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      if (response.data.success) {
-        toast.success("Profile photo updated");
-        setImageError(false);
-        // Refresh profile data to get the new photo URL
-        await fetchProfile();
+      const allowedTypes = [
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+      ];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error(
+          "Please select a valid image file (JPEG, PNG, GIF, or WEBP)",
+        );
+        return;
       }
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      toast.error(error.response?.data?.message || "Failed to upload photo");
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
 
-  const handlePasswordChange = async () => {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size should be less than 5MB");
+        return;
+      }
+
+      const uploadFormData = new FormData();
+      uploadFormData.append("profilePhoto", file);
+      setIsUploading(true);
+
+      try {
+        const response = await api.post("/auth/profile/photo", uploadFormData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        if (response.data.success) {
+          toast.success("Profile photo updated successfully");
+          const profileResponse = await api.get("/auth/me");
+          if (profileResponse.data.success) {
+            setProfile(profileResponse.data.data);
+            setFormData(profileResponse.data.data);
+            refreshImage();
+          }
+        }
+      } catch (error: any) {
+        console.error("Upload error:", error);
+        toast.error(error.response?.data?.message || "Failed to upload photo");
+        setImageError(true);
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      }
+    },
+    [refreshImage],
+  );
+
+  // Handle password change
+  const handlePasswordChange = useCallback(async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast.error("New passwords do not match");
       return;
@@ -259,9 +325,10 @@ export default function ProfilePage() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [passwordData]);
 
-  const addSkill = () => {
+  // Skills handlers
+  const addSkill = useCallback(() => {
     if (newSkill.trim() && !formData.skills?.includes(newSkill.trim())) {
       setFormData({
         ...formData,
@@ -269,16 +336,20 @@ export default function ProfilePage() {
       });
       setNewSkill("");
     }
-  };
+  }, [newSkill, formData]);
 
-  const removeSkill = (skill: string) => {
-    setFormData({
-      ...formData,
-      skills: formData.skills?.filter((s) => s !== skill) || [],
-    });
-  };
+  const removeSkill = useCallback(
+    (skill: string) => {
+      setFormData({
+        ...formData,
+        skills: formData.skills?.filter((s) => s !== skill) || [],
+      });
+    },
+    [formData],
+  );
 
-  const addLanguage = () => {
+  // Languages handlers
+  const addLanguage = useCallback(() => {
     if (
       newLanguage.trim() &&
       !formData.languages?.includes(newLanguage.trim())
@@ -289,16 +360,20 @@ export default function ProfilePage() {
       });
       setNewLanguage("");
     }
-  };
+  }, [newLanguage, formData]);
 
-  const removeLanguage = (language: string) => {
-    setFormData({
-      ...formData,
-      languages: formData.languages?.filter((l) => l !== language) || [],
-    });
-  };
+  const removeLanguage = useCallback(
+    (language: string) => {
+      setFormData({
+        ...formData,
+        languages: formData.languages?.filter((l) => l !== language) || [],
+      });
+    },
+    [formData],
+  );
 
-  const addAchievement = () => {
+  // Achievements handlers
+  const addAchievement = useCallback(() => {
     if (newAchievement.title && newAchievement.description) {
       setFormData({
         ...formData,
@@ -312,44 +387,76 @@ export default function ProfilePage() {
       });
       setNewAchievement({ title: "", date: "", description: "" });
     }
-  };
+  }, [newAchievement, formData]);
 
-  const removeAchievement = (index: number) => {
-    setFormData({
-      ...formData,
-      achievements: formData.achievements?.filter((_, i) => i !== index) || [],
-    });
-  };
+  const removeAchievement = useCallback(
+    (index: number) => {
+      setFormData({
+        ...formData,
+        achievements:
+          formData.achievements?.filter((_, i) => i !== index) || [],
+      });
+    },
+    [formData],
+  );
 
-  const updateNotificationPreference = (
-    key: keyof NonNullable<UserProfile["notificationPreferences"]>,
-  ) => {
-    setFormData((prev) => ({
-      ...prev,
-      notificationPreferences: {
-        email: prev.notificationPreferences?.email ?? true,
-        push: prev.notificationPreferences?.push ?? true,
-        desktop: prev.notificationPreferences?.desktop ?? false,
-        taskReminder: prev.notificationPreferences?.taskReminder ?? true,
-        deadlineAlert: prev.notificationPreferences?.deadlineAlert ?? true,
-        teamUpdate: prev.notificationPreferences?.teamUpdate ?? true,
-        [key]: !prev.notificationPreferences?.[key],
-      },
-    }));
-  };
+  // Notification preference handler
+  const updateNotificationPreference = useCallback(
+    (key: keyof NonNullable<UserProfile["notificationPreferences"]>) => {
+      setFormData((prev) => ({
+        ...prev,
+        notificationPreferences: {
+          email: prev.notificationPreferences?.email ?? true,
+          push: prev.notificationPreferences?.push ?? true,
+          desktop: prev.notificationPreferences?.desktop ?? false,
+          taskReminder: prev.notificationPreferences?.taskReminder ?? true,
+          deadlineAlert: prev.notificationPreferences?.deadlineAlert ?? true,
+          teamUpdate: prev.notificationPreferences?.teamUpdate ?? true,
+          [key]: !prev.notificationPreferences?.[key],
+        },
+      }));
+    },
+    [],
+  );
 
-  const updateSocialLink = (
-    platform: keyof typeof formData.socialLinks,
-    value: string,
-  ) => {
-    setFormData({
-      ...formData,
-      socialLinks: {
-        ...formData.socialLinks,
-        [platform]: value,
-      },
-    });
-  };
+  // Social link handler
+  const updateSocialLink = useCallback(
+    (platform: keyof typeof formData.socialLinks, value: string) => {
+      setFormData({
+        ...formData,
+        socialLinks: {
+          ...formData.socialLinks,
+          [platform]: value,
+        },
+      });
+    },
+    [formData],
+  );
+
+  // Fetch profile on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      try {
+        const response = await api.get("/auth/me");
+        if (isMounted && response.data.success) {
+          setProfile(response.data.data);
+          setFormData(response.data.data);
+          setIsLoading(false);
+        }
+      } catch (error: any) {
+        console.error("Error fetching profile:", error);
+        if (isMounted) {
+          toast.error("Failed to load profile");
+          setIsLoading(false);
+        }
+      }
+    };
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -433,7 +540,6 @@ export default function ProfilePage() {
                       <Loader2 className="w-6 h-6 animate-spin text-indigo-400" />
                     </div>
                   ) : hasImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={profileImageUrl}
                       alt={profile.fullName}
@@ -637,6 +743,74 @@ export default function ProfilePage() {
                       {profile.dailyHoursTarget} hours/day
                     </p>
                   )}
+                </div>
+              </div>
+            </div>
+
+            {/* Role Information */}
+            <div className="bg-gradient-to-br from-indigo-600/5 to-purple-600/5 rounded-xl border border-indigo-500/20 overflow-hidden">
+              <div className="p-4 border-b border-indigo-500/20 bg-gradient-to-r from-indigo-600/10 to-purple-600/10">
+                <div className="flex items-center gap-2">
+                  <Shield size={18} className="text-indigo-400" />
+                  <h3 className="text-white font-semibold">
+                    Role & Permissions
+                  </h3>
+                </div>
+              </div>
+              <div className="p-5">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`p-3 rounded-xl ${getRoleColor(profile.role)}`}
+                  >
+                    {getRoleIcon(profile.role)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                      <div>
+                        <p className="text-xs text-slate-400">Current Role</p>
+                        <p className="text-lg font-bold text-white">
+                          {profile.role?.replace(/_/g, " ").toUpperCase()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400">Access Level</p>
+                        <p className="text-lg font-bold text-white">
+                          {getRoleLevel(profile.role)}%
+                        </p>
+                      </div>
+                    </div>
+                    <div className="w-full bg-slate-700 rounded-full h-2 mb-3">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          profile.role === "super_admin"
+                            ? "bg-purple-500"
+                            : profile.role === "admin"
+                              ? "bg-red-500"
+                              : profile.role === "hr_manager"
+                                ? "bg-pink-500"
+                                : profile.role === "dept_manager"
+                                  ? "bg-orange-500"
+                                  : profile.role === "project_manager"
+                                    ? "bg-cyan-500"
+                                    : profile.role === "line_manager"
+                                      ? "bg-green-500"
+                                      : "bg-slate-500"
+                        }`}
+                        style={{ width: `${getRoleLevel(profile.role)}%` }}
+                      />
+                    </div>
+                    <p className="text-sm text-slate-300">
+                      {getRoleDescription(profile.role)}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400">
+                        System Role
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                        Permanent
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
