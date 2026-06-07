@@ -316,7 +316,11 @@ export default function TasksPage() {
         task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
       ),
     );
-    toast.success(tasks.find((t) => t._id === taskId)?.isStarred ? "Task starred" : "Task unstarred");
+    toast.success(
+      tasks.find((t) => t._id === taskId)?.isStarred
+        ? "Task starred"
+        : "Task unstarred",
+    );
   };
 
   const openEditModal = (task: Task) => {
@@ -869,10 +873,11 @@ export default function TasksPage() {
       </div>
 
       {/* Create Task Modal */}
+      {/* Create Task Modal */}
       <CreateTaskModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onRejectClick={(task: Task) => {
+        onSuccess={() => {
           fetchTasks();
           setShowCreateModal(false);
         }}
