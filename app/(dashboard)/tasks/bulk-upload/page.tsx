@@ -440,10 +440,16 @@ export default function BulkUploadPage() {
     ]);
   };
 
-  const updateTask = (index: number, field: keyof BulkTask, value: any) => {
-    const updatedTasks = [...tasks];
-    updatedTasks[index][field] = value;
-    setTasks(updatedTasks);
+  const updateTask = (
+    index: number,
+    field: keyof BulkTask,
+    value: string | number | boolean,
+  ) => {
+    setTasks((prevTasks) => {
+      const updated = [...prevTasks];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
   };
 
   const removeTask = (index: number) => {
