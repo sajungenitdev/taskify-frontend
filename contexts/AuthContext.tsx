@@ -28,7 +28,10 @@ interface AuthContextType {
   hasRole: (roles: string | string[]) => boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// EXPORT THIS - so it can be imported in useAuth hook
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
+);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -114,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// This is the hook - it will work now because AuthContext is exported
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
