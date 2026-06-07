@@ -197,11 +197,12 @@ export default function RolesPage() {
       const localRoles = PERMANENT_ROLES.map((role, index) => ({
         ...role,
         _id: `temp_${index}`,
+        permissions: [], // Add this line
         userCount: 0,
         createdAt: new Date().toISOString(),
       }));
       setRoles(localRoles);
-      toast.warning("Using local role data. API connection issue.");
+      toast.error("Using local role data. API connection issue.");
     } finally {
       setLoading(false);
     }
