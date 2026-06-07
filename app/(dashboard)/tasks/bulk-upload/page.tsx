@@ -188,7 +188,7 @@ export default function BulkUploadPage() {
       const task: any = {};
 
       headers.forEach((header, index) => {
-        let value = values[index] || "";
+        let value: string | boolean = values[index] || "";
         if (value.toLowerCase() === "true") value = true;
         if (value.toLowerCase() === "false") value = false;
         task[header] = value;
