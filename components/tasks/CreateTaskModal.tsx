@@ -17,6 +17,7 @@ import {
   Paperclip,
   Link2,
   FolderKanban,
+  Loader2,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -48,7 +49,7 @@ interface Project {
   code: string;
   description: string;
   status: string;
-  departmentId: { _id: string; name: string };
+  departmentId?: { _id: string; name: string };
 }
 
 interface CreateTaskModalProps {
@@ -83,7 +84,6 @@ export default function CreateTaskModal({
     priority: "normal",
     estimatedHours: 1,
     actualMinutes: 0,
-    departmentId: "",
     isApprovalRequired: false,
     evidenceRequired: false,
     startTime: "",
@@ -95,7 +95,7 @@ export default function CreateTaskModal({
     try {
       const response = await api.get("/departments");
       if (response.data.success) {
-        setDepartments(response.data.data);
+        setDepartments(response.data.data || []);
       }
     } catch (error) {
       console.error("Error fetching departments:", error);
@@ -107,7 +107,7 @@ export default function CreateTaskModal({
     try {
       const response = await api.get("/projects");
       if (response.data.success) {
-        setProjects(response.data.data);
+        setProjects(response.data.data || []);
       }
     } catch (error) {
       console.error("Error fetching projects:", error);
@@ -120,11 +120,13 @@ export default function CreateTaskModal({
       setLoadingUsers(true);
       const response = await api.get("/auth/users");
       if (response.data.success) {
-        setUsers(response.data.data);
-        setFilteredUsers(response.data.data);
+        const usersData = response.data.data || [];
+        setUsers(usersData);
+        setFilteredUsers(usersData);
       }
     } catch (error) {
       console.error("Error fetching users:", error);
+      toast.error("Failed to load users");
     } finally {
       setLoadingUsers(false);
     }
@@ -146,12 +148,13 @@ export default function CreateTaskModal({
 
     if (!isOpen) {
       setIsDataLoaded(false);
+      resetForm();
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
-  // Filter users by selected department
+  // Filter users by selected department (independent from project)
   useEffect(() => {
-    if (selectedDepartment) {
+    if (selectedDepartment && users.length > 0) {
       const filtered = users.filter((user) => {
         let userDeptId: string | null = null;
         if (user.departmentId) {
@@ -167,21 +170,15 @@ export default function CreateTaskModal({
         return userDeptId === selectedDepartment;
       });
       setFilteredUsers(filtered);
-      setFormData((prev) => ({ ...prev, assignedTo: "" }));
     } else {
       setFilteredUsers(users);
     }
   }, [selectedDepartment, users]);
 
-  // Auto-select department when project is selected
+  // Reset assignee when department changes
   useEffect(() => {
-    if (selectedProject) {
-      const project = projects.find((p) => p._id === selectedProject);
-      if (project && project.departmentId) {
-        setSelectedDepartment(project.departmentId._id);
-      }
-    }
-  }, [selectedProject, projects]);
+    setFormData((prev) => ({ ...prev, assignedTo: "" }));
+  }, [selectedDepartment]);
 
   const handleAddEvidenceUrl = () => {
     if (newUrl && newUrl.trim()) {
@@ -202,9 +199,12 @@ export default function CreateTaskModal({
       !formData.description ||
       !formData.assignedTo ||
       !formData.deadline ||
-      !selectedProject
+      !selectedProject ||
+      !selectedDepartment
     ) {
-      toast.error("Please fill in all required fields including project");
+      toast.error(
+        "Please fill in all required fields including project and department",
+      );
       return;
     }
 
@@ -216,11 +216,11 @@ export default function CreateTaskModal({
         assignedTo: formData.assignedTo,
         deadline: formData.deadline,
         projectId: selectedProject,
+        departmentId: selectedDepartment,
         revisedDeadline: formData.revisedDeadline || undefined,
         priority: formData.priority,
         estimatedHours: Number(formData.estimatedHours),
         actualMinutes: Number(formData.actualMinutes),
-        departmentId: selectedDepartment,
         isApprovalRequired: formData.isApprovalRequired,
         evidenceRequired: formData.evidenceRequired,
         startTime: formData.startTime || undefined,
@@ -253,7 +253,6 @@ export default function CreateTaskModal({
       priority: "normal",
       estimatedHours: 1,
       actualMinutes: 0,
-      departmentId: "",
       isApprovalRequired: false,
       evidenceRequired: false,
       startTime: "",
@@ -369,7 +368,6 @@ export default function CreateTaskModal({
                   onChange={(e) => setSelectedDepartment(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
                   required
-                  disabled={!!selectedProject}
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
@@ -379,11 +377,6 @@ export default function CreateTaskModal({
                   ))}
                 </select>
               </div>
-              {selectedProject && (
-                <p className="text-xs text-slate-500 mt-1">
-                  Department auto-selected from project
-                </p>
-              )}
             </div>
 
             <div>
@@ -417,6 +410,13 @@ export default function CreateTaskModal({
                   ))}
                 </select>
               </div>
+              {selectedDepartment &&
+                filteredUsers.length === 0 &&
+                !loadingUsers && (
+                  <p className="text-xs text-amber-400 mt-1">
+                    No users found in this department. Please add users first.
+                  </p>
+                )}
             </div>
           </div>
 
@@ -696,7 +696,7 @@ export default function CreateTaskModal({
             >
               {loading ? (
                 <div className="flex items-center justify-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  <Loader2 size={16} className="animate-spin" />
                   Creating...
                 </div>
               ) : (

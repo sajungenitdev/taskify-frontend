@@ -137,7 +137,6 @@ export default function LoginPage() {
 
         // Make the API call
         const response = await api.get("/auth/active-users");
-
         // Debug log - remove in production
         console.log("Active users response:", response.data);
 
