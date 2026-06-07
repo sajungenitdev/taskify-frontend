@@ -316,7 +316,7 @@ export default function TasksPage() {
         task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
       ),
     );
-    toast.success(task.toggleStar ? "Task starred" : "Task unstarred");
+    toast.success(tasks.find((t) => t._id === taskId)?.isStarred ? "Task starred" : "Task unstarred");
   };
 
   const openEditModal = (task: Task) => {
