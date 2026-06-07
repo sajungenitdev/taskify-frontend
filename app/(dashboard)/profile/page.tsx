@@ -166,8 +166,8 @@ export default function ProfilePage() {
     return descriptions[role] || "Standard user access.";
   };
 
-  const getRoleIcon = (role: string) => {
-    const icons: Record<string, JSX.Element> = {
+  const getRoleIcon = (role: string): React.ReactNode => {
+    const icons: Record<string, React.ReactNode> = {
       super_admin: <Crown size={16} className="text-purple-400" />,
       admin: <Shield size={16} className="text-red-400" />,
       hr_manager: <Users size={16} className="text-pink-400" />,
@@ -179,7 +179,7 @@ export default function ProfilePage() {
     return icons[role] || <Shield size={16} className="text-slate-400" />;
   };
 
-  const getRoleColor = (role: string) => {
+  const getRoleColor = (role: string): string => {
     const colors: Record<string, string> = {
       super_admin: "text-purple-400 bg-purple-500/20",
       admin: "text-red-400 bg-red-500/20",
@@ -195,19 +195,13 @@ export default function ProfilePage() {
   // Get full image URL with timestamp for cache busting
   const getImageUrl = useCallback(
     (imagePath: string | undefined): string | null => {
-      if (!imagePath || imageError) return null;
-      if (imagePath.startsWith("http")) return imagePath;
-      const baseUrl =
-        process.env.NEXT_PUBLIC_BASE_URL ||
-        "https://taskify-server-5gat.onrender.com";
-      let cleanPath = imagePath;
-      if (!cleanPath.startsWith("/")) {
-        cleanPath = `/${cleanPath}`;
+      // Use UI Avatars as fallback
+      if (!imagePath || imageError || !imagePath.startsWith("http")) {
+        return `https://ui-avatars.com/api/?background=6366f1&color=fff&bold=true&size=120&name=${encodeURIComponent(profile?.fullName || "User")}`;
       }
-      const fullUrl = `${baseUrl}${cleanPath}`;
-      return `${fullUrl}?t=${imageTimestamp}`;
+      return imagePath;
     },
-    [imageError, imageTimestamp],
+    [imageError, profile?.fullName],
   );
 
   // Refresh image after upload
