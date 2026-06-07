@@ -197,12 +197,12 @@ export default function RolesPage() {
       const localRoles = PERMANENT_ROLES.map((role, index) => ({
         ...role,
         _id: `temp_${index}`,
-        permissions: [], // Add this line
+        permissions: [], // FIX: Add missing permissions property
         userCount: 0,
         createdAt: new Date().toISOString(),
       }));
       setRoles(localRoles);
-      toast.error("Using local role data. API connection issue.");
+      toast.warning("Using local role data. API connection issue.");
     } finally {
       setLoading(false);
     }
@@ -348,8 +348,8 @@ export default function RolesPage() {
     totalAssignments: users.filter((u) => u.role).length,
   };
 
-  const getRoleIcon = (roleName: string) => {
-    const icons: Record<string, JSX.Element> = {
+  const getRoleIcon = (roleName: string): React.ReactNode => {
+    const icons: Record<string, React.ReactNode> = {
       "Super Admin": <Crown className="w-5 h-5" />,
       Admin: <Shield className="w-5 h-5" />,
       "HR Manager": <Users className="w-5 h-5" />,
