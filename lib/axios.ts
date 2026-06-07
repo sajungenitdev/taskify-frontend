@@ -1,11 +1,11 @@
 import axios from "axios";
 
-// Get base URL from environment variable
+// Use environment variable with fallback
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   "https://taskify-server-5gat.onrender.com/api/v1";
 
-console.log("API Base URL:", API_BASE_URL); // Debug log
+console.log("API Base URL:", API_BASE_URL); // This will help debug
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -45,10 +45,8 @@ api.interceptors.response.use(
         status: error.response.status,
         data: error.response.data,
         url: error.config?.url,
-        baseURL: error.config?.baseURL,
       });
 
-      // Handle 401 unauthorized
       if (error.response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
