@@ -734,12 +734,12 @@ export default function TasksPage() {
                   rejecting={rejecting}
                   onUpdateStatus={updateTaskStatus}
                   onApprove={handleApprove}
-                  onRejectClick={(task) => {
-                    setSelectedTask(task);
+                  onRejectClick={(task = tasks) => {
+                    setSelectedTask(task as any);
                     setShowRejectModal(true);
                   }}
                   onEdit={openEditModal}
-                  onDelete={(id) => setShowDeleteConfirm(id)}
+                  onDelete={(id = task._id) => setShowDeleteConfirm(id)}
                   onStar={toggleStar}
                   onViewDetails={setSelectedTask}
                   getPriorityConfig={getPriorityConfig}
