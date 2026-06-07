@@ -872,7 +872,7 @@ export default function TasksPage() {
       <CreateTaskModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onSuccess={() => {
+        onRejectClick={(task: Task) => {
           fetchTasks();
           setShowCreateModal(false);
         }}
