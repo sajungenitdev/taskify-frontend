@@ -195,7 +195,7 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <div className="p-6 space-y-6 container mx-auto">
+    <div className="p-6 space-y-6 w-full mx-auto ps-15">
       <WelcomeCard user={user} />
       <DashboardStats
         stats={dashboardData.stats}

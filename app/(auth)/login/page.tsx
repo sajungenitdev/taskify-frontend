@@ -36,6 +36,16 @@ interface ActiveUser {
   badge: string;
 }
 
+// Define allowed roles to display
+const ALLOWED_ROLES = [
+  "super_admin",
+  "admin",
+  "hr_manager",
+  "dept_manager",
+  "project_manager",
+  "employee",
+];
+
 const UserButton = memo(
   ({
     user,
@@ -56,6 +66,10 @@ const UserButton = memo(
           return "from-emerald-600 to-teal-600";
         case "dept_manager":
           return "from-orange-600 to-red-600";
+        case "project_manager":
+          return "from-cyan-600 to-blue-600";
+        case "employee":
+          return "from-slate-600 to-slate-700";
         default:
           return "from-indigo-600 to-purple-600";
       }
@@ -69,11 +83,34 @@ const UserButton = memo(
         return <Users className="w-3 h-3 text-white" />;
       if (role === "dept_manager")
         return <Briefcase className="w-3 h-3 text-white" />;
+      if (role === "project_manager")
+        return <Briefcase className="w-3 h-3 text-white" />;
+      if (role === "employee") return <User className="w-3 h-3 text-white" />;
       return <User className="w-3 h-3 text-white" />;
+    };
+
+    const getRoleDisplayName = (role: string) => {
+      switch (role) {
+        case "super_admin":
+          return "SUPER ADMIN";
+        case "admin":
+          return "ADMIN";
+        case "hr_manager":
+          return "HR MANAGER";
+        case "dept_manager":
+          return "DEPT MANAGER";
+        case "project_manager":
+          return "PROJECT MANAGER";
+        case "employee":
+          return "EMPLOYEE";
+        default:
+          return role.toUpperCase();
+      }
     };
 
     const gradient = getRoleGradient(user.role);
     const icon = getRoleIcon(user.role);
+    const displayRole = getRoleDisplayName(user.role);
 
     return (
       <button
@@ -97,7 +134,7 @@ const UserButton = memo(
             </div>
             <div className="text-left">
               <p className="text-[10px] font-bold text-slate-200 group-hover:text-white transition-colors tracking-wide">
-                {user.role.replace(/_/g, " ").toUpperCase()}
+                {displayRole}
               </p>
               <p className="text-[9px] text-slate-500 font-medium">
                 {user.fullName.split(" ")[0]}
@@ -135,39 +172,63 @@ export default function LoginPage() {
         setLoadingUsers(true);
         setError(null);
 
-        // Make the API call
         const response = await api.get("/auth/active-users");
-        // Debug log - remove in production
         console.log("Active users response:", response.data);
 
-        // Handle different response structures safely
         let usersData = [];
 
-        // Check if response.data exists
         if (response.data) {
-          // Case 1: response.data.data is the array (your backend structure)
           if (response.data.data && Array.isArray(response.data.data)) {
             usersData = response.data.data;
-          }
-          // Case 2: response.data itself is the array
-          else if (Array.isArray(response.data)) {
+          } else if (Array.isArray(response.data)) {
             usersData = response.data;
-          }
-          // Case 3: response.data has a users array
-          else if (response.data.users && Array.isArray(response.data.users)) {
+          } else if (
+            response.data.users &&
+            Array.isArray(response.data.users)
+          ) {
             usersData = response.data.users;
-          }
-          // Case 4: response.data has success and data properties but data is an object
-          else if (response.data.success && response.data.data) {
+          } else if (response.data.success && response.data.data) {
             usersData = Array.isArray(response.data.data)
               ? response.data.data
               : [];
           }
         }
 
-        // Set the users if we have any
-        if (usersData.length > 0) {
-          setActiveUsers(usersData);
+        // FILTER USERS BY ALLOWED ROLES
+        let filteredUsers = usersData.filter((user: ActiveUser) =>
+          ALLOWED_ROLES.includes(user.role),
+        );
+
+        // SHOW ONLY ONE EMPLOYEE (take the first one)
+        const employees = filteredUsers.filter(
+          (user: ActiveUser) => user.role === "employee",
+        );
+        const otherRoles = filteredUsers.filter(
+          (user: ActiveUser) => user.role !== "employee",
+        );
+
+        // Take only the first employee (if exists)
+        const limitedEmployees = employees.slice(0, 1);
+
+        // Combine: all other roles + only one employee
+        filteredUsers = [...otherRoles, ...limitedEmployees];
+
+        // Sort users by role priority
+        const rolePriority: Record<string, number> = {
+          super_admin: 1,
+          admin: 2,
+          hr_manager: 3,
+          dept_manager: 4,
+          project_manager: 5,
+          employee: 6,
+        };
+
+        filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
+          return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+        });
+
+        if (filteredUsers.length > 0) {
+          setActiveUsers(filteredUsers);
           setError(null);
         } else {
           setError("No active users found in the system");
@@ -175,7 +236,6 @@ export default function LoginPage() {
       } catch (err: any) {
         console.error("Failed to fetch active users:", err);
 
-        // More detailed error message
         let errorMessage = "Failed to load users";
         if (err.response?.data?.message) {
           errorMessage = err.response.data.message;
@@ -358,7 +418,7 @@ export default function LoginPage() {
                 <div className="relative flex justify-center">
                   <span className="bg-slate-900/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
                     <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
-                    Active Users ({activeUsers.length})
+                    Quick Access ({activeUsers.length})
                   </span>
                 </div>
               </div>
@@ -499,6 +559,12 @@ export default function LoginPage() {
         .animate-float-particle {
           animation: float-particle 5s ease-in-out infinite;
         }
+        .delay-1000 {
+          animation-delay: 1s;
+        }
+        .delay-2000 {
+          animation-delay: 2s;
+        }
         .custom-scrollbar::-webkit-scrollbar {
           width: 3px;
         }
@@ -510,11 +576,8 @@ export default function LoginPage() {
           background: rgba(99, 102, 241, 0.4);
           border-radius: 10px;
         }
-        .delay-1000 {
-          animation-delay: 1s;
-        }
-        .delay-2000 {
-          animation-delay: 2s;
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(99, 102, 241, 0.6);
         }
       `}</style>
     </div>

@@ -70,7 +70,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searching, setSearching] = useState(false);
-  const searchDebounceRef = useRef<NodeJS.Timeout>();
+  // FIXED: Added proper type with initial value
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   // Listen for sidebar collapse changes from sidebar
   useEffect(() => {

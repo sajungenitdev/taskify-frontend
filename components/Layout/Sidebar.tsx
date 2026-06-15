@@ -15,6 +15,7 @@ import {
   Zap,
   Shield,
   Crown,
+  ArrowRight,
 } from "lucide-react";
 import {
   personalItems,
@@ -503,24 +504,64 @@ export default function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="sticky bottom-0 p-3 border-t border-slate-800/80 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent">
+      <div className="sticky bottom-0 p-4 border-t border-slate-800/80 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent backdrop-blur-sm">
         <button
           onClick={logout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-gradient-to-r hover:from-red-500/10 hover:to-rose-500/10 transition-all duration-200 group ${
-            isCollapsed ? "justify-center" : ""
+          className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${
+            isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
           }`}
           title={isCollapsed ? "Logout" : ""}
         >
-          <LogOut
-            size={18}
-            className="group-hover:text-red-400 transition-colors"
-          />
-          {!isCollapsed && <span className="text-sm font-medium">Logout</span>}
+          {/* Animated gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 to-rose-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-rose-500/5 rounded-xl" />
+
+          {/* Border glow effect */}
+          <div className="absolute inset-0 rounded-xl border border-red-500/20 group-hover:border-red-500/40 transition-all duration-300" />
+
+          {/* Content */}
+          <div
+            className={`relative flex items-center gap-3 transition-all duration-300 ${
+              isCollapsed ? "justify-center" : "justify-center"
+            }`}
+          >
+            <div
+              className={`relative transition-all duration-300 ${
+                isCollapsed ? "" : "group-hover:scale-110"
+              }`}
+            >
+              <LogOut
+                size={18}
+                className="text-red-400/70 group-hover:text-red-400 transition-all duration-300"
+              />
+              {/* Glow behind icon */}
+              <div className="absolute inset-0 rounded-full bg-red-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
+            </div>
+
+            {!isCollapsed && (
+              <span className="text-sm font-medium bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent group-hover:from-red-300 group-hover:to-rose-300 transition-all duration-300">
+                Sign Out
+              </span>
+            )}
+
+            {!isCollapsed && (
+              <ArrowRight
+                size={14}
+                className="text-red-400/50 group-hover:text-red-400 group-hover:translate-x-1 transition-all duration-300 opacity-0 group-hover:opacity-100"
+              />
+            )}
+          </div>
         </button>
+
         {!isCollapsed && (
-          <p className="text-[9px] text-slate-600 text-center mt-3">
-            Version 2.0.0 • © 2026 Taskify
-          </p>
+          <div className="mt-4 text-center">
+            <p className="text-[9px] text-slate-500 font-medium tracking-wider">
+              Version 2.0.0
+            </p>
+            <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+              © 2026 Taskify Enterprise Suite
+            </p>
+          </div>
         )}
       </div>
     </aside>
