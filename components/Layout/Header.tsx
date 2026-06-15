@@ -162,7 +162,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "new_notification") {
-          const newNotification = {
+          const newNotification: Notification = {
             _id: data.notification._id,
             title: data.notification.title,
             message: data.notification.message,
@@ -170,6 +170,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             category: data.notification.category,
             isRead: false,
             createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(), // ✅ Added missing field
           };
           setNotifications((prev) => [newNotification, ...prev]);
           setUnreadCount((prev) => prev + 1);
