@@ -88,8 +88,8 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-slate-950 p-6 pe-0">
+      <div className="container mx-auto">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-6">
           <Link

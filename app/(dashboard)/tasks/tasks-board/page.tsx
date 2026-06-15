@@ -462,55 +462,55 @@ export default function TasksPage() {
       value: stats.total,
       icon: Layers,
       color: "from-slate-600 to-slate-700",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
     {
       label: "Pending",
       value: stats.pending,
       icon: Clock,
       color: "from-amber-500 to-orange-600",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
     {
       label: "In Progress",
       value: stats.inProgress,
       icon: Zap,
       color: "from-sky-500 to-blue-600",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
     {
       label: "Submitted",
       value: stats.submitted,
       icon: Send,
       color: "from-purple-500 to-indigo-600",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
     {
       label: "Completed",
       value: stats.completed,
       icon: CheckCircle,
       color: "from-emerald-500 to-teal-600",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
     {
       label: "Overdue",
       value: stats.overdue,
       icon: AlertCircle,
       color: "from-rose-500 to-red-600",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
     {
       label: "Rejected",
       value: stats.rejected,
       icon: X,
       color: "from-red-500 to-rose-600",
-      gradient: "bg-gradient-to-br",
+      gradient: "bg-linear-to-br",
     },
   ];
 
   if (isLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="relative">
           <div className="absolute inset-0 bg-indigo-500 rounded-full blur-2xl opacity-20 animate-pulse" />
           <Loader2 className="w-10 h-10 animate-spin text-indigo-500 relative z-10" />
@@ -520,9 +520,9 @@ export default function TasksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
       <div className="p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="w-full mx-auto space-y-6 ps-8">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -531,10 +531,10 @@ export default function TasksPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <div className="w-8 h-8 bg-linear-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
                   <CheckSquare className="w-4 h-4 text-white" />
                 </div>
-                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent">
                   Task Workspace
                 </h1>
               </div>
@@ -570,7 +570,7 @@ export default function TasksPage() {
               {canManage && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
+                  className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-600/20"
                 >
                   <Plus size={16} />
                   Create Task
@@ -897,7 +897,7 @@ export default function TasksPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="relative bg-linear-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 p-5 flex justify-between items-start">
@@ -944,7 +944,7 @@ export default function TasksPage() {
                       Assigned To
                     </h3>
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
                         <span className="text-white text-xs font-bold">
                           {selectedTask.assignedTo?.fullName?.charAt(0) || "?"}
                         </span>
@@ -1094,7 +1094,7 @@ export default function TasksPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              className="relative bg-linear-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-lg max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 p-5 flex justify-between items-center">
@@ -1304,7 +1304,7 @@ export default function TasksPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md"
+              className="relative bg-linear-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6 text-center">
@@ -1355,7 +1355,7 @@ export default function TasksPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md"
+              className="relative bg-linear-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6">
@@ -1439,7 +1439,7 @@ function TaskCard({
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: idx * 0.05 }}
-      className="group bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 hover:border-indigo-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 overflow-hidden"
+      className="group bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 hover:border-indigo-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 overflow-hidden"
     >
       <div className="p-5">
         {/* Header with Star and Priority */}
@@ -1510,7 +1510,7 @@ function TaskCard({
         {/* Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
               <span className="text-white text-[10px] font-bold">
                 {task.assignedTo?.fullName?.charAt(0) || "?"}
               </span>

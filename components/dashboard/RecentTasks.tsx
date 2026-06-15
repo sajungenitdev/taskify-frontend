@@ -84,8 +84,8 @@ export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
             </p>
           </div>
           <button
-            onClick={() => router.push("/dashboard/tasks")}
-            className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
+            onClick={() => router.push("/tasks/tasks-board")}
+            className="text-xs cursor-pointer text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
           >
             View All
             <ArrowRight size={12} />
@@ -97,7 +97,7 @@ export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
           <div
             key={task._id}
             className="p-4 hover:bg-slate-800/30 transition-all cursor-pointer group"
-            onClick={() => router.push(`/dashboard/tasks/${task._id}`)}
+            onClick={() => router.push(`/tasks/${task._id}`)}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">

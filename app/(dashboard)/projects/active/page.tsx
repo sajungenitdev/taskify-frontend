@@ -433,8 +433,8 @@ export default function ProjectsPage() {
 
   return (
     <div className="min-h-screen bg-slate-950">
-      <div className="p-6 space-y-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+      <div className="p-6 pe-0 ps-8">
+        <div className="w-full mx-auto space-y-6 px-5">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -611,7 +611,7 @@ export default function ProjectsPage() {
                         <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase font-medium">
                           Progress
                         </th>
-                        <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase font-medium">
+                        <th className="w-[15%] text-left px-6 py-3 text-xs text-slate-400 uppercase font-medium">
                           Timeline
                         </th>
                         <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase font-medium">

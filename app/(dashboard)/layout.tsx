@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Layout/Sidebar";
 import Header from "@/components/Layout/Header";
-import { Loader } from "@/components/UI/Loader";
+// import { Loader } from "@/components/UI/Loader";
 
 export default function DashboardLayout({
   children,
@@ -20,12 +20,12 @@ export default function DashboardLayout({
   const [isNavigating, setIsNavigating] = useState(false);
 
   // Load collapsed state
-  useEffect(() => {
-    const savedState = localStorage.getItem("sidebarCollapsed");
-    if (savedState !== null) {
-      setIsCollapsed(savedState === "true");
-    }
-  }, []);
+  // useEffect(() => {
+  //   const savedState = localStorage.getItem("sidebarCollapsed");
+  //   if (savedState !== null) {
+  //     setIsCollapsed(savedState === "true");
+  //   }
+  // }, []);
 
   // Handle navigation loading state
   useEffect(() => {
@@ -57,9 +57,9 @@ export default function DashboardLayout({
     }
   }, [isLoading, isAuthenticated, router]);
 
-  if (isLoading || isNavigating) {
-    return <Loader />;
-  }
+  // if (isLoading || isNavigating) {
+  //   return <Loader />;
+  // }
 
   if (!isAuthenticated) {
     return null;

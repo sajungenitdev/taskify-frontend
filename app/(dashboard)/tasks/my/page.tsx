@@ -232,16 +232,16 @@ export default function MyTasksPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
       <div className="p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="w-full mx-auto space-y-6 ps-8">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -249,7 +249,7 @@ export default function MyTasksPage() {
             className="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
           >
             <div>
-              <h1 className="text-3xl lg:text-4xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+              <h1 className="text-3xl lg:text-4xl font-bold bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent">
                 My Tasks
               </h1>
               <p className="text-slate-400 text-sm mt-1">
@@ -456,7 +456,7 @@ export default function MyTasksPage() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.05 }}
                       onClick={() => setSelectedTask(task)}
-                      className="group bg-gradient-to-br from-slate-800/80 to-slate-900/80 rounded-xl p-4 border border-slate-700 hover:border-indigo-500/50 transition-all duration-300 cursor-pointer hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-0.5"
+                      className="group bg-linear-to-br from-slate-800/80 to-slate-900/80 rounded-xl p-4 border border-slate-700 hover:border-indigo-500/50 transition-all duration-300 cursor-pointer hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-0.5"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -501,7 +501,7 @@ export default function MyTasksPage() {
                       )}
                       <div className="flex items-center justify-between pt-3 border-t border-slate-700/50">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
                             <span className="text-white text-[10px] font-bold">
                               {task.assignedBy?.fullName?.charAt(0) || "?"}
                             </span>
@@ -715,9 +715,9 @@ export default function MyTasksPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-2xl bg-gradient-to-br from-slate-900 to-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
+              className="w-full max-w-2xl bg-linear-to-br from-slate-900 to-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-gradient-to-r from-indigo-600/10 to-purple-600/10 sticky top-0 bg-slate-900">
+              <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-linear-to-r from-indigo-600/10 to-purple-600/10 sticky top-0 bg-slate-900">
                 <div className="flex items-center gap-3">
                   <div
                     className={`p-2 rounded-xl ${getPriorityBgColor(selectedTask.priority)}`}

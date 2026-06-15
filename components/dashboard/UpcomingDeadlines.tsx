@@ -90,7 +90,7 @@ export default function UpcomingDeadlines({
           return (
             <div
               key={task._id}
-              onClick={() => router.push(`/dashboard/tasks/${task._id}`)}
+              onClick={() => router.push(`/tasks/${task._id}`)}
               className="p-4 flex items-center justify-between hover:bg-slate-800/30 transition-all cursor-pointer group"
             >
               <div className="flex-1 min-w-0">

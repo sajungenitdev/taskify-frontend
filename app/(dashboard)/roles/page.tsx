@@ -413,7 +413,7 @@ export default function RolesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <div className="p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="w-full mx-auto space-y-6 px-5">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}

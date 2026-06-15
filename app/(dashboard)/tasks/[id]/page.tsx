@@ -891,7 +891,7 @@ export default function TaskDetailPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
         <div className="p-6 lg:p-8">
-          <div className="max-w-5xl mx-auto">
+          <div className="container mx-auto">
             <Link
               href="/tasks/my"
               className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6"
@@ -932,7 +932,7 @@ export default function TaskDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <div className="p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="container mx-auto">
           {/* Back Button */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}

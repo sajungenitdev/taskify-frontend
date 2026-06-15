@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader } from "@/components/UI/Loader";
+// import { Loader } from "@/components/UI/Loader";
 
 export default function HomePage() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -15,5 +15,6 @@ export default function HomePage() {
     }
   }, [isLoading, isAuthenticated, router]);
 
-  return <Loader />;
+  // return <Loader />;
+  return null;
 }

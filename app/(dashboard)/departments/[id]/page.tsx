@@ -102,8 +102,8 @@ export default function DepartmentDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-950 p-6 pe-0">
+      <div className="w-full mx-auto space-y-6 px-5">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Link href="/departments/all" className="p-2 bg-slate-800 rounded-lg hover:bg-slate-700 transition">

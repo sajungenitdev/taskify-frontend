@@ -1,8 +1,6 @@
-// components/Layout/Sidebar.tsx
-
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,15 +10,15 @@ import {
   LogOut,
   X,
   CheckSquare,
-  ChevronDown,
-  ChevronUp,
-  LayoutDashboard,
+  ChevronRight as ChevronRightIcon,
+  Sparkles,
+  Zap,
+  Shield,
+  Crown,
 } from "lucide-react";
 import {
   personalItems,
   menuItems,
-  sectionTitles,
-  sectionIcons,
   subMenuItems,
   hasAccess,
 } from "@/lib/menuItems";
@@ -37,10 +35,13 @@ export default function Sidebar({
   onCollapseChange,
 }: SidebarProps) {
   const pathname = usePathname();
-  const { user, logout, hasRole } = useAuth();
+  const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Load collapsed state from localStorage
   useEffect(() => {
@@ -48,42 +49,26 @@ export default function Sidebar({
     const initialState = savedState === "true";
     setIsCollapsed(initialState);
     onCollapseChange?.(initialState);
+
+    // Dispatch event for header to listen
+    window.dispatchEvent(
+      new CustomEvent("sidebarToggle", { detail: { collapsed: initialState } }),
+    );
   }, [onCollapseChange]);
-
-  // Auto-open the menu that contains the current active route
-  useEffect(() => {
-    if (!pathname) return;
-
-    // Find which parent menu contains the current path
-    for (const subItem of subMenuItems) {
-      if (pathname.startsWith(subItem.href)) {
-        setOpenMenu(subItem.parent);
-        return;
-      }
-    }
-
-    // Check if any personal item is active
-    for (const item of personalItems) {
-      if (pathname === item.href || pathname.startsWith(item.href)) {
-        setOpenMenu(null);
-        return;
-      }
-    }
-
-    // Check if any parent menu item itself is active
-    for (const item of menuItems) {
-      if (pathname === item.href) {
-        setOpenMenu(item.name);
-        return;
-      }
-    }
-  }, [pathname]);
 
   const toggleCollapse = useCallback(() => {
     const newState = !isCollapsed;
     setIsCollapsed(newState);
     localStorage.setItem("sidebarCollapsed", String(newState));
     onCollapseChange?.(newState);
+
+    window.dispatchEvent(
+      new CustomEvent("sidebarToggle", { detail: { collapsed: newState } }),
+    );
+
+    if (newState) {
+      setHoveredItem(null);
+    }
   }, [isCollapsed, onCollapseChange]);
 
   useEffect(() => {
@@ -94,37 +79,67 @@ export default function Sidebar({
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const toggleSubmenu = (menuName: string) => {
-    setOpenMenu(openMenu === menuName ? null : menuName);
+  const handleMouseEnter = (itemName: string, event: React.MouseEvent) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    const target = event.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+
+    let leftPos = rect.right + 12;
+    const dropdownWidth = 280;
+
+    // Prevent dropdown from going off-screen right
+    if (leftPos + dropdownWidth > window.innerWidth) {
+      leftPos = rect.left - dropdownWidth - 12;
+    }
+
+    // Calculate top position ensuring dropdown stays within viewport
+    let topPos = rect.top - 12;
+    const dropdownHeight = Math.min(400, window.innerHeight - 40);
+
+    if (topPos + dropdownHeight > window.innerHeight - 20) {
+      topPos = window.innerHeight - dropdownHeight - 20;
+    }
+    if (topPos < 10) {
+      topPos = 10;
+    }
+
+    setDropdownPosition({
+      top: topPos,
+      left: leftPos,
+    });
+    setHoveredItem(itemName);
   };
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case "super_admin":
-        return "from-purple-600 to-pink-600";
-      case "admin":
-        return "from-blue-600 to-cyan-600";
-      case "hr_manager":
-        return "from-emerald-600 to-teal-600";
-      case "dept_manager":
-        return "from-orange-600 to-red-600";
-      case "project_manager":
-        return "from-cyan-600 to-blue-600";
-      case "line_manager":
-        return "from-indigo-600 to-purple-600";
-      default:
-        return "from-slate-600 to-slate-700";
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
     }
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredItem(null);
+    }, 200);
+  };
+
+  const handleDropdownMouseEnter = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  };
+
+  const handleDropdownMouseLeave = () => {
+    setHoveredItem(null);
   };
 
   const userRole = user?.role || "employee";
 
   const filteredPersonalItems = personalItems.filter((item) =>
-    hasAccess(userRole, item.roles)
+    hasAccess(userRole, item.roles),
   );
 
   const filteredParentItems = menuItems.filter((item) =>
-    hasAccess(userRole, item.roles)
+    hasAccess(userRole, item.roles),
   );
 
   const groupedParentItems = filteredParentItems.reduce(
@@ -134,23 +149,18 @@ export default function Sidebar({
       acc[section].push(item);
       return acc;
     },
-    {} as Record<string, typeof menuItems>
+    {} as Record<string, typeof menuItems>,
   );
 
   const getSubItems = (parentName: string) => {
     return subMenuItems.filter(
-      (item) => item.parent === parentName && hasAccess(userRole, item.roles)
+      (item) => item.parent === parentName && hasAccess(userRole, item.roles),
     );
   };
 
   const isParentActive = (parentName: string) => {
     const subItems = getSubItems(parentName);
-    for (const subItem of subItems) {
-      if (pathname.startsWith(subItem.href)) {
-        return true;
-      }
-    }
-    return false;
+    return subItems.some((subItem) => isActive(subItem.href));
   };
 
   const isActive = (href: string) => {
@@ -169,15 +179,126 @@ export default function Sidebar({
     "support",
   ];
 
+  const renderDropdownMenu = (parentName: string, items: any[]) => {
+    if (hoveredItem !== parentName) return null;
+
+    const parentItem = menuItems.find((item) => item.name === parentName);
+    const isParentActiveFlag = isParentActive(parentName);
+
+    return (
+      <div
+        ref={dropdownRef}
+        className="fixed z-50 min-w-[280px] bg-slate-800 rounded-xl shadow-2xl border border-slate-700/50 overflow-hidden"
+        style={{
+          top: dropdownPosition.top,
+          left: dropdownPosition.left,
+          maxHeight: "400px",
+        }}
+        onMouseEnter={handleDropdownMouseEnter}
+        onMouseLeave={handleDropdownMouseLeave}
+      >
+        <div className="relative px-4 py-3 bg-gradient-to-r from-slate-800 to-slate-800/80 border-b border-slate-700/50">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
+              {parentItem?.icon && (
+                <parentItem.icon size={14} className="text-white" />
+              )}
+            </div>
+            <div className="flex-1">
+              <span className="text-sm font-semibold text-white">
+                {parentName}
+              </span>
+              {isParentActiveFlag && (
+                <div className="text-[9px] text-indigo-400 font-medium">
+                  Active
+                </div>
+              )}
+            </div>
+            {isParentActiveFlag && (
+              <div className="w-2 h-2 rounded-full bg-indigo-400 shadow-sm shadow-indigo-500" />
+            )}
+          </div>
+        </div>
+
+        <div className="py-2 max-h-[340px] overflow-y-auto custom-scrollbar">
+          {items.map((subItem) => {
+            const isSubActive = isActive(subItem.href);
+            const SubIcon = subItem.icon;
+            return (
+              <Link
+                key={subItem.href}
+                href={subItem.href}
+                onClick={() => {
+                  setHoveredItem(null);
+                  onClose?.();
+                }}
+                className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${
+                  isSubActive
+                    ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
+                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                }`}
+              >
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                    isSubActive
+                      ? "bg-indigo-500/20"
+                      : "bg-slate-700/50 group-hover:bg-indigo-500/20"
+                  }`}
+                >
+                  <SubIcon
+                    size={14}
+                    className={
+                      isSubActive
+                        ? "text-indigo-400"
+                        : "text-slate-500 group-hover:text-indigo-400"
+                    }
+                  />
+                </div>
+                <span className="text-sm font-medium flex-1">
+                  {subItem.name}
+                </span>
+                {subItem.badge && (
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded-full ${
+                      subItem.badgeColor || "bg-indigo-500/20 text-indigo-400"
+                    } font-medium`}
+                  >
+                    {subItem.badge}
+                  </span>
+                )}
+                {isSubActive && (
+                  <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+
+        <div className="px-4 py-2 border-t border-slate-700/50 bg-slate-800/50">
+          <div className="flex items-center justify-between text-[10px] text-slate-500">
+            <span>{items.length} menu items</span>
+            <span className="flex items-center gap-1">
+              <span className="w-1 h-1 rounded-full bg-slate-600" />
+              Click to navigate
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const sidebarContent = (
     <aside
-      className={`relative bg-gradient-to-b from-slate-900 to-slate-950 min-h-screen flex flex-col shadow-2xl transition-all duration-300 ${
-        isCollapsed ? "w-20" : "w-72"
+      className={`relative bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 min-h-screen flex flex-col shadow-2xl transition-all duration-300 ${
+        isCollapsed ? "w-20" : "w-80"
       }`}
     >
-      {/* Header */}
+      {/* Animated gradient border */}
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-500 to-purple-500 via-50% to-transparent animate-shimmer" />
+
+      {/* Header with Toggle Button */}
       <div
-        className={`p-4 py-3.5 border-b border-slate-800/80 transition-all duration-300 sticky top-0 z-10 ${
+        className={`px-4 py-[12px] border-b border-slate-800/80 transition-all duration-300 sticky top-0 z-10 ${
           scrolled ? "bg-slate-900/95 backdrop-blur-md" : ""
         }`}
       >
@@ -187,18 +308,18 @@ export default function Sidebar({
               isCollapsed ? "justify-center w-full" : ""
             }`}
           >
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-md opacity-50" />
-              <div className="relative w-9 h-9 bg-gradient-to-br from-slate-800 to-slate-900 border border-indigo-500/30 rounded-xl flex items-center justify-center">
-                <CheckSquare className="w-4 h-4 text-indigo-400" />
+            <div className="relative group">
+              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-md opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
+              <div className="relative w-10 h-10 bg-gradient-to-br from-slate-800 to-slate-900 border border-indigo-500/30 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-lg">
+                <CheckSquare className="w-5 h-5 text-indigo-400 group-hover:text-indigo-300" />
               </div>
             </div>
             {!isCollapsed && (
-              <div>
-                <h1 className="text-base font-bold text-white tracking-tight">
+              <div className="overflow-hidden">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent tracking-tight">
                   Taskify
                 </h1>
-                <p className="text-slate-500 text-[9px] font-medium uppercase tracking-wider">
+                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wider">
                   Enterprise Suite
                 </p>
               </div>
@@ -215,269 +336,190 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Toggle Button */}
+      {/* Toggle Button - Positioned at top right of sidebar */}
       <button
         onClick={toggleCollapse}
-        className="absolute -right-3 top-20 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center hover:bg-indigo-600 hover:border-indigo-500 transition-all duration-200 z-50 shadow-lg"
+        className="absolute -right-3 top-20 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center hover:bg-gradient-to-r hover:from-indigo-600 hover:to-purple-600 hover:border-transparent transition-all duration-200 z-50 shadow-lg group"
       >
         {isCollapsed ? (
-          <ChevronRight size={12} className="text-slate-400" />
+          <ChevronRight
+            size={12}
+            className="text-slate-400 group-hover:text-white transition-colors"
+          />
         ) : (
-          <ChevronLeft size={12} className="text-slate-400" />
+          <ChevronLeft
+            size={12}
+            className="text-slate-400 group-hover:text-white transition-colors"
+          />
         )}
       </button>
 
-      {/* User Profile Card */}
-      <div className="sticky top-[73px] z-10 mx-3 mt-4 p-2 rounded-xl bg-gradient-to-r from-slate-800/50 to-slate-900/50 border border-slate-800/50 backdrop-blur-sm">
-        <div
-          className={`flex items-center gap-2 ${isCollapsed ? "flex-col" : ""}`}
-        >
-          <div
-            className={`w-8 h-8 rounded-xl bg-gradient-to-br ${getRoleBadgeColor(
-              userRole
-            )} flex items-center justify-center shadow-lg shrink-0`}
-          >
-            <span className="text-white text-xs font-bold">
-              {user?.fullName?.charAt(0) || "U"}
-            </span>
-          </div>
-          {!isCollapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-xs font-semibold truncate">
-                  {user?.fullName || "User"}
-                </p>
-                <p className="text-slate-400 text-[9px] font-medium uppercase">
-                  {userRole.replace(/_/g, " ")}
-                </p>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50 shrink-0" />
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Navigation */}
+      {/* Navigation - No Section Titles, Scrollable */}
       <nav
-        className="flex-1 overflow-y-auto py-3 px-3 space-y-4 custom-scrollbar"
-        style={{ maxHeight: "calc(100vh - 200px)" }}
+        className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar"
+        style={{ maxHeight: "calc(100vh - 80px)" }}
       >
         {/* Personal Items */}
-        {filteredPersonalItems.length > 0 && !isCollapsed && (
-          <div>
-            <div className="px-2 mb-2 flex items-center gap-2">
-              <LayoutDashboard size={10} className="text-indigo-400" />
-              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                PERSONAL
-              </p>
-            </div>
-            <div className="space-y-1">
-              {filteredPersonalItems.map((item) => {
-                const active = isActive(item.href);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 group relative ${
-                      isCollapsed ? "justify-center" : ""
-                    } ${
-                      active
-                        ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400 border border-indigo-500/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-                    }`}
-                    title={isCollapsed ? item.name : ""}
-                  >
-                    <div className="relative">
-                      <Icon
-                        size={18}
-                        className={`transition-all duration-200 ${
-                          active
-                            ? "text-indigo-400"
-                            : "text-slate-500 group-hover:text-slate-300"
-                        }`}
-                      />
-                      {item.badge && !isCollapsed && (
-                        <span
-                          className={`absolute -top-1 -right-2 w-4 h-4 rounded-full ${item.badgeColor || "bg-indigo-500"} text-white text-[8px] font-bold flex items-center justify-center`}
-                        >
+        {filteredPersonalItems.length > 0 && (
+          <div className="space-y-1">
+            {filteredPersonalItems.map((item) => {
+              const active = isActive(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onClose}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
+                    isCollapsed ? "justify-center" : ""
+                  } ${
+                    active
+                      ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                  }`}
+                  title={isCollapsed ? item.name : ""}
+                >
+                  <div className="relative">
+                    <Icon
+                      size={18}
+                      className={`transition-all duration-200 ${
+                        active
+                          ? "text-indigo-400"
+                          : "text-slate-500 group-hover:text-slate-300"
+                      }`}
+                    />
+                    {item.badge && !isCollapsed && (
+                      <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white text-[8px] font-bold flex items-center justify-center animate-pulse shadow-lg shadow-red-500/50">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                  {!isCollapsed && (
+                    <>
+                      <span className="text-sm font-medium flex-1">
+                        {item.name}
+                      </span>
+                      {item.badge && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">
                           {item.badge}
                         </span>
                       )}
-                    </div>
-                    {!isCollapsed && (
-                      <>
-                        <span className="text-sm font-medium flex-1">
-                          {item.name}
-                        </span>
-                        {item.badge && (
-                          <span
-                            className={`text-[9px] px-1.5 py-0.5 rounded-full ${item.badgeColor || "bg-indigo-500/20"} text-${item.badgeColor?.replace("bg-", "").replace("500", "400") || "indigo-400"} font-medium`}
-                          >
-                            {item.badge}
-                          </span>
-                        )}
-                      </>
-                    )}
-                    {active && !isCollapsed && (
-                      <div className="w-1 h-6 rounded-full bg-indigo-400 shadow-lg shadow-indigo-400/50 absolute right-0" />
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
+                    </>
+                  )}
+                  {active && !isCollapsed && (
+                    <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                  )}
+                </Link>
+              );
+            })}
           </div>
         )}
 
-        {/* Parent Menu Items */}
+        {/* Divider between personal items and main menu */}
+        {filteredPersonalItems.length > 0 &&
+          filteredParentItems.length > 0 &&
+          !isCollapsed && <div className="h-px bg-slate-800/50 my-2" />}
+
+        {/* Parent Menu Items - No Section Titles */}
         {sectionOrder.map((section) => {
           const items = groupedParentItems[section];
           if (!items || items.length === 0) return null;
 
-          const SectionIcon = sectionIcons[section];
-
           return (
-            <div key={section}>
-              {!isCollapsed && (
-                <div className="px-2 mb-2 flex items-center gap-2">
-                  {SectionIcon && (
-                    <SectionIcon size={10} className="text-indigo-400" />
-                  )}
-                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                    {sectionTitles[section] || section.toUpperCase()}
-                  </p>
-                </div>
-              )}
-              <div className="space-y-1">
-                {items.map((item) => {
-                  const Icon = item.icon;
-                  const subItems = getSubItems(item.name);
-                  const hasSubmenu = subItems.length > 0;
-                  const isExpanded = openMenu === item.name;
-                  const isParentActiveFlag = isParentActive(item.name);
+            <div key={section} className="space-y-1">
+              {items.map((item) => {
+                const Icon = item.icon;
+                const subItems = getSubItems(item.name);
+                const hasSubmenu = subItems.length > 0;
+                const isParentActiveFlag = isParentActive(item.name);
+                const isHovered = hoveredItem === item.name;
 
-                  return (
-                    <div key={item.name}>
-                      <button
-                        onClick={() => {
-                          if (hasSubmenu) {
-                            toggleSubmenu(item.name);
-                          } else {
-                            onClose?.();
-                          }
-                        }}
-                        className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg transition-all duration-200 group relative ${
-                          isCollapsed ? "justify-center" : ""
-                        } ${
-                          isParentActiveFlag && !hasSubmenu
-                            ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400 border border-indigo-500/30"
+                return (
+                  <div
+                    key={item.name}
+                    onMouseEnter={(e) =>
+                      hasSubmenu && handleMouseEnter(item.name, e)
+                    }
+                    onMouseLeave={hasSubmenu && handleMouseLeave}
+                  >
+                    <div
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
+                        isCollapsed ? "justify-center" : ""
+                      } ${
+                        isParentActiveFlag || (isHovered && hasSubmenu)
+                          ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
+                          : isActive(item.href) && !hasSubmenu
+                            ? "bg-gradient-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
                             : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      }`}
+                      title={isCollapsed ? item.name : ""}
+                    >
+                      <Icon
+                        size={18}
+                        className={`transition-all duration-200 ${
+                          isParentActiveFlag || (isHovered && hasSubmenu)
+                            ? "text-indigo-400"
+                            : isActive(item.href) && !hasSubmenu
+                              ? "text-indigo-400"
+                              : "text-slate-500 group-hover:text-slate-300"
                         }`}
-                        title={isCollapsed ? item.name : ""}
-                      >
-                        <div className="relative">
-                          <Icon
-                            size={18}
-                            className={`transition-all duration-200 ${
-                              isParentActiveFlag
-                                ? "text-indigo-400"
-                                : "text-slate-500 group-hover:text-slate-300"
-                            }`}
-                          />
-                          {item.badge && !isCollapsed && (
-                            <span
-                              className={`absolute -top-1 -right-2 w-4 h-4 rounded-full ${item.badgeColor || "bg-indigo-500"} text-white text-[8px] font-bold flex items-center justify-center`}
-                            >
+                      />
+                      {!isCollapsed && (
+                        <>
+                          <span className="text-sm font-medium flex-1 text-left">
+                            {item.name}
+                          </span>
+                          {hasSubmenu && (
+                            <ChevronRightIcon
+                              size={14}
+                              className={`transition-all duration-300 ${
+                                isHovered
+                                  ? "translate-x-1 text-indigo-400"
+                                  : "text-slate-500 group-hover:text-slate-300"
+                              }`}
+                            />
+                          )}
+                          {item.badge && !hasSubmenu && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">
                               {item.badge}
                             </span>
                           )}
-                        </div>
-                        {!isCollapsed && (
-                          <>
-                            <span className="text-sm font-medium flex-1 text-left">
-                              {item.name}
-                            </span>
-                            {hasSubmenu && (
-                              <div className="text-slate-500">
-                                {isExpanded ? (
-                                  <ChevronUp size={14} />
-                                ) : (
-                                  <ChevronDown size={14} />
-                                )}
-                              </div>
-                            )}
-                            {item.badge && !hasSubmenu && (
-                              <span
-                                className={`text-[9px] px-1.5 py-0.5 rounded-full ${item.badgeColor || "bg-indigo-500/20"} text-${item.badgeColor?.replace("bg-", "").replace("500", "400") || "indigo-400"} font-medium`}
-                              >
-                                {item.badge}
-                              </span>
-                            )}
-                          </>
-                        )}
-                        {isParentActiveFlag && !isCollapsed && !hasSubmenu && (
-                          <div className="w-1 h-6 rounded-full bg-indigo-400 shadow-lg shadow-indigo-400/50 absolute right-0" />
-                        )}
-                      </button>
-
-                      {/* Submenu Items */}
-                      {!isCollapsed && hasSubmenu && isExpanded && (
-                        <div className="ml-6 mt-1 space-y-1 border-l border-slate-800/50 pl-2">
-                          {subItems.map((subItem) => {
-                            const isSubActive = isActive(subItem.href);
-                            const SubIcon = subItem.icon;
-                            return (
-                              <Link
-                                key={subItem.href}
-                                href={subItem.href}
-                                onClick={() => onClose?.()}
-                                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 group ${
-                                  isSubActive
-                                    ? "bg-gradient-to-r from-indigo-600/15 to-purple-600/15 text-indigo-400"
-                                    : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50"
-                                }`}
-                              >
-                                <SubIcon size={14} />
-                                <span className="text-[11px] font-medium">
-                                  {subItem.name}
-                                </span>
-                                {subItem.badge && (
-                                  <span
-                                    className={`text-[8px] px-1 py-0.5 rounded-full ${subItem.badgeColor || "bg-indigo-500/20"} text-${subItem.badgeColor?.replace("bg-", "").replace("500", "400") || "indigo-400"}`}
-                                  >
-                                    {subItem.badge}
-                                  </span>
-                                )}
-                              </Link>
-                            );
-                          })}
-                        </div>
+                        </>
                       )}
+                      {(isParentActiveFlag ||
+                        (isActive(item.href) && !hasSubmenu)) &&
+                        !isCollapsed && (
+                          <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                        )}
                     </div>
-                  );
-                })}
-              </div>
+
+                    {hasSubmenu && renderDropdownMenu(item.name, subItems)}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
       </nav>
 
       {/* Footer */}
-      <div className="sticky bottom-0 p-3 border-t border-slate-800/80 bg-gradient-to-b from-transparent to-slate-950">
+      <div className="sticky bottom-0 p-3 border-t border-slate-800/80 bg-gradient-to-t from-slate-950 via-slate-950 to-transparent">
         <button
           onClick={logout}
-          className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-red-500/10 transition-all duration-200 group ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-gradient-to-r hover:from-red-500/10 hover:to-rose-500/10 transition-all duration-200 group ${
             isCollapsed ? "justify-center" : ""
           }`}
           title={isCollapsed ? "Logout" : ""}
         >
-          <LogOut size={16} className="group-hover:text-red-400" />
+          <LogOut
+            size={18}
+            className="group-hover:text-red-400 transition-colors"
+          />
           {!isCollapsed && <span className="text-sm font-medium">Logout</span>}
         </button>
         {!isCollapsed && (
-          <p className="text-[8px] text-slate-600 text-center mt-2">
-            v2.0.0 • © 2026 Taskify
+          <p className="text-[9px] text-slate-600 text-center mt-3">
+            Version 2.0.0 • © 2026 Taskify
           </p>
         )}
       </div>
@@ -511,11 +553,47 @@ export default function Sidebar({
             transform: translateX(0);
           }
         }
+        @keyframes slide-in {
+          from {
+            opacity: 0;
+            transform: translateX(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(100%);
+          }
+        }
         .animate-slide-in-right {
           animation: slide-in-right 0.3s ease-out forwards;
         }
+        .animate-slide-in {
+          animation: slide-in 0.2s ease-out forwards;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.2s ease-out forwards;
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+
         .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
+          width: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: rgba(30, 41, 59, 0.5);
