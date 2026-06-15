@@ -1,55 +1,42 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   TrendingUp,
-  Award,
-  Star,
   CheckCircle,
-  Clock,
-  Calendar,
-  Target,
-  Zap,
-  BarChart3,
-  PieChart,
-  LineChart,
   Activity,
-  Users,
-  Briefcase,
-  AlertCircle,
+  Calendar,
+  PieChart,
+  Trophy,
+  Star,
   Loader2,
   ChevronDown,
   ChevronUp,
-  Download,
-  Calendar as CalendarIcon,
   Filter,
-  Eye,
-  ThumbsUp,
+  Download,
   TrendingDown,
   Medal,
-  Trophy,
-  Flame,
-  Sparkles,
+  Clock,
+  Target,
 } from "lucide-react";
 import api from "@/lib/axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  LineChart as ReLineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
   Bar,
-  PieChart as RePieChart,
-  Pie,
-  Cell,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 
 interface PerformanceMetric {
@@ -68,6 +55,7 @@ interface TaskPerformance {
   completed: number;
   pending: number;
   inProgress: number;
+  submitted: number;
   overdue: number;
   rejected: number;
   completionRate: number;
@@ -103,6 +91,7 @@ interface Achievement {
   icon: string;
   earnedAt: string;
   points: number;
+  progress?: number;
 }
 
 interface Rating {
@@ -118,12 +107,12 @@ interface Rating {
 }
 
 export default function MyPerformancePage() {
+  const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<
     "week" | "month" | "year"
   >("month");
-  const [showFilters, setShowFilters] = useState(false);
   const [performanceMetrics, setPerformanceMetrics] = useState<
     PerformanceMetric[]
   >([]);
@@ -132,6 +121,7 @@ export default function MyPerformancePage() {
     completed: 0,
     pending: 0,
     inProgress: 0,
+    submitted: 0,
     overdue: 0,
     rejected: 0,
     completionRate: 0,
@@ -151,7 +141,6 @@ export default function MyPerformancePage() {
     distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
   });
   const [expandedSections, setExpandedSections] = useState({
-    metrics: true,
     tasks: true,
     productivity: true,
     categories: true,
@@ -164,7 +153,7 @@ export default function MyPerformancePage() {
     if (!isAuthenticated) {
       router.push("/login");
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, router]);
 
   useEffect(() => {
     if (user) {
@@ -175,7 +164,6 @@ export default function MyPerformancePage() {
   const fetchPerformanceData = async () => {
     setLoading(true);
     try {
-      // Fetch all performance data in parallel
       const [
         metricsRes,
         taskStatsRes,
@@ -204,155 +192,12 @@ export default function MyPerformancePage() {
       if (achievementsRes.data.success)
         setAchievements(achievementsRes.data.data);
       if (ratingRes.data.success) setRating(ratingRes.data.data);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching performance data:", error);
-      // Use mock data for demo
-      setMockData();
     } finally {
       setLoading(false);
     }
   };
-
-  const setMockData = () => {
-    setPerformanceMetrics([
-      {
-        _id: "1",
-        metric: "Productivity",
-        value: 85,
-        target: 80,
-        progress: 106,
-        unit: "%",
-        trend: "up",
-        percentageChange: 5.2,
-      },
-      {
-        _id: "2",
-        metric: "Quality",
-        value: 92,
-        target: 90,
-        progress: 102,
-        unit: "%",
-        trend: "up",
-        percentageChange: 2.1,
-      },
-      {
-        _id: "3",
-        metric: "Efficiency",
-        value: 78,
-        target: 85,
-        progress: 92,
-        unit: "%",
-        trend: "down",
-        percentageChange: -3.5,
-      },
-      {
-        _id: "4",
-        metric: "On-Time Delivery",
-        value: 88,
-        target: 85,
-        progress: 103,
-        unit: "%",
-        trend: "up",
-        percentageChange: 4.8,
-      },
-    ]);
-
-    setTaskPerformance({
-      total: 45,
-      completed: 32,
-      pending: 8,
-      inProgress: 3,
-      overdue: 1,
-      rejected: 1,
-      completionRate: 71.1,
-      onTimeRate: 84.2,
-    });
-
-    setProductivityData([
-      { date: "Mon", completed: 5, submitted: 2, hours: 6.5 },
-      { date: "Tue", completed: 7, submitted: 3, hours: 7.2 },
-      { date: "Wed", completed: 4, submitted: 1, hours: 5.8 },
-      { date: "Thu", completed: 8, submitted: 4, hours: 8.1 },
-      { date: "Fri", completed: 6, submitted: 2, hours: 6.9 },
-      { date: "Sat", completed: 2, submitted: 0, hours: 2.5 },
-      { date: "Sun", completed: 0, submitted: 0, hours: 0 },
-    ]);
-
-    setCategoryPerformance([
-      {
-        name: "Development",
-        completed: 15,
-        total: 20,
-        percentage: 75,
-        color: "#6366f1",
-      },
-      {
-        name: "Testing",
-        completed: 8,
-        total: 10,
-        percentage: 80,
-        color: "#10b981",
-      },
-      {
-        name: "Documentation",
-        completed: 5,
-        total: 8,
-        percentage: 62.5,
-        color: "#f59e0b",
-      },
-      {
-        name: "Meetings",
-        completed: 4,
-        total: 4,
-        percentage: 100,
-        color: "#ef4444",
-      },
-    ]);
-
-    setMonthlyStats([
-      { month: "Jan", tasks: 28, completionRate: 75, avgHours: 42 },
-      { month: "Feb", tasks: 32, completionRate: 78, avgHours: 45 },
-      { month: "Mar", tasks: 35, completionRate: 82, avgHours: 48 },
-      { month: "Apr", tasks: 38, completionRate: 85, avgHours: 50 },
-      { month: "May", tasks: 42, completionRate: 88, avgHours: 52 },
-      { month: "Jun", tasks: 45, completionRate: 90, avgHours: 55 },
-    ]);
-
-    setAchievements([
-      {
-        _id: "1",
-        title: "Task Master",
-        description: "Completed 50 tasks",
-        icon: "🏆",
-        earnedAt: new Date().toISOString(),
-        points: 100,
-      },
-      {
-        _id: "2",
-        title: "Early Bird",
-        description: "Submitted 10 tasks before deadline",
-        icon: "🐦",
-        earnedAt: new Date().toISOString(),
-        points: 50,
-      },
-      {
-        _id: "3",
-        title: "Quality Champion",
-        description: "Maintained 95% quality score",
-        icon: "⭐",
-        earnedAt: new Date().toISOString(),
-        points: 75,
-      },
-    ]);
-
-    setRating({
-      average: 4.5,
-      total: 12,
-      distribution: { 1: 0, 2: 0, 3: 2, 4: 4, 5: 6 },
-    });
-  };
-
-  const COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -379,7 +224,7 @@ export default function MyPerformancePage() {
 
   return (
     <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
-      <div className="p-6 lg:p-8">
+      <div className="p-6 lg:p-8 ">
         <div className="w-full mx-auto space-y-6 ps-8">
           {/* Header */}
           <motion.div
@@ -416,12 +261,6 @@ export default function MyPerformancePage() {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-2 bg-slate-800/50 rounded-lg text-slate-400 hover:text-white transition"
-              >
-                <Filter size={18} />
-              </button>
               <button className="p-2 bg-slate-800/50 rounded-lg text-slate-400 hover:text-white transition">
                 <Download size={18} />
               </button>
@@ -435,7 +274,7 @@ export default function MyPerformancePage() {
             transition={{ delay: 0.1 }}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
           >
-            {performanceMetrics.map((metric, idx) => (
+            {performanceMetrics.map((metric) => (
               <div
                 key={metric._id}
                 className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 p-4 hover:border-indigo-500/30 transition-all"
@@ -507,48 +346,54 @@ export default function MyPerformancePage() {
 
             {expandedSections.tasks && (
               <div className="p-5 pt-0">
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
                   <div className="text-center p-3 bg-slate-800/30 rounded-lg">
-                    <p className="text-2xl font-bold text-white">
+                    <p className="text-xl font-bold text-white">
                       {taskPerformance.total}
                     </p>
-                    <p className="text-xs text-slate-400">Total Tasks</p>
+                    <p className="text-xs text-slate-400">Total</p>
                   </div>
                   <div className="text-center p-3 bg-emerald-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-emerald-400">
+                    <p className="text-xl font-bold text-emerald-400">
                       {taskPerformance.completed}
                     </p>
                     <p className="text-xs text-slate-400">Completed</p>
                   </div>
                   <div className="text-center p-3 bg-amber-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-amber-400">
+                    <p className="text-xl font-bold text-amber-400">
                       {taskPerformance.pending}
                     </p>
                     <p className="text-xs text-slate-400">Pending</p>
                   </div>
                   <div className="text-center p-3 bg-blue-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-blue-400">
+                    <p className="text-xl font-bold text-blue-400">
                       {taskPerformance.inProgress}
                     </p>
                     <p className="text-xs text-slate-400">In Progress</p>
                   </div>
+                  <div className="text-center p-3 bg-purple-500/10 rounded-lg">
+                    <p className="text-xl font-bold text-purple-400">
+                      {taskPerformance.submitted}
+                    </p>
+                    <p className="text-xs text-slate-400">Submitted</p>
+                  </div>
                   <div className="text-center p-3 bg-rose-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-rose-400">
+                    <p className="text-xl font-bold text-rose-400">
                       {taskPerformance.overdue}
                     </p>
                     <p className="text-xs text-slate-400">Overdue</p>
                   </div>
                   <div className="text-center p-3 bg-red-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-red-400">
+                    <p className="text-xl font-bold text-red-400">
                       {taskPerformance.rejected}
                     </p>
                     <p className="text-xs text-slate-400">Rejected</p>
                   </div>
-                  <div className="text-center p-3 bg-purple-500/10 rounded-lg">
-                    <p className="text-2xl font-bold text-purple-400">
-                      {taskPerformance.completionRate}%
+                  <div className="text-center p-3 bg-indigo-500/10 rounded-lg">
+                    <p className="text-xl font-bold text-indigo-400">
+                      {Math.round(taskPerformance.completionRate)}%
                     </p>
-                    <p className="text-xs text-slate-400">Completion Rate</p>
+                    <p className="text-xs text-slate-400">Completion</p>
                   </div>
                 </div>
 
@@ -571,23 +416,29 @@ export default function MyPerformancePage() {
                     <p className="text-sm font-medium text-white mb-3">
                       Task Distribution
                     </p>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex flex-wrap gap-3">
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
                         <span className="text-xs text-slate-400">
                           Completed ({taskPerformance.completed})
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-amber-500" />
+                        <div className="w-2 h-2 rounded-full bg-amber-500" />
                         <span className="text-xs text-slate-400">
                           Pending ({taskPerformance.pending})
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <div className="w-3 h-3 rounded-full bg-blue-500" />
+                        <div className="w-2 h-2 rounded-full bg-blue-500" />
                         <span className="text-xs text-slate-400">
                           In Progress ({taskPerformance.inProgress})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-purple-500" />
+                        <span className="text-xs text-slate-400">
+                          Submitted ({taskPerformance.submitted})
                         </span>
                       </div>
                     </div>
@@ -598,203 +449,44 @@ export default function MyPerformancePage() {
           </motion.div>
 
           {/* Productivity Chart */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 overflow-hidden"
-          >
-            <button
-              onClick={() => toggleSection("productivity")}
-              className="w-full p-5 flex items-center justify-between hover:bg-slate-800/30 transition"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-                  <Activity className="w-4 h-4 text-indigo-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">
-                    Productivity Trends
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Daily task completion and hours worked
-                  </p>
-                </div>
-              </div>
-              {expandedSections.productivity ? (
-                <ChevronUp size={20} className="text-slate-400" />
-              ) : (
-                <ChevronDown size={20} className="text-slate-400" />
-              )}
-            </button>
-
-            {expandedSections.productivity && (
-              <div className="p-5 pt-0">
-                <div className="h-80">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={productivityData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="date" stroke="#64748b" />
-                      <YAxis stroke="#64748b" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#1e293b",
-                          border: "1px solid #334155",
-                          borderRadius: "8px",
-                        }}
-                      />
-                      <Legend />
-                      <Area
-                        type="monotone"
-                        dataKey="completed"
-                        stackId="1"
-                        stroke="#6366f1"
-                        fill="#6366f1"
-                        fillOpacity={0.3}
-                        name="Tasks Completed"
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="hours"
-                        stackId="2"
-                        stroke="#10b981"
-                        fill="#10b981"
-                        fillOpacity={0.3}
-                        name="Hours Worked"
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-          </motion.div>
-
-          {/* Category Performance & Monthly Stats */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Category Performance */}
+          {productivityData.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.3 }}
               className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 overflow-hidden"
             >
               <button
-                onClick={() => toggleSection("categories")}
+                onClick={() => toggleSection("productivity")}
                 className="w-full p-5 flex items-center justify-between hover:bg-slate-800/30 transition"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-                    <PieChart className="w-4 h-4 text-indigo-400" />
+                    <Activity className="w-4 h-4 text-indigo-400" />
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-white">
-                      Category Performance
-                    </h3>
-                    <p className="text-xs text-slate-400">Tasks by category</p>
-                  </div>
-                </div>
-                {expandedSections.categories ? (
-                  <ChevronUp size={20} className="text-slate-400" />
-                ) : (
-                  <ChevronDown size={20} className="text-slate-400" />
-                )}
-              </button>
-
-              {expandedSections.categories && (
-                <div className="p-5 pt-0">
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={categoryPerformance}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis dataKey="name" stroke="#64748b" />
-                        <YAxis stroke="#64748b" />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#1e293b",
-                            border: "1px solid #334155",
-                            borderRadius: "8px",
-                          }}
-                        />
-                        <Bar
-                          dataKey="percentage"
-                          fill="#6366f1"
-                          radius={[4, 4, 0, 0]}
-                        >
-                          {categoryPerformance.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="mt-4 space-y-2">
-                    {categoryPerformance.map((cat) => (
-                      <div
-                        key={cat.name}
-                        className="flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{ backgroundColor: cat.color }}
-                          />
-                          <span className="text-sm text-slate-300">
-                            {cat.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-sm text-white">
-                            {cat.completed}/{cat.total}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {cat.percentage}%
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-
-            {/* Monthly Stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 overflow-hidden"
-            >
-              <button
-                onClick={() => toggleSection("monthly")}
-                className="w-full p-5 flex items-center justify-between hover:bg-slate-800/30 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-4 h-4 text-indigo-400" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">
-                      Monthly Performance
+                      Productivity Trends
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Task trends over time
+                      Daily task completion and hours worked
                     </p>
                   </div>
                 </div>
-                {expandedSections.monthly ? (
+                {expandedSections.productivity ? (
                   <ChevronUp size={20} className="text-slate-400" />
                 ) : (
                   <ChevronDown size={20} className="text-slate-400" />
                 )}
               </button>
 
-              {expandedSections.monthly && (
+              {expandedSections.productivity && (
                 <div className="p-5 pt-0">
-                  <div className="h-64">
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={monthlyStats}>
+                      <AreaChart data={productivityData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                        <XAxis dataKey="month" stroke="#64748b" />
+                        <XAxis dataKey="date" stroke="#64748b" />
                         <YAxis stroke="#64748b" />
                         <Tooltip
                           contentStyle={{
@@ -804,33 +496,181 @@ export default function MyPerformancePage() {
                           }}
                         />
                         <Legend />
-                        <Line
+                        <Area
                           type="monotone"
-                          dataKey="tasks"
+                          dataKey="completed"
+                          stackId="1"
                           stroke="#6366f1"
-                          strokeWidth={2}
-                          name="Tasks"
-                          dot={{ fill: "#6366f1" }}
+                          fill="#6366f1"
+                          fillOpacity={0.3}
+                          name="Tasks Completed"
                         />
-                        <Line
+                        <Area
                           type="monotone"
-                          dataKey="completionRate"
+                          dataKey="hours"
+                          stackId="2"
                           stroke="#10b981"
-                          strokeWidth={2}
-                          name="Completion Rate %"
-                          dot={{ fill: "#10b981" }}
+                          fill="#10b981"
+                          fillOpacity={0.3}
+                          name="Hours Worked"
                         />
-                      </LineChart>
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
               )}
             </motion.div>
+          )}
+
+          {/* Category Performance & Monthly Stats */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {categoryPerformance.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 overflow-hidden"
+              >
+                <button
+                  onClick={() => toggleSection("categories")}
+                  className="w-full p-5 flex items-center justify-between hover:bg-slate-800/30 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                      <PieChart className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">
+                        Category Performance
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Tasks by category
+                      </p>
+                    </div>
+                  </div>
+                  {expandedSections.categories ? (
+                    <ChevronUp size={20} className="text-slate-400" />
+                  ) : (
+                    <ChevronDown size={20} className="text-slate-400" />
+                  )}
+                </button>
+
+                {expandedSections.categories && (
+                  <div className="p-5 pt-0">
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={categoryPerformance}
+                          layout="vertical"
+                          margin={{ left: 80 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="#334155"
+                          />
+                          <XAxis type="number" stroke="#64748b" />
+                          <YAxis
+                            type="category"
+                            dataKey="name"
+                            stroke="#64748b"
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#1e293b",
+                              border: "1px solid #334155",
+                              borderRadius: "8px",
+                            }}
+                          />
+                          <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
+                            {categoryPerformance.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {monthlyStats.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 overflow-hidden"
+              >
+                <button
+                  onClick={() => toggleSection("monthly")}
+                  className="w-full p-5 flex items-center justify-between hover:bg-slate-800/30 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                      <Calendar className="w-4 h-4 text-indigo-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">
+                        Monthly Performance
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Task trends over time
+                      </p>
+                    </div>
+                  </div>
+                  {expandedSections.monthly ? (
+                    <ChevronUp size={20} className="text-slate-400" />
+                  ) : (
+                    <ChevronDown size={20} className="text-slate-400" />
+                  )}
+                </button>
+
+                {expandedSections.monthly && (
+                  <div className="p-5 pt-0">
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={monthlyStats}>
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            stroke="#334155"
+                          />
+                          <XAxis dataKey="month" stroke="#64748b" />
+                          <YAxis stroke="#64748b" />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#1e293b",
+                              border: "1px solid #334155",
+                              borderRadius: "8px",
+                            }}
+                          />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="tasks"
+                            stroke="#6366f1"
+                            strokeWidth={2}
+                            name="Tasks"
+                            dot={{ fill: "#6366f1" }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="completionRate"
+                            stroke="#10b981"
+                            strokeWidth={2}
+                            name="Completion Rate %"
+                            dot={{ fill: "#10b981" }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
           </div>
 
           {/* Achievements & Ratings */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Achievements */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -894,9 +734,11 @@ export default function MyPerformancePage() {
                               {achievement.points} pts
                             </p>
                             <p className="text-[10px] text-slate-500">
-                              {new Date(
-                                achievement.earnedAt,
-                              ).toLocaleDateString()}
+                              {achievement.earnedAt
+                                ? new Date(
+                                    achievement.earnedAt,
+                                  ).toLocaleDateString()
+                                : "In Progress"}
                             </p>
                           </div>
                         </div>
@@ -907,7 +749,6 @@ export default function MyPerformancePage() {
               )}
             </motion.div>
 
-            {/* Ratings */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -962,7 +803,7 @@ export default function MyPerformancePage() {
                         Based on {rating.total} reviews
                       </p>
                     </div>
-                    <div className="flex-1 max-w-50 space-y-2">
+                    <div className="flex-1 max-w-[200px] space-y-2">
                       {Object.entries(rating.distribution)
                         .reverse()
                         .map(([stars, count]) => (
@@ -974,7 +815,10 @@ export default function MyPerformancePage() {
                               <div
                                 className="h-full bg-linear-to-r from-yellow-400 to-yellow-500 rounded-full"
                                 style={{
-                                  width: `${(count / rating.total) * 100}%`,
+                                  width:
+                                    rating.total > 0
+                                      ? `${(count / rating.total) * 100}%`
+                                      : 0,
                                 }}
                               />
                             </div>
