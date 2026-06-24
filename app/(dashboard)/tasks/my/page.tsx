@@ -163,6 +163,17 @@ const STATUS_CONFIG = {
   },
 } as const;
 
+// ============ HELPERS ============
+const getPriorityConfig = (priority: string) => {
+  const key = priority as keyof typeof PRIORITY_CONFIG;
+  return PRIORITY_CONFIG[key] || PRIORITY_CONFIG.normal;
+};
+
+const getStatusConfig = (status: string) => {
+  const key = status as keyof typeof STATUS_CONFIG;
+  return STATUS_CONFIG[key] || STATUS_CONFIG.pending;
+};
+
 // ============ COMPONENTS ============
 const StatCard = ({
   icon: Icon,
@@ -221,8 +232,6 @@ const TaskCard = ({
   onStatusChange,
   formatDate,
   formatTime,
-  getPriorityColor,
-  getStatusColor,
   getPriorityIcon,
   activeTimerTaskId,
   timerState,
@@ -251,7 +260,7 @@ const TaskCard = ({
 
       {/* Priority bar */}
       <div
-        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-gradient-to-r ${PRIORITY_CONFIG[task.priority].gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-gradient-to-r ${getPriorityConfig(task.priority).gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
       />
 
       <div className="relative z-10">
@@ -259,13 +268,13 @@ const TaskCard = ({
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${PRIORITY_CONFIG[task.priority].bg} ${PRIORITY_CONFIG[task.priority].border}`}
+              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
             >
               {getPriorityIcon(task.priority)}
               {task.priority.toUpperCase()}
             </span>
             <span
-              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${STATUS_CONFIG[task.status].bg} ${STATUS_CONFIG[task.status].border}`}
+              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border}`}
             >
               {task.status.replace("_", " ")}
             </span>
@@ -582,7 +591,6 @@ export default function MyTasksPage() {
         if (result.success) {
           if (result.minutes > 0) {
             toast.success(`⏱️ Time tracked: ${result.displayTime}`);
-            // Update the task in the UI with the new time
             setTasks((prev) =>
               prev.map((task) =>
                 task._id === taskId
@@ -659,13 +667,9 @@ export default function MyTasksPage() {
     currentPage * itemsPerPage,
   );
 
-  const getPriorityColor = (priority: string) =>
-    PRIORITY_CONFIG[priority as keyof typeof PRIORITY_CONFIG]?.bg || "";
-  const getStatusColor = (status: string) =>
-    STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.bg || "";
   const getPriorityIcon = (priority: string) => {
-    const Icon =
-      PRIORITY_CONFIG[priority as keyof typeof PRIORITY_CONFIG]?.icon || Flag;
+    const config = getPriorityConfig(priority);
+    const Icon = config.icon || Flag;
     return <Icon className="w-3 h-3" />;
   };
 
@@ -780,15 +784,6 @@ export default function MyTasksPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {/* <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-200/50 backdrop-blur-sm">
-              <TimerIcon className="w-4 h-4 text-indigo-600" />
-              <span className="text-sm font-medium text-gray-700">
-                {totalHours > 0
-                  ? `${totalHours}h ${totalMinutes}m`
-                  : `${totalMinutes}m`}{" "}
-                tracked
-              </span>
-            </div> */}
             <button
               onClick={handleExport}
               className="px-3 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm"
@@ -1130,8 +1125,6 @@ export default function MyTasksPage() {
                       onStatusChange={handleStatusChange}
                       formatDate={formatDate}
                       formatTime={formatTime}
-                      getPriorityColor={getPriorityColor}
-                      getStatusColor={getStatusColor}
                       getPriorityIcon={getPriorityIcon}
                       activeTimerTaskId={activeTimerTaskId}
                       timerState={timerState}
@@ -1283,7 +1276,7 @@ export default function MyTasksPage() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${PRIORITY_CONFIG[task.priority].bg} ${PRIORITY_CONFIG[task.priority].border}`}
+                              className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
                             >
                               {getPriorityIcon(task.priority)}
                               {task.priority}
@@ -1296,7 +1289,7 @@ export default function MyTasksPage() {
                                 e.stopPropagation();
                                 handleStatusChange(task._id, e.target.value);
                               }}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${STATUS_CONFIG[task.status].bg} ${STATUS_CONFIG[task.status].border} bg-white cursor-pointer outline-none focus:ring-2 focus:ring-indigo-300`}
+                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border} bg-white cursor-pointer outline-none focus:ring-2 focus:ring-indigo-300`}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <option value="pending">Pending</option>
@@ -1417,7 +1410,7 @@ export default function MyTasksPage() {
               <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 sticky top-0">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2.5 rounded-xl bg-gradient-to-br ${PRIORITY_CONFIG[selectedTask.priority].gradient} shadow-md`}
+                    className={`p-2.5 rounded-xl bg-gradient-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
                   >
                     {getPriorityIcon(selectedTask.priority)}
                   </div>
@@ -1427,12 +1420,12 @@ export default function MyTasksPage() {
                     </h2>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${PRIORITY_CONFIG[selectedTask.priority].bg} ${PRIORITY_CONFIG[selectedTask.priority].border}`}
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(selectedTask.priority).bg} ${getPriorityConfig(selectedTask.priority).border}`}
                       >
                         {selectedTask.priority.toUpperCase()}
                       </span>
                       <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${STATUS_CONFIG[selectedTask.status].bg} ${STATUS_CONFIG[selectedTask.status].border}`}
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(selectedTask.status).bg} ${getStatusConfig(selectedTask.status).border}`}
                       >
                         {selectedTask.status.replace("_", " ").toUpperCase()}
                       </span>
