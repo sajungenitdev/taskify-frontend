@@ -939,7 +939,7 @@ export default function FinancialReportsPage() {
                     </h3>
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={financialData.budgetHistory}>
+                        <ReBarChart data={financialData.budgetHistory}>
                           <CartesianGrid
                             strokeDasharray="3 3"
                             stroke="#e5e7eb"
@@ -975,7 +975,7 @@ export default function FinancialReportsPage() {
                             name="Spent"
                             radius={[4, 4, 0, 0]}
                           />
-                        </BarChart>
+                        </ReBarChart>
                       </ResponsiveContainer>
                     </div>
                   </motion.div>
