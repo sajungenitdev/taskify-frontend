@@ -3,8 +3,8 @@ import axios from "axios";
 // Use environment variable with fallback
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://taskify-server-5gat.onrender.com/api/v1";
-  // "http://localhost:5000/api/v1";
+  // "https://taskify-server-5gat.onrender.com/api/v1";
+  "http://localhost:5000/api/v1";
 
 console.log("API Base URL:", API_BASE_URL); // This will help debug
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import TaskAssistant from "@/components/AI/TaskAssistant";
 import {
   X,
   Calendar,
@@ -74,7 +75,7 @@ export default function CreateTaskModal({
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-
+  const [aiSuggestion, setAiSuggestion] = useState<any>({});
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -355,6 +356,19 @@ export default function CreateTaskModal({
             />
           </div>
 
+          <TaskAssistant
+            title={formData.title}
+            description={formData.description}
+            onSuggestion={(field, value) => {
+              if (field === "description") {
+                setFormData((prev) => ({ ...prev, description: value }));
+              } else if (field === "priority") {
+                setFormData((prev) => ({ ...prev, priority: value }));
+              } else if (field === "estimatedHours") {
+                setFormData((prev) => ({ ...prev, estimatedHours: value }));
+              }
+            }}
+          />
           {/* Department & Assign To Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

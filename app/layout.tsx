@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "react-hot-toast";
 import HydrationFix from "./hydration-fix";
+import { TimerProvider } from "@/contexts/TimerContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,7 +23,7 @@ export default function RootLayout({
       <body className={inter.className} suppressHydrationWarning>
         <HydrationFix />
         <AuthProvider>
-          {children}
+          <TimerProvider>{children}</TimerProvider>
           <Toaster position="top-right" />
         </AuthProvider>
       </body>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -22,10 +22,27 @@ import {
   Briefcase,
   Clock,
   AlertCircle,
+  Home,
+  Grid,
+  List,
+  Download,
+  Filter,
+  ArrowUpRight,
+  Award,
+  Zap,
+  TrendingUp,
+  BarChart3,
+  PieChart,
+  Activity,
+  Server,
+  HardDrive,
+  Cpu,
+  Database,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Resource {
   _id: string;
@@ -37,6 +54,8 @@ interface Resource {
   endDate: string;
   status: "available" | "in_use" | "maintenance" | "retired";
   utilization: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function ResourcesPage() {
@@ -47,12 +66,18 @@ export default function ResourcesPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [sortBy, setSortBy] = useState<"name" | "type" | "utilization">("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [formData, setFormData] = useState({
     name: "",
     type: "human",
@@ -66,7 +91,12 @@ export default function ResourcesPage() {
   const [projects, setProjects] = useState<{ _id: string; name: string }[]>([]);
   const [users, setUsers] = useState<{ _id: string; fullName: string }[]>([]);
 
-  const canManage = hasRole(["super_admin", "admin", "dept_manager", "project_manager"]);
+  const canManage = hasRole([
+    "super_admin",
+    "admin",
+    "dept_manager",
+    "project_manager",
+  ]);
 
   // Fetch resources
   const fetchResources = useCallback(async () => {
@@ -140,12 +170,15 @@ export default function ResourcesPage() {
   };
 
   // Update resource
-  const handleUpdateResource = async (e: React.FormEvent) =>{
+  const handleUpdateResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingResource) return;
     setSubmitting(true);
     try {
-      const response = await api.put(`/resources/${editingResource._id}`, formData);
+      const response = await api.put(
+        `/resources/${editingResource._id}`,
+        formData,
+      );
       if (response.data.success) {
         toast.success("Resource updated successfully");
         setShowCreateModal(false);
@@ -202,62 +235,214 @@ export default function ResourcesPage() {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case "human": return <Users size={14} />;
-      case "equipment": return <Briefcase size={14} />;
-      case "software": return <FolderKanban size={14} />;
-      default: return <FolderKanban size={14} />;
+      case "human":
+        return <Users size={14} className="text-blue-500" />;
+      case "equipment":
+        return <Server size={14} className="text-amber-500" />;
+      case "software":
+        return <Database size={14} className="text-purple-500" />;
+      case "material":
+        return <HardDrive size={14} className="text-emerald-500" />;
+      default:
+        return <FolderKanban size={14} className="text-gray-500" />;
     }
+  };
+
+  const getTypeColor = (type: string) => {
+    const colors = {
+      human: "bg-blue-50 text-blue-700 border-blue-200",
+      equipment: "bg-amber-50 text-amber-700 border-amber-200",
+      software: "bg-purple-50 text-purple-700 border-purple-200",
+      material: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    };
+    return colors[type as keyof typeof colors] || colors.human;
   };
 
   const getStatusColor = (status: string) => {
     const colors = {
-      available: "bg-emerald-500/20 text-emerald-400",
-      in_use: "bg-blue-500/20 text-blue-400",
-      maintenance: "bg-amber-500/20 text-amber-400",
-      retired: "bg-rose-500/20 text-rose-400",
+      available: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      in_use: "bg-blue-50 text-blue-700 border-blue-200",
+      maintenance: "bg-amber-50 text-amber-700 border-amber-200",
+      retired: "bg-rose-50 text-rose-700 border-rose-200",
     };
     return colors[status as keyof typeof colors] || colors.available;
   };
 
-  const filteredResources = resources.filter((resource) =>
-    resource.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "available":
+        return <CheckCircle size={12} className="text-emerald-500" />;
+      case "in_use":
+        return <Activity size={12} className="text-blue-500" />;
+      case "maintenance":
+        return <Clock size={12} className="text-amber-500" />;
+      case "retired":
+        return <AlertCircle size={12} className="text-rose-500" />;
+      default:
+        return <CheckCircle size={12} className="text-gray-500" />;
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Filter and sort resources
+  const filteredResources = useMemo(() => {
+    let filtered = resources.filter((resource) => {
+      const matchesSearch = resource.name
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
+      const matchesType = !selectedType || resource.type === selectedType;
+      const matchesStatus =
+        !selectedStatus || resource.status === selectedStatus;
+      return matchesSearch && matchesType && matchesStatus;
+    });
+
+    filtered.sort((a, b) => {
+      let aVal: any, bVal: any;
+      switch (sortBy) {
+        case "name":
+          aVal = a.name;
+          bVal = b.name;
+          break;
+        case "type":
+          aVal = a.type;
+          bVal = b.type;
+          break;
+        case "utilization":
+          aVal = a.utilization;
+          bVal = b.utilization;
+          break;
+        default:
+          aVal = a.name;
+          bVal = b.name;
+      }
+      if (typeof aVal === "string") {
+        return sortOrder === "asc"
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+    });
+
+    return filtered;
+  }, [resources, searchTerm, selectedType, selectedStatus, sortBy, sortOrder]);
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentResources = filteredResources.slice(indexOfFirstItem, indexOfLastItem);
+  const currentResources = filteredResources.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
   const totalPages = Math.ceil(filteredResources.length / itemsPerPage);
+
+  const stats = {
+    total: resources.length,
+    available: resources.filter((r) => r.status === "available").length,
+    inUse: resources.filter((r) => r.status === "in_use").length,
+    maintenance: resources.filter((r) => r.status === "maintenance").length,
+    retired: resources.filter((r) => r.status === "retired").length,
+    avgUtilization:
+      resources.length > 0
+        ? Math.round(
+            resources.reduce((sum, r) => sum + r.utilization, 0) /
+              resources.length,
+          )
+        : 0,
+    types: {
+      human: resources.filter((r) => r.type === "human").length,
+      equipment: resources.filter((r) => r.type === "equipment").length,
+      software: resources.filter((r) => r.type === "software").length,
+      material: resources.filter((r) => r.type === "material").length,
+    },
+  };
+
+  const handleExport = () => {
+    const headers = [
+      "Resource Name",
+      "Type",
+      "Project",
+      "Assigned To",
+      "Status",
+      "Utilization",
+      "Start Date",
+      "End Date",
+    ];
+    const rows = filteredResources.map((r) => [
+      r.name,
+      r.type,
+      r.projectId?.name || "N/A",
+      r.assignedTo?.fullName || "Unassigned",
+      r.status.replace("_", " "),
+      r.utilization + "%",
+      formatDate(r.startDate),
+      formatDate(r.endDate),
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `resources_export_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Resources exported successfully");
+  };
 
   if (!canManage) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <FolderKanban className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-          <h2 className="text-xl font-semibold text-white">Access Denied</h2>
-          <p className="text-slate-400 mt-1">You don't have permission to view this page</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center bg-white rounded-2xl p-8 border border-gray-200 shadow-sm max-w-md"
+        >
+          <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FolderKanban className="w-10 h-10 text-rose-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Access Denied
+          </h2>
+          <p className="text-gray-500">
+            You don't have permission to view this page
+          </p>
+        </motion.div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+          <p className="text-gray-500 text-sm">Loading resources...</p>
+        </div>
       </div>
     );
   }
 
   if (error && resources.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-        <div className="text-center max-w-md">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="text-center max-w-md bg-white rounded-2xl p-8 border border-gray-200 shadow-sm">
           <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-white mb-2">Unable to Load Resources</h2>
-          <p className="text-slate-400 mb-4">{error}</p>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Unable to Load Resources
+          </h2>
+          <p className="text-gray-500 mb-4">{error}</p>
           <button
             onClick={fetchResources}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm"
           >
             Try Again
           </button>
@@ -267,348 +452,755 @@ export default function ResourcesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6">
-      <div className="w-full mx-auto space-y-6 ps-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Link href="/projects" className="text-slate-400 hover:text-white text-sm">Projects</Link>
-              <span className="text-slate-600">/</span>
-              <span className="text-white text-sm">Resources</span>
-            </div>
-            <h1 className="text-2xl font-bold text-white">Project Resources</h1>
-            <p className="text-slate-400 text-sm mt-1">Manage resources allocated to projects</p>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setEditingResource(null);
-                resetForm();
-                setShowCreateModal(true);
-              }}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-xl flex items-center gap-2 transition"
-            >
-              <Plus size={16} />
-              Allocate Resource
-            </button>
-            <button onClick={fetchResources} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm rounded-xl flex items-center gap-2 transition">
-              <RefreshCw size={16} />
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <p className="text-2xl font-bold text-white">{resources.length}</p>
-            <p className="text-xs text-slate-400">Total Resources</p>
-          </div>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <p className="text-2xl font-bold text-emerald-400">{resources.filter(r => r.status === "available").length}</p>
-            <p className="text-xs text-slate-400">Available</p>
-          </div>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <p className="text-2xl font-bold text-blue-400">{resources.filter(r => r.status === "in_use").length}</p>
-            <p className="text-xs text-slate-400">In Use</p>
-          </div>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <p className="text-2xl font-bold text-white">{Math.round(resources.reduce((sum, r) => sum + r.utilization, 0) / (resources.length || 1))}%</p>
-            <p className="text-xs text-slate-400">Avg Utilization</p>
-          </div>
-        </div>
-
-        {/* Search and Filter */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search resources..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-xl text-white text-sm focus:border-indigo-500 outline-none"
-            />
-          </div>
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-xl text-white text-sm focus:border-indigo-500 outline-none"
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4 md:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Breadcrumb */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-2 text-sm"
           >
-            <option value="">All Types</option>
-            <option value="human">Human Resources</option>
-            <option value="equipment">Equipment</option>
-            <option value="software">Software</option>
-            <option value="material">Material</option>
-          </select>
-        </div>
-
-        {/* Resources Table */}
-        {resources.length === 0 ? (
-          <div className="text-center py-12 bg-slate-900/50 rounded-xl border border-slate-800">
-            <FolderKanban className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400">No resources found</p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm"
+            <Link
+              href="/dashboard"
+              className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1"
             >
-              Allocate your first resource →
+              <Home size={14} />
+              Dashboard
+            </Link>
+            <ChevronRight size={14} className="text-gray-300" />
+            <Link
+              href="/projects"
+              className="text-gray-400 hover:text-gray-600 transition"
+            >
+              Projects
+            </Link>
+            <ChevronRight size={14} className="text-gray-300" />
+            <span className="text-gray-700 font-medium">Resources</span>
+          </motion.div>
+
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                  <Briefcase className="w-4 h-4 text-white" />
+                </div>
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
+                  Project Resources
+                </h1>
+                <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                  {stats.total}
+                </span>
+              </div>
+              <p className="text-gray-500 text-sm">
+                Manage resources allocated to projects
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleExport}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
+              >
+                <Download size={14} />
+                Export
+              </button>
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "grid" ? "list" : "grid")
+                }
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
+              >
+                {viewMode === "grid" ? <List size={14} /> : <Grid size={14} />}
+                {viewMode === "grid" ? "List View" : "Grid View"}
+              </button>
+              <button
+                onClick={() => {
+                  setEditingResource(null);
+                  resetForm();
+                  setShowCreateModal(true);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+              >
+                <Plus size={16} />
+                Allocate Resource
+              </button>
+              <button
+                onClick={fetchResources}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
+              >
+                <RefreshCw
+                  size={16}
+                  className={loading ? "animate-spin" : ""}
+                />
+              </button>
+            </div>
+          </motion.div>
+
+          {/* Stats Cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4"
+          >
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {stats.total}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">Total</p>
+                </div>
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                  <Briefcase className="w-5 h-5 text-indigo-500" />
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div>
+                <p className="text-2xl font-bold text-emerald-600">
+                  {stats.available}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Available</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div>
+                <p className="text-2xl font-bold text-blue-600">
+                  {stats.inUse}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">In Use</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div>
+                <p className="text-2xl font-bold text-amber-600">
+                  {stats.maintenance}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Maintenance</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div>
+                <p className="text-2xl font-bold text-indigo-600">
+                  {stats.avgUtilization}%
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Avg Utilization</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div>
+                <p className="text-2xl font-bold text-purple-600">
+                  {stats.types.software}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Software</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Search and Filters */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-col sm:flex-row gap-3"
+          >
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search resources..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+              />
+            </div>
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+            >
+              <option value="">All Types</option>
+              <option value="human">Human Resources</option>
+              <option value="equipment">Equipment</option>
+              <option value="software">Software</option>
+              <option value="material">Material</option>
+            </select>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+            >
+              <option value="">All Status</option>
+              <option value="available">Available</option>
+              <option value="in_use">In Use</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="retired">Retired</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="type">Sort by Type</option>
+              <option value="utilization">Sort by Utilization</option>
+            </select>
+            <button
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
+            >
+              {sortOrder === "asc" ? "↑" : "↓"}
             </button>
-          </div>
-        ) : (
-          <>
-            <div className="bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden">
+          </motion.div>
+
+          {/* Resources Display */}
+          {resources.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-12 bg-white rounded-xl border border-gray-200 shadow-sm"
+            >
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Briefcase className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                No Resources Found
+              </h3>
+              <p className="text-gray-500">
+                Allocate your first resource to get started
+              </p>
+              <button
+                onClick={() => {
+                  setEditingResource(null);
+                  resetForm();
+                  setShowCreateModal(true);
+                }}
+                className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"
+              >
+                <Plus size={16} className="inline mr-2" />
+                Allocate Resource
+              </button>
+            </motion.div>
+          ) : viewMode === "grid" ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+            >
+              {currentResources.map((resource, index) => (
+                <motion.div
+                  key={resource._id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition group shadow-sm"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`p-2 rounded-lg border ${getTypeColor(resource.type)}`}
+                      >
+                        {getTypeIcon(resource.type)}
+                      </div>
+                      <div>
+                        <h3 className="text-gray-800 font-semibold group-hover:text-indigo-600 transition">
+                          {resource.name}
+                        </h3>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full border capitalize ${getTypeColor(resource.type)}`}
+                        >
+                          {resource.type}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Status</span>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 ${getStatusColor(resource.status)}`}
+                      >
+                        {getStatusIcon(resource.status)}
+                        {resource.status.replace("_", " ")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Utilization</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-indigo-500 h-1.5 rounded-full"
+                            style={{ width: `${resource.utilization}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-600">
+                          {resource.utilization}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Project</span>
+                      <span className="text-gray-700 text-sm">
+                        {resource.projectId?.name || "N/A"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Assigned To</span>
+                      <span className="text-gray-700 text-sm">
+                        {resource.assignedTo?.fullName || "Unassigned"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+                    <span>Start: {formatDate(resource.startDate)}</span>
+                    <span>End: {formatDate(resource.endDate)}</span>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => openEditModal(resource)}
+                      className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteConfirm(resource._id)}
+                      className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+            >
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-slate-800/50 border-b border-slate-800">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase">Resource</th>
-                      <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase">Type</th>
-                      <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase">Assigned To</th>
-                      <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase">Project</th>
-                      <th className="text-left px-6 py-3 text-xs text-slate-400 uppercase">Status</th>
-                      <th className="text-center px-6 py-3 text-xs text-slate-400 uppercase">Utilization</th>
-                      <th className="text-right px-6 py-3 text-xs text-slate-400 uppercase">Actions</th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Resource
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Type
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Project
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Assigned To
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Utilization
+                      </th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {currentResources.map((resource) => (
-                      <tr key={resource._id} className="hover:bg-slate-800/30 transition">
-                        <td className="px-6 py-4">
-                          <p className="text-white font-medium">{resource.name}</p>
-                        </td>
+                  <tbody className="divide-y divide-gray-100">
+                    {currentResources.map((resource, index) => (
+                      <motion.tr
+                        key={resource._id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="hover:bg-gray-50 transition"
+                      >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             {getTypeIcon(resource.type)}
-                            <span className="text-slate-300 capitalize">{resource.type}</span>
+                            <span className="text-gray-800 font-medium">
+                              {resource.name}
+                            </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-300">
+                        <td className="px-6 py-4">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full border capitalize ${getTypeColor(resource.type)}`}
+                          >
+                            {resource.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
+                          {resource.projectId?.name || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">
                           {resource.assignedTo?.fullName || "Unassigned"}
                         </td>
-                        <td className="px-6 py-4 text-slate-300">
-                          {resource.projectId?.name}
-                        </td>
                         <td className="px-6 py-4">
-                          <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(resource.status)}`}>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 w-fit ${getStatusColor(resource.status)}`}
+                          >
+                            {getStatusIcon(resource.status)}
                             {resource.status.replace("_", " ")}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 bg-slate-700 rounded-full h-2">
-                              <div 
-                                className="bg-indigo-500 h-2 rounded-full"
+                          <div className="flex items-center gap-2 justify-center">
+                            <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className="bg-indigo-500 h-1.5 rounded-full"
                                 style={{ width: `${resource.utilization}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-400">{resource.utilization}%</span>
+                            <span className="text-xs text-gray-600">
+                              {resource.utilization}%
+                            </span>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button className="p-1.5 text-slate-400 hover:text-indigo-400 transition">
-                              <Eye size={16} />
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => openEditModal(resource)}
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                            >
+                              <Edit2 size={14} />
                             </button>
-                            <button onClick={() => openEditModal(resource)} className="p-1.5 text-slate-400 hover:text-blue-400 transition">
-                              <Edit2 size={16} />
-                            </button>
-                            <button onClick={() => setShowDeleteConfirm(resource._id)} className="p-1.5 text-slate-400 hover:text-rose-400 transition">
-                              <Trash2 size={16} />
+                            <button
+                              onClick={() => setShowDeleteConfirm(resource._id)}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            >
+                              <Trash2 size={14} />
                             </button>
                           </div>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
+            </motion.div>
+          )}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2">
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between pt-4"
+            >
+              <p className="text-sm text-gray-500">
+                Showing {indexOfFirstItem + 1} to{" "}
+                {Math.min(indexOfLastItem, filteredResources.length)} of{" "}
+                {filteredResources.length} resources
+              </p>
+              <div className="flex gap-1">
                 <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-2 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-400 disabled:opacity-50"
+                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-2 rounded-lg transition ${
-                      currentPage === page
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-800/50 text-slate-400 hover:bg-slate-700"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${
+                        currentPage === pageNum
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
                 <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-400 disabled:opacity-50"
+                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
-            )}
-          </>
-        )}
+            </motion.div>
+          )}
+        </div>
       </div>
 
       {/* Create/Edit Resource Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
-              <h2 className="text-lg font-semibold text-white">{editingResource ? "Edit Resource" : "Allocate Resource"}</h2>
-              <button onClick={() => { setShowCreateModal(false); setEditingResource(null); }} className="text-slate-500 hover:text-slate-300">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={editingResource ? handleUpdateResource : handleCreateResource} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Resource Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Type</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                >
-                  <option value="human">Human Resource</option>
-                  <option value="equipment">Equipment</option>
-                  <option value="software">Software</option>
-                  <option value="material">Material</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Project</label>
-                <select
-                  value={formData.projectId}
-                  onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                >
-                  <option value="">Select Project</option>
-                  {projects.map(p => (
-                    <option key={p._id} value={p._id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Assigned To</label>
-                <select
-                  value={formData.assignedTo}
-                  onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                >
-                  <option value="">Select User</option>
-                  {users.map(u => (
-                    <option key={u._id} value={u._id}>{u.fullName}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Start Date</label>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    {editingResource ? "Edit Resource" : "Allocate Resource"}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {editingResource
+                      ? "Update resource information"
+                      : "Add a new resource to a project"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setEditingResource(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <form
+                onSubmit={
+                  editingResource ? handleUpdateResource : handleCreateResource
+                }
+                className="p-5 space-y-4"
+              >
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Resource Name <span className="text-rose-500">*</span>
+                  </label>
                   <input
-                    type="date"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    placeholder="Enter resource name"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-slate-400 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Type
+                  </label>
                   <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
+                    value={formData.type}
+                    onChange={(e) =>
+                      setFormData({ ...formData, type: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                   >
-                    <option value="available">Available</option>
-                    <option value="in_use">In Use</option>
-                    <option value="maintenance">Maintenance</option>
-                    <option value="retired">Retired</option>
+                    <option value="human">Human Resource</option>
+                    <option value="equipment">Equipment</option>
+                    <option value="software">Software</option>
+                    <option value="material">Material</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm text-slate-400 mb-1">Utilization (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.utilization}
-                    onChange={(e) => setFormData({ ...formData, utilization: parseInt(e.target.value) })}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Project
+                  </label>
+                  <select
+                    value={formData.projectId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, projectId: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  >
+                    <option value="">Select Project</option>
+                    {projects.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg transition disabled:opacity-50"
-                >
-                  {submitting ? <Loader2 size={16} className="animate-spin mx-auto" /> : (editingResource ? "Update" : "Create")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowCreateModal(false); setEditingResource(null); }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Assigned To
+                  </label>
+                  <select
+                    value={formData.assignedTo}
+                    onChange={(e) =>
+                      setFormData({ ...formData, assignedTo: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  >
+                    <option value="">Select User</option>
+                    {users.map((u) => (
+                      <option key={u._id} value={u._id}>
+                        {u.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.startDate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, startDate: e.target.value })
+                      }
+                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, endDate: e.target.value })
+                      }
+                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({ ...formData, status: e.target.value })
+                      }
+                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    >
+                      <option value="available">Available</option>
+                      <option value="in_use">In Use</option>
+                      <option value="maintenance">Maintenance</option>
+                      <option value="retired">Retired</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Utilization (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formData.utilization}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          utilization: parseInt(e.target.value) || 0,
+                        })
+                      }
+                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {submitting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : editingResource ? (
+                      "Update"
+                    ) : (
+                      "Create"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setEditingResource(null);
+                    }}
+                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="p-5 border-b border-slate-800">
-              <h2 className="text-lg font-semibold text-white">Delete Resource</h2>
-            </div>
-            <div className="p-5">
-              <p className="text-slate-300">Are you sure you want to delete this resource? This action cannot be undone.</p>
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => handleDeleteResource(showDeleteConfirm)} className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-2 rounded-lg transition">
-                  Delete
-                </button>
-                <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg transition">
-                  Cancel
-                </button>
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-gradient-to-r from-rose-50 to-red-50">
+                <div className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center">
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Delete Resource
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    This action cannot be undone
+                  </p>
+                </div>
               </div>
-            </div>
+              <div className="p-5">
+                <p className="text-gray-600">
+                  Are you sure you want to delete this resource? This action
+                  cannot be undone.
+                </p>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => handleDeleteResource(showDeleteConfirm)}
+                    className="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition shadow-sm"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

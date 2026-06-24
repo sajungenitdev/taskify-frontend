@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTimer } from "@/contexts/TimerContext";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -37,12 +38,30 @@ import {
   Info,
   Reply,
   MoreVertical,
+  Link2,
+  Copy,
+  Check,
+  Printer,
+  Share2,
+  Bookmark,
+  Flag,
+  Users,
+  CalendarDays,
+  Activity,
+  Target,
+  Rocket,
+  Sparkles,
+  Timer,
+  PlayCircle,
+  Pause,
+  Square,
+  TimerIcon,
+  History,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import Image from "next/image";
 
 // Types
 interface Task {
@@ -116,6 +135,21 @@ export default function TaskDetailPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
+  // Use global timer context
+  const {
+    timerState,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    stopTimer,
+    formatTime,
+    formatTimeShort,
+    getDisplayTimeForTask,
+    isTimerActiveForTask,
+    isTimerRunning,
+    activeTimerTaskId,
+  } = useTimer();
+
   // State
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,6 +159,8 @@ export default function TaskDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<Comment[]>([]);
@@ -157,6 +193,7 @@ export default function TaskDetailPage() {
   const [showAttachments, setShowAttachments] = useState(true);
   const [showReviews, setShowReviews] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [showMoreActions, setShowMoreActions] = useState(false);
 
   const userRole = user?.role;
   const isSuperAdmin = userRole === "super_admin";
@@ -253,7 +290,6 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error fetching comments:", error);
-      toast.error("Failed to load comments");
     }
   };
 
@@ -273,7 +309,7 @@ export default function TaskDetailPage() {
         toast.success("Comment added successfully");
         setNewComment("");
         fetchComments();
-        fetchTask(); // Update task to refresh comment count
+        fetchTask();
       }
     } catch (error: any) {
       console.error("Error adding comment:", error);
@@ -369,7 +405,6 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error fetching attachments:", error);
-      toast.error("Failed to load attachments");
     }
   };
 
@@ -608,28 +643,94 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Timer Functions - Using global timer context
+  const handleStartTimer = () => {
+    if (!task) return;
+
+    // If another task is running, stop it first
+    if (activeTimerTaskId && activeTimerTaskId !== task._id) {
+      stopTimer(activeTimerTaskId);
+    }
+
+    const baselineSeconds = (task.actualMinutes || 0) * 60;
+    startTimer(task._id, baselineSeconds);
+    toast.success(`⏱️ Timer started for "${task.title}"`);
+  };
+
+  const handlePauseTimer = () => {
+    pauseTimer();
+    toast.success("⏸️ Timer paused");
+  };
+
+  const handleResumeTimer = () => {
+    resumeTimer();
+    toast.success("▶️ Timer resumed");
+  };
+
+  const handleStopTimer = async () => {
+    if (!task) return;
+    const result = await stopTimer(task._id);
+    if (result.success && result.minutes > 0) {
+      toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+      fetchTask();
+    } else if (!result.success) {
+      toast.error("Failed to save time");
+    }
+    return result;
+  };
+
+  const handleCopyLink = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success("Link copied to clipboard");
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator
+        .share({
+          title: task?.title,
+          text: `Check out this task: ${task?.title}`,
+          url: window.location.href,
+        })
+        .catch(() => {});
+    } else {
+      handleCopyLink();
+    }
+  };
+
   // Helper Functions
   const getPriorityConfig = (priority: string) => {
     const config = {
       low: {
-        color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+        color: "bg-emerald-50 text-emerald-700 border-emerald-200",
         icon: "🟢",
         label: "Low",
+        badgeColor: "bg-emerald-100 text-emerald-800",
       },
       normal: {
-        color: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+        color: "bg-blue-50 text-blue-700 border-blue-200",
         icon: "🔵",
         label: "Normal",
+        badgeColor: "bg-blue-100 text-blue-800",
       },
       high: {
-        color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+        color: "bg-amber-50 text-amber-700 border-amber-200",
         icon: "🟠",
         label: "High",
+        badgeColor: "bg-amber-100 text-amber-800",
       },
       urgent: {
-        color: "bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse",
+        color: "bg-rose-50 text-rose-700 border-rose-200",
         icon: "🔴",
         label: "Urgent",
+        badgeColor: "bg-rose-100 text-rose-800",
       },
     };
     return config[priority as keyof typeof config] || config.normal;
@@ -638,34 +739,40 @@ export default function TaskDetailPage() {
   const getStatusConfig = (status: string) => {
     const config = {
       pending: {
-        color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+        color: "bg-amber-50 text-amber-700 border-amber-200",
         icon: "⏳",
         label: "Pending",
+        badgeColor: "bg-amber-100 text-amber-800",
       },
       in_progress: {
-        color: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+        color: "bg-sky-50 text-sky-700 border-sky-200",
         icon: "🔄",
         label: "In Progress",
+        badgeColor: "bg-sky-100 text-sky-800",
       },
       submitted: {
-        color: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+        color: "bg-purple-50 text-purple-700 border-purple-200",
         icon: "📬",
         label: "Submitted",
+        badgeColor: "bg-purple-100 text-purple-800",
       },
       completed: {
-        color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+        color: "bg-emerald-50 text-emerald-700 border-emerald-200",
         icon: "✅",
         label: "Completed",
+        badgeColor: "bg-emerald-100 text-emerald-800",
       },
       overdue: {
-        color: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+        color: "bg-rose-50 text-rose-700 border-rose-200",
         icon: "⚠️",
         label: "Overdue",
+        badgeColor: "bg-rose-100 text-rose-800",
       },
       rejected: {
-        color: "bg-red-500/10 text-red-400 border-red-500/20",
+        color: "bg-red-50 text-red-700 border-red-200",
         icon: "❌",
         label: "Rejected",
+        badgeColor: "bg-red-100 text-red-800",
       },
     };
     return config[status as keyof typeof config] || config.pending;
@@ -713,6 +820,10 @@ export default function TaskDetailPage() {
     return <File size={20} />;
   };
 
+  const getInitials = (name: string) => {
+    return name?.charAt(0)?.toUpperCase() || "?";
+  };
+
   // Render Comment Component
   const CommentItem = ({
     comment,
@@ -727,26 +838,24 @@ export default function TaskDetailPage() {
 
     return (
       <div className={`${depth > 0 ? "ml-8 mt-3" : "mb-4"}`}>
-        <div className="bg-slate-900 rounded-lg p-3">
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
               <span className="text-white text-xs font-bold">
-                {comment.author?.fullName?.charAt(0) || "?"}
+                {getInitials(comment.author?.fullName)}
               </span>
             </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-1">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
                 <div>
-                  <span className="text-white text-sm font-medium">
+                  <span className="text-gray-800 text-sm font-medium">
                     {comment.author?.fullName}
                   </span>
-                  <span className="text-slate-500 text-xs ml-2">
+                  <span className="text-gray-400 text-xs ml-2">
                     {formatDateTime(comment.createdAt)}
                   </span>
                   {comment.isEdited && (
-                    <span className="text-slate-500 text-xs ml-2">
-                      (edited)
-                    </span>
+                    <span className="text-gray-400 text-xs ml-2">(edited)</span>
                   )}
                 </div>
                 {(comment.author?._id === user?._id || canManage) && (
@@ -757,14 +866,14 @@ export default function TaskDetailPage() {
                           setEditingComment(comment._id);
                           setEditContent(comment.content);
                         }}
-                        className="p-1 text-slate-500 hover:text-blue-400 transition"
+                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                       >
                         <Edit2 size={12} />
                       </button>
                     )}
                     <button
                       onClick={() => handleDeleteComment(comment._id)}
-                      className="p-1 text-slate-500 hover:text-rose-400 transition"
+                      className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -777,13 +886,13 @@ export default function TaskDetailPage() {
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:border-indigo-500 outline-none"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                     rows={2}
                   />
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => handleUpdateComment(comment._id)}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded transition"
+                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg transition shadow-sm"
                     >
                       Save
                     </button>
@@ -792,14 +901,14 @@ export default function TaskDetailPage() {
                         setEditingComment(null);
                         setEditContent("");
                       }}
-                      className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded transition"
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg transition"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-slate-300 text-sm">{comment.content}</p>
+                <p className="text-gray-700 text-sm">{comment.content}</p>
               )}
 
               <div className="flex items-center gap-4 mt-2">
@@ -807,8 +916,8 @@ export default function TaskDetailPage() {
                   onClick={() => handleLikeComment(comment._id)}
                   className={`flex items-center gap-1 text-xs transition ${
                     isLiked
-                      ? "text-indigo-400"
-                      : "text-slate-500 hover:text-indigo-400"
+                      ? "text-indigo-600"
+                      : "text-gray-400 hover:text-indigo-600"
                   }`}
                 >
                   <ThumbsUp size={12} />
@@ -816,7 +925,7 @@ export default function TaskDetailPage() {
                 </button>
                 <button
                   onClick={() => setShowReply(!showReply)}
-                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-400 transition"
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition"
                 >
                   <Reply size={12} />
                   Reply
@@ -834,7 +943,7 @@ export default function TaskDetailPage() {
                 onChange={(e) => setLocalReplyContent(e.target.value)}
                 placeholder="Write a reply..."
                 rows={2}
-                className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm placeholder-slate-500 focus:border-indigo-500 outline-none resize-none"
+                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
               />
               <button
                 onClick={async () => {
@@ -857,7 +966,7 @@ export default function TaskDetailPage() {
                     );
                   }
                 }}
-                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition"
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
               >
                 <Send size={14} />
               </button>
@@ -878,10 +987,10 @@ export default function TaskDetailPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-        <div className="relative">
-          <div className="absolute inset-0 bg-indigo-500 rounded-full blur-2xl opacity-20 animate-pulse" />
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-500 relative z-10" />
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+          <p className="text-gray-500 text-sm">Loading task details...</p>
         </div>
       </div>
     );
@@ -889,30 +998,30 @@ export default function TaskDetailPage() {
 
   if (error || !task) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="min-h-screen bg-gray-50">
         <div className="p-6 lg:p-8">
           <div className="container mx-auto">
             <Link
-              href="/tasks/my"
-              className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-6"
+              href="/tasks"
+              className="inline-flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors mb-6"
             >
               <ArrowLeft size={18} />
               Back to Tasks
             </Link>
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl border border-slate-700 p-12 text-center">
-              <div className="w-20 h-20 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertCircle className="w-10 h-10 text-rose-400" />
+            <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
+              <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-10 h-10 text-rose-500" />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
                 Task Not Found
               </h2>
-              <p className="text-slate-400 mb-6">
+              <p className="text-gray-500 mb-6">
                 {error ||
                   "The task you're looking for doesn't exist or has been deleted."}
               </p>
               <Link
-                href="/tasks/my"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition"
+                href="/tasks"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
               >
                 <ArrowLeft size={16} />
                 Return to Tasks
@@ -929,80 +1038,246 @@ export default function TaskDetailPage() {
     new Date(task.deadline) < new Date() &&
     task.status !== "completed";
 
+  // Get timer display values from global context
+  const isTimerActive = isTimerActiveForTask(task._id);
+  const isTimerRunningForTask = isTimerActive && isTimerRunning;
+  const displayTime = getDisplayTimeForTask(task._id, task.actualMinutes);
+  const timerDisplay = isTimerActive ? timerState.elapsedSeconds : 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <div className="p-6 lg:p-8">
-        <div className="container mx-auto">
-          {/* Back Button */}
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4 md:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
+          {/* Back Button & Actions */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="mb-6"
+            className="flex items-center justify-between mb-6 flex-wrap gap-3"
           >
             <Link
               href="/tasks"
-              className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+              className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors"
             >
               <ArrowLeft size={18} />
               Back to Tasks
             </Link>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleCopyLink}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                title="Copy link"
+              >
+                {copied ? (
+                  <Check size={18} className="text-emerald-500" />
+                ) : (
+                  <Link2 size={18} />
+                )}
+              </button>
+              <button
+                onClick={handleShare}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                title="Share"
+              >
+                <Share2 size={18} />
+              </button>
+              <button
+                onClick={handlePrint}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                title="Print"
+              >
+                <Printer size={18} />
+              </button>
+              {canManage && (
+                <button
+                  onClick={() => router.push(`/tasks/${id}/edit`)}
+                  className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                  title="Edit"
+                >
+                  <Edit2 size={18} />
+                </button>
+              )}
+              {canManage && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                  title="Delete"
+                >
+                  <Trash2 size={18} />
+                </button>
+              )}
+            </div>
           </motion.div>
 
-          {/* Main Content */}
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Left Column - Task Details */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Task Header */}
+              {/* Task Header with Timer */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-2xl border border-slate-700 overflow-hidden"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
               >
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span
-                        className={`text-xs px-2 py-1 rounded-full ${getPriorityConfig(task.priority).color}`}
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color}`}
                       >
                         {getPriorityConfig(task.priority).icon}{" "}
                         {task.priority.toUpperCase()}
                       </span>
                       <span
-                        className={`text-xs px-2 py-1 rounded-full ${getStatusConfig(task.status).color}`}
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
                       >
                         {getStatusConfig(task.status).icon}{" "}
                         {task.status.replace("_", " ").toUpperCase()}
                       </span>
                       {isOverdue && (
-                        <span className="text-xs px-2 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
                           ⚠️ OVERDUE
                         </span>
                       )}
+                      {task.averageRating && task.averageRating > 0 && (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                          <Star
+                            size={12}
+                            className="fill-amber-500 text-amber-500"
+                          />
+                          {task.averageRating.toFixed(1)}
+                        </span>
+                      )}
+                      {/* Timer Badge - GLOBALLY SYNCED */}
+                      {isTimerActive && (
+                        <div
+                          className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full ${isTimerRunningForTask ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
+                        >
+                          <TimerIcon size={12} />
+                          <span>{formatTimeShort(timerDisplay)}</span>
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${isTimerRunningForTask ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
+                          />
+                        </div>
+                      )}
+                      {task.actualMinutes &&
+                        task.actualMinutes > 0 &&
+                        !isTimerActive && (
+                          <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                            <History size={12} />
+                            <span>{task.actualMinutes}m tracked</span>
+                          </div>
+                        )}
                     </div>
-                    {canManage && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => router.push(`/tasks/${id}/edit`)}
-                          className="p-2 text-slate-400 hover:text-blue-400 transition rounded-lg"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(true)}
-                          className="p-2 text-slate-400 hover:text-rose-400 transition rounded-lg"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                  </div>
+
+                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-3">
+                    {task.title}
+                  </h1>
+                  <p className="text-gray-600 leading-relaxed">
+                    {task.description || "No description provided."}
+                  </p>
+
+                  {/* Task Meta Tags */}
+                  <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
+                    {task.projectId && task.projectId.name && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                        <Briefcase size={12} />
+                        {task.projectId.name}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                      <Clock size={12} />
+                      {task.estimatedHours}h estimated
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                      <Users size={12} />
+                      Assigned to {task.assignedTo?.fullName}
+                    </div>
+                    {task.createdAt && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                        <Calendar size={12} />
+                        Created {formatDate(task.createdAt)}
                       </div>
                     )}
                   </div>
 
-                  <h1 className="text-2xl lg:text-3xl font-bold text-white mb-3">
-                    {task.title}
-                  </h1>
-                  <p className="text-slate-300 leading-relaxed">
-                    {task.description || "No description provided."}
-                  </p>
+                  {/* Timer Controls - GLOBALLY SYNCED */}
+                  {task.status !== "completed" &&
+                    task.status !== "submitted" && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <TimerIcon size={16} className="text-indigo-500" />
+                            <span className="text-sm font-medium text-gray-700">
+                              Time Tracking
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            {isTimerActive ? (
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg font-mono font-semibold text-indigo-700 tabular-nums">
+                                  {formatTime(timerDisplay)}
+                                </span>
+                                <span
+                                  className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"}`}
+                                >
+                                  {isTimerRunningForTask
+                                    ? "● Running"
+                                    : "● Paused"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">
+                                {task.actualMinutes
+                                  ? `${task.actualMinutes}m logged`
+                                  : "No time tracked"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isTimerActive ? (
+                              <>
+                                {isTimerRunningForTask ? (
+                                  <button
+                                    onClick={handlePauseTimer}
+                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                  >
+                                    <Pause size={14} />
+                                    Pause
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={handleResumeTimer}
+                                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                  >
+                                    <Play size={14} />
+                                    Resume
+                                  </button>
+                                )}
+                                <button
+                                  onClick={handleStopTimer}
+                                  className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                >
+                                  <Square size={14} />
+                                  Stop
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={handleStartTimer}
+                                className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                disabled={
+                                  activeTimerTaskId !== null &&
+                                  activeTimerTaskId !== task._id
+                                }
+                              >
+                                <Play size={14} />
+                                Start Timer
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                 </div>
               </motion.div>
 
@@ -1011,35 +1286,35 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-slate-800/30 rounded-2xl border border-slate-700 p-6"
+                className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm"
               >
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Info className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Info className="w-5 h-5 text-indigo-500" />
                   Task Information
                 </h3>
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div className="flex items-start gap-3">
-                      <User size={18} className="text-slate-500 mt-0.5" />
+                      <User size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-slate-400 mb-1">
+                        <p className="text-xs text-gray-500 mb-0.5">
                           Assigned To
                         </p>
-                        <p className="text-white font-medium">
+                        <p className="text-gray-800 font-medium">
                           {task.assignedTo?.fullName || "Unassigned"}
                         </p>
-                        <p className="text-slate-500 text-sm">
+                        <p className="text-gray-400 text-sm">
                           {task.assignedTo?.email || ""}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <User size={18} className="text-slate-500 mt-0.5" />
+                      <User size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-slate-400 mb-1">
+                        <p className="text-xs text-gray-500 mb-0.5">
                           Assigned By
                         </p>
-                        <p className="text-white font-medium">
+                        <p className="text-gray-800 font-medium">
                           {task.assignedBy?.fullName || "Unknown"}
                         </p>
                       </div>
@@ -1047,40 +1322,39 @@ export default function TaskDetailPage() {
                   </div>
                   <div className="space-y-4">
                     <div className="flex items-start gap-3">
-                      <Calendar size={18} className="text-slate-500 mt-0.5" />
+                      <Calendar size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-slate-400 mb-1">Deadline</p>
+                        <p className="text-xs text-gray-500 mb-0.5">Deadline</p>
                         <p
-                          className={`font-medium ${isOverdue ? "text-rose-400" : "text-white"}`}
+                          className={`font-medium ${isOverdue ? "text-rose-600" : "text-gray-800"}`}
                         >
                           {formatDate(task.deadline)}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
-                      <ClockIcon size={18} className="text-slate-500 mt-0.5" />
+                      <ClockIcon size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-slate-400 mb-1">
+                        <p className="text-xs text-gray-500 mb-0.5">
                           Estimated Hours
                         </p>
-                        <p className="text-white font-medium">
+                        <p className="text-gray-800 font-medium">
                           {task.estimatedHours} hours
                         </p>
                       </div>
                     </div>
                     {task.projectId && task.projectId.name && (
                       <div className="flex items-start gap-3">
-                        <Briefcase
-                          size={18}
-                          className="text-slate-500 mt-0.5"
-                        />
+                        <Briefcase size={18} className="text-gray-400 mt-0.5" />
                         <div>
-                          <p className="text-xs text-slate-400 mb-1">Project</p>
-                          <p className="text-white font-medium">
+                          <p className="text-xs text-gray-500 mb-0.5">
+                            Project
+                          </p>
+                          <p className="text-gray-800 font-medium">
                             {task.projectId.name}
                           </p>
                           {task.projectId.code && (
-                            <p className="text-slate-500 text-sm">
+                            <p className="text-gray-400 text-sm">
                               Code: {task.projectId.code}
                             </p>
                           )}
@@ -1096,22 +1370,22 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
               >
                 <button
                   onClick={() => setShowComments(!showComments)}
-                  className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
+                  className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition"
                 >
                   <div className="flex items-center gap-3">
-                    <MessageSquare className="w-5 h-5 text-indigo-400" />
-                    <h3 className="text-lg font-semibold text-white">
+                    <MessageSquare className="w-5 h-5 text-indigo-500" />
+                    <h3 className="text-lg font-semibold text-gray-800">
                       Comments ({comments.length})
                     </h3>
                   </div>
                   {showComments ? (
-                    <ChevronUp size={20} className="text-slate-400" />
+                    <ChevronUp size={20} className="text-gray-400" />
                   ) : (
-                    <ChevronDown size={20} className="text-slate-400" />
+                    <ChevronDown size={20} className="text-gray-400" />
                   )}
                 </button>
 
@@ -1119,9 +1393,9 @@ export default function TaskDetailPage() {
                   <div className="p-5 pt-0 space-y-5">
                     {/* Add Comment */}
                     <div className="flex gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-white text-sm font-bold">
-                          {user?.fullName?.charAt(0) || "?"}
+                          {getInitials(user?.fullName || "?")}
                         </span>
                       </div>
                       <div className="flex-1">
@@ -1130,13 +1404,13 @@ export default function TaskDetailPage() {
                           onChange={(e) => setNewComment(e.target.value)}
                           placeholder="Write a comment..."
                           rows={3}
-                          className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 outline-none resize-none"
+                          className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
                         />
                         <div className="flex justify-end mt-2">
                           <button
                             onClick={handleAddComment}
                             disabled={submittingComment || !newComment.trim()}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50"
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
                           >
                             {submittingComment ? (
                               <Loader2 size={16} className="animate-spin" />
@@ -1150,9 +1424,9 @@ export default function TaskDetailPage() {
                     </div>
 
                     {/* Comments List */}
-                    <div className="space-y-4 max-h-[500px] overflow-y-auto">
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
                       {comments.length === 0 ? (
-                        <div className="text-center py-8 text-slate-500">
+                        <div className="text-center py-8 text-gray-500">
                           No comments yet. Be the first to comment!
                         </div>
                       ) : (
@@ -1170,22 +1444,22 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
               >
                 <button
                   onClick={() => setShowAttachments(!showAttachments)}
-                  className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
+                  className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition"
                 >
                   <div className="flex items-center gap-3">
-                    <Paperclip className="w-5 h-5 text-indigo-400" />
-                    <h3 className="text-lg font-semibold text-white">
+                    <Paperclip className="w-5 h-5 text-indigo-500" />
+                    <h3 className="text-lg font-semibold text-gray-800">
                       Attachments ({attachments.length})
                     </h3>
                   </div>
                   {showAttachments ? (
-                    <ChevronUp size={20} className="text-slate-400" />
+                    <ChevronUp size={20} className="text-gray-400" />
                   ) : (
-                    <ChevronDown size={20} className="text-slate-400" />
+                    <ChevronDown size={20} className="text-gray-400" />
                   )}
                 </button>
 
@@ -1203,17 +1477,17 @@ export default function TaskDetailPage() {
                       />
                       <label
                         htmlFor="file-upload"
-                        className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-slate-700 rounded-lg cursor-pointer hover:border-indigo-500 transition bg-slate-900/30"
+                        className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition bg-gray-50"
                       >
                         {uploadingFiles ? (
                           <Loader2
                             size={20}
-                            className="animate-spin text-indigo-400"
+                            className="animate-spin text-indigo-500"
                           />
                         ) : (
                           <>
-                            <Upload size={20} className="text-slate-400" />
-                            <span className="text-slate-400">
+                            <Upload size={20} className="text-gray-400" />
+                            <span className="text-gray-500">
                               Click to upload files
                             </span>
                           </>
@@ -1223,50 +1497,56 @@ export default function TaskDetailPage() {
 
                     {/* Attachments List */}
                     {attachments.length === 0 ? (
-                      <div className="text-center py-8 text-slate-500">
+                      <div className="text-center py-8 text-gray-500">
                         No attachments yet.
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {attachments.map((attachment) => (
                           <div
                             key={attachment._id}
-                            className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-700 hover:border-indigo-500 transition"
+                            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-indigo-200 transition group"
                           >
-                            <div className="flex items-center gap-3 flex-1">
-                              {attachment.mimeType?.startsWith("image/") ? (
-                                <div
-                                  className="w-10 h-10 rounded bg-slate-800 flex items-center justify-center cursor-pointer hover:opacity-80 transition"
-                                  onClick={() =>
-                                    setSelectedImage(attachment.url)
-                                  }
-                                >
+                            {attachment.mimeType?.startsWith("image/") ? (
+                              <div
+                                className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden"
+                                onClick={() => setSelectedImage(attachment.url)}
+                              >
+                                {attachment.thumbnailUrl ? (
+                                  <img
+                                    src={attachment.thumbnailUrl}
+                                    alt={attachment.originalName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
                                   <ImageIcon
                                     size={20}
-                                    className="text-slate-400"
+                                    className="text-gray-400"
                                   />
-                                </div>
-                              ) : (
-                                getFileIcon(attachment.mimeType)
-                              )}
-                              <div className="flex-1">
-                                <p className="text-white text-sm">
-                                  {attachment.originalName}
-                                </p>
-                                <p className="text-slate-500 text-xs">
-                                  {formatFileSize(attachment.size)}
-                                </p>
+                                )}
                               </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
+                                {getFileIcon(attachment.mimeType)}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-gray-800 text-sm font-medium truncate">
+                                {attachment.originalName}
+                              </p>
+                              <p className="text-gray-400 text-xs">
+                                {formatFileSize(attachment.size)}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                               <button
                                 onClick={() =>
                                   handleDownloadAttachment(attachment)
                                 }
-                                className="p-2 text-slate-400 hover:text-indigo-400 transition"
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                                 title="Download"
                               >
-                                <Download size={16} />
+                                <Download size={14} />
                               </button>
                               {(canManage ||
                                 attachment.uploadedBy?._id === user?._id) && (
@@ -1274,10 +1554,10 @@ export default function TaskDetailPage() {
                                   onClick={() =>
                                     handleDeleteAttachment(attachment._id)
                                   }
-                                  className="p-2 text-slate-400 hover:text-rose-400 transition"
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                   title="Delete"
                                 >
-                                  <Trash size={16} />
+                                  <Trash size={14} />
                                 </button>
                               )}
                             </div>
@@ -1295,66 +1575,69 @@ export default function TaskDetailPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
-                  className="bg-slate-800/30 rounded-2xl border border-slate-700 overflow-hidden"
+                  className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
                 >
                   <button
                     onClick={() => setShowReviews(!showReviews)}
-                    className="w-full p-5 flex items-center justify-between hover:bg-slate-800/50 transition"
+                    className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition"
                   >
                     <div className="flex items-center gap-3">
-                      <Award className="w-5 h-5 text-indigo-400" />
-                      <h3 className="text-lg font-semibold text-white">
+                      <Award className="w-5 h-5 text-indigo-500" />
+                      <h3 className="text-lg font-semibold text-gray-800">
                         Reviews ({reviews.length})
                       </h3>
                       {reviewStats.averageRating > 0 && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-yellow-400">★</span>
-                          <span className="text-white text-sm">
+                        <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg">
+                          <Star
+                            size={14}
+                            className="fill-amber-500 text-amber-500"
+                          />
+                          <span className="text-gray-800 text-sm font-medium">
                             {reviewStats.averageRating.toFixed(1)}
                           </span>
                         </div>
                       )}
                     </div>
                     {showReviews ? (
-                      <ChevronUp size={20} className="text-slate-400" />
+                      <ChevronUp size={20} className="text-gray-400" />
                     ) : (
-                      <ChevronDown size={20} className="text-slate-400" />
+                      <ChevronDown size={20} className="text-gray-400" />
                     )}
                   </button>
 
                   {showReviews && (
-                    <div className="p-5 pt-0 space-y-4 max-h-[400px] overflow-y-auto">
+                    <div className="p-5 pt-0 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                       {reviews.map((review) => (
                         <div
                           key={review._id}
-                          className="bg-slate-900 rounded-lg p-4"
+                          className="bg-gray-50 rounded-lg p-4 border border-gray-100"
                         >
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center">
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
                                 <span className="text-white text-sm font-bold">
-                                  {review.reviewer?.fullName?.charAt(0) || "?"}
+                                  {getInitials(review.reviewer?.fullName)}
                                 </span>
                               </div>
                               <div>
-                                <p className="text-white font-medium">
+                                <p className="text-gray-800 font-medium">
                                   {review.reviewer?.fullName}
                                 </p>
-                                <p className="text-slate-500 text-xs">
+                                <p className="text-gray-400 text-xs">
                                   {formatDateTime(review.createdAt)}
                                 </p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-0.5">
                                 {[...Array(5)].map((_, i) => (
                                   <Star
                                     key={i}
                                     size={16}
                                     className={
                                       i < review.rating
-                                        ? "fill-yellow-400 text-yellow-400"
-                                        : "text-slate-600"
+                                        ? "fill-amber-400 text-amber-400"
+                                        : "text-gray-300"
                                     }
                                   />
                                 ))}
@@ -1363,23 +1646,23 @@ export default function TaskDetailPage() {
                                 review.reviewer?._id === user?._id) && (
                                 <button
                                   onClick={() => handleDeleteReview(review._id)}
-                                  className="p-1 text-slate-500 hover:text-rose-400 transition"
+                                  className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 >
                                   <Trash2 size={14} />
                                 </button>
                               )}
                             </div>
                           </div>
-                          <p className="text-slate-300 text-sm">
+                          <p className="text-gray-700 text-sm">
                             {review.comment}
                           </p>
                           {review.response && (
-                            <div className="mt-3 pl-4 border-l-2 border-indigo-500">
-                              <p className="text-indigo-400 text-xs font-medium">
+                            <div className="mt-3 pl-4 border-l-2 border-indigo-400">
+                              <p className="text-indigo-600 text-xs font-medium">
                                 Response from{" "}
                                 {review.response.respondedBy?.fullName}
                               </p>
-                              <p className="text-slate-400 text-sm mt-1">
+                              <p className="text-gray-600 text-sm mt-1">
                                 {review.response.content}
                               </p>
                             </div>
@@ -1392,15 +1675,16 @@ export default function TaskDetailPage() {
               )}
             </div>
 
-            {/* Right Column - Actions */}
+            {/* Right Column - Actions & Stats */}
             <div className="space-y-6">
+              {/* Actions Card */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="bg-gradient-to-br from-indigo-600/10 to-purple-600/10 rounded-2xl border border-indigo-500/20 p-6 sticky top-6"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sticky top-6"
               >
-                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-indigo-500" />
                   Actions
                 </h3>
                 <div className="space-y-3">
@@ -1408,7 +1692,7 @@ export default function TaskDetailPage() {
                     <button
                       onClick={() => updateTaskStatus("in_progress")}
                       disabled={updating}
-                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                     >
                       {updating ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -1423,7 +1707,7 @@ export default function TaskDetailPage() {
                     <button
                       onClick={() => updateTaskStatus("submitted")}
                       disabled={updating}
-                      className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50"
+                      className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                     >
                       {updating ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -1439,7 +1723,7 @@ export default function TaskDetailPage() {
                       <button
                         onClick={handleApprove}
                         disabled={updating}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                       >
                         {updating ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -1450,7 +1734,7 @@ export default function TaskDetailPage() {
                       </button>
                       <button
                         onClick={() => setShowRejectModal(true)}
-                        className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                       >
                         <ThumbsDown size={16} />
                         Reject Task
@@ -1462,7 +1746,7 @@ export default function TaskDetailPage() {
                     <button
                       onClick={() => updateTaskStatus("pending")}
                       disabled={updating}
-                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl transition flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                     >
                       {updating ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -1474,8 +1758,8 @@ export default function TaskDetailPage() {
                   )}
 
                   {task.status === "submitted" && !canApprove && (
-                    <div className="text-center py-4 bg-slate-800/50 rounded-xl">
-                      <p className="text-slate-400 text-sm">
+                    <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-gray-500 text-sm">
                         Waiting for approval from manager
                       </p>
                     </div>
@@ -1483,8 +1767,8 @@ export default function TaskDetailPage() {
 
                   {(task.status === "completed" ||
                     task.status === "rejected") && (
-                    <div className="text-center py-4 bg-slate-800/50 rounded-xl">
-                      <p className="text-slate-400 text-sm">
+                    <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-gray-500 text-sm">
                         {task.status === "completed"
                           ? "✅ Task Completed"
                           : "❌ Task Rejected"}
@@ -1496,7 +1780,7 @@ export default function TaskDetailPage() {
                     !reviews.some((r) => r.reviewer?._id === user?._id) && (
                       <button
                         onClick={() => setShowReviewModal(true)}
-                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                       >
                         <Star size={16} />
                         Leave a Review
@@ -1510,52 +1794,119 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-slate-800/30 rounded-2xl border border-slate-700 p-6"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6"
               >
-                <h3 className="text-sm font-semibold text-white mb-3">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">
                   Quick Stats
                 </h3>
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-sm">Created</span>
-                    <span className="text-white text-sm">
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Created</span>
+                    <span className="text-gray-800 text-sm">
                       {formatDateTime(task.createdAt)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-sm">Last Updated</span>
-                    <span className="text-white text-sm">
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Last Updated</span>
+                    <span className="text-gray-800 text-sm">
                       {formatDateTime(task.updatedAt)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-sm">Comments</span>
-                    <span className="text-white text-sm">
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Time Tracked</span>
+                    <span className="text-gray-800 text-sm font-medium">
+                      {displayTime}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Comments</span>
+                    <span className="text-gray-800 text-sm font-medium">
                       {comments.length}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-sm">Attachments</span>
-                    <span className="text-white text-sm">
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Attachments</span>
+                    <span className="text-gray-800 text-sm font-medium">
                       {attachments.length}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-sm">Reviews</span>
-                    <span className="text-white text-sm">{reviews.length}</span>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Reviews</span>
+                    <span className="text-gray-800 text-sm font-medium">
+                      {reviews.length}
+                    </span>
                   </div>
                   {reviewStats.averageRating > 0 && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-400 text-sm">Avg Rating</span>
+                    <div className="flex justify-between items-center py-1.5">
+                      <span className="text-gray-500 text-sm">Avg Rating</span>
                       <div className="flex items-center gap-1">
-                        <span className="text-yellow-400">★</span>
-                        <span className="text-white text-sm">
+                        <Star
+                          size={14}
+                          className="fill-amber-500 text-amber-500"
+                        />
+                        <span className="text-gray-800 text-sm font-medium">
                           {reviewStats.averageRating.toFixed(1)}
                         </span>
                       </div>
                     </div>
                   )}
                 </div>
+              </motion.div>
+
+              {/* Timer Status Card - GLOBALLY SYNCED */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className={`bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${
+                  isTimerRunningForTask
+                    ? "border-indigo-300"
+                    : "border-gray-200"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <TimerIcon size={16} className="text-indigo-600" />
+                    Timer Status
+                  </h3>
+                  {isTimerActive && (
+                    <span
+                      className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"}`}
+                    >
+                      {isTimerRunningForTask ? "● Running" : "● Paused"}
+                    </span>
+                  )}
+                </div>
+                <div className="text-center py-4">
+                  {isTimerActive ? (
+                    <>
+                      <div className="text-3xl font-mono font-bold text-indigo-700 tabular-nums">
+                        {formatTime(timerDisplay)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {isTimerRunningForTask
+                          ? "Timer is running"
+                          : "Timer is paused"}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-3xl font-mono font-bold text-gray-400">
+                        --:--:--
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        No timer active
+                      </p>
+                    </>
+                  )}
+                </div>
+                {task.actualMinutes &&
+                  task.actualMinutes > 0 &&
+                  !isTimerActive && (
+                    <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-3 mt-2">
+                      Total tracked: {task.actualMinutes} minutes
+                    </div>
+                  )}
               </motion.div>
             </div>
           </div>
@@ -1570,175 +1921,221 @@ export default function TaskDetailPage() {
         >
           <div className="relative max-w-4xl max-h-[90vh]">
             <img
-              src={`https://taskify-server-5gat.onrender.com${selectedImage}`}
+              src={selectedImage}
               alt="Preview"
               className="max-w-full max-h-[90vh] object-contain"
             />
             <button
               onClick={() => setSelectedImage(null)}
-              className="absolute top-4 right-4 p-2 bg-slate-800 rounded-full text-white hover:bg-slate-700 transition"
+              className="absolute top-4 right-4 p-2 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition border border-white/20"
             >
               <X size={24} />
             </button>
-            https://taskify-server-5gat.onrender.com{selectedImage}
           </div>
         </div>
       )}
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 className="w-8 h-8 text-rose-400" />
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  Delete Task
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Are you sure you want to delete this task? This action cannot
+                  be undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleDelete}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Delete Task</h3>
-              <p className="text-slate-400 mb-6">
-                Are you sure you want to delete this task? This action cannot be
-                undone.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDelete}
-                  className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition"
-                >
-                  Delete
-                </button>
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-rose-500/20 rounded-full flex items-center justify-center">
-                  <ThumbsDown className="w-5 h-5 text-rose-400" />
+      <AnimatePresence>
+        {showRejectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center">
+                    <ThumbsDown className="w-5 h-5 text-rose-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    Reject Task
+                  </h3>
                 </div>
-                <h3 className="text-xl font-bold text-white">Reject Task</h3>
-              </div>
-              <p className="text-slate-400 text-sm mb-4">
-                Please provide a reason for rejecting this task.
-              </p>
-              <textarea
-                rows={4}
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Enter rejection reason..."
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 outline-none mb-4"
-              />
-              <div className="flex gap-3">
-                <button
-                  onClick={handleReject}
-                  disabled={rejecting}
-                  className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  {rejecting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <ThumbsDown size={14} />
-                  )}
-                  Confirm
-                </button>
-                <button
-                  onClick={() => {
-                    setShowRejectModal(false);
-                    setRejectionReason("");
-                  }}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border border-slate-700 w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
-                  <Star className="w-5 h-5 text-amber-400" />
-                </div>
-                <h3 className="text-xl font-bold text-white">Leave a Review</h3>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Rating
-                </label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setReviewRating(star)}
-                      className="focus:outline-none"
-                    >
-                      <Star
-                        size={32}
-                        className={
-                          star <= reviewRating
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-slate-600"
-                        }
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Comment
-                </label>
+                <p className="text-gray-500 text-sm mb-4">
+                  Please provide a reason for rejecting this task.
+                </p>
                 <textarea
                   rows={4}
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  placeholder="Share your thoughts about this task..."
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Enter rejection reason..."
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition mb-4"
                 />
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleReject}
+                    disabled={rejecting}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    {rejecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ThumbsDown size={14} />
+                    )}
+                    Confirm
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRejectModal(false);
+                      setRejectionReason("");
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={handleAddReview}
-                  disabled={submittingReview}
-                  className="flex-1 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition flex items-center justify-center gap-2"
-                >
-                  {submittingReview ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Star size={14} />
-                  )}
-                  Submit Review
-                </button>
-                <button
-                  onClick={() => setShowReviewModal(false)}
-                  className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      {/* Review Modal */}
+      <AnimatePresence>
+        {showReviewModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
+                    <Star className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    Leave a Review
+                  </h3>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rating
+                  </label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setReviewRating(star)}
+                        className="focus:outline-none transition hover:scale-110"
+                      >
+                        <Star
+                          size={32}
+                          className={
+                            star <= reviewRating
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-gray-300"
+                          }
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Comment
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    placeholder="Share your thoughts about this task..."
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleAddReview}
+                    disabled={submittingReview}
+                    className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    {submittingReview ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Star size={14} />
+                    )}
+                    Submit Review
+                  </button>
+                  <button
+                    onClick={() => setShowReviewModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(229, 231, 235, 0.5);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(99, 102, 241, 0.3);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(99, 102, 241, 0.5);
+        }
+        .tabular-nums {
+          font-variant-numeric: tabular-nums;
+        }
+      `}</style>
     </div>
   );
 }

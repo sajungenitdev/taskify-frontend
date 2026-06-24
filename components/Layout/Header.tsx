@@ -17,9 +17,7 @@ import {
   Flag,
   MessageSquare,
   XCircle,
-  Calendar,
   Briefcase,
-  Users,
   FileCheck,
   Zap,
   X,
@@ -70,12 +68,11 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searching, setSearching] = useState(false);
-  // FIXED: Added proper type with initial value
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
 
-  // Listen for sidebar collapse changes from sidebar
+  // Listen for sidebar collapse changes
   useEffect(() => {
     const savedState = localStorage.getItem("sidebarCollapsed");
     if (savedState !== null) {
@@ -104,7 +101,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       );
   }, []);
 
-  // Fetch notifications from API
+  // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
 
@@ -135,59 +132,60 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       }
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
-      if (error.response?.status === 404) {
-        console.log("Notifications API not ready");
-      }
     }
   }, [user]);
 
-  // Real-time notification polling
+  // Polling for notifications
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  // WebSocket for real-time notifications
+  // WebSocket connection
   useEffect(() => {
     if (!user) return;
-
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws/notifications`;
 
     let ws: WebSocket | null = null;
 
     try {
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws/notifications`;
+
       ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("✅ WebSocket connected");
+      };
+
+      ws.onerror = () => {
+        console.debug("WebSocket connection failed (using polling)");
+      };
+
+      ws.onclose = () => {
+        console.debug("WebSocket disconnected");
+      };
+
       ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "new_notification") {
-          const newNotification: Notification = {
-            _id: data.notification._id,
-            title: data.notification.title,
-            message: data.notification.message,
-            type: data.notification.type,
-            category: data.notification.category,
-            isRead: false,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(), // ✅ Added missing field
-          };
-          setNotifications((prev) => [newNotification, ...prev]);
-          setUnreadCount((prev) => prev + 1);
-          toast.success(data.notification.title, {
-            duration: 5000,
-            icon: "🔔",
-          });
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "new_notification") {
+            fetchNotifications();
+          }
+        } catch (e) {
+          // Ignore parse errors
         }
       };
     } catch (error) {
-      console.error("WebSocket connection failed:", error);
+      console.debug("WebSocket not available");
     }
 
     return () => {
-      if (ws) ws.close();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
-  }, [user]);
+  }, [user, fetchNotifications]);
 
   const markAsRead = async (id: string) => {
     try {
@@ -198,6 +196,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking notification as read:", error);
+      // Optimistic update
       setNotifications((prev) =>
         prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)),
       );
@@ -274,10 +273,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       setSearchResults([
         {
           _id: "1",
-          title: `Results for "${query}"`,
+          title: `View all results for "${query}"`,
           type: "task",
           url: `/tasks?search=${query}`,
-          description: "View all matching tasks",
+          description: "Click to see all matching tasks",
         },
       ]);
       setShowSearchResults(true);
@@ -312,35 +311,35 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const getNotificationIcon = (category: string, type: string) => {
     switch (category) {
       case "task":
-        return <CheckCircle size={14} className="text-emerald-400" />;
+        return <CheckCircle size={14} className="text-emerald-500" />;
       case "comment":
-        return <MessageSquare size={14} className="text-blue-400" />;
+        return <MessageSquare size={14} className="text-blue-500" />;
       case "approval":
-        return <FileCheck size={14} className="text-purple-400" />;
+        return <FileCheck size={14} className="text-purple-500" />;
       case "reminder":
-        return <Clock size={14} className="text-amber-400" />;
+        return <Clock size={14} className="text-amber-500" />;
       case "system":
-        return <Zap size={14} className="text-indigo-400" />;
+        return <Zap size={14} className="text-indigo-500" />;
       default:
         if (type === "success")
-          return <CheckCircle size={14} className="text-emerald-400" />;
+          return <CheckCircle size={14} className="text-emerald-500" />;
         if (type === "warning")
-          return <AlertCircle size={14} className="text-amber-400" />;
+          return <AlertCircle size={14} className="text-amber-500" />;
         if (type === "error")
-          return <XCircle size={14} className="text-rose-400" />;
-        return <Bell size={14} className="text-indigo-400" />;
+          return <XCircle size={14} className="text-rose-500" />;
+        return <Bell size={14} className="text-indigo-500" />;
     }
   };
 
   const getNotificationColor = (category: string, type: string) => {
-    if (category === "task") return "bg-emerald-500/10 border-emerald-500/20";
-    if (category === "comment") return "bg-blue-500/10 border-blue-500/20";
-    if (category === "approval") return "bg-purple-500/10 border-purple-500/20";
-    if (category === "reminder") return "bg-amber-500/10 border-amber-500/20";
-    if (type === "success") return "bg-emerald-500/10 border-emerald-500/20";
-    if (type === "warning") return "bg-amber-500/10 border-amber-500/20";
-    if (type === "error") return "bg-rose-500/10 border-rose-500/20";
-    return "bg-indigo-500/10 border-indigo-500/20";
+    if (category === "task") return "bg-emerald-50 border-emerald-200";
+    if (category === "comment") return "bg-blue-50 border-blue-200";
+    if (category === "approval") return "bg-purple-50 border-purple-200";
+    if (category === "reminder") return "bg-amber-50 border-amber-200";
+    if (type === "success") return "bg-emerald-50 border-emerald-200";
+    if (type === "warning") return "bg-amber-50 border-amber-200";
+    if (type === "error") return "bg-rose-50 border-rose-200";
+    return "bg-indigo-50 border-indigo-200";
   };
 
   const formatTime = (dateString: string) => {
@@ -377,7 +376,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header
-      className={`bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 fixed top-0 right-0 z-30 transition-all duration-300 ${
+      className={`bg-white/95 backdrop-blur-xl border-b border-gray-200 fixed top-0 right-0 z-30 transition-all duration-300 ${
         sidebarCollapsed ? "left-20" : "left-80"
       }`}
     >
@@ -386,15 +385,15 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
-            className="lg:hidden text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-slate-800"
+            className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
           >
             <Menu size={20} />
           </button>
           <div className="hidden lg:block">
-            <h1 className="text-lg font-semibold text-white tracking-tight">
+            <h1 className="text-lg font-semibold text-gray-800 tracking-tight">
               {getPageTitle()}
             </h1>
-            <p className="text-[9px] text-slate-600 mt-0.5">
+            <p className="text-[9px] text-gray-400 mt-0.5">
               {new Date().toLocaleDateString("en-US", {
                 weekday: "long",
                 year: "numeric",
@@ -408,7 +407,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         {/* Center - Search Bar */}
         <div className="hidden md:block flex-1 max-w-md mx-4 lg:mx-8">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search tasks, projects, users..."
@@ -417,10 +416,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               onFocus={() =>
                 searchQuery.length >= 2 && setShowSearchResults(true)
               }
-              className="w-full pl-10 pr-4 py-2 text-sm bg-slate-800/50 border border-slate-700 rounded-xl focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-200 placeholder:text-slate-500 transition-all"
+              className="w-full pl-10 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-gray-700 placeholder:text-gray-400 transition-all"
             />
             {searching && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" />
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
             )}
             {!searching && searchQuery && (
               <button
@@ -429,23 +428,23 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   setSearchResults([]);
                   setShowSearchResults(false);
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X size={14} />
               </button>
             )}
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded-md border border-slate-700">
+            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md border border-gray-200">
               ⌘K
             </kbd>
           </div>
 
           {showSearchResults &&
             (searchResults.length > 0 || searchQuery.length >= 2) && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden">
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                 <div className="max-h-80 overflow-y-auto">
                   {searchResults.length === 0 && searchQuery.length >= 2 && (
                     <div className="p-4 text-center">
-                      <p className="text-sm text-slate-500">
+                      <p className="text-sm text-gray-500">
                         No results found for "{searchQuery}"
                       </p>
                     </div>
@@ -458,28 +457,28 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         setShowSearchResults(false);
                         setSearchQuery("");
                       }}
-                      className="flex items-center gap-3 p-3 hover:bg-slate-700/50 transition-colors border-b border-slate-700 last:border-0"
+                      className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                     >
                       {result.type === "task" && (
-                        <CheckCircle size={16} className="text-indigo-400" />
+                        <CheckCircle size={16} className="text-indigo-500" />
                       )}
                       {result.type === "project" && (
-                        <Briefcase size={16} className="text-emerald-400" />
+                        <Briefcase size={16} className="text-emerald-500" />
                       )}
                       {result.type === "user" && (
-                        <User size={16} className="text-amber-400" />
+                        <User size={16} className="text-amber-500" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate">
+                        <p className="text-sm text-gray-800 truncate">
                           {result.title}
                         </p>
                         {result.description && (
-                          <p className="text-xs text-slate-500 truncate">
+                          <p className="text-xs text-gray-500 truncate">
                             {result.description}
                           </p>
                         )}
                       </div>
-                      <span className="text-[10px] capitalize text-slate-500">
+                      <span className="text-[10px] capitalize text-gray-400">
                         {result.type}
                       </span>
                     </Link>
@@ -493,14 +492,14 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="md:hidden text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800"
+            className="md:hidden text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100"
           >
             <Search size={18} />
           </button>
 
           <Link
             href="/help"
-            className="hidden lg:flex text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors"
+            className="hidden lg:flex text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <HelpCircle size={18} />
           </Link>
@@ -512,7 +511,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 setShowNotifications(!showNotifications);
                 setShowProfileDropdown(false);
               }}
-              className="relative text-slate-400 hover:text-white transition-colors p-2 rounded-lg hover:bg-slate-800"
+              className="relative text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
             >
               <Bell size={18} />
               {unreadCount > 0 && (
@@ -528,13 +527,13 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   className="fixed inset-0 z-40"
                   onClick={() => setShowNotifications(false)}
                 />
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden">
-                  <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-slate-800/50">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50/50">
                     <div>
-                      <h3 className="text-sm font-semibold text-white">
+                      <h3 className="text-sm font-semibold text-gray-800">
                         Notifications
                       </h3>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="text-[10px] text-gray-400">
                         Stay updated with your tasks
                       </p>
                     </div>
@@ -542,7 +541,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       <button
                         onClick={markAllAsRead}
                         disabled={markingAll}
-                        className="text-[10px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+                        className="text-[10px] font-medium text-indigo-500 hover:text-indigo-600 transition-colors disabled:opacity-50"
                       >
                         {markingAll ? "..." : "Mark all read"}
                       </button>
@@ -552,18 +551,18 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   <div className="max-h-96 overflow-y-auto custom-scrollbar">
                     {loading ? (
                       <div className="p-8 text-center">
-                        <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto mb-2" />
-                        <p className="text-xs text-slate-500">
+                        <Loader2 className="w-6 h-6 text-indigo-500 animate-spin mx-auto mb-2" />
+                        <p className="text-xs text-gray-500">
                           Loading notifications...
                         </p>
                       </div>
                     ) : notifications.length === 0 ? (
                       <div className="p-8 text-center">
-                        <Bell className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-                        <p className="text-sm text-slate-500">
+                        <Bell className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-500">
                           No notifications
                         </p>
-                        <p className="text-xs text-slate-600 mt-1">
+                        <p className="text-xs text-gray-400 mt-1">
                           When you get notifications, they'll appear here
                         </p>
                       </div>
@@ -571,12 +570,17 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       notifications.map((notification) => (
                         <div
                           key={notification._id}
-                          className={`p-3 border-b border-slate-700/50 hover:bg-slate-700/30 cursor-pointer transition-all ${!notification.isRead ? "bg-indigo-500/5" : ""}`}
+                          className={`p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-all ${
+                            !notification.isRead ? "bg-indigo-50/50" : ""
+                          }`}
                           onClick={() => handleNotificationClick(notification)}
                         >
                           <div className="flex items-start gap-3">
                             <div
-                              className={`p-1.5 rounded-lg border ${getNotificationColor(notification.category, notification.type)}`}
+                              className={`p-1.5 rounded-lg border ${getNotificationColor(
+                                notification.category,
+                                notification.type,
+                              )}`}
                             >
                               {getNotificationIcon(
                                 notification.category,
@@ -585,35 +589,35 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-start justify-between gap-2">
-                                <h4 className="text-xs font-semibold text-white">
+                                <h4 className="text-xs font-semibold text-gray-800">
                                   {notification.title}
                                 </h4>
                                 <div className="flex items-center gap-1">
-                                  <span className="text-[9px] text-slate-500 whitespace-nowrap">
+                                  <span className="text-[9px] text-gray-400 whitespace-nowrap">
                                     {formatTime(notification.createdAt)}
                                   </span>
                                   <button
                                     onClick={(e) =>
                                       deleteNotification(notification._id, e)
                                     }
-                                    className="text-slate-500 hover:text-rose-400 transition-colors"
+                                    className="text-gray-400 hover:text-rose-500 transition-colors"
                                   >
                                     <X size={12} />
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-2">
+                              <p className="text-[11px] text-gray-600 mt-0.5 line-clamp-2">
                                 {notification.message}
                               </p>
                               {notification.taskTitle && (
-                                <p className="text-[9px] text-indigo-400 mt-1 flex items-center gap-1">
+                                <p className="text-[9px] text-indigo-500 mt-1 flex items-center gap-1">
                                   <Flag size={9} />
                                   {notification.taskTitle}
                                 </p>
                               )}
                             </div>
                             {!notification.isRead && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0 mt-1" />
+                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0 mt-1" />
                             )}
                           </div>
                         </div>
@@ -622,10 +626,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   </div>
 
                   {notifications.length > 0 && (
-                    <div className="p-3 border-t border-slate-700 bg-slate-800/50">
+                    <div className="p-3 border-t border-gray-200 bg-gray-50/50">
                       <Link
                         href="/notifications"
-                        className="w-full text-center text-[10px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors block"
+                        className="w-full text-center text-[10px] font-medium text-indigo-500 hover:text-indigo-600 transition-colors block"
                         onClick={() => setShowNotifications(false)}
                       >
                         View all notifications
@@ -644,24 +648,24 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 setShowProfileDropdown(!showProfileDropdown);
                 setShowNotifications(false);
               }}
-              className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors p-1 rounded-lg hover:bg-gray-100"
             >
-              <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
+              <div className="w-8 h-8 bg-linear-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
                 <span className="text-white text-xs font-bold">
                   {user?.fullName?.charAt(0) || user?.email?.charAt(0) || "U"}
                 </span>
               </div>
               <div className="hidden lg:block text-left">
-                <p className="text-sm font-medium text-white max-w-[120px] truncate">
+                <p className="text-sm font-medium text-gray-800 max-w-[120px] truncate">
                   {user?.fullName?.split(" ")[0] || "User"}
                 </p>
-                <p className="text-[9px] text-slate-400 capitalize truncate max-w-[120px]">
+                <p className="text-[9px] text-gray-400 capitalize truncate max-w-[120px]">
                   {user?.role?.replace(/_/g, " ") || "Employee"}
                 </p>
               </div>
               <ChevronDown
                 size={14}
-                className="hidden lg:block text-slate-500"
+                className="hidden lg:block text-gray-400"
               />
             </button>
 
@@ -671,10 +675,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   className="fixed inset-0 z-40"
                   onClick={() => setShowProfileDropdown(false)}
                 />
-                <div className="absolute right-0 mt-2 w-64 bg-slate-800 rounded-xl shadow-2xl border border-slate-700 z-50 overflow-hidden">
-                  <div className="p-4 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-800/50">
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+                  <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <div className="w-10 h-10 bg-linear-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                         <span className="text-white text-sm font-bold">
                           {user?.fullName?.charAt(0) ||
                             user?.email?.charAt(0) ||
@@ -682,13 +686,13 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         </span>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
                           {user?.fullName || "User"}
                         </p>
-                        <p className="text-[10px] text-slate-500 truncate">
+                        <p className="text-[10px] text-gray-500 truncate">
                           {user?.email}
                         </p>
-                        <p className="text-[9px] text-indigo-400 capitalize mt-0.5">
+                        <p className="text-[9px] text-indigo-500 capitalize mt-0.5">
                           {user?.role?.replace(/_/g, " ") || "Employee"}
                         </p>
                       </div>
@@ -698,7 +702,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   <div className="py-2">
                     <Link
                       href="/profile"
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 transition-colors"
                       onClick={() => setShowProfileDropdown(false)}
                     >
                       <User size={16} />
@@ -706,27 +710,27 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     </Link>
                     <Link
                       href="/settings"
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-50 transition-colors"
                       onClick={() => setShowProfileDropdown(false)}
                     >
                       <Settings size={16} />
                       Settings
                     </Link>
-                    <div className="h-px bg-slate-700 my-1" />
+                    <div className="h-px bg-gray-200 my-1" />
                     <button
                       onClick={() => {
                         setShowProfileDropdown(false);
                         logout();
                       }}
-                      className="w-full cursor-pointer flex items-center gap-3 px-4 py-2.5 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                      className="w-full cursor-pointer flex items-center gap-3 px-4 py-2.5 text-sm text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                     >
                       <LogOut size={16} />
                       Sign out
                     </button>
                   </div>
 
-                  <div className="p-3 border-t border-slate-700 bg-slate-800/30">
-                    <p className="text-[9px] text-slate-500 text-center">
+                  <div className="p-3 border-t border-gray-200 bg-gray-50/50">
+                    <p className="text-[9px] text-gray-400 text-center">
                       Logged in as {user?.role?.replace(/_/g, " ")}
                     </p>
                   </div>
@@ -739,20 +743,20 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
       {/* Mobile Search Bar */}
       {showSearch && (
-        <div className="md:hidden p-3 border-t border-slate-800 bg-slate-900">
+        <div className="md:hidden p-3 border-t border-gray-200 bg-white">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search tasks, projects, users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 text-sm bg-slate-800 border border-slate-700 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-200 placeholder:text-slate-500"
+              className="w-full pl-10 pr-4 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 text-gray-700 placeholder:text-gray-400"
               autoFocus
             />
           </div>
           {searchResults.length > 0 && searchQuery.length >= 2 && (
-            <div className="mt-2 bg-slate-800 rounded-lg border border-slate-700 max-h-60 overflow-y-auto">
+            <div className="mt-2 bg-white rounded-lg border border-gray-200 max-h-60 overflow-y-auto">
               {searchResults.map((result) => (
                 <Link
                   key={result._id}
@@ -762,19 +766,19 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     setSearchQuery("");
                     setSearchResults([]);
                   }}
-                  className="flex items-center gap-3 p-3 hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
+                  className="flex items-center gap-3 p-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                 >
                   {result.type === "task" && (
-                    <CheckCircle size={14} className="text-indigo-400" />
+                    <CheckCircle size={14} className="text-indigo-500" />
                   )}
                   {result.type === "project" && (
-                    <Briefcase size={14} className="text-emerald-400" />
+                    <Briefcase size={14} className="text-emerald-500" />
                   )}
                   {result.type === "user" && (
-                    <User size={14} className="text-amber-400" />
+                    <User size={14} className="text-amber-500" />
                   )}
                   <div className="flex-1">
-                    <p className="text-sm text-white">{result.title}</p>
+                    <p className="text-sm text-gray-800">{result.title}</p>
                   </div>
                 </Link>
               ))}
@@ -788,15 +792,15 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           width: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(51, 65, 85, 0.5);
+          background: rgba(229, 231, 235, 0.5);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(99, 102, 241, 0.4);
+          background: rgba(99, 102, 241, 0.3);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(99, 102, 241, 0.6);
+          background: rgba(99, 102, 241, 0.5);
         }
       `}</style>
     </header>

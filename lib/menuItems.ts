@@ -116,6 +116,7 @@ import {
   Webhook,
   LockKeyhole,
   BadgeCheck,
+  Sparkles,
 } from "lucide-react";
 
 export interface NavItem {
@@ -213,6 +214,15 @@ export const personalItems: NavItem[] = [
     section: "main",
     badge: "12",
     badgeColor: "bg-red-500",
+  },
+  {
+    name: "AI Assistant",
+    href: "/ai-assistant",
+    icon: Sparkles,
+    roles: ["all"],
+    section: "main",
+    badge: "New",
+    badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
   },
 ];
 
@@ -450,7 +460,7 @@ export const subMenuItems: SubNavItem[] = [
   },
   {
     name: "Task Board",
-    href: "/tasks/all",
+    href: "/tasks/kanban",
     icon: ListTodo,
     parent: "Tasks",
     roles: [
@@ -458,6 +468,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.ADMIN,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
     ],
   },
   {
@@ -487,6 +498,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
       ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
     ],
   },
   {
@@ -500,6 +512,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
       ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
     ],
   },
   {
@@ -512,6 +525,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.ADMIN,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
     ],
   },
   {
@@ -536,6 +550,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.ADMIN,
       ROLES.DEPT_MANAGER,
       ROLES.HR_MANAGER,
+      ROLES.LINE_MANAGER,
     ],
   },
   {
@@ -582,6 +597,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.ADMIN,
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
+      ROLES.EMPLOYEE,
     ],
   },
   {

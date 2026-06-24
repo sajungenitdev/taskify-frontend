@@ -8,6 +8,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 
 interface Task {
   _id: string;
@@ -26,27 +27,30 @@ interface RecentTasksProps {
 export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
   const router = useRouter();
 
-  const getPriorityColor = (priority: string) => {
+  // Memoize color functions to prevent recalculation
+  const getPriorityColor = useMemo(() => {
     const colors = {
-      low: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-      normal: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-      high: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-      urgent: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+      low: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      normal: "bg-blue-50 text-blue-700 border-blue-200",
+      high: "bg-amber-50 text-amber-700 border-amber-200",
+      urgent: "bg-rose-50 text-rose-700 border-rose-200",
     };
-    return colors[priority as keyof typeof colors] || colors.normal;
-  };
+    return (priority: string) =>
+      colors[priority as keyof typeof colors] || colors.normal;
+  }, []);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useMemo(() => {
     const colors = {
-      pending: "bg-slate-800 text-slate-300",
-      in_progress: "bg-sky-500/10 text-sky-400",
-      submitted: "bg-purple-500/10 text-purple-400",
-      completed: "bg-emerald-500/10 text-emerald-400",
-      overdue: "bg-rose-500/10 text-rose-400",
-      rejected: "bg-red-500/10 text-red-400",
+      pending: "bg-gray-100 text-gray-700",
+      in_progress: "bg-sky-50 text-sky-700",
+      submitted: "bg-purple-50 text-purple-700",
+      completed: "bg-emerald-50 text-emerald-700",
+      overdue: "bg-rose-50 text-rose-700",
+      rejected: "bg-red-50 text-red-700",
     };
-    return colors[status as keyof typeof colors] || colors.pending;
-  };
+    return (status: string) =>
+      colors[status as keyof typeof colors] || colors.pending;
+  }, []);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -61,12 +65,26 @@ export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
     return `${diffDays} days left`;
   };
 
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle size={10} className="text-emerald-500" />;
+      case "overdue":
+        return <AlertCircle size={10} className="text-rose-500" />;
+      default:
+        return <Clock size={10} className="text-gray-400" />;
+    }
+  };
+
+  // Memoize displayed tasks
+  const displayedTasks = useMemo(() => tasks.slice(0, 5), [tasks]);
+
   if (!tasks || tasks.length === 0) {
     return (
-      <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl p-8 border border-slate-800 text-center">
-        <CheckCircle className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-        <h3 className="text-white font-medium">No tasks yet</h3>
-        <p className="text-slate-400 text-sm mt-1">
+      <div className="bg-white rounded-2xl p-8 border border-gray-200 text-center shadow-sm">
+        <CheckCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+        <h3 className="text-gray-800 font-medium">No tasks yet</h3>
+        <p className="text-gray-500 text-sm mt-1">
           Tasks assigned to you will appear here
         </p>
       </div>
@@ -74,34 +92,34 @@ export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
   }
 
   return (
-    <div className="bg-slate-900/40 backdrop-blur-sm rounded-2xl border border-slate-800 overflow-hidden">
-      <div className="p-5 border-b border-slate-800">
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="p-5 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-white font-semibold">Recent Tasks</h3>
-            <p className="text-slate-400 text-xs mt-0.5">
+            <h3 className="text-gray-800 font-semibold">Recent Tasks</h3>
+            <p className="text-gray-500 text-xs mt-0.5">
               Your active and pending tasks
             </p>
           </div>
           <button
             onClick={() => router.push("/tasks/tasks-board")}
-            className="text-xs cursor-pointer text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
+            className="text-xs cursor-pointer text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition font-medium"
           >
             View All
             <ArrowRight size={12} />
           </button>
         </div>
       </div>
-      <div className="divide-y divide-slate-800">
-        {tasks.slice(0, 5).map((task) => (
+      <div className="divide-y divide-gray-100">
+        {displayedTasks.map((task) => (
           <div
             key={task._id}
-            className="p-4 hover:bg-slate-800/30 transition-all cursor-pointer group"
+            className="p-4 hover:bg-gray-50 transition-all cursor-pointer group"
             onClick={() => router.push(`/tasks/${task._id}`)}
           >
             <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h4 className="text-white text-sm font-medium mb-2 line-clamp-1">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-gray-800 text-sm font-medium mb-2 line-clamp-1 group-hover:text-indigo-600 transition-colors">
                   {task.title}
                 </h4>
                 <div className="flex flex-wrap items-center gap-2">
@@ -111,19 +129,25 @@ export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
                     {task.priority.toUpperCase()}
                   </span>
                   <span
-                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${getStatusColor(task.status)}`}
+                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${getStatusColor(task.status)}`}
                   >
+                    {getStatusIcon(task.status)}
                     {task.status.replace("_", " ").toUpperCase()}
                   </span>
-                  <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <span className="text-[10px] text-gray-500 flex items-center gap-1">
                     <Calendar size={10} />
                     {formatDate(task.deadline)}
                   </span>
                 </div>
+                {task.assignedTo && (
+                  <p className="text-[10px] text-gray-400 mt-1.5">
+                    Assigned to: {task.assignedTo.fullName}
+                  </p>
+                )}
               </div>
               <ArrowRight
                 size={16}
-                className="text-slate-600 group-hover:text-indigo-400 transition-colors"
+                className="text-gray-300 group-hover:text-indigo-500 transition-colors flex-shrink-0 ml-2"
               />
             </div>
           </div>

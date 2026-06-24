@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -19,10 +19,25 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
+  Filter,
+  Grid,
+  List,
+  CheckCircle,
+  XCircle,
+  Calendar,
+  Clock,
+  User,
+  Briefcase,
+  Star,
+  TrendingUp,
+  Award,
+  Zap,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Department {
   _id: string;
@@ -55,6 +70,7 @@ interface Department {
   };
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export default function AllDepartmentsPage() {
@@ -67,7 +83,15 @@ export default function AllDepartmentsPage() {
   const [itemsPerPage] = useState(10);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
+    null,
+  );
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [sortBy, setSortBy] = useState<
+    "name" | "code" | "employeeCount" | "budget"
+  >("name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [showStats, setShowStats] = useState(true);
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -107,7 +131,9 @@ export default function AllDepartmentsPage() {
         fetchDepartments();
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to create department");
+      toast.error(
+        error.response?.data?.message || "Failed to create department",
+      );
     }
   };
 
@@ -115,7 +141,10 @@ export default function AllDepartmentsPage() {
     e.preventDefault();
     if (!editingDept) return;
     try {
-      const response = await api.put(`/departments/${editingDept._id}`, formData);
+      const response = await api.put(
+        `/departments/${editingDept._id}`,
+        formData,
+      );
       if (response.data.success) {
         toast.success("Department updated successfully");
         setShowCreateModal(false);
@@ -124,7 +153,9 @@ export default function AllDepartmentsPage() {
         fetchDepartments();
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update department");
+      toast.error(
+        error.response?.data?.message || "Failed to update department",
+      );
     }
   };
 
@@ -135,189 +166,543 @@ export default function AllDepartmentsPage() {
       setShowDeleteConfirm(null);
       fetchDepartments();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to delete department");
+      toast.error(
+        error.response?.data?.message || "Failed to delete department",
+      );
     }
   };
 
-  const filteredDepartments = departments.filter((dept) =>
-    dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    dept.code.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSort = (field: "name" | "code" | "employeeCount" | "budget") => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const filteredDepartments = useMemo(() => {
+    let filtered = departments.filter(
+      (dept) =>
+        dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        dept.code.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
+
+    filtered.sort((a, b) => {
+      let aVal: any = a[sortBy];
+      let bVal: any = b[sortBy];
+      if (sortBy === "budget") {
+        aVal = a.budget?.allocated || 0;
+        bVal = b.budget?.allocated || 0;
+      }
+      if (typeof aVal === "string") {
+        return sortOrder === "asc"
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+    });
+
+    return filtered;
+  }, [departments, searchTerm, sortBy, sortOrder]);
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentDepartments = filteredDepartments.slice(indexOfFirstItem, indexOfLastItem);
+  const currentDepartments = filteredDepartments.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
   const totalPages = Math.ceil(filteredDepartments.length / itemsPerPage);
+
+  const stats = {
+    total: departments.length,
+    employees: departments.reduce((sum, d) => sum + d.employeeCount, 0),
+    budget: departments.reduce((sum, d) => sum + (d.budget?.allocated || 0), 0),
+    assets: departments.reduce((sum, d) => sum + (d.assets?.total || 0), 0),
+    active: departments.filter((d) => d.isActive).length,
+    inactive: departments.filter((d) => !d.isActive).length,
+  };
 
   if (!canManage) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-          <h2 className="text-xl font-semibold text-white">Access Denied</h2>
-          <p className="text-slate-400 mt-1">You don't have permission to view this page</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center bg-white rounded-2xl p-8 border border-gray-200 shadow-sm max-w-md"
+        >
+          <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-10 h-10 text-rose-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Access Denied
+          </h2>
+          <p className="text-gray-500">
+            You don't have permission to view this page
+          </p>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 pe-0">
-      <div className="container mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-white">All Departments</h1>
-            <p className="text-slate-400 text-sm mt-1">Manage and view all departments in the system</p>
-          </div>
-          <div className="flex gap-3">
-            {canEdit && (
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4 md:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                  <Building2 className="w-4 h-4 text-white" />
+                </div>
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
+                  All Departments
+                </h1>
+                <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                  {departments.length}
+                </span>
+              </div>
+              <p className="text-gray-500 text-sm">
+                Manage and view all departments in the system
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => {
-                  setEditingDept(null);
-                  setFormData({ name: "", code: "", description: "" });
-                  setShowCreateModal(true);
-                }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-xl flex items-center gap-2 transition"
+                onClick={() => setShowStats(!showStats)}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
               >
-                <Plus size={16} />
-                Add Department
+                <TrendingUp size={14} />
+                {showStats ? "Hide Stats" : "Show Stats"}
               </button>
-            )}
-            <button onClick={fetchDepartments} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm rounded-xl flex items-center gap-2 transition">
-              <RefreshCw size={16} />
-              Refresh
-            </button>
-          </div>
-        </div>
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "grid" ? "list" : "grid")
+                }
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
+              >
+                {viewMode === "grid" ? <List size={14} /> : <Grid size={14} />}
+                {viewMode === "grid" ? "List View" : "Grid View"}
+              </button>
+              {canEdit && (
+                <button
+                  onClick={() => {
+                    setEditingDept(null);
+                    setFormData({ name: "", code: "", description: "" });
+                    setShowCreateModal(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+                >
+                  <Plus size={16} />
+                  Add Department
+                </button>
+              )}
+              <button
+                onClick={fetchDepartments}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
+              >
+                <RefreshCw
+                  size={16}
+                  className={loading ? "animate-spin" : ""}
+                />
+              </button>
+            </div>
+          </motion.div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-white">{departments.length}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Total Departments</p>
+          {/* Stats Cards */}
+          {showStats && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4"
+            >
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {stats.total}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Departments</p>
+                  </div>
+                  <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-indigo-500" />
+                  </div>
+                </div>
               </div>
-              <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-indigo-400" />
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      {stats.employees}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Employees</p>
+                  </div>
+                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                    <Users className="w-5 h-5 text-emerald-500" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-white">{departments.reduce((sum, d) => sum + d.employeeCount, 0)}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Total Employees</p>
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-blue-600">
+                      ${stats.budget.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Budget</p>
+                  </div>
+                  <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-5 h-5 text-blue-500" />
+                  </div>
+                </div>
               </div>
-              <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                <Users className="w-5 h-5 text-emerald-400" />
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {stats.assets}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Assets</p>
+                  </div>
+                  <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
+                    <FolderKanban className="w-5 h-5 text-purple-500" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-white">
-                  ${departments.reduce((sum, d) => sum + (d.budget?.allocated || 0), 0).toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">Total Budget</p>
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-600">
+                      {stats.active}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Active</p>
+                  </div>
+                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5 text-emerald-500" />
+                  </div>
+                </div>
               </div>
-              <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-blue-400" />
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-2xl font-bold text-rose-600">
+                      {stats.inactive}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">Inactive</p>
+                  </div>
+                  <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
+                    <XCircle className="w-5 h-5 text-rose-500" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-white">{departments.reduce((sum, d) => sum + (d.assets?.total || 0), 0)}</p>
-                <p className="text-xs text-slate-400 mt-0.5">Total Assets</p>
-              </div>
-              <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                <FolderKanban className="w-5 h-5 text-purple-400" />
-              </div>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+          )}
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search by name or code..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700 rounded-xl text-white text-sm focus:border-indigo-500 outline-none"
-          />
-        </div>
+          {/* Search and Sort */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-col sm:flex-row gap-4"
+          >
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name or code..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="code">Sort by Code</option>
+                <option value="employeeCount">Sort by Employees</option>
+                <option value="budget">Sort by Budget</option>
+              </select>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
+              >
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </button>
+            </div>
+          </motion.div>
 
-        {/* Departments Table */}
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-          </div>
-        ) : (
-          <>
-            <div className="bg-slate-900/50 rounded-xl border border-slate-800 overflow-hidden">
+          {/* Departments Grid/List */}
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+            </div>
+          ) : filteredDepartments.length === 0 ? (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white rounded-2xl p-12 text-center border border-gray-200 shadow-sm"
+            >
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800 mb-1">
+                No Departments Found
+              </h3>
+              <p className="text-gray-500">
+                {searchTerm
+                  ? "Try adjusting your search terms"
+                  : "Create your first department to get started"}
+              </p>
+              {canEdit && !searchTerm && (
+                <button
+                  onClick={() => {
+                    setEditingDept(null);
+                    setFormData({ name: "", code: "", description: "" });
+                    setShowCreateModal(true);
+                  }}
+                  className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition"
+                >
+                  <Plus size={16} className="inline mr-2" />
+                  Add Department
+                </button>
+              )}
+            </motion.div>
+          ) : viewMode === "grid" ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
+            >
+              {currentDepartments.map((dept, index) => (
+                <motion.div
+                  key={dept._id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition"
+                >
+                  <div className="p-5">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                          <Building2 className="w-5 h-5 text-indigo-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-semibold text-gray-800">
+                            {dept.name}
+                          </h3>
+                          <span className="text-xs font-mono text-gray-400">
+                            {dept.code}
+                          </span>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${dept.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}
+                      >
+                        {dept.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    {dept.description && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                        {dept.description}
+                      </p>
+                    )}
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
+                        <p className="text-lg font-bold text-gray-700">
+                          {dept.employeeCount}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Members</p>
+                      </div>
+                      <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
+                        <p className="text-lg font-bold text-gray-700">
+                          ${(dept.budget?.allocated || 0).toLocaleString()}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Budget</p>
+                      </div>
+                      <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
+                        <p className="text-lg font-bold text-gray-700">
+                          {dept.assets?.total || 0}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Assets</p>
+                      </div>
+                    </div>
+                    {dept.headOfDepartment && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                        <User size={12} className="text-gray-400" />
+                        <span className="text-xs text-gray-600">
+                          Head: {dept.headOfDepartment.fullName}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                    <Link
+                      href={`/departments/${dept._id}`}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                      <Eye size={12} />
+                      View Details
+                    </Link>
+                    {canEdit && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingDept(dept);
+                            setFormData({
+                              name: dept.name,
+                              code: dept.code,
+                              description: dept.description || "",
+                            });
+                            setShowCreateModal(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          onClick={() => setShowDeleteConfirm(dept._id)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
+            >
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-slate-800/50 border-b border-slate-800">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase">Department</th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase">Code</th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase">Head</th>
-                      <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase">Members</th>
-                      <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase">Budget</th>
-                      <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase">Assets</th>
-                      <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase">Status</th>
-                      <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase">Actions</th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button
+                          onClick={() => handleSort("name")}
+                          className="flex items-center gap-1 hover:text-gray-700"
+                        >
+                          Department
+                          {sortBy === "name" &&
+                            (sortOrder === "asc" ? "↑" : "↓")}
+                        </button>
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button
+                          onClick={() => handleSort("code")}
+                          className="flex items-center gap-1 hover:text-gray-700"
+                        >
+                          Code
+                          {sortBy === "code" &&
+                            (sortOrder === "asc" ? "↑" : "↓")}
+                        </button>
+                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Head
+                      </th>
+                      <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button
+                          onClick={() => handleSort("employeeCount")}
+                          className="flex items-center gap-1 hover:text-gray-700"
+                        >
+                          Members
+                          {sortBy === "employeeCount" &&
+                            (sortOrder === "asc" ? "↑" : "↓")}
+                        </button>
+                      </th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <button
+                          onClick={() => handleSort("budget")}
+                          className="flex items-center gap-1 hover:text-gray-700"
+                        >
+                          Budget
+                          {sortBy === "budget" &&
+                            (sortOrder === "asc" ? "↑" : "↓")}
+                        </button>
+                      </th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Assets
+                      </th>
+                      <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {currentDepartments.map((dept) => (
-                      <tr key={dept._id} className="hover:bg-slate-800/30 transition">
+                  <tbody className="divide-y divide-gray-100">
+                    {currentDepartments.map((dept, index) => (
+                      <motion.tr
+                        key={dept._id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.03 }}
+                        className="hover:bg-gray-50 transition"
+                      >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-                              <Building2 className="w-4 h-4 text-indigo-400" />
+                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                              <Building2 className="w-4 h-4 text-indigo-500" />
                             </div>
                             <div>
-                              <p className="text-white text-sm font-medium">{dept.name}</p>
+                              <p className="text-gray-800 text-sm font-medium">
+                                {dept.name}
+                              </p>
                               {dept.description && (
-                                <p className="text-slate-500 text-xs line-clamp-1">{dept.description}</p>
+                                <p className="text-gray-400 text-xs line-clamp-1">
+                                  {dept.description}
+                                </p>
                               )}
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="px-2 py-1 text-xs rounded-full bg-slate-800 text-slate-300 font-mono">
+                          <span className="px-2 py-1 text-xs font-mono bg-gray-100 text-gray-600 rounded-lg border border-gray-200">
                             {dept.code}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-300">
+                        <td className="px-6 py-4 text-sm text-gray-600">
                           {dept.headOfDepartment?.fullName || "-"}
                         </td>
-                        <td className="px-6 py-4 text-center text-sm text-slate-300">
+                        <td className="px-6 py-4 text-center text-sm text-gray-700 font-medium">
                           {dept.employeeCount}
                         </td>
-                        <td className="px-6 py-4 text-right text-sm text-slate-300">
+                        <td className="px-6 py-4 text-right text-sm text-gray-700 font-medium">
                           ${(dept.budget?.allocated || 0).toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 text-right text-sm text-slate-300">
+                        <td className="px-6 py-4 text-right text-sm text-gray-600">
                           {dept.assets?.total || 0}
                         </td>
                         <td className="px-6 py-4 text-center">
-                          <span className={`px-2 py-1 text-xs rounded-full ${dept.isActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                            {dept.isActive ? 'Active' : 'Inactive'}
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded-full ${dept.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}
+                          >
+                            {dept.isActive ? "Active" : "Inactive"}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1">
                             <Link
                               href={`/departments/${dept._id}`}
-                              className="p-1.5 text-slate-400 hover:text-indigo-400 transition"
+                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                             >
                               <Eye size={16} />
                             </Link>
@@ -333,13 +718,13 @@ export default function AllDepartmentsPage() {
                                     });
                                     setShowCreateModal(true);
                                   }}
-                                  className="p-1.5 text-slate-400 hover:text-blue-400 transition"
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                                 >
                                   <Edit2 size={16} />
                                 </button>
                                 <button
                                   onClick={() => setShowDeleteConfirm(dept._id)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-400 transition"
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                 >
                                   <Trash2 size={16} />
                                 </button>
@@ -347,134 +732,250 @@ export default function AllDepartmentsPage() {
                             )}
                           </div>
                         </td>
-                      </tr>
+                      </motion.tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {filteredDepartments.length === 0 && (
-                <div className="text-center py-12">
-                  <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400">No departments found</p>
-                </div>
-              )}
-            </div>
+            </motion.div>
+          )}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2">
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between pt-4"
+            >
+              <p className="text-sm text-gray-500">
+                Showing {indexOfFirstItem + 1} to{" "}
+                {Math.min(indexOfLastItem, filteredDepartments.length)} of{" "}
+                {filteredDepartments.length} departments
+              </p>
+              <div className="flex gap-1">
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="p-2 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-400 disabled:opacity-50"
+                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                 >
                   <ChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-2 rounded-lg transition ${
-                      currentPage === page
-                        ? "bg-indigo-600 text-white"
-                        : "bg-slate-800/50 text-slate-400 hover:bg-slate-700"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = currentPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${
+                        currentPage === pageNum
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
                 <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                  }
                   disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-400 disabled:opacity-50"
+                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                 >
                   <ChevronRight size={16} />
                 </button>
               </div>
-            )}
-          </>
-        )}
+            </motion.div>
+          )}
+        </div>
       </div>
 
       {/* Create/Edit Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
-              <h2 className="text-lg font-semibold text-white">{editingDept ? "Edit Department" : "Create Department"}</h2>
-              <button onClick={() => { setShowCreateModal(false); setEditingDept(null); }} className="text-slate-500 hover:text-slate-300">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={editingDept ? handleUpdate : handleCreate} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Department Name *</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Department Code *</label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">Description</label>
-                <textarea
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  rows={3}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-indigo-500 outline-none"
-                  placeholder="Optional"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg transition">
-                  {editingDept ? "Update" : "Create"}
-                </button>
+      <AnimatePresence>
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    {editingDept ? "Edit Department" : "Create Department"}
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {editingDept
+                      ? "Update department information"
+                      : "Add a new department"}
+                  </p>
+                </div>
                 <button
-                  type="button"
-                  onClick={() => { setShowCreateModal(false); setEditingDept(null); }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg transition"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setEditingDept(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition"
                 >
-                  Cancel
+                  <X size={20} />
                 </button>
               </div>
-            </form>
+              <form
+                onSubmit={editingDept ? handleUpdate : handleCreate}
+                className="p-5 space-y-4"
+              >
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Department Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    placeholder="e.g., Software Engineering"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Department Code <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        code: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition font-mono"
+                    placeholder="e.g., SWE"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Description
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    rows={3}
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none resize-none transition"
+                    placeholder="Describe the department's purpose..."
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm"
+                  >
+                    {editingDept ? "Update" : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setEditingDept(null);
+                    }}
+                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
-            <div className="p-5 border-b border-slate-800">
-              <h2 className="text-lg font-semibold text-white">Delete Department</h2>
-            </div>
-            <div className="p-5">
-              <p className="text-slate-300">Are you sure you want to delete this department? This action cannot be undone.</p>
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => handleDelete(showDeleteConfirm)} className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-2 rounded-lg transition">
-                  Delete
-                </button>
-                <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg transition">
-                  Cancel
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-rose-50 to-red-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center">
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      Delete Department
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      This action cannot be undone
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X size={20} />
                 </button>
               </div>
-            </div>
+              <div className="p-5">
+                <p className="text-gray-600">
+                  Are you sure you want to delete this department? This action
+                  cannot be undone.
+                </p>
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => handleDelete(showDeleteConfirm)}
+                    className="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition shadow-sm"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
+
+      <style jsx global>{`
+        .line-clamp-1 {
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
     </div>
   );
 }

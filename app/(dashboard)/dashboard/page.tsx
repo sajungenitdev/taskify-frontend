@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import api from "@/lib/axios";
@@ -73,11 +73,18 @@ export default function DashboardPage() {
     ],
   });
 
+  // Redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Memoize the role check to prevent unnecessary re-renders
+  const canViewUsers = useMemo(
+    () => hasRole(["super_admin", "admin", "hr_manager"]),
+    [hasRole]
+  );
 
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
@@ -88,9 +95,7 @@ export default function DashboardPage() {
       // Run all promises in parallel for better performance
       const [departmentsRes, usersRes, tasksRes] = await Promise.allSettled([
         api.get("/departments"),
-        hasRole(["super_admin", "admin", "hr_manager"])
-          ? api.get("/auth/users")
-          : Promise.resolve(null),
+        canViewUsers ? api.get("/auth/users") : Promise.resolve(null),
         api.get("/tasks"),
       ]);
 
@@ -115,47 +120,71 @@ export default function DashboardPage() {
         tasks = tasksRes.value.data.data || [];
       }
 
-      // Calculate task stats
-      const pendingTasks = tasks.filter((t) => t.status === "pending").length;
-      const inProgressTasks = tasks.filter(
-        (t) => t.status === "in_progress",
-      ).length;
-      const submittedTasks = tasks.filter(
-        (t) => t.status === "submitted",
-      ).length;
-      const completedTasks = tasks.filter(
-        (t) => t.status === "completed",
-      ).length;
-      const overdueTasks = tasks.filter((t) => t.status === "overdue").length;
-      const totalTasks = tasks.length;
-      const completionRate =
-        totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+      // Calculate task stats efficiently
+      const taskStats = tasks.reduce(
+        (acc, task) => {
+          acc.total++;
+          switch (task.status) {
+            case "pending":
+              acc.pending++;
+              break;
+            case "in_progress":
+              acc.inProgress++;
+              break;
+            case "submitted":
+              acc.submitted++;
+              break;
+            case "completed":
+              acc.completed++;
+              break;
+            case "overdue":
+              acc.overdue++;
+              break;
+          }
+          return acc;
+        },
+        {
+          total: 0,
+          pending: 0,
+          inProgress: 0,
+          submitted: 0,
+          completed: 0,
+          overdue: 0,
+        }
+      );
 
-      // Set all state at once to avoid multiple renders
+      const { total, pending, inProgress, submitted, completed, overdue } =
+        taskStats;
+      const completionRate = total > 0 ? (completed / total) * 100 : 0;
+
+      // Get upcoming tasks (not completed or rejected)
+      const upcomingTasks = tasks
+        .filter((t) => t.status !== "completed" && t.status !== "rejected")
+        .sort(
+          (a, b) =>
+            new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+        )
+        .slice(0, 5);
+
+      // Update dashboard data
       setDashboardData({
         stats: {
           totalUsers,
           totalDepartments,
-          totalTasks,
-          completedTasks,
-          pendingTasks,
-          overdueTasks,
+          totalTasks: total,
+          completedTasks: completed,
+          pendingTasks: pending,
+          overdueTasks: overdue,
           completionRate,
         },
         recentTasks: tasks.slice(0, 5),
-        upcomingTasks: tasks
-          .filter((t) => t.status !== "completed" && t.status !== "rejected")
-          .sort(
-            (a, b) =>
-              new Date(a.deadline).getTime() - new Date(b.deadline).getTime(),
-          )
-          .slice(0, 5),
+        upcomingTasks,
         taskStatusData: [
-          { status: "Pending", count: pendingTasks, color: "#f59e0b" },
-          { status: "In Progress", count: inProgressTasks, color: "#3b82f6" },
-          { status: "Submitted", count: submittedTasks, color: "#8b5cf6" },
-          { status: "Completed", count: completedTasks, color: "#10b981" },
-          { status: "Overdue", count: overdueTasks, color: "#ef4444" },
+          { status: "Pending", count: pending, color: "#f59e0b" },
+          { status: "In Progress", count: inProgress, color: "#3b82f6" },
+          { status: "Submitted", count: submitted, color: "#8b5cf6" },
+          { status: "Completed", count: completed, color: "#10b981" },
+          { status: "Overdue", count: overdue, color: "#ef4444" },
         ],
       });
     } catch (error) {
@@ -163,8 +192,9 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, hasRole]);
+  }, [user, canViewUsers]);
 
+  // Load dashboard data
   useEffect(() => {
     let isMounted = true;
 
@@ -181,12 +211,13 @@ export default function DashboardPage() {
     };
   }, [isAuthenticated, user, fetchDashboardData]);
 
+  // Loading state
   if (isLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-          <p className="text-slate-400 text-sm">Loading dashboard...</p>
+          <p className="text-gray-500 text-sm">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -195,13 +226,15 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <div className="p-6 space-y-6 w-full mx-auto ps-15">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 w-full mx-auto">
       <WelcomeCard user={user} />
+      
       <DashboardStats
         stats={dashboardData.stats}
         hasRole={hasRole}
         userRole={user.role}
       />
+      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <RecentTasks tasks={dashboardData.recentTasks} />

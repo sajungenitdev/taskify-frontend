@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -37,11 +37,28 @@ import {
   Plus,
   Minus,
   Search,
+  BarChart3,
+  PieChart,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 interface Notification {
   _id: string;
@@ -91,6 +108,31 @@ type FilterType =
   | "system"
   | "reminder";
 
+const categoryColors = {
+  task: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  comment: "bg-blue-50 text-blue-700 border-blue-200",
+  approval: "bg-purple-50 text-purple-700 border-purple-200",
+  reminder: "bg-amber-50 text-amber-700 border-amber-200",
+  system: "bg-indigo-50 text-indigo-700 border-indigo-200",
+};
+
+const categoryIcons = {
+  task: CheckCircle,
+  comment: MessageSquare,
+  approval: FileCheck,
+  reminder: Clock,
+  system: Settings,
+};
+
+const typeColors = {
+  success: "bg-emerald-50 text-emerald-700",
+  warning: "bg-amber-50 text-amber-700",
+  error: "bg-rose-50 text-rose-700",
+  info: "bg-blue-50 text-blue-700",
+};
+
+const CHART_COLORS = ["#6366f1", "#8b5cf6", "#a855f7", "#d946ef", "#ec4899"];
+
 export default function NotificationsPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -125,6 +167,8 @@ export default function NotificationsPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "compact">("list");
+  const [showStats, setShowStats] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -179,7 +223,6 @@ export default function NotificationsPage() {
       }
     } catch (error: any) {
       console.error("Error fetching stats:", error);
-      // Set default stats
       setStats({
         total: 0,
         unread: 0,
@@ -426,33 +469,15 @@ export default function NotificationsPage() {
   };
 
   const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "task":
-        return <CheckCircle size={16} className="text-emerald-400" />;
-      case "comment":
-        return <MessageSquare size={16} className="text-blue-400" />;
-      case "approval":
-        return <FileCheck size={16} className="text-purple-400" />;
-      case "reminder":
-        return <Clock size={16} className="text-amber-400" />;
-      default:
-        return <Bell size={16} className="text-indigo-400" />;
-    }
+    const Icon = categoryIcons[category as keyof typeof categoryIcons] || Bell;
+    return <Icon size={16} className="text-inherit" />;
   };
 
   const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "task":
-        return "bg-emerald-500/10 border-emerald-500/20 text-emerald-400";
-      case "comment":
-        return "bg-blue-500/10 border-blue-500/20 text-blue-400";
-      case "approval":
-        return "bg-purple-500/10 border-purple-500/20 text-purple-400";
-      case "reminder":
-        return "bg-amber-500/10 border-amber-500/20 text-amber-400";
-      default:
-        return "bg-indigo-500/10 border-indigo-500/20 text-indigo-400";
-    }
+    return (
+      categoryColors[category as keyof typeof categoryColors] ||
+      categoryColors.system
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -464,11 +489,9 @@ export default function NotificationsPage() {
     const diffDays = Math.floor(diffMs / 86400000);
 
     if (diffMins < 1) return "Just now";
-    if (diffMins < 60)
-      return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
-    if (diffHours < 24)
-      return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
@@ -487,14 +510,29 @@ export default function NotificationsPage() {
     { value: "reminder", label: "Reminders", icon: Clock },
   ];
 
+  // Memoized chart data
+  const categoryChartData = useMemo(() => {
+    return Object.entries(stats.byCategory).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value,
+    }));
+  }, [stats.byCategory]);
+
+  const typeChartData = useMemo(() => {
+    return Object.entries(stats.byType).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value,
+    }));
+  }, [stats.byType]);
+
   if (!isAuthenticated) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <div className="p-6 lg:p-8">
-        <div className="w-full mx-auto space-y-6 px-5">
+    <div className="min-h-screen bg-gray-50">
+      <div className="p-4 md:p-6 lg:p-8">
+        <div className="w-full mx-auto space-y-6">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -503,26 +541,42 @@ export default function NotificationsPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center">
+                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Bell className="w-4 h-4 text-white" />
                 </div>
-                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
                   Notifications
                 </h1>
                 {totalCount > 0 && (
-                  <span className="px-2 py-0.5 text-xs bg-slate-800 rounded-full text-slate-400">
+                  <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
                     {totalCount}
                   </span>
                 )}
               </div>
-              <p className="text-slate-400 text-sm">
+              <p className="text-gray-500 text-sm">
                 Stay updated with your tasks and activities
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setShowStats(!showStats)}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 text-sm rounded-xl flex items-center gap-2 transition-all shadow-sm"
+              >
+                <BarChart3 size={14} />
+                {showStats ? "Hide Stats" : "Show Stats"}
+              </button>
+              <button
+                onClick={() =>
+                  setViewMode(viewMode === "list" ? "compact" : "list")
+                }
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 text-sm rounded-xl flex items-center gap-2 transition-all shadow-sm"
+              >
+                {viewMode === "list" ? <Minus size={14} /> : <Plus size={14} />}
+                {viewMode === "list" ? "Compact" : "Detailed"}
+              </button>
               <button
                 onClick={fetchNotifications}
-                className="px-3 py-2 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white text-sm rounded-xl flex items-center gap-2 transition-all"
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 text-sm rounded-xl flex items-center gap-2 transition-all shadow-sm"
               >
                 <RefreshCw
                   size={14}
@@ -534,7 +588,7 @@ export default function NotificationsPage() {
                 <button
                   onClick={markAllAsRead}
                   disabled={bulkActionLoading}
-                  className="px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white text-sm rounded-xl flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
                 >
                   <CheckCheck size={14} />
                   Mark all read
@@ -544,7 +598,7 @@ export default function NotificationsPage() {
                 <button
                   onClick={deleteAllRead}
                   disabled={bulkActionLoading}
-                  className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white text-sm rounded-xl flex items-center gap-2 transition-all disabled:opacity-50"
+                  className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm rounded-xl flex items-center gap-2 transition-all shadow-sm disabled:opacity-50"
                 >
                   <Trash2 size={14} />
                   Clear read
@@ -553,67 +607,172 @@ export default function NotificationsPage() {
             </div>
           </motion.div>
 
-          {/* Stats Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 md:grid-cols-5 gap-4"
-          >
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-white">{stats.total}</p>
-                  <p className="text-xs text-slate-400">Total</p>
+          {/* Stats Section */}
+          {showStats && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-4"
+            >
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-800">
+                        {stats.total}
+                      </p>
+                      <p className="text-xs text-gray-500">Total</p>
+                    </div>
+                    <Bell size={20} className="text-indigo-500" />
+                  </div>
                 </div>
-                <Bell size={20} className="text-indigo-400" />
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-emerald-400">
-                    {stats.unread}
-                  </p>
-                  <p className="text-xs text-slate-400">Unread</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-emerald-600">
+                        {stats.unread}
+                      </p>
+                      <p className="text-xs text-gray-500">Unread</p>
+                    </div>
+                    <Mail size={20} className="text-emerald-500" />
+                  </div>
                 </div>
-                <Mail size={20} className="text-emerald-400" />
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-slate-400">
-                    {stats.read}
-                  </p>
-                  <p className="text-xs text-slate-400">Read</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-500">
+                        {stats.read}
+                      </p>
+                      <p className="text-xs text-gray-500">Read</p>
+                    </div>
+                    <MailOpen size={20} className="text-gray-400" />
+                  </div>
                 </div>
-                <MailOpen size={20} className="text-slate-400" />
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-purple-400">
-                    {stats.byCategory.task}
-                  </p>
-                  <p className="text-xs text-slate-400">Tasks</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {stats.byCategory.task}
+                      </p>
+                      <p className="text-xs text-gray-500">Tasks</p>
+                    </div>
+                    <CheckCircle size={20} className="text-purple-500" />
+                  </div>
                 </div>
-                <CheckCircle size={20} className="text-purple-400" />
-              </div>
-            </div>
-            <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-700 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-amber-400">
-                    {stats.byCategory.reminder}
-                  </p>
-                  <p className="text-xs text-slate-400">Reminders</p>
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-amber-600">
+                        {stats.byCategory.reminder}
+                      </p>
+                      <p className="text-xs text-gray-500">Reminders</p>
+                    </div>
+                    <Clock size={20} className="text-amber-500" />
+                  </div>
                 </div>
-                <Clock size={20} className="text-amber-400" />
               </div>
-            </div>
-          </motion.div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <PieChart size={16} className="text-indigo-500" />
+                    Category Distribution
+                  </h3>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RePieChart>
+                        <Pie
+                          data={categoryChartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={60}
+                          paddingAngle={2}
+                          dataKey="value"
+                        >
+                          {categoryChartData.map((entry, index) => (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={CHART_COLORS[index % CHART_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                          }}
+                        />
+                      </RePieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <BarChart3 size={16} className="text-indigo-500" />
+                    Type Distribution
+                  </h3>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={typeChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="name" stroke="#9ca3af" fontSize={11} />
+                        <YAxis stroke="#9ca3af" fontSize={11} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                          }}
+                        />
+                        <Bar
+                          dataKey="value"
+                          fill="#6366f1"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              {/* Last Week Activity */}
+              {stats.lastWeek && stats.lastWeek.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <CalendarIcon size={16} className="text-indigo-500" />
+                    Last Week Activity
+                  </h3>
+                  <div className="h-32">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={stats.lastWeek}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="date" stroke="#9ca3af" fontSize={11} />
+                        <YAxis stroke="#9ca3af" fontSize={11} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "8px",
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="count"
+                          stroke="#6366f1"
+                          fill="#6366f1"
+                          fillOpacity={0.2}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* Search and Filters */}
           <motion.div
@@ -629,29 +788,29 @@ export default function NotificationsPage() {
                 placeholder="Search notifications..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-700 rounded-xl text-white text-sm focus:border-indigo-500 outline-none transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition-all shadow-sm"
               />
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               {searchTerm && (
                 <button
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                  <X size={14} className="text-slate-500 hover:text-white" />
+                  <X size={14} />
                 </button>
               )}
             </div>
 
             {/* Filters */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {filterOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setFilter(option.value)}
                   className={`px-3 py-1.5 text-xs rounded-lg capitalize transition-all flex items-center gap-1.5 ${
                     filter === option.value
-                      ? "bg-indigo-600 text-white"
-                      : "bg-slate-800/50 text-slate-400 hover:text-white"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                   }`}
                 >
                   <option.icon size={12} />
@@ -671,7 +830,7 @@ export default function NotificationsPage() {
 
             {/* Bulk Actions Bar */}
             {selectedNotifications.length > 0 && (
-              <div className="bg-indigo-600/10 rounded-xl border border-indigo-500/20 p-3 flex items-center justify-between">
+              <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -679,9 +838,9 @@ export default function NotificationsPage() {
                       selectedNotifications.length === notifications.length
                     }
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
+                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-white">
+                  <span className="text-sm text-gray-700">
                     {selectedNotifications.length} selected
                   </span>
                 </div>
@@ -689,7 +848,7 @@ export default function NotificationsPage() {
                   <button
                     onClick={() => handleBulkAction("read")}
                     disabled={bulkActionLoading}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs rounded-lg transition flex items-center gap-1 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg transition flex items-center gap-1 disabled:opacity-50 shadow-sm"
                   >
                     <CheckCheck size={12} />
                     Mark as read
@@ -697,7 +856,7 @@ export default function NotificationsPage() {
                   <button
                     onClick={() => handleBulkAction("delete")}
                     disabled={bulkActionLoading}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs rounded-lg transition flex items-center gap-1 disabled:opacity-50"
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs rounded-lg transition flex items-center gap-1 disabled:opacity-50"
                   >
                     <Trash2 size={12} />
                     Delete
@@ -712,7 +871,7 @@ export default function NotificationsPage() {
                 onClick={() =>
                   setSortOrder(sortOrder === "desc" ? "asc" : "desc")
                 }
-                className="flex items-center gap-1 text-xs text-slate-400 hover:text-white transition"
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition"
               >
                 {sortOrder === "desc" ? (
                   <ChevronDown size={14} />
@@ -727,21 +886,21 @@ export default function NotificationsPage() {
           {/* Notifications List */}
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
             </div>
           ) : notifications.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-16 bg-slate-900/30 rounded-2xl border border-slate-800"
+              className="text-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm"
             >
-              <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Bell className="w-10 h-10 text-slate-600" />
+              <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Bell className="w-10 h-10 text-gray-400" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">
                 No notifications
               </h3>
-              <p className="text-slate-400">
+              <p className="text-gray-500">
                 {searchTerm
                   ? `No results found for "${searchTerm}"`
                   : filter !== "all"
@@ -763,112 +922,115 @@ export default function NotificationsPage() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.03 }}
-                    className={`group bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10 ${
+                    className={`group bg-white rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md ${
                       !notification.isRead
-                        ? "border-indigo-500/30 bg-indigo-500/5"
-                        : "border-slate-800 hover:border-indigo-500/30"
-                    }`}
+                        ? "border-indigo-200 bg-indigo-50/30"
+                        : "border-gray-200 hover:border-indigo-200"
+                    } ${viewMode === "compact" ? "p-3" : "p-4"}`}
                   >
-                    <div className="p-4">
-                      <div className="flex items-start gap-3">
-                        {/* Checkbox */}
-                        <div className="pt-1">
-                          <input
-                            type="checkbox"
-                            checked={selectedNotifications.includes(
-                              notification._id,
-                            )}
-                            onChange={() => toggleSelect(notification._id)}
-                            className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-indigo-600 focus:ring-indigo-500"
-                          />
-                        </div>
+                    <div className="flex items-start gap-3">
+                      {/* Checkbox */}
+                      <div className="pt-1">
+                        <input
+                          type="checkbox"
+                          checked={selectedNotifications.includes(
+                            notification._id,
+                          )}
+                          onChange={() => toggleSelect(notification._id)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </div>
 
-                        {/* Icon */}
-                        <div
-                          className={`p-2 rounded-lg border ${getCategoryColor(notification.category)}`}
-                        >
-                          {getCategoryIcon(notification.category)}
-                        </div>
+                      {/* Icon */}
+                      <div
+                        className={`p-2 rounded-lg border ${getCategoryColor(notification.category)} flex-shrink-0`}
+                      >
+                        {getCategoryIcon(notification.category)}
+                      </div>
 
-                        {/* Content */}
-                        <div
-                          className="flex-1 cursor-pointer"
-                          onClick={() => handleNotificationClick(notification)}
-                        >
-                          <div className="flex items-start justify-between flex-wrap gap-2">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h4 className="text-sm font-semibold text-white">
-                                  {notification.title}
-                                </h4>
-                                <span
-                                  className={`text-[9px] px-1.5 py-0.5 rounded-full ${
-                                    notification.type === "success"
-                                      ? "bg-emerald-500/20 text-emerald-400"
-                                      : notification.type === "warning"
-                                        ? "bg-amber-500/20 text-amber-400"
-                                        : notification.type === "error"
-                                          ? "bg-rose-500/20 text-rose-400"
-                                          : "bg-indigo-500/20 text-indigo-400"
-                                  }`}
-                                >
-                                  {notification.type}
-                                </span>
-                              </div>
-                              <p className="text-xs text-slate-400 mt-1">
-                                {notification.message}
+                      {/* Content */}
+                      <div
+                        className="flex-1 cursor-pointer min-w-0"
+                        onClick={() => handleNotificationClick(notification)}
+                      >
+                        <div className="flex items-start justify-between flex-wrap gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4
+                                className={`text-sm font-semibold text-gray-800 ${viewMode === "compact" ? "line-clamp-1" : ""}`}
+                              >
+                                {notification.title}
+                              </h4>
+                              <span
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                                  notification.type === "success"
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : notification.type === "warning"
+                                      ? "bg-amber-50 text-amber-700"
+                                      : notification.type === "error"
+                                        ? "bg-rose-50 text-rose-700"
+                                        : "bg-blue-50 text-blue-700"
+                                }`}
+                              >
+                                {notification.type}
+                              </span>
+                            </div>
+                            <p
+                              className={`text-xs text-gray-600 mt-1 ${viewMode === "compact" ? "line-clamp-1" : ""}`}
+                            >
+                              {notification.message}
+                            </p>
+                            {viewMode === "list" && notification.taskTitle && (
+                              <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1">
+                                <Flag size={10} />
+                                {notification.taskTitle}
                               </p>
-                              {notification.taskTitle && (
-                                <p className="text-xs text-indigo-400 mt-2 flex items-center gap-1">
-                                  <Flag size={10} />
-                                  {notification.taskTitle}
-                                </p>
-                              )}
-                              {notification.userFullName && (
-                                <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                            )}
+                            {viewMode === "list" &&
+                              notification.userFullName && (
+                                <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
                                   <Users size={10} />
                                   {notification.userFullName}
                                 </p>
                               )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-slate-500 whitespace-nowrap">
-                                {formatDate(notification.createdAt)}
-                              </span>
-                              {!notification.isRead && (
-                                <div className="w-2 h-2 rounded-full bg-indigo-400" />
-                              )}
-                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                              {formatDate(notification.createdAt)}
+                            </span>
+                            {!notification.isRead && (
+                              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                            )}
                           </div>
                         </div>
+                      </div>
 
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {!notification.isRead ? (
-                            <button
-                              onClick={() => markAsRead(notification._id)}
-                              className="p-1.5 text-slate-500 hover:text-emerald-400 rounded-lg transition"
-                              title="Mark as read"
-                            >
-                              <CheckCheck size={14} />
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => markAsUnread(notification._id)}
-                              className="p-1.5 text-slate-500 hover:text-amber-400 rounded-lg transition"
-                              title="Mark as unread"
-                            >
-                              <EyeOff size={14} />
-                            </button>
-                          )}
+                      {/* Actions */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        {!notification.isRead ? (
                           <button
-                            onClick={() => deleteNotification(notification._id)}
-                            className="p-1.5 text-slate-500 hover:text-rose-400 rounded-lg transition"
-                            title="Delete"
+                            onClick={() => markAsRead(notification._id)}
+                            className="p-1.5 text-gray-400 hover:text-emerald-600 rounded-lg transition"
+                            title="Mark as read"
                           >
-                            <Trash2 size={14} />
+                            <CheckCheck size={14} />
                           </button>
-                        </div>
+                        ) : (
+                          <button
+                            onClick={() => markAsUnread(notification._id)}
+                            className="p-1.5 text-gray-400 hover:text-amber-600 rounded-lg transition"
+                            title="Mark as unread"
+                          >
+                            <EyeOff size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteNotification(notification._id)}
+                          className="p-1.5 text-gray-400 hover:text-rose-600 rounded-lg transition"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </motion.div>
@@ -883,7 +1045,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white text-sm rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 text-sm rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 Previous
               </button>
@@ -905,8 +1067,8 @@ export default function NotificationsPage() {
                       onClick={() => setPage(pageNum)}
                       className={`w-8 h-8 text-sm rounded-lg transition ${
                         page === pageNum
-                          ? "bg-indigo-600 text-white"
-                          : "bg-slate-800/50 text-slate-400 hover:text-white"
+                          ? "bg-indigo-600 text-white shadow-sm"
+                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
                       }`}
                     >
                       {pageNum}
@@ -917,7 +1079,7 @@ export default function NotificationsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1.5 bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white text-sm rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 text-sm rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 Next
               </button>
@@ -925,6 +1087,15 @@ export default function NotificationsPage() {
           )}
         </div>
       </div>
+
+      <style jsx global>{`
+        .line-clamp-1 {
+          display: -webkit-box;
+          -webkit-line-clamp: 1;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
     </div>
   );
 }

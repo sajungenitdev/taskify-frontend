@@ -185,7 +185,7 @@ export default function Sidebar({
     return (
       <div
         ref={dropdownRef}
-        className="fixed z-50 min-w-70 bg-slate-800 rounded-xl shadow-2xl border border-slate-700/50 overflow-hidden"
+        className="fixed z-50 min-w-70 bg-white rounded-xl shadow-2xl border border-gray-200/80 overflow-hidden"
         style={{
           top: dropdownPosition.top,
           left: dropdownPosition.left,
@@ -194,7 +194,7 @@ export default function Sidebar({
         onMouseEnter={handleDropdownMouseEnter}
         onMouseLeave={handleDropdownMouseLeave}
       >
-        <div className="relative px-4 py-3 bg-linear-to-r from-slate-800 to-slate-800/80 border-b border-slate-700/50">
+        <div className="relative px-4 py-3 bg-linear-to-r from-gray-50 to-white border-b border-gray-200/60">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
               {parentItem?.icon && (
@@ -202,17 +202,17 @@ export default function Sidebar({
               )}
             </div>
             <div className="flex-1">
-              <span className="text-sm font-semibold text-white">
+              <span className="text-sm font-semibold text-gray-800">
                 {parentName}
               </span>
               {isParentActiveFlag && (
-                <div className="text-[9px] text-indigo-400 font-medium">
+                <div className="text-[9px] text-indigo-600 font-medium">
                   Active
                 </div>
               )}
             </div>
             {isParentActiveFlag && (
-              <div className="w-2 h-2 rounded-full bg-indigo-400 shadow-sm shadow-indigo-500" />
+              <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm shadow-indigo-300" />
             )}
           </div>
         </div>
@@ -231,23 +231,23 @@ export default function Sidebar({
                 }}
                 className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${
                   isSubActive
-                    ? "bg-linear-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/50"
+                    ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
+                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                 }`}
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
                     isSubActive
-                      ? "bg-indigo-500/20"
-                      : "bg-slate-700/50 group-hover:bg-indigo-500/20"
+                      ? "bg-indigo-100"
+                      : "bg-gray-100 group-hover:bg-indigo-50"
                   }`}
                 >
                   <SubIcon
                     size={14}
                     className={
                       isSubActive
-                        ? "text-indigo-400"
-                        : "text-slate-500 group-hover:text-indigo-400"
+                        ? "text-indigo-600"
+                        : "text-gray-500 group-hover:text-indigo-600"
                     }
                   />
                 </div>
@@ -257,7 +257,7 @@ export default function Sidebar({
                 {subItem.badge && (
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      subItem.badgeColor || "bg-indigo-500/20 text-indigo-400"
+                      subItem.badgeColor || "bg-indigo-100 text-indigo-600"
                     } font-medium`}
                   >
                     {subItem.badge}
@@ -271,11 +271,11 @@ export default function Sidebar({
           })}
         </div>
 
-        <div className="px-4 py-2 border-t border-slate-700/50 bg-slate-800/50">
-          <div className="flex items-center justify-between text-[10px] text-slate-500">
+        <div className="px-4 py-2 border-t border-gray-200/60 bg-gray-50/50">
+          <div className="flex items-center justify-between text-[10px] text-gray-400">
             <span>{items.length} menu items</span>
             <span className="flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-slate-600" />
+              <span className="w-1 h-1 rounded-full bg-gray-300" />
               Click to navigate
             </span>
           </div>
@@ -286,17 +286,17 @@ export default function Sidebar({
 
   const sidebarContent = (
     <aside
-      className={`relative bg-linear-to-br from-slate-900 via-slate-900 to-slate-950 min-h-screen flex flex-col shadow-2xl transition-all duration-300 ${
+      className={`relative bg-white min-h-screen flex flex-col shadow-xl transition-all duration-300 ${
         isCollapsed ? "w-20" : "w-80"
       }`}
     >
       {/* Animated gradient border */}
-      <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-indigo-500 to-purple-500 via-50% to-transparent animate-shimmer" />
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-indigo-400 to-purple-400 via-50% to-transparent animate-shimmer" />
 
       {/* Header with Toggle Button */}
       <div
-        className={`px-4 py-[12px] border-b border-slate-800/80 transition-all duration-300 sticky top-0 z-10 ${
-          scrolled ? "bg-slate-900/95 backdrop-blur-md" : ""
+        className={`px-4 py-[12px] border-b border-gray-200/80 transition-all duration-300 sticky top-0 z-10 ${
+          scrolled ? "bg-white/95 backdrop-blur-md" : "bg-white"
         }`}
       >
         <div className="flex items-center justify-between">
@@ -306,17 +306,17 @@ export default function Sidebar({
             }`}
           >
             <div className="relative group">
-              <div className="absolute inset-0 bg-linear-to-r from-indigo-500 to-purple-500 rounded-xl blur-md opacity-60 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative w-10 h-10 bg-linear-to-br from-slate-800 to-slate-900 border border-indigo-500/30 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-lg">
-                <CheckSquare className="w-5 h-5 text-indigo-400 group-hover:text-indigo-300" />
+              <div className="absolute inset-0 bg-linear-to-r from-indigo-400 to-purple-400 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-300" />
+              <div className="relative w-10 h-10 bg-white border border-indigo-200 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-md">
+                <CheckSquare className="w-5 h-5 text-indigo-600 group-hover:text-indigo-500" />
               </div>
             </div>
             {!isCollapsed && (
               <div className="overflow-hidden">
-                <h1 className="text-lg font-bold bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent tracking-tight">
+                <h1 className="text-lg font-bold text-gray-800 tracking-tight">
                   Taskify
                 </h1>
-                <p className="text-slate-500 text-[10px] font-medium uppercase tracking-wider">
+                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wider">
                   Enterprise Suite
                 </p>
               </div>
@@ -325,7 +325,7 @@ export default function Sidebar({
           {!isCollapsed && onClose && (
             <button
               onClick={onClose}
-              className="lg:hidden text-slate-500 hover:text-white transition-colors"
+              className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors"
             >
               <X size={18} />
             </button>
@@ -336,17 +336,17 @@ export default function Sidebar({
       {/* Toggle Button - Positioned at top right of sidebar */}
       <button
         onClick={toggleCollapse}
-        className="absolute -right-3 top-20 w-6 h-6 bg-slate-800 border border-slate-700 rounded-full flex items-center justify-center hover:bg-linear-to-r hover:from-indigo-600 hover:to-purple-600 hover:border-transparent transition-all duration-200 z-50 shadow-lg group"
+        className="absolute -right-3 top-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 hover:border-transparent hover:text-white transition-all duration-200 z-50 shadow-lg group"
       >
         {isCollapsed ? (
           <ChevronRight
             size={12}
-            className="text-slate-400 group-hover:text-white transition-colors"
+            className="text-gray-400 group-hover:text-white transition-colors"
           />
         ) : (
           <ChevronLeft
             size={12}
-            className="text-slate-400 group-hover:text-white transition-colors"
+            className="text-gray-400 group-hover:text-white transition-colors"
           />
         )}
       </button>
@@ -371,8 +371,8 @@ export default function Sidebar({
                     isCollapsed ? "justify-center" : ""
                   } ${
                     active
-                      ? "bg-linear-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                      ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                   }`}
                   title={isCollapsed ? item.name : ""}
                 >
@@ -381,12 +381,12 @@ export default function Sidebar({
                       size={18}
                       className={`transition-all duration-200 ${
                         active
-                          ? "text-indigo-400"
-                          : "text-slate-500 group-hover:text-slate-300"
+                          ? "text-indigo-600"
+                          : "text-gray-400 group-hover:text-gray-600"
                       }`}
                     />
                     {item.badge && !isCollapsed && (
-                      <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-linear-to-r from-red-500 to-rose-500 text-white text-[8px] font-bold flex items-center justify-center animate-pulse shadow-lg shadow-red-500/50">
+                      <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-linear-to-r from-red-500 to-rose-500 text-white text-[8px] font-bold flex items-center justify-center animate-pulse shadow-lg shadow-red-500/30">
                         {item.badge}
                       </span>
                     )}
@@ -397,7 +397,7 @@ export default function Sidebar({
                         {item.name}
                       </span>
                       {item.badge && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
                           {item.badge}
                         </span>
                       )}
@@ -415,7 +415,7 @@ export default function Sidebar({
         {/* Divider between personal items and main menu */}
         {filteredPersonalItems.length > 0 &&
           filteredParentItems.length > 0 &&
-          !isCollapsed && <div className="h-px bg-slate-800/50 my-2" />}
+          !isCollapsed && <div className="h-px bg-gray-200/60 my-2" />}
 
         {/* Parent Menu Items - No Section Titles */}
         {sectionOrder.map((section) => {
@@ -446,10 +446,10 @@ export default function Sidebar({
                         isCollapsed ? "justify-center" : ""
                       } ${
                         isParentActiveFlag || (isHovered && hasSubmenu)
-                          ? "bg-linear-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
+                          ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
                           : isActive(item.href) && !hasSubmenu
-                            ? "bg-linear-to-r from-indigo-600/20 to-purple-600/20 text-indigo-400"
-                            : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                            ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
+                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                       }`}
                       title={isCollapsed ? item.name : ""}
                     >
@@ -457,10 +457,10 @@ export default function Sidebar({
                         size={18}
                         className={`transition-all duration-200 ${
                           isParentActiveFlag || (isHovered && hasSubmenu)
-                            ? "text-indigo-400"
+                            ? "text-indigo-600"
                             : isActive(item.href) && !hasSubmenu
-                              ? "text-indigo-400"
-                              : "text-slate-500 group-hover:text-slate-300"
+                              ? "text-indigo-600"
+                              : "text-gray-400 group-hover:text-gray-600"
                         }`}
                       />
                       {!isCollapsed && (
@@ -473,13 +473,13 @@ export default function Sidebar({
                               size={14}
                               className={`transition-all duration-300 ${
                                 isHovered
-                                  ? "translate-x-1 text-indigo-400"
-                                  : "text-slate-500 group-hover:text-slate-300"
+                                  ? "translate-x-1 text-indigo-600"
+                                  : "text-gray-400 group-hover:text-gray-600"
                               }`}
                             />
                           )}
                           {item.badge && !hasSubmenu && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium">
                               {item.badge}
                             </span>
                           )}
@@ -502,7 +502,7 @@ export default function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="sticky bottom-0 p-4 border-t border-slate-800/80 bg-linear-to-t from-slate-950 via-slate-950/95 to-transparent backdrop-blur-sm">
+      <div className="sticky bottom-0 p-4 border-t border-gray-200/80 bg-gradient-to-t from-white via-white/95 to-transparent backdrop-blur-sm">
         <button
           onClick={logout}
           className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${
@@ -511,11 +511,11 @@ export default function Sidebar({
           title={isCollapsed ? "Logout" : ""}
         >
           {/* Animated gradient background */}
-          <div className="absolute inset-0 bg-linear-to-r from-red-600/10 to-rose-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          <div className="absolute inset-0 bg-linear-to-r from-red-50 to-rose-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="absolute inset-0 bg-linear-to-r from-red-500/5 to-rose-500/5 rounded-xl" />
 
           {/* Border glow effect */}
-          <div className="absolute inset-0 rounded-xl border border-red-500/20 group-hover:border-red-500/40 transition-all duration-300" />
+          <div className="absolute inset-0 rounded-xl border border-red-200 group-hover:border-red-300 transition-all duration-300" />
 
           {/* Content */}
           <div
@@ -530,14 +530,14 @@ export default function Sidebar({
             >
               <LogOut
                 size={18}
-                className="text-red-400/70 group-hover:text-red-400 transition-all duration-300"
+                className="text-red-400 group-hover:text-red-500 transition-all duration-300"
               />
               {/* Glow behind icon */}
               <div className="absolute inset-0 rounded-full bg-red-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
             </div>
 
             {!isCollapsed && (
-              <span className="text-sm font-medium bg-linear-to-r from-red-400 to-rose-400 bg-clip-text text-transparent group-hover:from-red-300 group-hover:to-rose-300 transition-all duration-300">
+              <span className="text-sm font-medium text-red-500 group-hover:text-red-600 transition-all duration-300">
                 Sign Out
               </span>
             )}
@@ -545,7 +545,7 @@ export default function Sidebar({
             {!isCollapsed && (
               <ArrowRight
                 size={14}
-                className="text-red-400/50 group-hover:text-red-400 group-hover:translate-x-1 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                className="text-red-400 group-hover:text-red-500 group-hover:translate-x-1 transition-all duration-300 opacity-0 group-hover:opacity-100"
               />
             )}
           </div>
@@ -553,10 +553,10 @@ export default function Sidebar({
 
         {!isCollapsed && (
           <div className="mt-4 text-center">
-            <p className="text-[9px] text-slate-500 font-medium tracking-wider">
+            <p className="text-[9px] text-gray-400 font-medium tracking-wider">
               Version 2.0.0
             </p>
-            <p className="text-[9px] text-slate-500 font-medium mt-0.5">
+            <p className="text-[9px] text-gray-400 font-medium mt-0.5">
               © 2026 Taskify Enterprise Suite
             </p>
           </div>
@@ -574,7 +574,7 @@ export default function Sidebar({
       {isMobileOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden"
             onClick={onClose}
           />
           <div className="fixed left-0 top-0 h-full z-40 lg:hidden animate-slide-in-right">
@@ -635,15 +635,15 @@ export default function Sidebar({
           width: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(30, 41, 59, 0.5);
+          background: rgba(229, 231, 235, 0.5);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(99, 102, 241, 0.4);
+          background: rgba(99, 102, 241, 0.3);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(99, 102, 241, 0.6);
+          background: rgba(99, 102, 241, 0.5);
         }
       `}</style>
     </>
