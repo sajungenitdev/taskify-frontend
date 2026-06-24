@@ -420,10 +420,10 @@ const TaskCard = ({
                       e.stopPropagation();
                       onStartTimer(task._id);
                     }}
-                    className="px-3 py-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
+                    className="px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
                     disabled={activeTimerTaskId !== null}
                   >
-                    <Play className="w-3 h-3" />
+                    <Play className="w-3 h-3 me-2" />
                     Start
                   </button>
                 </>
@@ -432,8 +432,9 @@ const TaskCard = ({
                 href={`/tasks/${task._id}`}
                 onClick={(e) => e.stopPropagation()}
               >
-                <button className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
-                  <EyeIcon className="w-3 h-3" />
+                <button className="px-2.5 py-1 cursor-pointer flex items-center bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
+                  <EyeIcon className="w-3 h-3 me-2" />
+                  View
                 </button>
               </Link>
             </div>

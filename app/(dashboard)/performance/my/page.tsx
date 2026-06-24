@@ -857,7 +857,11 @@ export default function MyPerformancePage() {
                             border: "1px solid #e5e7eb",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number) => [`${value}%`, "Score"]}
+                          formatter={(value: any) => {
+                            if (value === undefined || value === null)
+                              return ["0%", "Score"];
+                            return [`${value}%`, "Score"];
+                          }}
                         />
                       </RadarChart>
                     </ResponsiveContainer>
