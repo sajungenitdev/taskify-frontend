@@ -46,7 +46,6 @@ import {
   Zap,
   DollarSign as DollarIcon,
   CalendarDays,
-  Progress,
   Layers,
   GitBranch,
   Sparkles,
