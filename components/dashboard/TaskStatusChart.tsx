@@ -123,16 +123,41 @@ export default function TaskStatusChart({ data = [] }: TaskStatusChartProps) {
               paddingAngle={2}
               dataKey="count"
               nameKey="status"
-              label={({ name, percent }) => {
-                if (percent === undefined) return name;
-                return `${name} ${(percent * 100).toFixed(0)}%`;
+              label={({
+                cx,
+                cy,
+                midAngle,
+                innerRadius,
+                outerRadius,
+                percent,
+                name,
+              }) => {
+                // Handle undefined values
+                if (midAngle === undefined || percent === undefined)
+                  return null;
+
+                const RADIAN = Math.PI / 180;
+                const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+                return (
+                  <text
+                    x={x}
+                    y={y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    style={{
+                      fontSize: "10px",
+                      fill: "#6b7280",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {`${name} ${(percent * 100).toFixed(0)}%`}
+                  </text>
+                );
               }}
               labelLine={false}
-              labelStyle={{
-                fontSize: "10px",
-                fill: "#6b7280",
-                fontWeight: 500,
-              }}
             >
               {sortedData.map((entry, index) => (
                 <Cell
