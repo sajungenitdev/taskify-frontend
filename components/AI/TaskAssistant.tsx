@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useAI } from '@/hooks/useAI';
 import { Sparkles, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface TaskAssistantProps {
   title: string;
