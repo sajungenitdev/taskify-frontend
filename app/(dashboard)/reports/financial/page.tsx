@@ -720,7 +720,11 @@ export default function FinancialReportsPage() {
                             border: "1px solid #e5e7eb",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number) => formatCurrency(value)}
+                          formatter={(value: any) => {
+                            if (value === undefined || value === null)
+                              return "$0";
+                            return formatCurrency(value);
+                          }}
                         />
                         <Legend />
                         <Bar
