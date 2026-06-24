@@ -1093,10 +1093,11 @@ export default function MyPerformancePage() {
                             border: "1px solid #e5e7eb",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number) => [
-                            `${value}%`,
-                            "Completion",
-                          ]}
+                          formatter={(value: any) => {
+                            if (value === undefined || value === null)
+                              return ["0%", "Completion"];
+                            return [`${value}%`, "Completion"];
+                          }}
                         />
                         <Bar dataKey="percentage" radius={[0, 4, 4, 0]}>
                           {categoryPerformance.map((entry, index) => (
