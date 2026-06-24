@@ -153,7 +153,18 @@ const TaskRow = ({
   users,
   editData,
   setEditData,
-}: any) => {
+}: {
+  task: BulkTask;
+  index: number;
+  isEditing: boolean;
+  onEdit: (index: number) => void;
+  onSave: (index: number) => void;
+  onCancel: () => void;
+  onRemove: (index: number) => void;
+  users: User[];
+  editData: BulkTask | null;
+  setEditData: React.Dispatch<React.SetStateAction<BulkTask | null>>;
+}) => {
   const getUserName = (userId: string) => {
     const user = users.find((u: User) => u._id === userId);
     return user ? `${user.fullName} (${user.email})` : "Unknown User";
@@ -181,7 +192,9 @@ const TaskRow = ({
             type="text"
             value={editData?.title || ""}
             onChange={(e) =>
-              setEditData((prev: any) => ({ ...prev, title: e.target.value }))
+              setEditData((prev) =>
+                prev ? { ...prev, title: e.target.value } : null,
+              )
             }
             className="w-full min-w-[150px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
             placeholder="Task title"
@@ -202,10 +215,9 @@ const TaskRow = ({
             type="text"
             value={editData?.description || ""}
             onChange={(e) =>
-              setEditData((prev: any) => ({
-                ...prev,
-                description: e.target.value,
-              }))
+              setEditData((prev) =>
+                prev ? { ...prev, description: e.target.value } : null,
+              )
             }
             className="w-full min-w-[200px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
             placeholder="Description"
@@ -224,10 +236,9 @@ const TaskRow = ({
           <select
             value={editData?.assignedTo || ""}
             onChange={(e) =>
-              setEditData((prev: any) => ({
-                ...prev,
-                assignedTo: e.target.value,
-              }))
+              setEditData((prev) =>
+                prev ? { ...prev, assignedTo: e.target.value } : null,
+              )
             }
             className="w-full min-w-[150px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
           >
@@ -253,10 +264,9 @@ const TaskRow = ({
             type="date"
             value={editData?.deadline || ""}
             onChange={(e) =>
-              setEditData((prev: any) => ({
-                ...prev,
-                deadline: e.target.value,
-              }))
+              setEditData((prev) =>
+                prev ? { ...prev, deadline: e.target.value } : null,
+              )
             }
             className="w-full min-w-[130px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
           />
@@ -272,10 +282,14 @@ const TaskRow = ({
           <select
             value={editData?.priority || "normal"}
             onChange={(e) =>
-              setEditData((prev: any) => ({
-                ...prev,
-                priority: e.target.value,
-              }))
+              setEditData((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      priority: e.target.value as BulkTask["priority"],
+                    }
+                  : null,
+              )
             }
             className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
           >
@@ -300,10 +314,11 @@ const TaskRow = ({
             type="number"
             value={editData?.estimatedHours || 0}
             onChange={(e) =>
-              setEditData((prev: any) => ({
-                ...prev,
-                estimatedHours: parseFloat(e.target.value) || 0,
-              }))
+              setEditData((prev) =>
+                prev
+                  ? { ...prev, estimatedHours: parseFloat(e.target.value) || 0 }
+                  : null,
+              )
             }
             className="w-20 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
             step="0.5"
@@ -321,7 +336,7 @@ const TaskRow = ({
           {isEditing ? (
             <>
               <button
-                onClick={onSave}
+                onClick={() => onSave(index)}
                 className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
                 title="Save"
               >
@@ -361,7 +376,7 @@ const TaskRow = ({
 
 // ============ MAIN COMPONENT ============
 export default function BulkUploadPage() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -419,7 +434,7 @@ export default function BulkUploadPage() {
           const meResponse = await api.get("/auth/me");
           if (meResponse.data.success) {
             setUsers([meResponse.data.data]);
-            toast.info("Limited user list available");
+            toast.error("Limited user list available");
           }
         } catch (meError) {
           console.error("Error fetching current user:", meError);
@@ -626,7 +641,7 @@ export default function BulkUploadPage() {
           assignedTo: user?._id || task.assignedTo,
           deadline: task.deadline,
           priority: ["low", "normal", "high", "urgent"].includes(priority)
-            ? priority
+            ? (priority as BulkTask["priority"])
             : "normal",
           estimatedHours: parseFloat(task.estimatedHours) || 0,
           isApprovalRequired:
@@ -819,7 +834,7 @@ export default function BulkUploadPage() {
           description: "Task description",
           assignedTo: sampleUser,
           deadline: sampleDate,
-          priority: "normal",
+          priority: "normal" as const,
           estimatedHours: 4,
           isApprovalRequired: false,
           evidenceRequired: false,
