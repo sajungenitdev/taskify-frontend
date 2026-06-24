@@ -159,6 +159,12 @@ const TaskRow = ({
     return user ? `${user.fullName} (${user.email})` : "Unknown User";
   };
 
+  // Helper function to safely get priority color
+  const getPriorityColor = (priority: string) => {
+    const key = priority as keyof typeof PRIORITY_COLORS;
+    return PRIORITY_COLORS[key] || PRIORITY_COLORS.normal;
+  };
+
   return (
     <motion.tr
       initial={{ opacity: 0, y: 10 }}
@@ -264,7 +270,7 @@ const TaskRow = ({
       <td className="px-4 py-3">
         {isEditing ? (
           <select
-            value={editData?.priority}
+            value={editData?.priority || "normal"}
             onChange={(e) =>
               setEditData((prev: any) => ({
                 ...prev,
@@ -281,10 +287,10 @@ const TaskRow = ({
           </select>
         ) : (
           <span
-            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${PRIORITY_COLORS[task.priority]}`}
+            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityColor(task.priority)}`}
           >
             <Flag className="w-3 h-3" />
-            {task.priority}
+            {task.priority || "normal"}
           </span>
         )}
       </td>
