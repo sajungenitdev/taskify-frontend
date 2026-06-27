@@ -7,36 +7,38 @@ import {
   Eye,
   EyeOff,
   LogIn,
-  Sparkles,
-  ArrowRight,
   Loader2,
-  Users,
-  Shield,
-  Briefcase,
-  CheckCircle2,
-  Zap,
-  Fingerprint,
   Mail,
   Lock,
   CheckSquare,
-  User,
+  Sparkles,
+  Zap,
+  Shield,
+  ArrowRight,
+  AlertCircle,
+  Users,
   Crown,
-  Star,
+  Briefcase,
+  User,
+  Building2,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/UI/Button";
+import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 import api from "@/lib/axios";
 
 interface ActiveUser {
+  _id: string;
   id: string;
   fullName: string;
   email: string;
   role: string;
   employeeId: string;
-  profilePhoto: string | null;
   badge: string;
 }
 
-// Define allowed roles to display
+// Allowed roles to display
 const ALLOWED_ROLES = [
   "super_admin",
   "admin",
@@ -46,66 +48,172 @@ const ALLOWED_ROLES = [
   "employee",
 ];
 
+// Floating Particles Component - Client-side only
+const FloatingParticles = () => {
+  const [particles, setParticles] = useState<
+    Array<{
+      id: number;
+      size: number;
+      x: number;
+      y: number;
+      duration: number;
+      delay: number;
+      opacity: number;
+    }>
+  >([]);
+
+  useEffect(() => {
+    const newParticles = Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      size: Math.random() * 3 + 1,
+      x: Math.random() * 100,
+      y: Math.random() * 100,
+      duration: Math.random() * 25 + 15,
+      delay: Math.random() * 15,
+      opacity: Math.random() * 0.1 + 0.03,
+    }));
+    setParticles(newParticles);
+  }, []);
+
+  if (particles.length === 0) return null;
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p) => (
+        <motion.div
+          key={p.id}
+          className="absolute rounded-full bg-indigo-400"
+          style={{
+            width: p.size,
+            height: p.size,
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+          }}
+          animate={{
+            y: [0, -50, -100, -50, 0],
+            x: [0, 20, -10, 15, 0],
+            opacity: [
+              p.opacity,
+              p.opacity * 1.5,
+              p.opacity * 0.5,
+              p.opacity * 1.5,
+              p.opacity,
+            ],
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Glowing Orbs Component - Client-side only
+const GlowingOrbs = () => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <motion.div
+        className="absolute top-[5%] left-[5%] w-[35%] h-[35%] rounded-full bg-linear-to-r from-indigo-200/25 to-purple-200/25 blur-[100px]"
+        animate={{
+          x: [0, 30, -20, 15, 0],
+          y: [0, -20, 30, -15, 0],
+          scale: [1, 1.1, 0.9, 1.05, 1],
+        }}
+        transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+      <motion.div
+        className="absolute bottom-[10%] right-[5%] w-[30%] h-[30%] rounded-full bg-linear-to-r from-blue-200/20 to-cyan-200/20 blur-[100px]"
+        animate={{
+          x: [0, -20, 30, -15, 0],
+          y: [0, 20, -30, 15, 0],
+          scale: [1, 1.15, 0.85, 1.1, 1],
+        }}
+        transition={{
+          duration: 22,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+    </div>
+  );
+};
+
+// Grid Pattern - Static, no hydration issues
+const GridPattern = () => {
+  return (
+    <div
+      className="absolute inset-0 opacity-[0.02] pointer-events-none"
+      style={{
+        backgroundImage: `radial-gradient(circle at 1px 1px, #4f46e5 1px, transparent 0)`,
+        backgroundSize: "50px 50px",
+      }}
+    />
+  );
+};
+
+// Quick Access User Button Component
 const UserButton = memo(
   ({
     user,
     onClick,
     isActive,
+    index,
   }: {
     user: ActiveUser;
     onClick: () => void;
     isActive: boolean;
+    index: number;
   }) => {
     const getRoleGradient = (role: string) => {
-      switch (role) {
-        case "super_admin":
-          return "from-purple-600 to-pink-600";
-        case "admin":
-          return "from-blue-600 to-cyan-600";
-        case "hr_manager":
-          return "from-emerald-600 to-teal-600";
-        case "dept_manager":
-          return "from-orange-600 to-red-600";
-        case "project_manager":
-          return "from-cyan-600 to-blue-600";
-        case "employee":
-          return "from-slate-600 to-slate-700";
-        default:
-          return "from-indigo-600 to-purple-600";
-      }
+      const gradients: Record<string, string> = {
+        super_admin: "from-purple-600 to-pink-600",
+        admin: "from-blue-600 to-cyan-600",
+        hr_manager: "from-emerald-600 to-teal-600",
+        dept_manager: "from-orange-600 to-red-600",
+        project_manager: "from-cyan-600 to-blue-600",
+        employee: "from-slate-600 to-slate-700",
+      };
+      return gradients[role] || "from-indigo-600 to-purple-600";
     };
 
     const getRoleIcon = (role: string) => {
-      if (role === "super_admin")
-        return <Crown className="w-3 h-3 text-white" />;
-      if (role === "admin") return <Shield className="w-3 h-3 text-white" />;
-      if (role === "hr_manager")
-        return <Users className="w-3 h-3 text-white" />;
-      if (role === "dept_manager")
-        return <Briefcase className="w-3 h-3 text-white" />;
-      if (role === "project_manager")
-        return <Briefcase className="w-3 h-3 text-white" />;
-      if (role === "employee") return <User className="w-3 h-3 text-white" />;
-      return <User className="w-3 h-3 text-white" />;
+      const icons: Record<string, React.ReactNode> = {
+        super_admin: <Crown className="w-4 h-4 text-white" />,
+        admin: <Shield className="w-4 h-4 text-white" />,
+        hr_manager: <Users className="w-4 h-4 text-white" />,
+        dept_manager: <Building2 className="w-4 h-4 text-white" />,
+        project_manager: <Briefcase className="w-4 h-4 text-white" />,
+        employee: <User className="w-4 h-4 text-white" />,
+      };
+      return icons[role] || <User className="w-4 h-4 text-white" />;
     };
 
     const getRoleDisplayName = (role: string) => {
-      switch (role) {
-        case "super_admin":
-          return "SUPER ADMIN";
-        case "admin":
-          return "ADMIN";
-        case "hr_manager":
-          return "HR MANAGER";
-        case "dept_manager":
-          return "DEPT MANAGER";
-        case "project_manager":
-          return "PROJECT MANAGER";
-        case "employee":
-          return "EMPLOYEE";
-        default:
-          return role.toUpperCase();
-      }
+      const names: Record<string, string> = {
+        super_admin: "Super Admin",
+        admin: "Admin",
+        hr_manager: "HR Manager",
+        dept_manager: "Dept Manager",
+        project_manager: "Project Manager",
+        employee: "Employee",
+      };
+      return names[role] || role;
     };
 
     const gradient = getRoleGradient(user.role);
@@ -113,42 +221,48 @@ const UserButton = memo(
     const displayRole = getRoleDisplayName(user.role);
 
     return (
-      <button
+      <motion.button
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: index * 0.05 }}
         onClick={onClick}
         type="button"
-        className={`w-full group relative overflow-hidden rounded-xl transition-all duration-300 ${
+        className={`w-full group relative overflow-hidden rounded-xl transition-all duration-300 p-3 ${
           isActive
-            ? `bg-gradient-to-r ${gradient} border-indigo-500/40 shadow-lg shadow-indigo-500/20 scale-[1.02]`
-            : "bg-slate-900/30 border-slate-800 hover:border-slate-700 hover:bg-slate-900/50 hover:scale-[1.01]"
+            ? `bg-linear-to-r ${gradient} border-indigo-500/40 shadow-lg shadow-indigo-500/20 scale-[1.02]`
+            : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10 hover:scale-[1.01]"
         } border backdrop-blur-sm`}
       >
         <div
-          className={`absolute inset-0 bg-gradient-to-r ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}
+          className={`absolute inset-0 bg-linear-to-r ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}
         />
-        <div className="relative px-3 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div
-              className={`w-6 h-6 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center shadow-md`}
-            >
-              {icon}
-            </div>
-            <div className="text-left">
-              <p className="text-[10px] font-bold text-slate-200 group-hover:text-white transition-colors tracking-wide">
+        <div className="relative flex items-center gap-3">
+          <div
+            className={`w-10 h-10 rounded-xl bg-linear-to-br ${gradient} flex items-center justify-center shadow-lg flex-shrink-0`}
+          >
+            {icon}
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-semibold text-red-900 group-hover:text-white transition-colors truncate">
+              {user.fullName}
+            </p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[10px] font-medium text-red-900">
                 {displayRole}
-              </p>
-              <p className="text-[9px] text-slate-500 font-medium">
-                {user.fullName.split(" ")[0]}
-              </p>
+              </span>
+              <span className="w-1 h-1 rounded-full bg-white/20" />
+              <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-red-900">
+                {user.badge}
+              </span>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-slate-800/60 border border-slate-700 text-slate-300">
-              {user.badge}
-            </span>
-            <ArrowRight className="w-3 h-3 text-slate-600 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
-          </div>
+          <ArrowRight
+            className={`w-4 h-4 text-red-900 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${
+              isActive ? "text-indigo-400" : ""
+            }`}
+          />
         </div>
-      </button>
+      </motion.button>
     );
   },
 );
@@ -159,112 +273,74 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeUser, setActiveUser] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState({ email: false, password: false });
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [mounted, setMounted] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [activeUser, setActiveUser] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchActiveUsers = async () => {
-      try {
-        setLoadingUsers(true);
-        setError(null);
-
-        const response = await api.get("/auth/active-users");
-        console.log("Active users response:", response.data);
-
-        let usersData = [];
-
-        if (response.data) {
-          if (response.data.data && Array.isArray(response.data.data)) {
-            usersData = response.data.data;
-          } else if (Array.isArray(response.data)) {
-            usersData = response.data;
-          } else if (
-            response.data.users &&
-            Array.isArray(response.data.users)
-          ) {
-            usersData = response.data.users;
-          } else if (response.data.success && response.data.data) {
-            usersData = Array.isArray(response.data.data)
-              ? response.data.data
-              : [];
-          }
-        }
-
-        // FILTER USERS BY ALLOWED ROLES
-        let filteredUsers = usersData.filter((user: ActiveUser) =>
-          ALLOWED_ROLES.includes(user.role),
-        );
-
-        // SHOW ONLY ONE EMPLOYEE (take the first one)
-        const employees = filteredUsers.filter(
-          (user: ActiveUser) => user.role === "employee",
-        );
-        const otherRoles = filteredUsers.filter(
-          (user: ActiveUser) => user.role !== "employee",
-        );
-
-        // Take only the first employee (if exists)
-        const limitedEmployees = employees.slice(0, 1);
-
-        // Combine: all other roles + only one employee
-        filteredUsers = [...otherRoles, ...limitedEmployees];
-
-        // Sort users by role priority
-        const rolePriority: Record<string, number> = {
-          super_admin: 1,
-          admin: 2,
-          hr_manager: 3,
-          dept_manager: 4,
-          project_manager: 5,
-          employee: 6,
-        };
-
-        filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
-          return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
-        });
-
-        if (filteredUsers.length > 0) {
-          setActiveUsers(filteredUsers);
-          setError(null);
-        } else {
-          setError("No active users found in the system");
-        }
-      } catch (err: any) {
-        console.error("Failed to fetch active users:", err);
-
-        let errorMessage = "Failed to load users";
-        if (err.response?.data?.message) {
-          errorMessage = err.response.data.message;
-        } else if (err.message === "Network Error") {
-          errorMessage =
-            "Cannot connect to server. Please check your connection.";
-        } else if (err.response?.status === 404) {
-          errorMessage = "API endpoint not found. Please contact support.";
-        } else if (err.response?.status === 500) {
-          errorMessage = "Server error. Please try again later.";
-        }
-
-        setError(errorMessage);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-
+    setMounted(true);
     fetchActiveUsers();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.email || !formData.password) return;
+  const fetchActiveUsers = async () => {
     try {
-      await login(formData.email, formData.password);
-      router.push("/dashboard");
+      setLoadingUsers(true);
+      const response = await api.get("/auth/active-users");
+
+      let usersData = [];
+      if (response.data) {
+        if (response.data.data && Array.isArray(response.data.data)) {
+          usersData = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          usersData = response.data;
+        } else if (response.data.users && Array.isArray(response.data.users)) {
+          usersData = response.data.users;
+        } else if (response.data.success && response.data.data) {
+          usersData = Array.isArray(response.data.data)
+            ? response.data.data
+            : [];
+        }
+      }
+
+      // Filter users by allowed roles
+      let filteredUsers = usersData.filter((user: ActiveUser) =>
+        ALLOWED_ROLES.includes(user.role),
+      );
+
+      // Show only one employee (take the first one)
+      const employees = filteredUsers.filter(
+        (user: ActiveUser) => user.role === "employee",
+      );
+      const otherRoles = filteredUsers.filter(
+        (user: ActiveUser) => user.role !== "employee",
+      );
+      const limitedEmployees = employees.slice(0, 1);
+      filteredUsers = [...otherRoles, ...limitedEmployees];
+
+      // Sort users by role priority
+      const rolePriority: Record<string, number> = {
+        super_admin: 1,
+        admin: 2,
+        hr_manager: 3,
+        dept_manager: 4,
+        project_manager: 5,
+        employee: 6,
+      };
+
+      filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
+        return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+      });
+
+      setActiveUsers(filteredUsers);
     } catch (error) {
-      // Error handled in auth context
+      console.error("Failed to fetch active users:", error);
+    } finally {
+      setLoadingUsers(false);
     }
   };
 
@@ -274,310 +350,459 @@ export default function LoginPage() {
     setTimeout(() => setActiveUser(null), 400);
   }, []);
 
-  return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[10%] left-[5%] w-[35%] h-[35%] rounded-full bg-gradient-to-r from-indigo-600/15 to-purple-600/15 blur-[120px] animate-float-slow" />
-        <div className="absolute bottom-[15%] right-[5%] w-[30%] h-[30%] rounded-full bg-gradient-to-r from-blue-600/15 to-cyan-600/15 blur-[120px] animate-float-slow delay-2000" />
-        <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 w-[40%] h-[40%] rounded-full bg-gradient-to-r from-emerald-600/8 to-teal-600/8 blur-[140px] animate-pulse-slow" />
-        <div
-          className="absolute inset-0 opacity-[0.02]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-            backgroundSize: "40px 40px",
-          }}
-        />
-        <div className="absolute inset-0">
-          <div className="absolute top-1/3 left-0 w-full h-px bg-gradient-to-r from-transparent via-indigo-500/15 to-transparent animate-slide" />
-          <div className="absolute top-2/3 left-0 w-full h-px bg-gradient-to-r from-transparent via-purple-500/15 to-transparent animate-slide delay-1000" />
-        </div>
-      </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
 
-      <div className="absolute inset-0 pointer-events-none">
-        {[...Array(12)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute w-0.5 h-0.5 bg-indigo-400/30 rounded-full animate-float-particle"
-            style={{
-              top: `${10 + i * 7}%`,
-              left: `${5 + i * 8}%`,
-              animationDelay: `${i * 0.4}s`,
-            }}
-          />
-        ))}
-      </div>
+    if (!formData.email || !formData.password) {
+      setLoginError("Please enter both email and password");
+      return;
+    }
 
-      <div className="relative z-10 w-full max-w-[400px] animate-fade-in-up">
-        <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden p-6">
-          <div className="flex flex-col items-center text-center mb-5">
-            <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur-md opacity-50 animate-pulse-glow" />
-              <div className="relative w-11 h-11 bg-gradient-to-br from-slate-800 to-slate-900 border border-indigo-500/30 rounded-xl flex items-center justify-center shadow-xl">
-                <CheckSquare className="w-5 h-5 text-indigo-400" />
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      setLoginError("Please enter a valid email address");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      await login(formData.email, formData.password);
+      toast.success("Login successful! Redirecting...");
+      router.push("/dashboard");
+    } catch (error: any) {
+      console.error("Login error:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Login failed. Please try again.";
+      setLoginError(errorMessage);
+      toast.error(errorMessage);
+      setFormData((prev) => ({ ...prev, password: "" }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Prevent hydration mismatch by not rendering animated elements on server
+  if (!mounted) {
+    return (
+      <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
+        <div className="relative z-10 w-full max-w-4xl">
+          <div className="relative bg-white/80 backdrop-blur-xl border border-white shadow-2xl rounded-2xl overflow-hidden">
+            <div className="flex flex-col items-center text-center p-8">
+              <div className="relative">
+                <div className="relative w-16 h-16 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                  <CheckSquare className="w-7 h-7 text-white" />
+                </div>
               </div>
+              <h1 className="mt-4 text-2xl font-bold text-slate-800">
+                Welcome Back
+              </h1>
+              <p className="text-slate-500 text-sm mt-1">
+                Sign in to your workspace
+              </p>
             </div>
-            <h1 className="mt-3 text-xl font-bold bg-gradient-to-r from-white via-indigo-200 to-purple-200 bg-clip-text text-transparent">
-              Welcome Back
-            </h1>
-            <p className="text-slate-400 text-[11px] mt-0.5">
-              Sign in to your workspace
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            <div>
-              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider ml-0.5 mb-1">
-                Email
-              </label>
-              <div
-                className={`relative transition-all duration-200 ${isFocused.email ? "scale-[1.01]" : ""}`}
-              >
-                <Mail
-                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-colors duration-200 ${isFocused.email ? "text-indigo-400" : "text-slate-500"}`}
-                />
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  onFocus={() => setIsFocused({ ...isFocused, email: true })}
-                  onBlur={() => setIsFocused({ ...isFocused, email: false })}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white placeholder:text-slate-500 bg-slate-900/40 border border-slate-700 focus:border-indigo-500 rounded-lg outline-none transition-all duration-200"
-                  placeholder="name@company.com"
-                  required
-                />
+            <div className="grid grid-cols-2 gap-6 p-8 pt-0">
+              <div className="space-y-4">
+                <div className="h-12 bg-slate-100 rounded-xl animate-pulse" />
+                <div className="h-12 bg-slate-100 rounded-xl animate-pulse" />
+                <div className="h-12 bg-linear-to-r from-indigo-600 to-purple-600 rounded-xl animate-pulse" />
               </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1 ml-0.5">
-                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  className="text-[10px] font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
-                >
-                  Forgot?
-                </button>
-              </div>
-              <div
-                className={`relative transition-all duration-200 ${isFocused.password ? "scale-[1.01]" : ""}`}
-              >
-                <Lock
-                  className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-colors duration-200 ${isFocused.password ? "text-indigo-400" : "text-slate-500"}`}
-                />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  onFocus={() => setIsFocused({ ...isFocused, password: true })}
-                  onBlur={() => setIsFocused({ ...isFocused, password: false })}
-                  className="w-full pl-9 pr-9 py-2 text-sm text-white placeholder:text-slate-500 bg-slate-900/40 border border-slate-700 focus:border-indigo-500 rounded-lg outline-none transition-all duration-200"
-                  placeholder="••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                </button>
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              loading={isLoading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-medium text-xs py-2 rounded-lg transition-all shadow-lg shadow-indigo-600/20 mt-2 active:scale-[0.98]"
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Signing in...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-1.5">
-                  <LogIn size={13} />
-                  Sign In
-                </div>
-              )}
-            </Button>
-          </form>
-
-          {!loadingUsers && !error && activeUsers.length > 0 && (
-            <>
-              <div className="relative my-5">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800" />
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="bg-slate-900/50 backdrop-blur-sm px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
-                    <Sparkles className="w-2.5 h-2.5 text-indigo-500" />
-                    Quick Access ({activeUsers.length})
-                  </span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
-                {activeUsers.map((user) => (
-                  <UserButton
-                    key={user.id}
-                    user={user}
-                    onClick={() => handleUserSelect(user.email)}
-                    isActive={activeUser === user.email}
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-14 bg-slate-100 rounded-xl animate-pulse"
                   />
                 ))}
               </div>
-            </>
-          )}
-
-          {loadingUsers && (
-            <div className="flex justify-center py-4">
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
-              <span className="text-xs text-slate-400 ml-2">
-                Loading users...
-              </span>
             </div>
-          )}
-
-          {!loadingUsers && error && (
-            <div className="text-center py-4">
-              <p className="text-xs text-amber-400">{error}</p>
-              <p className="text-[10px] text-slate-500 mt-2">
-                Please contact your administrator
-              </p>
-            </div>
-          )}
-
-          <div className="mt-5 pt-3 border-t border-slate-800/50 text-center">
-            <p className="text-[9px] text-slate-500 font-medium inline-flex items-center justify-center gap-1.5 flex-wrap">
-              <Fingerprint className="w-2.5 h-2.5" />
-              Secure
-              <span className="w-0.5 h-0.5 rounded-full bg-slate-600" />
-              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500/70" />
-              AES-256
-              <span className="w-0.5 h-0.5 rounded-full bg-slate-600" />
-              <Zap className="w-2.5 h-2.5 text-amber-500" />
-              99.99% Uptime
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-3 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/20 backdrop-blur-sm border border-slate-800">
-            <Star className="w-2.5 h-2.5 text-yellow-500/80" />
-            <span className="text-[9px] font-medium text-slate-400">
-              Trusted by 500+ enterprises
-            </span>
           </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
+      {/* Background Effects */}
+      <FloatingParticles />
+      <GlowingOrbs />
+      <GridPattern />
+
+      {/* Main Login Card - Two Columns */}
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-5xl"
+      >
+        <div className="relative bg-white/80 backdrop-blur-xl border border-white shadow-2xl rounded-2xl overflow-hidden">
+          {/* Card Glow */}
+          <div className="absolute -top-32 -right-32 w-64 h-64 bg-indigo-100/30 rounded-full blur-3xl" />
+          <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-purple-100/30 rounded-full blur-3xl" />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+            {/* Left Column - Login Form */}
+            <div className="p-8 lg:p-10">
+              {/* Header */}
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="flex flex-col items-center text-center mb-8"
+              >
+                <motion.div
+                  className="relative"
+                  animate={{
+                    scale: [1, 1.05, 1],
+                  }}
+                  transition={{
+                    duration: 4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                >
+                  <div className="absolute inset-0 bg-linear-to-r from-indigo-500 to-purple-500 rounded-xl blur-lg opacity-30" />
+                  <div className="relative w-16 h-16 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                    <CheckSquare className="w-7 h-7 text-white" />
+                  </div>
+                </motion.div>
+
+                <motion.h1
+                  className="mt-4 text-2xl font-bold text-slate-800"
+                  animate={{
+                    backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                  }}
+                  transition={{
+                    duration: 6,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #1e293b, #4f46e5, #7c3aed, #1e293b)",
+                    backgroundSize: "300% 300%",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  Welcome Back
+                </motion.h1>
+
+                <p className="text-slate-500 text-sm mt-1">
+                  Sign in to your workspace
+                </p>
+              </motion.div>
+
+              {/* Error Message */}
+              <AnimatePresence>
+                {loginError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: "auto" }}
+                    exit={{ opacity: 0, y: -10, height: 0 }}
+                    className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2"
+                  >
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-600">{loginError}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Login Form */}
+              <motion.form
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                onSubmit={handleSubmit}
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider ml-0.5 mb-1.5">
+                    Email Address
+                  </label>
+                  <motion.div
+                    className={`relative transition-all duration-300 ${
+                      isFocused.email ? "scale-[1.01]" : ""
+                    }`}
+                    whileHover={{ scale: 1.01 }}
+                  >
+                    <Mail
+                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                        isFocused.email ? "text-indigo-600" : "text-slate-400"
+                      }`}
+                    />
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      onFocus={() =>
+                        setIsFocused({ ...isFocused, email: true })
+                      }
+                      onBlur={() =>
+                        setIsFocused({ ...isFocused, email: false })
+                      }
+                      className="w-full pl-11 pr-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 bg-white/60 border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all duration-300 focus:shadow-lg focus:shadow-indigo-100"
+                      placeholder="name@company.com"
+                      required
+                      disabled={isSubmitting}
+                    />
+                  </motion.div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1.5 ml-0.5">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+                    >
+                      Forgot?
+                    </button>
+                  </div>
+                  <motion.div
+                    className={`relative transition-all duration-300 ${
+                      isFocused.password ? "scale-[1.01]" : ""
+                    }`}
+                    whileHover={{ scale: 1.01 }}
+                  >
+                    <Lock
+                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
+                        isFocused.password
+                          ? "text-indigo-600"
+                          : "text-slate-400"
+                      }`}
+                    />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                      onFocus={() =>
+                        setIsFocused({ ...isFocused, password: true })
+                      }
+                      onBlur={() =>
+                        setIsFocused({ ...isFocused, password: false })
+                      }
+                      className="w-full pl-11 pr-11 py-3 text-sm text-slate-800 placeholder:text-slate-400 bg-white/60 border border-slate-200 focus:border-indigo-500 rounded-xl outline-none transition-all duration-300 focus:shadow-lg focus:shadow-indigo-100"
+                      placeholder="••••••••"
+                      required
+                      disabled={isSubmitting}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      disabled={isSubmitting}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </motion.div>
+                </div>
+
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Button
+                    type="submit"
+                    loading={isLoading || isSubmitting}
+                    disabled={isLoading || isSubmitting}
+                    className="w-full bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-indigo-200/50 hover:shadow-indigo-300/70 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading || isSubmitting ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Signing in...
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <LogIn size={16} />
+                        Sign In
+                        <ArrowRight
+                          size={14}
+                          className="group-hover:translate-x-1 transition-transform"
+                        />
+                      </div>
+                    )}
+                  </Button>
+                </motion.div>
+              </motion.form>
+
+              {/* Security Badges */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+                className="mt-6 flex justify-center items-center gap-4 flex-wrap"
+              >
+                {[
+                  { icon: Shield, label: "256-bit SSL" },
+                  { icon: Zap, label: "Fast & Secure" },
+                  { icon: Sparkles, label: "Premium" },
+                ].map((item, index) => (
+                  <motion.div
+                    key={index}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-100"
+                    whileHover={{
+                      scale: 1.05,
+                      backgroundColor: "#f8fafc",
+                    }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <item.icon className="w-3 h-3 text-indigo-500" />
+                    <span className="text-[10px] font-medium text-slate-600">
+                      {item.label}
+                    </span>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </div>
+
+            {/* Right Column - Quick Access */}
+            <div className="relative bg-linear-to-br from-indigo-50/80 via-purple-50/80 to-pink-50/80 p-8 lg:p-10 border-l border-slate-200/50">
+              <div className="absolute inset-0 bg-linear-to-br from-indigo-500/5 via-purple-500/5 to-pink-500/5" />
+
+              <div className="relative">
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex items-center gap-2 mb-6"
+                >
+                  <div className="p-2 rounded-lg bg-linear-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-200">
+                    <Users className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-800">
+                      Quick Access
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Click a user to auto-fill credentials
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* Loading State */}
+                <AnimatePresence>
+                  {loadingUsers && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex justify-center py-8"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                        <span className="text-sm text-slate-400">
+                          Loading users...
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* User List */}
+                <AnimatePresence>
+                  {!loadingUsers && activeUsers.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="space-y-2 max-h-[480px] overflow-y-auto custom-scrollbar pr-1"
+                    >
+                      {activeUsers.map((user, index) => (
+                        <UserButton
+                          key={user.id || user._id}
+                          user={user}
+                          onClick={() => handleUserSelect(user.email)}
+                          isActive={activeUser === user.email}
+                          index={index}
+                        />
+                      ))}
+
+                      {/* Demo Credentials Notice */}
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-4 p-3 bg-slate-50/80 border border-slate-200 rounded-xl"
+                      >
+                        <p className="text-[10px] text-slate-500 text-center">
+                          <span className="font-medium text-slate-600">
+                            Demo:
+                          </span>{" "}
+                          Click any user to auto-fill. Password:{" "}
+                          <span className="font-mono font-medium text-indigo-600">
+                            Admin@123
+                          </span>
+                        </p>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* No Users State */}
+                <AnimatePresence>
+                  {!loadingUsers && activeUsers.length === 0 && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="text-center py-8"
+                    >
+                      <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Users className="w-6 h-6 text-slate-400" />
+                      </div>
+                      <p className="text-sm text-slate-500">
+                        No users available
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Please contact your administrator
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="border-t border-slate-200/50 px-8 py-3 text-center bg-white/50"
+          >
+            <p className="text-[10px] text-slate-400">
+              © {new Date().getFullYear()} TaskManager. All rights reserved.
+            </p>
+          </motion.div>
+        </div>
+      </motion.div>
 
       <style jsx global>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(15px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes float-slow {
-          0%,
-          100% {
-            transform: translateY(0px) translateX(0px);
-          }
-          33% {
-            transform: translateY(-15px) translateX(8px);
-          }
-          66% {
-            transform: translateY(8px) translateX(-8px);
-          }
-        }
-        @keyframes pulse-slow {
-          0%,
-          100% {
-            opacity: 0.3;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 0.5;
-            transform: scale(1.05);
-          }
-        }
-        @keyframes pulse-glow {
-          0%,
-          100% {
-            opacity: 0.3;
-          }
-          50% {
-            opacity: 0.6;
-          }
-        }
-        @keyframes slide {
-          from {
-            transform: translateX(-100%);
-          }
-          to {
-            transform: translateX(100%);
-          }
-        }
-        @keyframes float-particle {
-          0% {
-            transform: translateY(0px) translateX(0px);
-            opacity: 0;
-          }
-          50% {
-            opacity: 0.4;
-          }
-          100% {
-            transform: translateY(-60px) translateX(15px);
-            opacity: 0;
-          }
-        }
-        .animate-fade-in-up {
-          animation: fadeIn 0.5s ease-out forwards;
-        }
-        .animate-float-slow {
-          animation: float-slow 12s ease-in-out infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse-slow 8s ease-in-out infinite;
-        }
-        .animate-pulse-glow {
-          animation: pulse-glow 3s ease-in-out infinite;
-        }
-        .animate-slide {
-          animation: slide 6s ease-in-out infinite;
-        }
-        .animate-float-particle {
-          animation: float-particle 5s ease-in-out infinite;
-        }
-        .delay-1000 {
-          animation-delay: 1s;
-        }
-        .delay-2000 {
-          animation-delay: 2s;
-        }
         .custom-scrollbar::-webkit-scrollbar {
-          width: 3px;
+          width: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(30, 41, 59, 0.5);
+          background: rgba(30, 41, 59, 0.05);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(99, 102, 241, 0.4);
+          background: rgba(99, 102, 241, 0.3);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(99, 102, 241, 0.6);
+          background: rgba(99, 102, 241, 0.5);
         }
       `}</style>
     </div>
