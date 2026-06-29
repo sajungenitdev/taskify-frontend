@@ -37,26 +37,21 @@ import {
   Award,
   Info,
   Reply,
-  MoreVertical,
   Link2,
   Copy,
   Check,
   Printer,
   Share2,
-  Bookmark,
-  Flag,
   Users,
-  CalendarDays,
-  Activity,
-  Target,
-  Rocket,
-  Sparkles,
-  Timer,
-  PlayCircle,
-  Pause,
-  Square,
   TimerIcon,
   History,
+  MessageCircle,
+  Video,
+  Music,
+  AlertTriangle as AlertTriangleIcon,
+  Pause,
+  Square,
+  Text,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -87,6 +82,11 @@ interface Task {
   attachmentsCount?: number;
   reviewsCount?: number;
   averageRating?: number;
+  rejectionReason?: string;
+  approvalNote?: string;
+  evidenceRequired?: boolean;
+  evidenceSubmitted?: boolean;
+  evidenceSubmittedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -156,18 +156,14 @@ export default function TaskDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState("");
   const [rejecting, setRejecting] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [submittingForReview, setSubmittingForReview] = useState(false);
 
   // Comments state
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyContent, setReplyContent] = useState("");
   const [editingComment, setEditingComment] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
 
@@ -193,7 +189,21 @@ export default function TaskDetailPage() {
   const [showAttachments, setShowAttachments] = useState(true);
   const [showReviews, setShowReviews] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showMoreActions, setShowMoreActions] = useState(false);
+
+  // Approval/Rejection note state
+  const [approvalNote, setApprovalNote] = useState("");
+  const [showApprovalNoteModal, setShowApprovalNoteModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<
+    "approve" | "reject" | null
+  >(null);
+  const [showRejectionReasonModal, setShowRejectionReasonModal] =
+    useState(false);
+
+  // Evidence submission state - ALWAYS REQUIRED
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [evidenceText, setEvidenceText] = useState("");
+  const [submittingEvidence, setSubmittingEvidence] = useState(false);
+  const [hasSubmittedEvidence, setHasSubmittedEvidence] = useState(false);
 
   const userRole = user?.role;
   const isSuperAdmin = userRole === "super_admin";
@@ -209,6 +219,25 @@ export default function TaskDetailPage() {
     userRole === "line_manager";
   const isAssignee = task?.assignedTo?._id === user?._id;
   const canReview = task?.status === "completed" && (isAssignee || canManage);
+
+  // Helper Functions
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType?.startsWith("image/")) return <ImageIcon size={20} />;
+    if (mimeType === "application/pdf") return <FileText size={20} />;
+    if (mimeType?.startsWith("video/")) return <Video size={20} />;
+    if (mimeType?.startsWith("audio/")) return <Music size={20} />;
+    if (mimeType === "application/zip" || mimeType?.includes("zip"))
+      return <File size={20} />;
+    return <File size={20} />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -261,8 +290,16 @@ export default function TaskDetailPage() {
           attachmentsCount: taskData.attachmentsCount || 0,
           reviewsCount: taskData.reviewsCount || 0,
           averageRating: taskData.averageRating || 0,
+          rejectionReason: taskData.rejectionReason || "",
+          approvalNote: taskData.approvalNote || "",
+          evidenceRequired: taskData.evidenceRequired || false,
+          evidenceUrls: taskData.evidenceUrls || [],
+          evidenceSubmitted: taskData.evidenceSubmitted || false,
+          evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
         };
         setTask(formattedTask);
+        // Reset evidence submission state
+        setHasSubmittedEvidence(false);
       } else {
         throw new Error("Invalid task data received");
       }
@@ -316,31 +353,6 @@ export default function TaskDetailPage() {
       toast.error(error.response?.data?.message || "Failed to add comment");
     } finally {
       setSubmittingComment(false);
-    }
-  };
-
-  const handleAddReply = async (commentId: string) => {
-    if (!replyContent.trim()) {
-      toast.error("Please enter a reply");
-      return;
-    }
-
-    try {
-      const response = await api.post(`/tasks/${id}/comments`, {
-        content: replyContent,
-        parentCommentId: commentId,
-      });
-
-      if (response.data.success) {
-        toast.success("Reply added successfully");
-        setReplyContent("");
-        setReplyingTo(null);
-        fetchComments();
-        fetchTask();
-      }
-    } catch (error: any) {
-      console.error("Error adding reply:", error);
-      toast.error(error.response?.data?.message || "Failed to add reply");
     }
   };
 
@@ -544,12 +556,11 @@ export default function TaskDetailPage() {
   };
 
   // Task Status Updates
-  const updateTaskStatus = async (newStatus: string) => {
+  const updateTaskStatus = async (newStatus: string, data?: any) => {
     setUpdating(true);
     try {
-      const response = await api.patch(`/tasks/${id}/status`, {
-        status: newStatus,
-      });
+      const payload = { status: newStatus, ...data };
+      const response = await api.patch(`/tasks/${id}/status`, payload);
       if (response.data.success) {
         const statusMessages: Record<string, string> = {
           in_progress: "🚀 Task started! Moving to In Progress",
@@ -573,14 +584,83 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleApprove = async () => {
+  // Handle submit for review - FIXED to open modal when evidence is required
+  // Handle submit for review - ALWAYS SHOW EVIDENCE MODAL
+const handleSubmitForReview = () => {
+  // ALWAYS show evidence modal - evidence is required for ALL tasks
+  setShowEvidenceModal(true);
+};
+
+  // Handle submit with evidence - called from modal
+  const handleSubmitWithEvidence = async () => {
+    if (!evidenceText.trim()) {
+      toast.error("Please provide evidence details");
+      return;
+    }
+
+    setSubmittingEvidence(true);
+    try {
+      // Split by new lines and filter empty lines
+      const evidenceUrls = evidenceText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      if (evidenceUrls.length === 0) {
+        toast.error("Please provide at least one evidence item");
+        setSubmittingEvidence(false);
+        return;
+      }
+
+      // Update task with evidence and submit
+      const response = await api.patch(`/tasks/${id}/status`, {
+        status: "submitted",
+        evidenceUrls: evidenceUrls,
+      });
+
+      if (response.data.success) {
+        toast.success("✅ Task submitted with evidence!");
+        setShowEvidenceModal(false);
+        setEvidenceText("");
+        setHasSubmittedEvidence(true);
+        fetchTask();
+        fetchAttachments();
+      } else {
+        throw new Error("Failed to submit task");
+      }
+    } catch (error: any) {
+      console.error("Error submitting evidence:", error);
+      toast.error(error.response?.data?.message || "Failed to submit evidence");
+    } finally {
+      setSubmittingEvidence(false);
+    }
+  };
+
+  // Open approval/rejection note modal
+  const openApprovalNoteModal = (action: "approve" | "reject") => {
+    setPendingAction(action);
+    setApprovalNote("");
+    setShowApprovalNoteModal(true);
+  };
+
+  // Handle approve with note
+  const handleApproveWithNote = async () => {
+    if (!approvalNote.trim()) {
+      toast.error("Please provide feedback for approval");
+      return;
+    }
+
     setUpdating(true);
     try {
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "completed",
+        approvalNote: approvalNote.trim(),
       });
       if (response.data.success) {
         toast.success("✅ Task approved and completed!");
+        setShowApprovalNoteModal(false);
+        setApprovalNote("");
+        setPendingAction(null);
         fetchTask();
         setShowReviewModal(true);
       }
@@ -596,8 +676,9 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleReject = async () => {
-    if (!rejectionReason.trim()) {
+  // Handle reject with note
+  const handleRejectWithNote = async () => {
+    if (!approvalNote.trim()) {
       toast.error("Please provide a reason for rejection");
       return;
     }
@@ -606,12 +687,13 @@ export default function TaskDetailPage() {
     try {
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "rejected",
-        rejectionReason,
+        rejectionReason: approvalNote.trim(),
       });
       if (response.data.success) {
-        toast.success("Task rejected. Feedback sent to assignee");
-        setShowRejectModal(false);
-        setRejectionReason("");
+        toast.success("❌ Task rejected. Feedback sent to assignee");
+        setShowApprovalNoteModal(false);
+        setApprovalNote("");
+        setPendingAction(null);
         fetchTask();
       }
     } catch (error: any) {
@@ -643,11 +725,10 @@ export default function TaskDetailPage() {
     }
   };
 
-  // Timer Functions - Using global timer context
+  // Timer Functions
   const handleStartTimer = () => {
     if (!task) return;
 
-    // If another task is running, stop it first
     if (activeTimerTaskId && activeTimerTaskId !== task._id) {
       stopTimer(activeTimerTaskId);
     }
@@ -705,6 +786,15 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Check if evidence is provided
+  const hasEvidence = () => {
+    return (
+      (task?.evidenceUrls && task.evidenceUrls.length > 0) ||
+      attachments.length > 0 ||
+      hasSubmittedEvidence
+    );
+  };
+
   // Helper Functions
   const getPriorityConfig = (priority: string) => {
     const config = {
@@ -712,25 +802,21 @@ export default function TaskDetailPage() {
         color: "bg-emerald-50 text-emerald-700 border-emerald-200",
         icon: "🟢",
         label: "Low",
-        badgeColor: "bg-emerald-100 text-emerald-800",
       },
       normal: {
         color: "bg-blue-50 text-blue-700 border-blue-200",
         icon: "🔵",
         label: "Normal",
-        badgeColor: "bg-blue-100 text-blue-800",
       },
       high: {
         color: "bg-amber-50 text-amber-700 border-amber-200",
         icon: "🟠",
         label: "High",
-        badgeColor: "bg-amber-100 text-amber-800",
       },
       urgent: {
         color: "bg-rose-50 text-rose-700 border-rose-200",
         icon: "🔴",
         label: "Urgent",
-        badgeColor: "bg-rose-100 text-rose-800",
       },
     };
     return config[priority as keyof typeof config] || config.normal;
@@ -742,37 +828,31 @@ export default function TaskDetailPage() {
         color: "bg-amber-50 text-amber-700 border-amber-200",
         icon: "⏳",
         label: "Pending",
-        badgeColor: "bg-amber-100 text-amber-800",
       },
       in_progress: {
         color: "bg-sky-50 text-sky-700 border-sky-200",
         icon: "🔄",
         label: "In Progress",
-        badgeColor: "bg-sky-100 text-sky-800",
       },
       submitted: {
         color: "bg-purple-50 text-purple-700 border-purple-200",
         icon: "📬",
         label: "Submitted",
-        badgeColor: "bg-purple-100 text-purple-800",
       },
       completed: {
         color: "bg-emerald-50 text-emerald-700 border-emerald-200",
         icon: "✅",
         label: "Completed",
-        badgeColor: "bg-emerald-100 text-emerald-800",
       },
       overdue: {
         color: "bg-rose-50 text-rose-700 border-rose-200",
         icon: "⚠️",
         label: "Overdue",
-        badgeColor: "bg-rose-100 text-rose-800",
       },
       rejected: {
         color: "bg-red-50 text-red-700 border-red-200",
         icon: "❌",
         label: "Rejected",
-        badgeColor: "bg-red-100 text-red-800",
       },
     };
     return config[status as keyof typeof config] || config.pending;
@@ -806,25 +886,89 @@ export default function TaskDetailPage() {
     }
   };
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType?.startsWith("image/")) return <ImageIcon size={20} />;
-    if (mimeType === "application/pdf") return <FileText size={20} />;
-    return <File size={20} />;
-  };
-
   const getInitials = (name: string) => {
     return name?.charAt(0)?.toUpperCase() || "?";
   };
 
-  // Render Comment Component
+  // Render rejection note
+  const renderRejectionNote = () => {
+    if (task?.status !== "rejected" || !task?.rejectionReason) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-4 p-4 bg-rose-50 rounded-xl border border-rose-200 cursor-pointer hover:bg-rose-100 transition"
+        onClick={() => setShowRejectionReasonModal(true)}
+      >
+        <div className="flex items-start gap-3">
+          <div className="p-1.5 bg-rose-100 rounded-lg">
+            <MessageCircle className="w-4 h-4 text-rose-600" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-rose-800">
+                Rejection Reason
+              </p>
+              <span className="text-xs text-rose-500">Click to view</span>
+            </div>
+            <p className="text-sm text-rose-700 mt-1 line-clamp-2">
+              {task.rejectionReason}
+            </p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Render approval note
+  const renderApprovalNote = () => {
+    if (task?.status !== "completed" || !task?.approvalNote) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200"
+      >
+        <div className="flex items-start gap-3">
+          <div className="p-1.5 bg-emerald-100 rounded-lg">
+            <ThumbsUp className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-emerald-800">
+              Approval Note
+            </p>
+            <p className="text-sm text-emerald-700 mt-1">{task.approvalNote}</p>
+          </div>
+        </div>
+      </motion.div>
+    );
+  };
+
+  // Render evidence required badge
+  const renderEvidenceBadge = () => {
+    if (!task?.evidenceRequired) return null;
+
+    const hasEvidence =
+      (task.evidenceUrls && task.evidenceUrls.length > 0) ||
+      attachments.length > 0;
+
+    return (
+      <span
+        className={`text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${
+          hasEvidence
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+            : "bg-amber-50 text-amber-700 border-amber-200"
+        }`}
+      >
+        <Paperclip size={12} />
+        {hasEvidence ? "Evidence Submitted" : "Evidence Required"}
+      </span>
+    );
+  };
+
+  // Comment Item Component
   const CommentItem = ({
     comment,
     depth = 0,
@@ -985,6 +1129,74 @@ export default function TaskDetailPage() {
     );
   };
 
+  // Rejection Reason Modal
+  const RejectionReasonModal = () => {
+    if (!task?.rejectionReason) return null;
+
+    return (
+      <AnimatePresence>
+        {showRejectionReasonModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
+                    <MessageCircle className="w-6 h-6 text-rose-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">
+                      Task Rejected
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Feedback from the reviewer
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 mb-4">
+                  <p className="text-sm text-rose-700 leading-relaxed">
+                    {task.rejectionReason}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg mb-4">
+                  <Info className="w-4 h-4 text-gray-400" />
+                  <span>
+                    Please review the feedback and resubmit with improvements.
+                  </span>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowRejectionReasonModal(false);
+                      updateTaskStatus("pending");
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    <RefreshCw size={14} />
+                    Send for Rework
+                  </button>
+                  <button
+                    onClick={() => setShowRejectionReasonModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -1038,7 +1250,6 @@ export default function TaskDetailPage() {
     new Date(task.deadline) < new Date() &&
     task.status !== "completed";
 
-  // Get timer display values from global context
   const isTimerActive = isTimerActiveForTask(task._id);
   const isTimerRunningForTask = isTimerActive && isTimerRunning;
   const displayTime = getDisplayTimeForTask(task._id, task.actualMinutes);
@@ -1146,7 +1357,7 @@ export default function TaskDetailPage() {
                           {task.averageRating.toFixed(1)}
                         </span>
                       )}
-                      {/* Timer Badge - GLOBALLY SYNCED */}
+                      {renderEvidenceBadge()}
                       {isTimerActive && (
                         <div
                           className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full ${isTimerRunningForTask ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
@@ -1176,6 +1387,12 @@ export default function TaskDetailPage() {
                     {task.description || "No description provided."}
                   </p>
 
+                  {/* Rejection Note */}
+                  {renderRejectionNote()}
+
+                  {/* Approval Note */}
+                  {renderApprovalNote()}
+
                   {/* Task Meta Tags */}
                   <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
                     {task.projectId && task.projectId.name && (
@@ -1200,7 +1417,7 @@ export default function TaskDetailPage() {
                     )}
                   </div>
 
-                  {/* Timer Controls - GLOBALLY SYNCED */}
+                  {/* Timer Controls */}
                   {task.status !== "completed" &&
                     task.status !== "submitted" && (
                       <div className="mt-4 pt-4 border-t border-gray-200">
@@ -1391,7 +1608,6 @@ export default function TaskDetailPage() {
 
                 {showComments && (
                   <div className="p-5 pt-0 space-y-5">
-                    {/* Add Comment */}
                     <div className="flex gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
                         <span className="text-white text-sm font-bold">
@@ -1423,7 +1639,6 @@ export default function TaskDetailPage() {
                       </div>
                     </div>
 
-                    {/* Comments List */}
                     <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
                       {comments.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">
@@ -1445,6 +1660,7 @@ export default function TaskDetailPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+                id="attachments-section"
               >
                 <button
                   onClick={() => setShowAttachments(!showAttachments)}
@@ -1454,6 +1670,12 @@ export default function TaskDetailPage() {
                     <Paperclip className="w-5 h-5 text-indigo-500" />
                     <h3 className="text-lg font-semibold text-gray-800">
                       Attachments ({attachments.length})
+                      {task?.evidenceRequired &&
+                        task?.status === "in_progress" && (
+                          <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full ml-2">
+                            Evidence Required
+                          </span>
+                        )}
                     </h3>
                   </div>
                   {showAttachments ? (
@@ -1465,6 +1687,23 @@ export default function TaskDetailPage() {
 
                 {showAttachments && (
                   <div className="p-5 pt-0">
+                    {/* Evidence Required Warning */}
+                    {task?.evidenceRequired &&
+                      task?.status === "in_progress" && (
+                        <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-amber-800">
+                              Evidence Required
+                            </p>
+                            <p className="text-xs text-amber-700">
+                              Please upload evidence before submitting this task
+                              for review.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
                     {/* Upload Area */}
                     <div className="mb-4">
                       <input
@@ -1488,7 +1727,9 @@ export default function TaskDetailPage() {
                           <>
                             <Upload size={20} className="text-gray-400" />
                             <span className="text-gray-500">
-                              Click to upload files
+                              {task?.evidenceRequired
+                                ? "Upload evidence (Required)"
+                                : "Upload files"}
                             </span>
                           </>
                         )}
@@ -1498,7 +1739,9 @@ export default function TaskDetailPage() {
                     {/* Attachments List */}
                     {attachments.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        No attachments yet.
+                        {task?.evidenceRequired
+                          ? "No evidence uploaded yet."
+                          : "No attachments yet."}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1705,25 +1948,28 @@ export default function TaskDetailPage() {
 
                   {task.status === "in_progress" && (
                     <button
-                      onClick={() => updateTaskStatus("submitted")}
-                      disabled={updating}
+                      onClick={handleSubmitForReview}
+                      disabled={updating || submittingForReview}
                       className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                     >
-                      {updating ? (
+                      {updating || submittingForReview ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
                         <Send size={16} />
                       )}
                       Submit for Review
+                      <span className="text-xs bg-purple-400/30 px-2 py-0.5 rounded-full">
+                        Evidence Required
+                      </span>
                     </button>
                   )}
 
                   {task.status === "submitted" && canApprove && (
                     <>
                       <button
-                        onClick={handleApprove}
+                        onClick={() => openApprovalNoteModal("approve")}
                         disabled={updating}
-                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                       >
                         {updating ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -1733,7 +1979,7 @@ export default function TaskDetailPage() {
                         Approve & Complete
                       </button>
                       <button
-                        onClick={() => setShowRejectModal(true)}
+                        onClick={() => openApprovalNoteModal("reject")}
                         className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                       >
                         <ThumbsDown size={16} />
@@ -1743,18 +1989,36 @@ export default function TaskDetailPage() {
                   )}
 
                   {task.status === "rejected" && (
-                    <button
-                      onClick={() => updateTaskStatus("pending")}
-                      disabled={updating}
-                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      {updating ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <RefreshCw size={16} />
-                      )}
-                      Send for Rework
-                    </button>
+                    <>
+                      <div
+                        className="text-center py-3 bg-rose-50 rounded-xl border border-rose-200 cursor-pointer hover:bg-rose-100 transition"
+                        onClick={() => setShowRejectionReasonModal(true)}
+                      >
+                        <p className="text-rose-600 text-sm font-medium">
+                          ❌ Task Rejected
+                        </p>
+                        {task.rejectionReason && (
+                          <p className="text-rose-500 text-xs mt-1 line-clamp-2 px-2">
+                            {task.rejectionReason}
+                          </p>
+                        )}
+                        <p className="text-xs text-rose-400 mt-1">
+                          Click to view full reason
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => updateTaskStatus("pending")}
+                        disabled={updating}
+                        className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                      >
+                        {updating ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={16} />
+                        )}
+                        Send for Rework
+                      </button>
+                    </>
                   )}
 
                   {task.status === "submitted" && !canApprove && (
@@ -1765,19 +2029,22 @@ export default function TaskDetailPage() {
                     </div>
                   )}
 
-                  {(task.status === "completed" ||
-                    task.status === "rejected") && (
-                    <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-gray-500 text-sm">
-                        {task.status === "completed"
-                          ? "✅ Task Completed"
-                          : "❌ Task Rejected"}
+                  {task.status === "completed" && (
+                    <div className="text-center py-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <p className="text-emerald-600 text-sm font-medium">
+                        ✅ Task Completed
                       </p>
+                      {task.approvalNote && (
+                        <p className="text-emerald-500 text-xs mt-1 line-clamp-2 px-2">
+                          Note: {task.approvalNote}
+                        </p>
+                      )}
                     </div>
                   )}
 
                   {canReview &&
-                    !reviews.some((r) => r.reviewer?._id === user?._id) && (
+                    !reviews.some((r) => r.reviewer?._id === user?._id) &&
+                    task.status === "completed" && (
                       <button
                         onClick={() => setShowReviewModal(true)}
                         className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
@@ -1853,7 +2120,7 @@ export default function TaskDetailPage() {
                 </div>
               </motion.div>
 
-              {/* Timer Status Card - GLOBALLY SYNCED */}
+              {/* Timer Status Card */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -1935,6 +2202,118 @@ export default function TaskDetailPage() {
         </div>
       )}
 
+      {/* Evidence Submission Modal - Make sure this is in your JSX */}
+      <AnimatePresence>
+        {showEvidenceModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            >
+              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <Text className="w-5 h-5 text-indigo-500" />
+                    Submit Evidence
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    Evidence is required to submit this task
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEvidenceModal(false);
+                    setEvidenceText("");
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X size={20} className="text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {/* Evidence Required Warning */}
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
+                  <AlertTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      Evidence Required
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Please provide evidence details below. You can add URLs or
+                      describe the evidence.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Evidence Text Area */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Evidence Details <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={evidenceText}
+                    onChange={(e) => setEvidenceText(e.target.value)}
+                    rows={6}
+                    placeholder="Enter evidence details or URLs...
+              
+Example:
+- https://drive.google.com/file/evidence1
+- https://docs.google.com/document/evidence2
+- Screenshots attached in comments
+- Source code: https://github.com/..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none text-gray-800 placeholder:text-gray-400 font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Enter one URL or detail per line.{" "}
+                    {evidenceText.split("\n").filter((l) => l.trim()).length}{" "}
+                    items added
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleSubmitWithEvidence}
+                    disabled={submittingEvidence || !evidenceText.trim()}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submittingEvidence ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Submit with Evidence
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowEvidenceModal(false);
+                      setEvidenceText("");
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                {!evidenceText.trim() && (
+                  <p className="text-xs text-amber-600 text-center">
+                    * Please provide evidence details to submit the task
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteConfirm && (
@@ -1976,9 +2355,9 @@ export default function TaskDetailPage() {
         )}
       </AnimatePresence>
 
-      {/* Reject Modal */}
+      {/* Approval/Rejection Note Modal */}
       <AnimatePresence>
-        {showRejectModal && (
+        {showApprovalNoteModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -1988,40 +2367,82 @@ export default function TaskDetailPage() {
             >
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-rose-50 rounded-full flex items-center justify-center">
-                    <ThumbsDown className="w-5 h-5 text-rose-500" />
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      pendingAction === "approve"
+                        ? "bg-emerald-50"
+                        : "bg-rose-50"
+                    }`}
+                  >
+                    {pendingAction === "approve" ? (
+                      <ThumbsUp className="w-5 h-5 text-emerald-500" />
+                    ) : (
+                      <ThumbsDown className="w-5 h-5 text-rose-500" />
+                    )}
                   </div>
                   <h3 className="text-xl font-bold text-gray-800">
-                    Reject Task
+                    {pendingAction === "approve" ? "Approve" : "Reject"} Task
                   </h3>
                 </div>
+
                 <p className="text-gray-500 text-sm mb-4">
-                  Please provide a reason for rejecting this task.
+                  {pendingAction === "approve"
+                    ? "Provide feedback for approving this task. This will be sent to the assignee."
+                    : "Please provide a reason for rejecting this task. This will be sent to the assignee for rework."}
                 </p>
-                <textarea
-                  rows={4}
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Enter rejection reason..."
-                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition mb-4"
-                />
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {pendingAction === "approve"
+                      ? "Approval Note"
+                      : "Rejection Reason"}{" "}
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={approvalNote}
+                    onChange={(e) => setApprovalNote(e.target.value)}
+                    placeholder={
+                      pendingAction === "approve"
+                        ? "Enter approval feedback..."
+                        : "Enter rejection reason..."
+                    }
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {approvalNote.length}/500 characters
+                  </p>
+                </div>
+
                 <div className="flex gap-3">
                   <button
-                    onClick={handleReject}
-                    disabled={rejecting}
-                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                    onClick={
+                      pendingAction === "approve"
+                        ? handleApproveWithNote
+                        : handleRejectWithNote
+                    }
+                    disabled={!approvalNote.trim() || updating || rejecting}
+                    className={`flex-1 px-4 py-2.5 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                      pendingAction === "approve"
+                        ? "bg-emerald-600 hover:bg-emerald-700"
+                        : "bg-rose-600 hover:bg-rose-700"
+                    }`}
                   >
-                    {rejecting ? (
+                    {updating || rejecting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : pendingAction === "approve" ? (
+                      <ThumbsUp size={14} />
                     ) : (
                       <ThumbsDown size={14} />
                     )}
-                    Confirm
+                    Confirm{" "}
+                    {pendingAction === "approve" ? "Approval" : "Rejection"}
                   </button>
                   <button
                     onClick={() => {
-                      setShowRejectModal(false);
-                      setRejectionReason("");
+                      setShowApprovalNoteModal(false);
+                      setApprovalNote("");
+                      setPendingAction(null);
                     }}
                     className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
                   >
@@ -2033,6 +2454,9 @@ export default function TaskDetailPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Rejection Reason Modal */}
+      <RejectionReasonModal />
 
       {/* Review Modal */}
       <AnimatePresence>

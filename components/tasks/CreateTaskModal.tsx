@@ -826,6 +826,11 @@ export default function CreateTaskModal({
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1.5">
               Evidence URLs
+              {formData.evidenceRequired && (
+                <span className="text-xs text-amber-600 font-medium ml-2">
+                  (Required for submission)
+                </span>
+              )}
             </label>
             <div className="flex gap-2 mb-2">
               <div className="relative flex-1">
