@@ -63,7 +63,7 @@ interface LeaveRequest {
   type: string;
   startDate: string;
   endDate: string;
-  // totalDays: number;
+  totalDays: number; // ✅ ADD THIS - it was missing
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
   substituteName?: string;
@@ -81,7 +81,7 @@ interface LeaveRequest {
   rejectionReason?: string;
   isHalfDay: boolean;
   halfDayType?: string;
-  // ✅ ADDED: employeeId can be an object or string
+  // ✅ ADD THIS - employeeId property
   employeeId?:
     | {
         _id: string;
