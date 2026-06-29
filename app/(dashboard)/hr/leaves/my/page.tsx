@@ -522,7 +522,7 @@ export default function MyLeavesPage() {
         `You have no ${getLeaveTypeLabel(type)} remaining! (Used: ${used} of ${defaultBal})`,
       );
     } else if (remaining < 3 && defaultBal > 0) {
-      toast.warning(
+      toast.error(
         `You only have ${remaining} ${getLeaveTypeLabel(type)} days remaining! (Used: ${used} of ${defaultBal})`,
       );
     }
