@@ -10,7 +10,18 @@ export interface TeamMember {
   phone?: string;
   employeeId?: string;
 }
-
+export interface User {
+  _id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  departmentId?: string | { _id: string; name: string };
+  avatar?: string;
+  isActive?: boolean;
+  position?: string;
+  phone?: string;
+  employeeId?: string;
+}
 export interface Team {
   _id: string;
   name: string;
