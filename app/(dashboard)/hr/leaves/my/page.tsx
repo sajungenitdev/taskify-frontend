@@ -137,7 +137,6 @@ interface LeaveRequest {
   employeeName?: string;
   employeeEmail?: string;
   departmentName?: string;
-  totalDays?: number;
 }
 
 interface LeaveBalance {

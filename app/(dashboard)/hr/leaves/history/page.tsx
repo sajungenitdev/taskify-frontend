@@ -67,7 +67,7 @@ interface LeaveRequest {
   type: string;
   startDate: string;
   endDate: string;
-  totalDays: number;  // ← Keep only ONE of these
+  totalDays: number;
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
   substituteName?: string;
