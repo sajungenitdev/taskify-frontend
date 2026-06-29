@@ -17,6 +17,25 @@ export function useWebSocket() {
   const maxReconnectAttempts = 5;
   const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
 
+  // Helper to get token
+  const getToken = () => {
+    // Option 1: Get from localStorage
+    const token = localStorage.getItem("token");
+    if (token) return token;
+
+    // Option 2: Get from cookies
+    // const cookies = document.cookie.split('; ');
+    // const tokenCookie = cookies.find(row => row.startsWith('token='));
+    // return tokenCookie ? tokenCookie.split('=')[1] : null;
+
+    // Option 3: Get from user object if it has token
+    if (user && 'token' in user) {
+      return (user as any).token;
+    }
+
+    return null;
+  };
+
   useEffect(() => {
     if (!user) {
       if (socket) {
@@ -28,8 +47,14 @@ export function useWebSocket() {
     }
 
     const connectWebSocket = () => {
+      const token = getToken();
+      if (!token) {
+        console.warn("No token available for WebSocket connection");
+        return;
+      }
+
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001";
-      const ws = new WebSocket(`${wsUrl}?token=${user.token}`);
+      const ws = new WebSocket(`${wsUrl}?token=${token}`);
 
       ws.onopen = () => {
         console.log("WebSocket connected");
