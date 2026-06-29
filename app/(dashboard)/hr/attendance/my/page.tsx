@@ -352,7 +352,7 @@ export default function MyAttendancePage() {
 
     // Skip weekends
     if (dayOfWeek === 0 || dayOfWeek === 6) {
-      toast.info("Weekend day - No attendance record");
+      toast.error("Weekend day - No attendance record");
       return;
     }
 
@@ -362,7 +362,7 @@ export default function MyAttendancePage() {
       setSelectedDate(dateStr);
       setShowDetailModal(true);
     } else {
-      toast.info("No attendance record for this day");
+      toast.error("No attendance record for this day");
     }
   };
 

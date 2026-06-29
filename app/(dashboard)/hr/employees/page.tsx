@@ -158,7 +158,7 @@ export default function EmployeesPage() {
       } else {
         // If API returns success: false, use fallback
         setEmployees(getFallbackEmployees());
-        toast.info("Using sample employee data");
+        toast.error("Using sample employee data");
       }
     } catch (error: any) {
       console.error("Error fetching employees:", error);
@@ -186,7 +186,7 @@ export default function EmployeesPage() {
       } else if (error.response?.status === 403) {
         toast.error("You don't have permission to view employees.");
       } else if (error.response?.status === 404) {
-        toast.info("Employee API not found. Showing sample data.");
+        toast.error("Employee API not found. Showing sample data.");
       } else {
         toast.error("Failed to load employees. Showing sample data.");
       }
