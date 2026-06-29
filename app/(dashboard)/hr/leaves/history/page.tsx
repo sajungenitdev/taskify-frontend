@@ -62,7 +62,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/axios";
 
 // ============================================================================
-// TYPES
+// TYPES - FIXED: Added employeeId property
 // ============================================================================
 
 interface LeaveRequest {
@@ -88,6 +88,23 @@ interface LeaveRequest {
   rejectionReason?: string;
   isHalfDay: boolean;
   halfDayType?: string;
+  // ✅ ADDED: employeeId can be an object or string
+  employeeId?:
+    | {
+        _id: string;
+        fullName: string;
+        email: string;
+        employeeId?: string;
+        departmentId?:
+          | {
+              _id: string;
+              name: string;
+              code: string;
+            }
+          | string;
+        position?: string;
+      }
+    | string;
 }
 
 interface EmployeeLeaveSummary {
@@ -204,7 +221,7 @@ const statusLabels: Record<string, string> = {
 // HELPER FUNCTIONS
 // ============================================================================
 
-// ✅ FIXED: Safely get employee name from various possible structures
+// Safely get employee name from various possible structures
 const getEmployeeName = (employee: any): string => {
   if (!employee) return "Unknown";
   if (typeof employee === "object" && employee.fullName) {
@@ -217,7 +234,7 @@ const getEmployeeName = (employee: any): string => {
   return "Unknown";
 };
 
-// ✅ FIXED: Safely get employee email
+// Safely get employee email
 const getEmployeeEmail = (employee: any): string => {
   if (!employee) return "";
   if (typeof employee === "object" && employee.email) {
@@ -226,7 +243,7 @@ const getEmployeeEmail = (employee: any): string => {
   return "";
 };
 
-// ✅ FIXED: Safely get employee ID
+// Safely get employee ID
 const getEmployeeId = (employee: any): string => {
   if (!employee) return "N/A";
   if (typeof employee === "object" && employee.employeeId) {
@@ -239,7 +256,7 @@ const getEmployeeId = (employee: any): string => {
   return "N/A";
 };
 
-// ✅ FIXED: Safely get employee ID as string
+// Safely get employee ID as string for Map keys
 const getEmployeeIdString = (employee: any): string => {
   if (!employee) return "N/A";
   if (typeof employee === "object" && employee._id) {
@@ -266,7 +283,6 @@ export default function LeaveHistoryPage() {
   const [selectedEmployee, setSelectedEmployee] =
     useState<EmployeeLeaveSummary | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedEmployeeData, setSelectedEmployeeData] = useState<any>(null);
 
   // ============================================================================
   // EFFECTS
@@ -301,7 +317,7 @@ export default function LeaveHistoryPage() {
     >();
 
     leaves.forEach((leave) => {
-      // ✅ FIXED: Safely get employee ID
+      // ✅ FIXED: Safely get employee ID from the leave object
       const empId = getEmployeeIdString(leave.employeeId);
 
       if (!employeeMap.has(empId)) {
