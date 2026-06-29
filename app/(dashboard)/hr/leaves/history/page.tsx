@@ -1,5 +1,3 @@
-// app/hr/leaves/history/page.tsx
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -8,14 +6,12 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Users,
   Clock,
   CheckCircle,
   XCircle,
   AlertCircle,
   Search,
   Filter,
-  Download,
   RefreshCw,
   User,
   Calendar as CalendarIcon,
@@ -28,7 +24,6 @@ import {
   Briefcase,
   TrendingUp,
   TrendingDown,
-  Minus,
   Activity,
   Timer,
   UserCheck,
@@ -37,23 +32,21 @@ import {
   FileText,
   Home,
   ChevronRight as ChevronRightIcon,
+  Plus,
+  Trash2,
+  Ban,
   Info,
   AlertTriangle,
+  CalendarDays,
   Heart,
   Sun,
-  CloudRain,
   Baby,
   Star,
+  CloudRain,
   Clock8,
   CalendarClock,
-  MapPin,
-  Phone,
-  Mail,
   UserPlus,
-  PieChart,
-  X,
-  CalendarDays,
-  Ban,
+  FileSignature,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
@@ -70,7 +63,7 @@ interface LeaveRequest {
   type: string;
   startDate: string;
   endDate: string;
-  totalDays: number;
+  // totalDays: number;
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
   substituteName?: string;
