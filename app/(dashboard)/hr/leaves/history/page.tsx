@@ -59,7 +59,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/axios";
 
 // ============================================================================
-// TYPES - FIXED: Added employeeId property
+// TYPES
 // ============================================================================
 
 interface LeaveRequest {
@@ -67,7 +67,7 @@ interface LeaveRequest {
   type: string;
   startDate: string;
   endDate: string;
-  totalDays: number; // ✅ ADD THIS - it was missing
+  totalDays: number;
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
   substituteName?: string;
@@ -85,7 +85,6 @@ interface LeaveRequest {
   rejectionReason?: string;
   isHalfDay: boolean;
   halfDayType?: string;
-  // ✅ ADD THIS - employeeId property
   employeeId?:
     | {
         _id: string;
@@ -155,9 +154,11 @@ const LEAVE_TYPES = [
   "bereavement",
   "unpaid",
   "other",
-];
+] as const;
 
-const leaveTypeLabels: Record<string, string> = {
+type LeaveType = (typeof LEAVE_TYPES)[number];
+
+const leaveTypeLabels: Record<LeaveType, string> = {
   annual: "Annual Leave",
   sick: "Sick Leave",
   casual: "Casual Leave",
@@ -169,7 +170,7 @@ const leaveTypeLabels: Record<string, string> = {
   other: "Other Leave",
 };
 
-const leaveTypeColors: Record<string, string> = {
+const leaveTypeColors: Record<LeaveType, string> = {
   annual: "bg-blue-100 text-blue-700 border-blue-200",
   sick: "bg-rose-100 text-rose-700 border-rose-200",
   casual: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -181,7 +182,7 @@ const leaveTypeColors: Record<string, string> = {
   other: "bg-slate-100 text-slate-700 border-slate-200",
 };
 
-const leaveTypeIcons: Record<string, any> = {
+const leaveTypeIcons: Record<LeaveType, any> = {
   annual: CalendarDays,
   sick: Heart,
   casual: Sun,
@@ -218,7 +219,6 @@ const statusLabels: Record<string, string> = {
 // HELPER FUNCTIONS
 // ============================================================================
 
-// Safely get employee name from various possible structures
 const getEmployeeName = (employee: any): string => {
   if (!employee) return "Unknown";
   if (typeof employee === "object" && employee.fullName) {
@@ -231,7 +231,6 @@ const getEmployeeName = (employee: any): string => {
   return "Unknown";
 };
 
-// Safely get employee email
 const getEmployeeEmail = (employee: any): string => {
   if (!employee) return "";
   if (typeof employee === "object" && employee.email) {
@@ -240,20 +239,6 @@ const getEmployeeEmail = (employee: any): string => {
   return "";
 };
 
-// Safely get employee ID
-const getEmployeeId = (employee: any): string => {
-  if (!employee) return "N/A";
-  if (typeof employee === "object" && employee.employeeId) {
-    return employee.employeeId;
-  }
-  if (typeof employee === "object" && employee._id) {
-    return employee._id;
-  }
-  if (typeof employee === "string") return employee;
-  return "N/A";
-};
-
-// Safely get employee ID as string for Map keys
 const getEmployeeIdString = (employee: any): string => {
   if (!employee) return "N/A";
   if (typeof employee === "object" && employee._id) {
@@ -298,7 +283,6 @@ export default function LeaveHistoryPage() {
   const processEmployeeLeaveData = (
     leaves: LeaveRequest[],
   ): EmployeeLeaveSummary[] => {
-    // Group leaves by employee
     const employeeMap = new Map<
       string,
       {
@@ -314,7 +298,6 @@ export default function LeaveHistoryPage() {
     >();
 
     leaves.forEach((leave) => {
-      // ✅ FIXED: Safely get employee ID from the leave object
       const empId = getEmployeeIdString(leave.employeeId);
 
       if (!employeeMap.has(empId)) {
@@ -345,13 +328,11 @@ export default function LeaveHistoryPage() {
       employeeMap.get(empId)?.leaves.push(leave);
     });
 
-    // Process each employee's data
     const summaries: EmployeeLeaveSummary[] = [];
 
     employeeMap.forEach((data) => {
       const { leaves, ...employeeInfo } = data;
 
-      // Initialize balances with default values
       const balances: Record<
         string,
         { total: number; used: number; remaining: number }
@@ -368,7 +349,6 @@ export default function LeaveHistoryPage() {
       let totalTaken = 0;
       let totalPending = 0;
 
-      // Process each leave request
       leaves.forEach((leave) => {
         if (balances[leave.type]) {
           if (leave.status === "approved") {
@@ -380,7 +360,6 @@ export default function LeaveHistoryPage() {
         }
       });
 
-      // Calculate remaining balances
       LEAVE_TYPES.forEach((type) => {
         balances[type].remaining = Math.max(
           0,
@@ -419,11 +398,9 @@ export default function LeaveHistoryPage() {
       if (response.data.success) {
         const leaves: LeaveRequest[] = response.data.data || [];
 
-        // Process data to get employee summaries
         const summaries = processEmployeeLeaveData(leaves);
         setEmployees(summaries);
 
-        // Extract unique departments for filter
         const deptSet = new Set<string>();
         summaries.forEach((emp) => {
           if (emp.departmentName) {
@@ -468,15 +445,18 @@ export default function LeaveHistoryPage() {
   };
 
   const getLeaveTypeIcon = (type: string) => {
-    return leaveTypeIcons[type] || Calendar;
+    return leaveTypeIcons[type as LeaveType] || Calendar;
   };
 
   const getLeaveTypeLabel = (type: string) => {
-    return leaveTypeLabels[type] || type;
+    return leaveTypeLabels[type as LeaveType] || type;
   };
 
   const getLeaveTypeColor = (type: string) => {
-    return leaveTypeColors[type] || "bg-gray-100 text-gray-700 border-gray-200";
+    return (
+      leaveTypeColors[type as LeaveType] ||
+      "bg-gray-100 text-gray-700 border-gray-200"
+    );
   };
 
   const getStatusLabel = (status: string) => {
