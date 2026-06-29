@@ -739,9 +739,7 @@ export default function TeamsPage() {
                           {team.lead && typeof team.lead === "object" ? (
                             <div className="flex items-center gap-2">
                               <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-medium">
-                                {getInitials(
-                                  team.lead.fullName || "Unknown"
-                                )}
+                                {getInitials(team.lead.fullName || "Unknown")}
                               </div>
                               <span className="text-sm text-gray-700">
                                 {team.lead.fullName || "Unknown"}
@@ -1351,7 +1349,13 @@ export default function TeamsPage() {
                         typeof m === "object" ? m._id : m,
                       );
                       if (memberIds.includes(user._id)) return false;
-                      if (user._id === team.lead?._id) return false;
+                      if (
+                        team.lead &&
+                        typeof team.lead === "object" &&
+                        "_id" in team.lead
+                      ) {
+                        if (user._id === team.lead._id) return false;
+                      }
                     }
                     // Apply search filter
                     const searchLower = memberSearch.toLowerCase();
@@ -1376,7 +1380,13 @@ export default function TeamsPage() {
                             typeof m === "object" ? m._id : m,
                           );
                           if (memberIds.includes(user._id)) return false;
-                          if (user._id === team.lead?._id) return false;
+                          if (
+                            team.lead &&
+                            typeof team.lead === "object" &&
+                            "_id" in team.lead
+                          ) {
+                            if (user._id === team.lead._id) return false;
+                          }
                         }
                         const searchLower = memberSearch.toLowerCase();
                         return (
