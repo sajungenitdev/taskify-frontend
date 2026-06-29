@@ -306,8 +306,10 @@ export default function CreateTaskModal({
     if (!finalProjectId) {
       const deptProject = projects.find(
         (p) =>
-          p.departmentId?._id === finalDepartment ||
-          p.departmentId === finalDepartment,
+          p.departmentId &&
+          typeof p.departmentId === "object" &&
+          "_id" in p.departmentId &&
+          p.departmentId._id === finalDepartment,
       );
       if (deptProject) {
         finalProjectId = deptProject._id;
