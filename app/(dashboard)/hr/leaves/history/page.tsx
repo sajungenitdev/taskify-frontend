@@ -53,6 +53,7 @@ import {
   PieChart,
   X,
   CalendarDays,
+  Ban,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
