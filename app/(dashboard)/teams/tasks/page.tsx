@@ -883,11 +883,16 @@ export default function TeamTasksPage() {
                     >
                       <option value="">Select Team Member</option>
                       {selectedTeam &&
-                        getTeamMembers(selectedTeam).map((member) => (
-                          <option key={member._id} value={member._id}>
-                            {member.fullName} ({member.email})
-                          </option>
-                        ))}
+                        getTeamMembers(selectedTeam)
+                          .filter(
+                            (member): member is NonNullable<typeof member> =>
+                              member !== null,
+                          )
+                          .map((member) => (
+                            <option key={member._id} value={member._id}>
+                              {member.fullName} ({member.email})
+                            </option>
+                          ))}
                     </select>
                   </div>
 
