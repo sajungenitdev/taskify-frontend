@@ -1,44 +1,142 @@
 // lib/menuItems.ts
 
+/**
+ * MENU CONFIGURATION
+ *
+ * This file contains the complete navigation structure for the application.
+ * It defines:
+ * - Main navigation items (with submenus)
+ * - Personal items (always visible, no submenu)
+ * - Role-based access control
+ * - Section organization
+ * - Dynamic badge support
+ *
+ * The menu is organized by sections:
+ * - main: Core navigation items
+ * - projects: Project management
+ * - tasks: Task management
+ * - team: Team collaboration
+ * - hr: Human Resources (employee self-service + HR management)
+ * - reports: Analytics and reporting
+ * - system: System administration
+ * - support: Help and support
+ */
+
 import {
+  // Navigation & Layout
   LayoutDashboard,
-  CheckSquare,
-  Settings,
-  Clock,
-  FileText,
+  Menu,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  Home,
+
+  // User & Profile
+  User,
   Users,
   UserCog,
-  Building2,
+  UserPlus,
+  UserX,
+  UserMinus,
+  UserCheck,
+  Users2,
+  UsersRound,
+  UserSearch,
+  Fingerprint,
+
+  // Tasks & Projects
+  CheckSquare,
   FolderKanban,
   Briefcase,
+  BriefcaseBusiness,
+  Kanban,
+  GanttChart,
+  ListTodo,
+  ClipboardList,
+  ClipboardCheck,
+  ListChecks,
+  TimerReset,
+  Timer,
+  Clock4,
+
+  // HR & Employee
   Calendar,
+  CalendarDays,
+  CalendarRange,
+  CalendarCheck,
+  CalendarClock,
+  Clock,
+  FileText,
   FileCheck,
-  UserPlus,
-  TrendingUp,
-  Award,
-  PieChart,
-  Target,
-  Download,
+  FileSpreadsheet,
+  FileJson,
+
+  // Communication
   Bell,
   MessageSquare,
   Mail,
-  GitBranch,
-  Activity,
-  Zap,
-  Shield,
+  Send,
+  Inbox,
+  Archive,
+  Megaphone,
+
+  // Analytics & Reports
+  TrendingUp,
   BarChart3,
-  CreditCard,
-  HelpCircle,
-  LifeBuoy,
-  BookOpen,
-  UserCheck,
-  UserX,
-  UserMinus,
-  DollarSign,
+  PieChart,
+  ChartColumnIncreasing,
+  ChartNoAxesCombined,
+  Target,
+  Award,
+  Activity,
+
+  // Settings & System
+  Settings,
+  Shield,
+  ShieldCheck,
+  LockKeyhole,
   Key,
   Database,
-  Globe,
-  Rocket,
+  DatabaseBackup,
+  Server,
+  Network,
+  Plug,
+  Webhook,
+  GitBranch,
+  Code,
+  Code2,
+  Terminal,
+  Layers,
+  Workflow,
+
+  // Financial
+  DollarSign,
+  CreditCard,
+  HandCoins,
+
+  // Documents & Files
+  File,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  Download,
+  DownloadCloud,
+  Upload,
+  Copy,
+  Link2,
+  ExternalLink,
+
+  // Support
+  HelpCircle,
+  LifeBuoy,
+  LifeBuoyIcon,
+  BookOpen,
+  BookOpenCheck,
+  GraduationCap,
+
+  // Common Actions
   Eye,
   Edit2,
   Trash2,
@@ -46,132 +144,180 @@ import {
   Search,
   Filter,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  ChevronDown,
-  Menu,
-  X,
-  Home,
-  LogOut,
-  User,
-  Lock,
-  Unlock,
-  CheckCircle,
-  AlertCircle,
-  Info,
-  Loader2,
   ArrowRight,
   ArrowLeft,
-  CalendarDays,
-  Timer,
+  CheckCircle,
+  AlertCircle,
   AlertTriangle,
-  Megaphone,
-  Send,
-  Inbox,
-  Archive,
-  Copy,
-  Link2,
-  ExternalLink,
-  Folder,
-  FolderOpen,
-  FolderPlus,
-  File,
-  FileSpreadsheet,
-  Code,
-  Terminal,
-  Server,
-  Network,
-  ListChecks,
-  ClipboardList,
-  CalendarCheck,
-  UsersRound,
-  HandHelping,
-  Workflow,
-  Layers,
-  Upload,
-  GanttChart,
-  Kanban,
-  TimerReset,
-  UserSearch,
-  BriefcaseBusiness,
-  ChartColumnIncreasing,
-  ClipboardCheck,
-  Wrench,
-  LifeBuoyIcon,
-  BookOpenCheck,
-  GraduationCap,
-  HandCoins,
-  Users2,
-  ListTodo,
-  CalendarRange,
-  Clock4,
-  ChartNoAxesCombined,
-  DownloadCloud,
-  FileJson,
-  ShieldCheck,
-  Fingerprint,
-  DatabaseBackup,
-  Plug,
-  Webhook,
-  LockKeyhole,
-  BadgeCheck,
+  Info,
+  Loader2,
   Sparkles,
+  Rocket,
+  Zap,
+
+  // Miscellaneous
+  HandHelping,
+  Wrench,
+  BadgeCheck,
+  Globe,
+  Lock,
+  Unlock,
+  LogOut,
+  Cloud,
+  CloudRain,
+  Snowflake,
+  Sun,
+  Moon,
+  Building2,
 } from "lucide-react";
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/**
+ * Badge Keys - Defines all available badge types
+ */
+export type BadgeKey =
+  | "notifications"
+  | "pendingLeaves"
+  | "pendingApprovals"
+  | "myTasks"
+  | "messages"
+  | "pendingReviews"
+  | "upcomingEvents";
+
+/**
+ * Navigation Item Interface
+ * Represents a main navigation item that can have submenus
+ */
 export interface NavItem {
+  /** Display name of the navigation item */
   name: string;
+  /** URL path for the navigation item */
   href: string;
+  /** Icon component from lucide-react */
   icon: React.ElementType;
+  /** Array of roles that can access this item */
   roles: string[];
+  /** Section grouping for the sidebar */
   section?: string;
+  /** Optional static badge text (e.g., "New") */
   badge?: string;
+  /** Dynamic badge key for fetching real-time counts */
+  badgeKey?: BadgeKey;
+  /** Optional badge color class */
   badgeColor?: string;
+  /** Optional description for tooltips */
   description?: string;
+  /** Flag to indicate if this is a new feature */
   isNew?: boolean;
 }
 
+/**
+ * Sub Navigation Item Interface
+ * Represents a child item under a parent navigation item
+ */
 export interface SubNavItem {
+  /** Display name of the submenu item */
   name: string;
+  /** URL path for the submenu item */
   href: string;
+  /** Icon component from lucide-react */
   icon: React.ElementType;
+  /** Parent menu item name this submenu belongs to */
   parent: string;
+  /** Array of roles that can access this item */
   roles: string[];
+  /** Optional static badge text */
   badge?: string;
+  /** Dynamic badge key for fetching real-time counts */
+  badgeKey?: BadgeKey;
+  /** Optional badge color class */
   badgeColor?: string;
+  /** Optional description for tooltips */
   description?: string;
 }
 
+// ============================================================================
+// ROLE DEFINITIONS
+// ============================================================================
+
+/**
+ * User Roles
+ * Defines all available roles in the system
+ */
 export const ROLES = {
+  /** Super Admin - Full system access */
   SUPER_ADMIN: "super_admin",
+  /** Admin - Administrative access */
   ADMIN: "admin",
+  /** HR Manager - Human Resources management */
   HR_MANAGER: "hr_manager",
+  /** Department Manager - Department-level management */
   DEPT_MANAGER: "dept_manager",
+  /** Project Manager - Project-level management */
   PROJECT_MANAGER: "project_manager",
+  /** Line Manager - Team/Line management */
   LINE_MANAGER: "line_manager",
+  /** Employee - Basic user access */
   EMPLOYEE: "employee",
 } as const;
 
+// ============================================================================
+// ACCESS CONTROL UTILITY
+// ============================================================================
+
+/**
+ * Check if a user role has access to a menu item
+ *
+ * @param userRole - The role of the current user
+ * @param allowedRoles - Array of roles allowed to access the item
+ * @returns boolean indicating if user has access
+ *
+ * @example
+ * ```ts
+ * hasAccess('admin', ['admin', 'hr_manager']) // returns true
+ * hasAccess('employee', ['admin']) // returns false
+ * ```
+ */
 export const hasAccess = (
   userRole: string,
   allowedRoles: string[],
 ): boolean => {
+  // "all" allows any role to access
   if (allowedRoles.includes("all")) return true;
+
+  // Super Admin has access to everything
   if (userRole === ROLES.SUPER_ADMIN) return true;
+
+  // Check if user's role is in the allowed roles
   return allowedRoles.includes(userRole);
 };
 
+// ============================================================================
+// SECTION CONFIGURATION
+// ============================================================================
+
+/**
+ * Section Titles
+ * Display names for each section in the sidebar
+ */
 export const sectionTitles: Record<string, string> = {
   main: "MAIN",
   projects: "PROJECTS",
   tasks: "TASKS",
   team: "TEAM",
   hr: "HUMAN RESOURCES",
-  reports: "REPORTS",
-  system: "SYSTEM",
-  support: "SUPPORT",
+  reports: "REPORTS & ANALYTICS",
+  system: "SYSTEM ADMINISTRATION",
+  support: "HELP & SUPPORT",
 };
 
+/**
+ * Section Icons
+ * Icon components for each section header
+ */
 export const sectionIcons: Record<string, React.ElementType> = {
   main: LayoutDashboard,
   projects: Briefcase,
@@ -183,7 +329,15 @@ export const sectionIcons: Record<string, React.ElementType> = {
   support: HelpCircle,
 };
 
-// Personal Items (Always visible, no submenu)
+// ============================================================================
+// PERSONAL ITEMS (Always visible, no submenu)
+// ============================================================================
+
+/**
+ * Personal Navigation Items
+ * These items are always visible to all authenticated users
+ * They appear at the top of the sidebar and don't have submenus
+ */
 export const personalItems: NavItem[] = [
   {
     name: "Dashboard",
@@ -191,6 +345,7 @@ export const personalItems: NavItem[] = [
     icon: LayoutDashboard,
     roles: ["all"],
     section: "main",
+    description: "Overview of your work and activities",
   },
   {
     name: "My Profile",
@@ -198,6 +353,7 @@ export const personalItems: NavItem[] = [
     icon: User,
     roles: ["all"],
     section: "main",
+    description: "View and manage your personal information",
   },
   {
     name: "My Performance",
@@ -205,6 +361,7 @@ export const personalItems: NavItem[] = [
     icon: ChartNoAxesCombined,
     roles: [ROLES.EMPLOYEE],
     section: "main",
+    description: "Track your performance metrics and goals",
   },
   {
     name: "Notifications",
@@ -212,8 +369,9 @@ export const personalItems: NavItem[] = [
     icon: Bell,
     roles: ["all"],
     section: "main",
-    badge: "12",
+    badgeKey: "notifications", // ✅ Dynamic badge
     badgeColor: "bg-red-500",
+    description: "View all your notifications",
   },
   {
     name: "AI Assistant",
@@ -221,38 +379,62 @@ export const personalItems: NavItem[] = [
     icon: Sparkles,
     roles: ["all"],
     section: "main",
-    badge: "New",
+    badge: "New", // Static badge for new feature
     badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
+    description: "Get help from your AI assistant",
+    isNew: true,
   },
 ];
 
-// Main Menu Items (Parent items with submenus)
+// ============================================================================
+// MAIN MENU ITEMS (Parent items with submenus)
+// ============================================================================
+
+/**
+ * Main Navigation Items
+ * These are the primary navigation items that appear in the sidebar
+ * Each can have submenu items defined below
+ */
 export const menuItems: NavItem[] = [
-  // User Management
+  // --------------------------------------------------------------------------
+  // USER MANAGEMENT
+  // --------------------------------------------------------------------------
   {
     name: "User Management",
     href: "/users",
     icon: Users,
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
     section: "main",
+    description: "Manage all users in the system",
   },
-  // Role Management - NEW AS SEPARATE MODULE
+
+  // --------------------------------------------------------------------------
+  // ROLE MANAGEMENT
+  // --------------------------------------------------------------------------
   {
     name: "Role Management",
     href: "/roles",
     icon: UserCog,
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
     section: "main",
+    description: "Manage roles and permissions",
   },
-  // Department Management
+
+  // --------------------------------------------------------------------------
+  // DEPARTMENT MANAGEMENT
+  // --------------------------------------------------------------------------
   {
     name: "Department Management",
     href: "/departments",
     icon: Building2,
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
     section: "main",
+    description: "Manage departments and organizational structure",
   },
-  // Projects
+
+  // --------------------------------------------------------------------------
+  // PROJECTS
+  // --------------------------------------------------------------------------
   {
     name: "Projects",
     href: "/projects",
@@ -264,16 +446,24 @@ export const menuItems: NavItem[] = [
       ROLES.PROJECT_MANAGER,
     ],
     section: "projects",
+    description: "Manage projects and portfolios",
   },
-  // Tasks
+
+  // --------------------------------------------------------------------------
+  // TASKS
+  // --------------------------------------------------------------------------
   {
     name: "Tasks",
     href: "/tasks",
     icon: CheckSquare,
     roles: ["all"],
     section: "tasks",
+    description: "Manage all tasks",
   },
-  // Team
+
+  // --------------------------------------------------------------------------
+  // TEAM
+  // --------------------------------------------------------------------------
   {
     name: "Team",
     href: "/team",
@@ -286,16 +476,30 @@ export const menuItems: NavItem[] = [
       ROLES.LINE_MANAGER,
     ],
     section: "team",
+    description: "Team collaboration and management",
   },
-  // Human Resources
+
+  // --------------------------------------------------------------------------
+  // HUMAN RESOURCES (Employee Self-Service + HR Management)
+  // --------------------------------------------------------------------------
   {
     name: "Human Resources",
     href: "/hr",
     icon: Users,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
     section: "hr",
+    description: "HR management and employee self-service",
   },
-  // Reports
+
+  // --------------------------------------------------------------------------
+  // REPORTS
+  // --------------------------------------------------------------------------
   {
     name: "Reports",
     href: "/reports",
@@ -308,34 +512,54 @@ export const menuItems: NavItem[] = [
       ROLES.PROJECT_MANAGER,
     ],
     section: "reports",
+    description: "Analytics and reporting",
   },
-  // System
+
+  // --------------------------------------------------------------------------
+  // SYSTEM
+  // --------------------------------------------------------------------------
   {
     name: "System",
     href: "/settings",
     icon: Settings,
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
     section: "system",
+    description: "System administration and configuration",
   },
-  // Support
+
+  // --------------------------------------------------------------------------
+  // SUPPORT
+  // --------------------------------------------------------------------------
   {
     name: "Support",
     href: "/support",
     icon: HelpCircle,
     roles: ["all"],
     section: "support",
+    description: "Get help and support",
   },
 ];
 
-// Submenu Items
+// ============================================================================
+// SUBMENU ITEMS
+// ============================================================================
+
+/**
+ * Submenu Navigation Items
+ * These items appear as dropdown items under their parent menu items
+ * Organized by parent name for easy maintenance
+ */
 export const subMenuItems: SubNavItem[] = [
-  // User Management Submenus
+  // --------------------------------------------------------------------------
+  // USER MANAGEMENT SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "All Users",
     href: "/users/all",
     icon: Users,
     parent: "User Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "View and manage all users",
   },
   {
     name: "Pending Approvals",
@@ -343,6 +567,9 @@ export const subMenuItems: SubNavItem[] = [
     icon: UserPlus,
     parent: "User Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    badgeKey: "pendingApprovals", // ✅ Dynamic badge
+    badgeColor: "bg-amber-500",
+    description: "Review pending user approvals",
   },
   {
     name: "Inactive Users",
@@ -350,6 +577,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: UserX,
     parent: "User Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "View and manage inactive users",
   },
   {
     name: "Bulk Import",
@@ -357,6 +585,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: FileSpreadsheet,
     parent: "User Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Import users in bulk",
   },
   {
     name: "Bulk Export",
@@ -364,24 +593,31 @@ export const subMenuItems: SubNavItem[] = [
     icon: Download,
     parent: "User Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Export user data",
   },
 
-  // Role Management Submenus
+  // --------------------------------------------------------------------------
+  // ROLE MANAGEMENT SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "All Roles",
     href: "/roles",
     icon: UserCog,
     parent: "Role Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "View and manage all roles",
   },
 
-  // Department Management Submenus
+  // --------------------------------------------------------------------------
+  // DEPARTMENT MANAGEMENT SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "All Departments",
     href: "/departments/all",
     icon: Building2,
     parent: "Department Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
+    description: "View and manage all departments",
   },
   {
     name: "Department Hierarchy",
@@ -389,6 +625,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: Network,
     parent: "Department Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "View organizational hierarchy",
   },
   {
     name: "Department Budget",
@@ -396,9 +633,12 @@ export const subMenuItems: SubNavItem[] = [
     icon: DollarSign,
     parent: "Department Management",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "Manage department budgets",
   },
 
-  // Projects Submenus
+  // --------------------------------------------------------------------------
+  // PROJECTS SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "Active Projects",
     href: "/projects/active",
@@ -410,6 +650,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
+    description: "View active projects",
   },
   {
     name: "Completed Projects",
@@ -422,6 +663,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
+    description: "View completed projects",
   },
   {
     name: "Project Resources",
@@ -429,6 +671,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: Users,
     parent: "Projects",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    description: "Manage project resources",
   },
   {
     name: "Project Templates",
@@ -436,18 +679,24 @@ export const subMenuItems: SubNavItem[] = [
     icon: Layers,
     parent: "Projects",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    description: "Manage project templates",
   },
 
-  // Tasks Submenus
+  // --------------------------------------------------------------------------
+  // TASKS SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "My Tasks",
     href: "/tasks/my",
     icon: CheckSquare,
     parent: "Tasks",
     roles: ["all"],
+    badgeKey: "myTasks", // ✅ Dynamic badge
+    badgeColor: "bg-blue-500",
+    description: "View your assigned tasks",
   },
   {
-    name: "All Task",
+    name: "All Tasks",
     href: "/tasks/tasks-board",
     icon: Kanban,
     parent: "Tasks",
@@ -457,6 +706,21 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
+    description: "View all tasks",
+  },
+  {
+    name: "Task Calendar",
+    href: "/tasks/calendar",
+    icon: Kanban,
+    parent: "Tasks",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    description: "View tasks on calendar",
   },
   {
     name: "Task Board",
@@ -470,6 +734,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.PROJECT_MANAGER,
       ROLES.EMPLOYEE,
     ],
+    description: "Kanban board view",
   },
   {
     name: "Gantt Chart",
@@ -477,6 +742,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: GanttChart,
     parent: "Tasks",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    description: "Gantt chart view",
   },
   {
     name: "Bulk Upload",
@@ -484,12 +750,15 @@ export const subMenuItems: SubNavItem[] = [
     icon: Upload,
     parent: "Tasks",
     roles: ["all"],
+    description: "Bulk upload tasks",
   },
 
-  // Team Submenus
+  // --------------------------------------------------------------------------
+  // TEAM SUBMENUS
+  // --------------------------------------------------------------------------
   {
-    name: "My Team",
-    href: "/team/my",
+    name: "All Teams",
+    href: "/teams",
     icon: UsersRound,
     parent: "Team",
     roles: [
@@ -500,10 +769,26 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.LINE_MANAGER,
       ROLES.EMPLOYEE,
     ],
+    description: "View all teams",
+  },
+  {
+    name: "My Teams",
+    href: "/my-teams",
+    icon: UsersRound,
+    parent: "Team",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    description: "View your teams",
   },
   {
     name: "Team Tasks",
-    href: "/team/tasks",
+    href: "/teams/tasks",
     icon: ListChecks,
     parent: "Team",
     roles: [
@@ -514,10 +799,11 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.LINE_MANAGER,
       ROLES.EMPLOYEE,
     ],
+    description: "View team tasks",
   },
   {
     name: "Team Calendar",
-    href: "/team/calendar",
+    href: "/teams/calendar",
     icon: CalendarRange,
     parent: "Team",
     roles: [
@@ -527,57 +813,75 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.PROJECT_MANAGER,
       ROLES.EMPLOYEE,
     ],
-  },
-  {
-    name: "Team Attendance",
-    href: "/attendance",
-    icon: CalendarCheck,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-    ],
-  },
-  {
-    name: "Team Leaves",
-    href: "/leaves",
-    icon: FileCheck,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-      ROLES.LINE_MANAGER,
-    ],
-  },
-  {
-    name: "Approvals",
-    href: "/approvals",
-    icon: ClipboardCheck,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-    ],
+    description: "View team calendar",
   },
 
-  // Human Resources Submenus
+  // --------------------------------------------------------------------------
+  // HUMAN RESOURCES SUBMENUS
+  // --------------------------------------------------------------------------
+  // Employee Self-Service (accessible to all employees)
+  {
+    name: "All Leaves",
+    href: "/hr/leaves",
+    icon: FileCheck,
+    parent: "Human Resources",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+    ],
+    badgeKey: "pendingLeaves", // ✅ Dynamic badge
+    badgeColor: "bg-indigo-500",
+    description: "Manage all leave requests",
+  },
+  {
+    name: "My Leaves",
+    href: "/hr/leaves/my",
+    icon: FileCheck,
+    parent: "Human Resources",
+    roles: [ROLES.EMPLOYEE,ROLES.DEPT_MANAGER,],
+    description: "View and manage your leave requests",
+  },
+  {
+    name: "Leave Hostory",
+    href: "/hr/leaves/history",
+    icon: FileCheck,
+    parent: "Human Resources",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "View and manage your leave requests",
+  },
+  {
+    name: "My Attendance",
+    href: "/hr/attendance/my",
+    icon: Calendar,
+    parent: "Human Resources",
+    roles: [ROLES.EMPLOYEE],
+    description: "View your attendance records",
+  },
+
+  // HR Management (accessible to HR and management)
   {
     name: "Employee Directory",
-    href: "/employees",
+    href: "/hr/employees",
     icon: Users2,
     parent: "Human Resources",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "View all employees",
   },
   {
     name: "Attendance Records",
-    href: "/attendance",
+    href: "/hr/attendance",
     icon: Calendar,
     parent: "Human Resources",
     roles: [
@@ -586,19 +890,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
     ],
-  },
-  {
-    name: "Leave Management",
-    href: "/leaves",
-    icon: FileCheck,
-    parent: "Human Resources",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
+    description: "Manage attendance records",
   },
   {
     name: "Recruitment",
@@ -606,6 +898,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: UserPlus,
     parent: "Human Resources",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Manage recruitment",
   },
   {
     name: "Onboarding",
@@ -613,6 +906,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: HandHelping,
     parent: "Human Resources",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Manage employee onboarding",
   },
   {
     name: "Offboarding",
@@ -620,6 +914,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: UserMinus,
     parent: "Human Resources",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Manage employee offboarding",
   },
   {
     name: "Training",
@@ -627,6 +922,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: GraduationCap,
     parent: "Human Resources",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Manage training programs",
   },
   {
     name: "Payroll",
@@ -634,9 +930,12 @@ export const subMenuItems: SubNavItem[] = [
     icon: DollarSign,
     parent: "Human Resources",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Manage payroll",
   },
 
-  // Reports Submenus
+  // --------------------------------------------------------------------------
+  // REPORTS SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "Task Reports",
     href: "/reports/tasks",
@@ -648,6 +947,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
+    description: "Task analytics and reports",
   },
   {
     name: "Project Reports",
@@ -660,6 +960,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
+    description: "Project analytics and reports",
   },
   {
     name: "Performance Reports",
@@ -672,6 +973,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.HR_MANAGER,
     ],
+    description: "Performance analytics",
   },
   {
     name: "Attendance Reports",
@@ -684,6 +986,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
     ],
+    description: "Attendance analytics",
   },
   {
     name: "Leave Reports",
@@ -691,6 +994,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: FileText,
     parent: "Reports",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Leave analytics",
   },
   {
     name: "Financial Reports",
@@ -698,6 +1002,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: DollarSign,
     parent: "Reports",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "Financial analytics",
   },
   {
     name: "Export Center",
@@ -710,15 +1015,19 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.DEPT_MANAGER,
       ROLES.HR_MANAGER,
     ],
+    description: "Export reports and data",
   },
 
-  // System Submenus
+  // --------------------------------------------------------------------------
+  // SYSTEM SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "General Settings",
     href: "/settings/general",
     icon: Settings,
     parent: "System",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "Configure system settings",
   },
   {
     name: "Profile Settings",
@@ -726,6 +1035,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: User,
     parent: "System",
     roles: ["all"],
+    description: "Manage your profile settings",
   },
   {
     name: "Security Settings",
@@ -733,6 +1043,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: ShieldCheck,
     parent: "System",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "Configure security settings",
   },
   {
     name: "API Keys",
@@ -740,6 +1051,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: Key,
     parent: "System",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "Manage API keys",
   },
   {
     name: "Audit Logs",
@@ -747,6 +1059,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: Activity,
     parent: "System",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "View system audit logs",
   },
   {
     name: "Workflow Builder",
@@ -754,6 +1067,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: Workflow,
     parent: "System",
     roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    description: "Build and manage workflows",
   },
   {
     name: "Backup",
@@ -761,15 +1075,19 @@ export const subMenuItems: SubNavItem[] = [
     icon: DatabaseBackup,
     parent: "System",
     roles: [ROLES.SUPER_ADMIN],
+    description: "Manage system backups",
   },
 
-  // Support Submenus
+  // --------------------------------------------------------------------------
+  // SUPPORT SUBMENUS
+  // --------------------------------------------------------------------------
   {
     name: "Help Center",
     href: "/help",
     icon: HelpCircle,
     parent: "Support",
     roles: ["all"],
+    description: "Browse help articles",
   },
   {
     name: "Documentation",
@@ -777,13 +1095,15 @@ export const subMenuItems: SubNavItem[] = [
     icon: BookOpen,
     parent: "Support",
     roles: ["all"],
+    description: "Read documentation",
   },
   {
     name: "API Documentation",
     href: "/api-docs",
-    icon: Code,
+    icon: Code2,
     parent: "Support",
     roles: ["all"],
+    description: "API reference documentation",
   },
   {
     name: "Support Tickets",
@@ -791,6 +1111,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: LifeBuoy,
     parent: "Support",
     roles: ["all"],
+    description: "View and manage support tickets",
   },
   {
     name: "System Status",
@@ -798,6 +1119,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: Activity,
     parent: "Support",
     roles: ["all"],
+    description: "Check system status",
   },
   {
     name: "Feedback",
@@ -805,6 +1127,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: MessageSquare,
     parent: "Support",
     roles: ["all"],
+    description: "Submit feedback",
   },
   {
     name: "Changelog",
@@ -812,6 +1135,7 @@ export const subMenuItems: SubNavItem[] = [
     icon: GitBranch,
     parent: "Support",
     roles: ["all"],
+    description: "View system changes",
   },
   {
     name: "Roadmap",
@@ -819,5 +1143,137 @@ export const subMenuItems: SubNavItem[] = [
     icon: Rocket,
     parent: "Support",
     roles: ["all"],
+    description: "View product roadmap",
   },
 ];
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Get all menu items (personal + main) for a specific user role
+ *
+ * @param userRole - The role of the current user
+ * @returns Array of visible navigation items
+ */
+export const getMenuItemsForRole = (userRole: string): NavItem[] => {
+  const allItems = [...personalItems, ...menuItems];
+  return allItems.filter((item) => hasAccess(userRole, item.roles));
+};
+
+/**
+ * Get submenu items for a specific parent and user role
+ *
+ * @param parentName - The name of the parent menu item
+ * @param userRole - The role of the current user
+ * @returns Array of visible submenu items
+ */
+export const getSubMenuItems = (
+  parentName: string,
+  userRole: string,
+): SubNavItem[] => {
+  return subMenuItems.filter(
+    (item) => item.parent === parentName && hasAccess(userRole, item.roles),
+  );
+};
+
+/**
+ * Check if a menu item has any visible submenu items for a user
+ *
+ * @param parentName - The name of the parent menu item
+ * @param userRole - The role of the current user
+ * @returns boolean indicating if there are visible submenu items
+ */
+export const hasSubMenuItems = (
+  parentName: string,
+  userRole: string,
+): boolean => {
+  return subMenuItems.some(
+    (item) => item.parent === parentName && hasAccess(userRole, item.roles),
+  );
+};
+
+/**
+ * Get all sections visible to a specific user role
+ *
+ * @param userRole - The role of the current user
+ * @returns Set of visible section names
+ */
+export const getVisibleSections = (userRole: string): Set<string> => {
+  const sections = new Set<string>();
+
+  // Check main menu items
+  menuItems.forEach((item) => {
+    if (hasAccess(userRole, item.roles) && item.section) {
+      sections.add(item.section);
+    }
+  });
+
+  // Always include HR section for employees (for self-service)
+  if (userRole === ROLES.EMPLOYEE) {
+    sections.add("hr");
+  }
+
+  return sections;
+};
+
+/**
+ * Get menu items grouped by section for a specific user role
+ *
+ * @param userRole - The role of the current user
+ * @returns Object with section names as keys and arrays of items as values
+ */
+export const getMenuItemsGroupedBySection = (
+  userRole: string,
+): Record<string, NavItem[]> => {
+  const grouped: Record<string, NavItem[]> = {};
+
+  // Get all items accessible to the user
+  const accessibleItems = getMenuItemsForRole(userRole);
+
+  // Group by section
+  accessibleItems.forEach((item) => {
+    const section = item.section || "main";
+    if (!grouped[section]) {
+      grouped[section] = [];
+    }
+    grouped[section].push(item);
+  });
+
+  return grouped;
+};
+
+/**
+ * Get the appropriate icon for a section
+ *
+ * @param sectionName - The name of the section
+ * @returns Icon component or LayoutDashboard as fallback
+ */
+export const getSectionIcon = (sectionName: string): React.ElementType => {
+  return sectionIcons[sectionName] || LayoutDashboard;
+};
+
+/**
+ * Get the display title for a section
+ *
+ * @param sectionName - The name of the section
+ * @returns Display title or capitalized section name as fallback
+ */
+export const getSectionTitle = (sectionName: string): string => {
+  return sectionTitles[sectionName] || sectionName.toUpperCase();
+};
+
+/**
+ * Check if an item has a dynamic badge
+ */
+export const hasDynamicBadge = (item: NavItem | SubNavItem): boolean => {
+  return !!item.badgeKey;
+};
+
+/**
+ * Check if an item has any badge (static or dynamic)
+ */
+export const hasAnyBadge = (item: NavItem | SubNavItem): boolean => {
+  return !!(item.badge || item.badgeKey);
+};

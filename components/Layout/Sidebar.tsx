@@ -1,9 +1,12 @@
+// components/layout/Sidebar.tsx - Updated with dynamic badges
+
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBadges } from "@/hooks/useBadges";
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,6 +21,9 @@ import {
   menuItems,
   subMenuItems,
   hasAccess,
+  hasDynamicBadge,
+  hasAnyBadge,
+  BadgeKey,
 } from "@/lib/menuItems";
 
 interface SidebarProps {
@@ -33,12 +39,28 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { getBadgeCount, refreshBadges } = useBadges();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+
+  // Refresh badges when user logs in or changes
+  useEffect(() => {
+    if (user) {
+      // Initialize badge service with error handling
+      const initBadges = async () => {
+        try {
+          await refreshBadges();
+        } catch (error) {
+          // Silently fail - badges will show 0
+        }
+      };
+      initBadges();
+    }
+  }, [user, refreshBadges]);
 
   // Load collapsed state from localStorage
   useEffect(() => {
@@ -165,6 +187,40 @@ export default function Sidebar({
     return pathname === href || pathname.startsWith(`${href}/`);
   };
 
+  /**
+   * Get badge display for an item
+   * Supports both static and dynamic badges
+   */
+  const getBadgeDisplay = (item: any): { text: string; isDynamic: boolean } => {
+    // Static badge takes priority
+    if (item.badge) {
+      return { text: item.badge, isDynamic: false };
+    }
+
+    // Dynamic badge
+    if (item.badgeKey) {
+      const count = getBadgeCount(item.badgeKey as BadgeKey);
+      if (count > 0) {
+        return { text: count > 99 ? "99+" : count.toString(), isDynamic: true };
+      }
+      return { text: "", isDynamic: true };
+    }
+
+    return { text: "", isDynamic: false };
+  };
+
+  /**
+   * Check if item should show a badge
+   */
+  const shouldShowBadge = (item: any): boolean => {
+    if (item.badge) return true;
+    if (item.badgeKey) {
+      const count = getBadgeCount(item.badgeKey as BadgeKey);
+      return count > 0;
+    }
+    return false;
+  };
+
   const sectionOrder = [
     "main",
     "projects",
@@ -221,6 +277,9 @@ export default function Sidebar({
           {items.map((subItem) => {
             const isSubActive = isActive(subItem.href);
             const SubIcon = subItem.icon;
+            const badgeInfo = getBadgeDisplay(subItem);
+            const showBadge = shouldShowBadge(subItem);
+
             return (
               <Link
                 key={subItem.href}
@@ -254,13 +313,15 @@ export default function Sidebar({
                 <span className="text-sm font-medium flex-1">
                   {subItem.name}
                 </span>
-                {subItem.badge && (
+                {showBadge && (
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full ${
-                      subItem.badgeColor || "bg-indigo-100 text-indigo-600"
-                    } font-medium`}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
+                      badgeInfo.isDynamic
+                        ? "bg-red-100 text-red-600 animate-pulse"
+                        : subItem.badgeColor || "bg-indigo-100 text-indigo-600"
+                    }`}
                   >
-                    {subItem.badge}
+                    {badgeInfo.text}
                   </span>
                 )}
                 {isSubActive && (
@@ -362,6 +423,9 @@ export default function Sidebar({
             {filteredPersonalItems.map((item) => {
               const active = isActive(item.href);
               const Icon = item.icon;
+              const badgeInfo = getBadgeDisplay(item);
+              const showBadge = shouldShowBadge(item);
+
               return (
                 <Link
                   key={item.href}
@@ -385,10 +449,9 @@ export default function Sidebar({
                           : "text-gray-400 group-hover:text-gray-600"
                       }`}
                     />
-                    {item.badge && !isCollapsed && (
-                      <span className="absolute -top-1 -right-2 w-4 h-4 rounded-full bg-linear-to-r from-red-500 to-rose-500 text-white text-[8px] font-bold flex items-center justify-center animate-pulse shadow-lg shadow-red-500/30">
-                        {item.badge}
-                      </span>
+                    {/* Collapsed badge indicator */}
+                    {isCollapsed && showBadge && (
+                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
                     )}
                   </div>
                   {!isCollapsed && (
@@ -396,9 +459,16 @@ export default function Sidebar({
                       <span className="text-sm font-medium flex-1">
                         {item.name}
                       </span>
-                      {item.badge && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-600 font-medium">
-                          {item.badge}
+                      {showBadge && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
+                            badgeInfo.isDynamic
+                              ? "bg-red-100 text-red-600 animate-pulse"
+                              : item.badgeColor ||
+                                "bg-indigo-100 text-indigo-600"
+                          }`}
+                        >
+                          {badgeInfo.text}
                         </span>
                       )}
                     </>
@@ -430,6 +500,8 @@ export default function Sidebar({
                 const hasSubmenu = subItems.length > 0;
                 const isParentActiveFlag = isParentActive(item.name);
                 const isHovered = hoveredItem === item.name;
+                const badgeInfo = getBadgeDisplay(item);
+                const showBadge = shouldShowBadge(item);
 
                 return (
                   <div
@@ -453,16 +525,22 @@ export default function Sidebar({
                       }`}
                       title={isCollapsed ? item.name : ""}
                     >
-                      <Icon
-                        size={18}
-                        className={`transition-all duration-200 ${
-                          isParentActiveFlag || (isHovered && hasSubmenu)
-                            ? "text-indigo-600"
-                            : isActive(item.href) && !hasSubmenu
+                      <div className="relative">
+                        <Icon
+                          size={18}
+                          className={`transition-all duration-200 ${
+                            isParentActiveFlag || (isHovered && hasSubmenu)
                               ? "text-indigo-600"
-                              : "text-gray-400 group-hover:text-gray-600"
-                        }`}
-                      />
+                              : isActive(item.href) && !hasSubmenu
+                                ? "text-indigo-600"
+                                : "text-gray-400 group-hover:text-gray-600"
+                          }`}
+                        />
+                        {/* Collapsed badge indicator for parent items */}
+                        {isCollapsed && showBadge && !hasSubmenu && (
+                          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
+                        )}
+                      </div>
                       {!isCollapsed && (
                         <>
                           <span className="text-sm font-medium flex-1 text-left">
@@ -478,9 +556,16 @@ export default function Sidebar({
                               }`}
                             />
                           )}
-                          {item.badge && !hasSubmenu && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 font-medium">
-                              {item.badge}
+                          {showBadge && !hasSubmenu && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
+                                badgeInfo.isDynamic
+                                  ? "bg-red-100 text-red-600 animate-pulse"
+                                  : item.badgeColor ||
+                                    "bg-indigo-100 text-indigo-600"
+                              }`}
+                            >
+                              {badgeInfo.text}
                             </span>
                           )}
                         </>

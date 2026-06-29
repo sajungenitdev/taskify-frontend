@@ -1,27 +1,28 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import TaskAssistant from "@/components/AI/TaskAssistant";
 import {
   X,
   Calendar,
-  Briefcase,
   Flag,
   Hourglass,
-  FileText,
   Users,
   AlertTriangle,
   Building2,
   Clock,
-  Zap,
   Timer,
   Paperclip,
   Link2,
   FolderKanban,
   Loader2,
+  User as UserIcon,
+  Sparkles,
+  CheckSquare,
+  Zap,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface User {
   _id: string;
@@ -64,6 +65,7 @@ export default function CreateTaskModal({
   onClose,
   onTaskCreated,
 }: CreateTaskModalProps) {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -75,14 +77,15 @@ export default function CreateTaskModal({
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [newUrl, setNewUrl] = useState("");
   const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [aiSuggestion, setAiSuggestion] = useState<any>({});
+  const [isQuickTask, setIsQuickTask] = useState(false);
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     assignedTo: "",
     deadline: "",
     revisedDeadline: "",
-    priority: "normal",
+    priority: "normal" as "low" | "normal" | "high" | "urgent",
     estimatedHours: 1,
     actualMinutes: 0,
     isApprovalRequired: false,
@@ -90,6 +93,8 @@ export default function CreateTaskModal({
     startTime: "",
     endTime: "",
   });
+
+  const isSuperAdmin = user?.role === "super_admin";
 
   // Fetch departments
   const fetchDepartments = useCallback(async () => {
@@ -122,8 +127,12 @@ export default function CreateTaskModal({
       const response = await api.get("/auth/users");
       if (response.data.success) {
         const usersData = response.data.data || [];
-        setUsers(usersData);
-        setFilteredUsers(usersData);
+        const filtered = usersData.filter((u: User) => {
+          if (u.role === "super_admin" && u._id !== user?._id) return false;
+          return true;
+        });
+        setUsers(filtered);
+        setFilteredUsers(filtered);
       }
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -131,7 +140,7 @@ export default function CreateTaskModal({
     } finally {
       setLoadingUsers(false);
     }
-  }, []);
+  }, [user]);
 
   // Load data when modal opens
   useEffect(() => {
@@ -153,19 +162,16 @@ export default function CreateTaskModal({
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
-  // Filter users by selected department (independent from project)
+  // Filter users by selected department
   useEffect(() => {
     if (selectedDepartment && users.length > 0) {
-      const filtered = users.filter((user) => {
+      const filtered = users.filter((u) => {
         let userDeptId: string | null = null;
-        if (user.departmentId) {
-          if (
-            typeof user.departmentId === "object" &&
-            "_id" in user.departmentId
-          ) {
-            userDeptId = user.departmentId._id;
-          } else if (typeof user.departmentId === "string") {
-            userDeptId = user.departmentId;
+        if (u.departmentId) {
+          if (typeof u.departmentId === "object" && "_id" in u.departmentId) {
+            userDeptId = u.departmentId._id;
+          } else if (typeof u.departmentId === "string") {
+            userDeptId = u.departmentId;
           }
         }
         return userDeptId === selectedDepartment;
@@ -181,6 +187,25 @@ export default function CreateTaskModal({
     setFormData((prev) => ({ ...prev, assignedTo: "" }));
   }, [selectedDepartment]);
 
+  // Handle quick task toggle
+  useEffect(() => {
+    if (isQuickTask && user) {
+      setFormData((prev) => ({ ...prev, assignedTo: user._id }));
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setFormData((prev) => ({
+        ...prev,
+        deadline: tomorrow.toISOString().split("T")[0],
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        assignedTo: "",
+        deadline: "",
+      }));
+    }
+  }, [isQuickTask, user]);
+
   const handleAddEvidenceUrl = () => {
     if (newUrl && newUrl.trim()) {
       setEvidenceUrls([...evidenceUrls, newUrl.trim()]);
@@ -192,32 +217,128 @@ export default function CreateTaskModal({
     setEvidenceUrls(evidenceUrls.filter((_, i) => i !== index));
   };
 
+  // Create a default project
+  const createDefaultProject = async (
+    departmentId: string,
+  ): Promise<string | null> => {
+    try {
+      setIsCreatingProject(true);
+      const response = await api.post("/projects", {
+        name: "General Tasks",
+        code: "GEN",
+        description: "Default project for general tasks",
+        status: "active",
+        departmentId: departmentId,
+      });
+      if (response.data.success) {
+        const newProject = response.data.data;
+        setProjects((prev) => [...prev, newProject]);
+        return newProject._id;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error creating default project:", error);
+      return null;
+    } finally {
+      setIsCreatingProject(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.title ||
-      !formData.description ||
-      !formData.assignedTo ||
-      !formData.deadline ||
-      !selectedProject ||
-      !selectedDepartment
-    ) {
-      toast.error(
-        "Please fill in all required fields including project and department",
-      );
+    if (!formData.title.trim()) {
+      toast.error("Please enter a task title");
       return;
+    }
+
+    if (!formData.description.trim()) {
+      toast.error("Please enter a task description");
+      return;
+    }
+
+    let finalAssignedTo = formData.assignedTo;
+    let finalDepartment = selectedDepartment;
+    let finalDeadline = formData.deadline;
+    let finalProjectId = selectedProject;
+
+    if (isQuickTask) {
+      if (!user?._id) {
+        toast.error("User not found");
+        return;
+      }
+      finalAssignedTo = user._id;
+
+      if (!selectedDepartment) {
+        const userDept = users.find((u) => u._id === user._id)?.departmentId;
+        if (userDept) {
+          finalDepartment =
+            typeof userDept === "object" ? userDept._id : userDept;
+        } else if (departments.length > 0) {
+          finalDepartment = departments[0]._id;
+        } else {
+          toast.error("No department available");
+          return;
+        }
+      }
+
+      if (!finalDeadline) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        finalDeadline = tomorrow.toISOString().split("T")[0];
+      }
+    } else {
+      if (!formData.assignedTo) {
+        toast.error("Please assign the task to someone");
+        return;
+      }
+      if (!selectedDepartment) {
+        toast.error("Please select a department");
+        return;
+      }
+      if (!formData.deadline) {
+        toast.error("Please set a deadline");
+        return;
+      }
+    }
+
+    // Always ensure we have a projectId
+    if (!finalProjectId) {
+      const deptProject = projects.find(
+        (p) =>
+          p.departmentId?._id === finalDepartment ||
+          p.departmentId === finalDepartment,
+      );
+      if (deptProject) {
+        finalProjectId = deptProject._id;
+      }
+    }
+
+    if (!finalProjectId) {
+      toast.loading("Creating default project...", { id: "create-project" });
+      const newProjectId = await createDefaultProject(finalDepartment);
+      toast.dismiss("create-project");
+
+      if (newProjectId) {
+        finalProjectId = newProjectId;
+        toast.success("Default project created");
+      } else {
+        toast.error(
+          "Failed to create default project. Please create a project first.",
+        );
+        return;
+      }
     }
 
     setLoading(true);
     try {
       const taskData = {
-        title: formData.title,
-        description: formData.description,
-        assignedTo: formData.assignedTo,
-        deadline: formData.deadline,
-        projectId: selectedProject,
-        departmentId: selectedDepartment,
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        assignedTo: finalAssignedTo,
+        deadline: finalDeadline,
+        projectId: finalProjectId,
+        departmentId: finalDepartment,
         revisedDeadline: formData.revisedDeadline || undefined,
         priority: formData.priority,
         estimatedHours: Number(formData.estimatedHours),
@@ -231,7 +352,7 @@ export default function CreateTaskModal({
 
       const response = await api.post("/tasks", taskData);
       if (response.data.success) {
-        toast.success("Task created successfully");
+        toast.success("Task created successfully! 🎉");
         resetForm();
         onTaskCreated();
         onClose();
@@ -263,34 +384,113 @@ export default function CreateTaskModal({
     setSelectedProject("");
     setEvidenceUrls([]);
     setNewUrl("");
+    setIsQuickTask(false);
   };
 
   if (!isOpen) return null;
 
+  const getAvailableUsers = () => {
+    if (isSuperAdmin) {
+      return filteredUsers;
+    } else {
+      return filteredUsers.filter((u) => u._id !== user?._id);
+    }
+  };
+
+  const availableUsers = getAvailableUsers();
+
+  // Toggle switch component
+  const ToggleSwitch = ({
+    enabled,
+    onToggle,
+    size = "md",
+  }: {
+    enabled: boolean;
+    onToggle: () => void;
+    size?: "sm" | "md" | "lg";
+  }) => {
+    const sizes = {
+      sm: { container: "w-8 h-4", dot: "w-3 h-3", translate: "translate-x-4" },
+      md: { container: "w-11 h-6", dot: "w-5 h-5", translate: "translate-x-5" },
+      lg: { container: "w-14 h-7", dot: "w-6 h-6", translate: "translate-x-7" },
+    };
+
+    const sizeConfig = sizes[size] || sizes.md;
+
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`
+          relative inline-flex items-center rounded-full transition-colors duration-200 ease-in-out
+          ${sizeConfig.container}
+          ${enabled ? "bg-indigo-600" : "bg-gray-300"}
+          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+        `}
+      >
+        <span
+          className={`
+            inline-block transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out
+            ${sizeConfig.dot}
+            ${enabled ? sizeConfig.translate : "translate-x-0.5"}
+          `}
+        />
+      </button>
+    );
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl bg-slate-900 rounded-2xl border border-slate-800 shadow-2xl overflow-hidden animate-fade-in-up">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="relative w-full max-w-3xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-gradient-to-r from-slate-900 to-slate-950">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center">
-              <Zap className="w-4 h-4 text-indigo-400" />
+            <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white">
+              <h2 className="text-lg font-semibold text-gray-800">
                 Create New Task
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-gray-500">
                 Fill all details to assign a new task
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-100 rounded-lg"
           >
             <X size={20} />
           </button>
+        </div>
+
+        {/* Quick Task Toggle */}
+        <div className="px-5 pt-5 pb-0">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <Zap className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-800">Quick Task</p>
+                <p className="text-xs text-gray-500">
+                  Auto-assign to yourself and simplify the form
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={isQuickTask}
+              onToggle={() => setIsQuickTask(!isQuickTask)}
+              size="md"
+            />
+          </div>
+          {isQuickTask && (
+            <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-fade-in">
+              <CheckSquare className="w-3 h-3" />
+              Task will be assigned to you with default settings
+            </p>
+          )}
         </div>
 
         {/* Modal Body */}
@@ -301,8 +501,8 @@ export default function CreateTaskModal({
           {/* Title & Project Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Task Title <span className="text-rose-400">*</span>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Task Title <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -310,39 +510,47 @@ export default function CreateTaskModal({
                 onChange={(e) =>
                   setFormData({ ...formData, title: e.target.value })
                 }
-                className="w-full px-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
                 placeholder="Enter task title"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Project <span className="text-rose-400">*</span>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Project{" "}
+                <span className="text-gray-400 text-xs">
+                  (Auto-assigned if empty)
+                </span>
               </label>
               <div className="relative">
-                <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <select
                   value={selectedProject}
                   onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                  required
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
                 >
-                  <option value="">Select Project</option>
+                  <option value="">Auto-assign Project</option>
                   {projects.map((project) => (
                     <option key={project._id} value={project._id}>
-                      {project.name} ({project.code}) - {project.status}
+                      {project.name} ({project.code})
                     </option>
                   ))}
                 </select>
               </div>
+              {isCreatingProject && (
+                <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Creating default project...
+                </p>
+              )}
             </div>
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
-              Description <span className="text-rose-400">*</span>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              Description <span className="text-rose-500">*</span>
             </label>
             <textarea
               value={formData.description}
@@ -350,43 +558,38 @@ export default function CreateTaskModal({
                 setFormData({ ...formData, description: e.target.value })
               }
               rows={3}
-              className="w-full px-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition resize-none"
+              className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none placeholder:text-gray-400"
               placeholder="Describe the task details..."
               required
             />
           </div>
 
-          <TaskAssistant
-            title={formData.title}
-            description={formData.description}
-            onSuggestion={(field, value) => {
-              if (field === "description") {
-                setFormData((prev) => ({ ...prev, description: value }));
-              } else if (field === "priority") {
-                setFormData((prev) => ({ ...prev, priority: value }));
-              } else if (field === "estimatedHours") {
-                setFormData((prev) => ({ ...prev, estimatedHours: value }));
-              }
-            }}
-          />
           {/* Department & Assign To Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Department <span className="text-rose-400">*</span>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Department{" "}
+                {!isQuickTask && <span className="text-rose-500">*</span>}
+                {isQuickTask && (
+                  <span className="text-gray-400 text-xs">
+                    {" "}
+                    (Auto-assigned)
+                  </span>
+                )}
               </label>
               <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <select
                   value={selectedDepartment}
                   onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                  required
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                  required={!isQuickTask}
+                  disabled={isQuickTask}
                 >
                   <option value="">Select Department</option>
                   {departments.map((dept) => (
                     <option key={dept._id} value={dept._id}>
-                      {dept.name} ({dept.code}) - {dept.employeeCount} members
+                      {dept.name} ({dept.code})
                     </option>
                   ))}
                 </select>
@@ -394,41 +597,60 @@ export default function CreateTaskModal({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Assign To <span className="text-rose-400">*</span>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Assign To{" "}
+                {!isQuickTask && <span className="text-rose-500">*</span>}
+                {isQuickTask && (
+                  <span className="text-gray-400 text-xs"> (You)</span>
+                )}
               </label>
               <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <select
                   value={formData.assignedTo}
                   onChange={(e) =>
                     setFormData({ ...formData, assignedTo: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                  required
-                  disabled={!selectedDepartment}
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                  required={!isQuickTask}
+                  disabled={isQuickTask}
                 >
                   <option value="">
-                    {!selectedDepartment
+                    {!selectedDepartment && !isQuickTask
                       ? "Select department first"
                       : loadingUsers
                         ? "Loading users..."
-                        : filteredUsers.length === 0
-                          ? "No users in this department"
+                        : availableUsers.length === 0
+                          ? "No users available"
                           : "Select team member"}
                   </option>
-                  {filteredUsers.map((u) => (
+                  {availableUsers.map((u) => (
                     <option key={u._id} value={u._id}>
                       {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
+                      {u._id === user?._id && " (You)"}
                     </option>
                   ))}
                 </select>
               </div>
+              {!isQuickTask && !isSuperAdmin && (
+                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                  <UserIcon className="w-3 h-3" />
+                  You cannot assign tasks to yourself
+                </p>
+              )}
+              {!isQuickTask && isSuperAdmin && (
+                <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                  <UserIcon className="w-3 h-3" />
+                  As Super Admin, you can assign tasks to anyone including
+                  yourself
+                </p>
+              )}
               {selectedDepartment &&
-                filteredUsers.length === 0 &&
-                !loadingUsers && (
-                  <p className="text-xs text-amber-400 mt-1">
-                    No users found in this department. Please add users first.
+                availableUsers.length === 0 &&
+                !loadingUsers &&
+                !isQuickTask && (
+                  <p className="text-xs text-amber-500 mt-1">
+                    No users available in this department.
                   </p>
                 )}
             </div>
@@ -437,17 +659,24 @@ export default function CreateTaskModal({
           {/* Priority, Estimated Hours, Actual Minutes */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
                 Priority
               </label>
               <div className="relative">
-                <Flag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Flag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <select
                   value={formData.priority}
                   onChange={(e) =>
-                    setFormData({ ...formData, priority: e.target.value })
+                    setFormData({
+                      ...formData,
+                      priority: e.target.value as
+                        | "low"
+                        | "normal"
+                        | "high"
+                        | "urgent",
+                    })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 >
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
@@ -458,11 +687,11 @@ export default function CreateTaskModal({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
                 Estimated Hours
               </label>
               <div className="relative">
-                <Hourglass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Hourglass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="number"
                   min="0.5"
@@ -471,21 +700,21 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      estimatedHours: parseFloat(e.target.value),
+                      estimatedHours: parseFloat(e.target.value) || 0,
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
                   placeholder="Hours"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
                 Actual Minutes
               </label>
               <div className="relative">
-                <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="number"
                   min="0"
@@ -494,10 +723,10 @@ export default function CreateTaskModal({
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      actualMinutes: parseInt(e.target.value),
+                      actualMinutes: parseInt(e.target.value) || 0,
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
                   placeholder="Minutes"
                 />
               </div>
@@ -507,35 +736,35 @@ export default function CreateTaskModal({
           {/* Start Time & End Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
                 Start Time
               </label>
               <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="datetime-local"
                   value={formData.startTime}
                   onChange={(e) =>
                     setFormData({ ...formData, startTime: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
                 End Time
               </label>
               <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="datetime-local"
                   value={formData.endTime}
                   onChange={(e) =>
                     setFormData({ ...formData, endTime: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 />
               </div>
             </div>
@@ -544,30 +773,35 @@ export default function CreateTaskModal({
           {/* Deadlines */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                Deadline <span className="text-rose-400">*</span>
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                Deadline{" "}
+                {!isQuickTask && <span className="text-rose-500">*</span>}
+                {isQuickTask && (
+                  <span className="text-gray-400 text-xs"> (Auto-set)</span>
+                )}
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="date"
                   value={formData.deadline}
                   onChange={(e) =>
                     setFormData({ ...formData, deadline: e.target.value })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
-                  required
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required={!isQuickTask}
                   min={new Date().toISOString().split("T")[0]}
+                  disabled={isQuickTask}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-gray-700 mb-1.5">
                 Revised Deadline
               </label>
               <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="date"
                   value={formData.revisedDeadline}
@@ -577,7 +811,7 @@ export default function CreateTaskModal({
                       revisedDeadline: e.target.value,
                     })
                   }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                   min={
                     formData.deadline || new Date().toISOString().split("T")[0]
                   }
@@ -588,24 +822,24 @@ export default function CreateTaskModal({
 
           {/* Evidence URLs */}
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
               Evidence URLs
             </label>
             <div className="flex gap-2 mb-2">
               <div className="relative flex-1">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="url"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-white bg-slate-800/50 border border-slate-700 rounded-lg focus:border-indigo-500 outline-none transition"
+                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
                   placeholder="https://example.com/evidence"
                 />
               </div>
               <button
                 type="button"
                 onClick={handleAddEvidenceUrl}
-                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm rounded-lg transition"
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition shadow-sm"
               >
                 Add
               </button>
@@ -615,20 +849,20 @@ export default function CreateTaskModal({
                 {evidenceUrls.map((url, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between p-2 bg-slate-800/30 rounded-lg"
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
                   >
                     <a
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-indigo-400 hover:text-indigo-300 truncate flex-1"
+                      className="text-xs text-indigo-600 hover:text-indigo-800 truncate flex-1"
                     >
                       {url}
                     </a>
                     <button
                       type="button"
                       onClick={() => handleRemoveEvidenceUrl(index)}
-                      className="text-slate-500 hover:text-rose-400 ml-2"
+                      className="text-gray-400 hover:text-rose-500 ml-2"
                     >
                       <X size={14} />
                     </button>
@@ -639,79 +873,73 @@ export default function CreateTaskModal({
           </div>
 
           {/* Toggle Options */}
-          <div className="space-y-2 pt-2">
-            <label className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-800 cursor-pointer hover:bg-slate-800/50 transition">
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 bg-amber-500/10 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-gray-800">
                     Approval Required
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-gray-500">
                     Task needs manager approval before completion
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() =>
+              <ToggleSwitch
+                enabled={formData.isApprovalRequired}
+                onToggle={() =>
                   setFormData({
                     ...formData,
                     isApprovalRequired: !formData.isApprovalRequired,
                   })
                 }
-                className={`relative w-10 h-5 rounded-full transition-colors ${formData.isApprovalRequired ? "bg-indigo-500" : "bg-slate-700"}`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.isApprovalRequired ? "translate-x-5" : "translate-x-0.5"}`}
-                />
-              </button>
-            </label>
+                size="md"
+              />
+            </div>
 
-            <label className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-800 cursor-pointer hover:bg-slate-800/50 transition">
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
               <div className="flex items-center gap-3">
-                <div className="w-7 h-7 bg-emerald-500/10 rounded-lg flex items-center justify-center">
-                  <Paperclip className="w-3.5 h-3.5 text-emerald-400" />
+                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                  <Paperclip className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-gray-800">
                     Evidence Required
                   </p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-gray-500">
                     Submit proof of work upon completion
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() =>
+              <ToggleSwitch
+                enabled={formData.evidenceRequired}
+                onToggle={() =>
                   setFormData({
                     ...formData,
                     evidenceRequired: !formData.evidenceRequired,
                   })
                 }
-                className={`relative w-10 h-5 rounded-full transition-colors ${formData.evidenceRequired ? "bg-indigo-500" : "bg-slate-700"}`}
-              >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${formData.evidenceRequired ? "translate-x-5" : "translate-x-0.5"}`}
-                />
-              </button>
-            </label>
+                size="md"
+              />
+            </div>
           </div>
 
           {/* Modal Footer */}
-          <div className="flex gap-3 pt-4 border-t border-slate-800">
+          <div className="flex gap-3 pt-4 border-t border-gray-200">
             <button
               type="submit"
-              disabled={loading}
-              className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || isCreatingProject}
+              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
+              {loading || isCreatingProject ? (
                 <div className="flex items-center justify-center gap-2">
                   <Loader2 size={16} className="animate-spin" />
-                  Creating...
+                  {isCreatingProject
+                    ? "Creating Project..."
+                    : "Creating Task..."}
                 </div>
               ) : (
                 "Create Task"
@@ -720,7 +948,7 @@ export default function CreateTaskModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium py-2 rounded-lg transition-all"
+              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition-all"
             >
               Cancel
             </button>
@@ -739,22 +967,33 @@ export default function CreateTaskModal({
             transform: translateY(0);
           }
         }
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
         .animate-fade-in-up {
           animation: fade-in-up 0.3s ease-out forwards;
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out forwards;
         }
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(30, 41, 59, 0.5);
+          background: #f1f1f1;
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(99, 102, 241, 0.4);
+          background: #c4c4c4;
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(99, 102, 241, 0.6);
+          background: #a8a8a8;
         }
       `}</style>
     </div>
