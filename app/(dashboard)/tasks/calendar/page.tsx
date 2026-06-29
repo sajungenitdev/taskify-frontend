@@ -166,9 +166,7 @@ export default function MyCalendarPage() {
           const allTasks = fallbackResponse.data.data || [];
           // Filter tasks assigned to current user
           const myTasks = allTasks.filter(
-            (task: Task) =>
-              task.assignedTo?._id === user?._id ||
-              task.assignedTo === user?._id,
+            (task: Task) => task.assignedTo?._id === user?._id,
           );
           setTasks(myTasks);
           calculateStats(myTasks);

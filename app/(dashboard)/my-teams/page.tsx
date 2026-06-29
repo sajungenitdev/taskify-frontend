@@ -333,9 +333,7 @@ export default function MyTeamPage() {
                         typeof selectedTeam.lead === "object" && (
                           <div className="flex items-center gap-1.5 text-sm text-gray-500">
                             <Crown className="w-4 h-4 text-amber-500" />
-                            Lead:{" "}
-                            {selectedTeam.lead.fullName ||
-                              selectedTeam.lead.name}
+                            Lead: {selectedTeam.lead.fullName || "Unknown"}
                           </div>
                         )}
                     </div>
@@ -376,7 +374,7 @@ export default function MyTeamPage() {
                         <div className="flex items-start gap-4">
                           <div className="relative">
                             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xl font-bold flex-shrink-0">
-                              {getInitials(member.fullName || member.name)}
+                              {getInitials(member.fullName || "Unknown")}
                             </div>
                             {isCurrentUser && (
                               <div className="absolute -top-1 -right-1">
@@ -391,7 +389,7 @@ export default function MyTeamPage() {
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
                                 <p className="font-semibold text-gray-900 truncate flex items-center gap-1.5">
-                                  {member.fullName || member.name}
+                                  {member.fullName || "Unknown"}
                                   {member.isLead && (
                                     <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />
                                   )}

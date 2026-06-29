@@ -624,7 +624,7 @@ export default function TeamsPage() {
                         <div className="flex items-center gap-1.5 text-gray-600 bg-gray-50/80 px-3 py-1.5 rounded-xl">
                           <UserCheck className="w-3.5 h-3.5 text-indigo-400" />
                           <span className="truncate max-w-[100px]">
-                            {team.lead.fullName || team.lead.name}
+                            {team.lead.fullName || "Unknown"}
                           </span>
                         </div>
                       )}
@@ -740,11 +740,11 @@ export default function TeamsPage() {
                             <div className="flex items-center gap-2">
                               <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-xs font-medium">
                                 {getInitials(
-                                  team.lead.fullName || team.lead.name,
+                                  team.lead.fullName || "Unknown"
                                 )}
                               </div>
                               <span className="text-sm text-gray-700">
-                                {team.lead.fullName || team.lead.name}
+                                {team.lead.fullName || "Unknown"}
                               </span>
                             </div>
                           ) : (
@@ -1298,11 +1298,11 @@ export default function TeamsPage() {
                           >
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-medium flex-shrink-0">
-                                {getInitials(m.fullName || m.name)}
+                                {getInitials(m.fullName || "Unknown")}
                               </div>
                               <div className="min-w-0">
                                 <p className="text-sm font-medium text-gray-900 truncate">
-                                  {m.fullName || m.name}
+                                  {m.fullName || "Unknown"}
                                 </p>
                                 <p className="text-xs text-gray-500 truncate">
                                   {m.email}
