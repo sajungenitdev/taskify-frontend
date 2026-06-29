@@ -47,6 +47,10 @@ import {
   CalendarClock,
   UserPlus,
   FileSignature,
+  Download,
+  Users,
+  PieChart,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
