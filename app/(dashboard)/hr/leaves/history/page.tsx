@@ -1,4 +1,4 @@
-// app/hr/leave-history/page.tsx
+// app/hr/leaves/history/page.tsx
 
 "use client";
 
@@ -15,55 +15,50 @@ import {
   AlertCircle,
   Search,
   Filter,
+  Download,
   RefreshCw,
   User,
   Calendar as CalendarIcon,
+  LayoutGrid,
+  List,
+  ChevronDown,
   Eye,
   Loader2,
   Building2,
   Briefcase,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Activity,
+  Timer,
   UserCheck,
+  UserX,
+  Clock as ClockIcon,
   FileText,
-  Plus,
-  Trash2,
-  Check,
-  X,
-  MessageSquare,
-  Ban,
-  UserPlus,
-  UsersRound,
-  PieChart,
-  CalendarDays,
   Home,
   ChevronRight as ChevronRightIcon,
+  Info,
+  AlertTriangle,
+  Heart,
+  Sun,
+  CloudRain,
+  Baby,
   Star,
-  Bell,
   Clock8,
   CalendarClock,
-  Heart,
-  Baby,
-  CloudRain,
-  Sun,
-  Info,
-  FileCheck,
-  Download,
-  Printer,
-  Mail,
-  Phone,
   MapPin,
-  GraduationCap,
-  Briefcase as BriefcaseIcon,
-  Shield,
-  Crown,
-  UserCog,
-  MoreVertical,
-  ChevronDown,
+  Phone,
+  Mail,
+  UserPlus,
+  PieChart,
+  X,
+  CalendarDays,
 } from "lucide-react";
-import api from "@/lib/axios";
-import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
+import api from "@/lib/axios";
 
 // ============================================================================
 // TYPES
@@ -71,28 +66,12 @@ import { motion, AnimatePresence } from "framer-motion";
 
 interface LeaveRequest {
   _id: string;
-  employeeId: {
-    _id: string;
-    fullName: string;
-    email: string;
-    employeeId?: string;
-    departmentId?:
-      | {
-          _id: string;
-          name: string;
-          code: string;
-        }
-      | string;
-    position?: string;
-    profilePhoto?: string;
-  };
   type: string;
   startDate: string;
   endDate: string;
   totalDays: number;
   reason: string;
   status: "pending" | "approved" | "rejected" | "cancelled";
-  substituteId?: string;
   substituteName?: string;
   substituteEmail?: string;
   notes?: string;
@@ -106,6 +85,8 @@ interface LeaveRequest {
   createdAt: string;
   updatedAt: string;
   rejectionReason?: string;
+  isHalfDay: boolean;
+  halfDayType?: string;
 }
 
 interface EmployeeLeaveSummary {
@@ -118,17 +99,10 @@ interface EmployeeLeaveSummary {
   position?: string;
   totalLeavesTaken: number;
   totalLeavesPending: number;
-  leaveBalances: {
-    annual: { total: number; used: number; remaining: number };
-    sick: { total: number; used: number; remaining: number };
-    casual: { total: number; used: number; remaining: number };
-    earned: { total: number; used: number; remaining: number };
-    maternity: { total: number; used: number; remaining: number };
-    paternity: { total: number; used: number; remaining: number };
-    bereavement: { total: number; used: number; remaining: number };
-    unpaid: { total: number; used: number; remaining: number };
-    other: { total: number; used: number; remaining: number };
-  };
+  leaveBalances: Record<
+    string,
+    { total: number; used: number; remaining: number }
+  >;
   leaveHistory: LeaveRequest[];
 }
 
@@ -137,11 +111,36 @@ interface LeaveBalance {
   total: number;
   used: number;
   remaining: number;
+  pending: number;
 }
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
+
+const DEFAULT_LEAVE_BALANCES: Record<string, number> = {
+  annual: 16,
+  sick: 16,
+  casual: 16,
+  earned: 16,
+  maternity: 90,
+  paternity: 15,
+  bereavement: 5,
+  unpaid: 0,
+  other: 0,
+};
+
+const LEAVE_TYPES = [
+  "annual",
+  "sick",
+  "casual",
+  "earned",
+  "maternity",
+  "paternity",
+  "bereavement",
+  "unpaid",
+  "other",
+];
 
 const leaveTypeLabels: Record<string, string> = {
   annual: "Annual Leave",
@@ -186,6 +185,13 @@ const statusColors: Record<string, string> = {
   cancelled: "bg-gray-50 text-gray-600 border-gray-200",
 };
 
+const statusIcons: Record<string, any> = {
+  pending: Clock,
+  approved: CheckCircle,
+  rejected: XCircle,
+  cancelled: Ban,
+};
+
 const statusLabels: Record<string, string> = {
   pending: "Pending",
   approved: "Approved",
@@ -193,50 +199,73 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-// Default leave balances per leave type
-const DEFAULT_LEAVE_BALANCES: Record<string, number> = {
-  annual: 16,
-  sick: 16,
-  casual: 16,
-  earned: 16,
-  maternity: 90,
-  paternity: 15,
-  bereavement: 5,
-  unpaid: 0,
-  other: 0,
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// ✅ FIXED: Safely get employee name from various possible structures
+const getEmployeeName = (employee: any): string => {
+  if (!employee) return "Unknown";
+  if (typeof employee === "object" && employee.fullName) {
+    return employee.fullName;
+  }
+  if (typeof employee === "object" && employee.name) {
+    return employee.name;
+  }
+  if (typeof employee === "string") return employee;
+  return "Unknown";
 };
 
-const LEAVE_TYPES = [
-  "annual",
-  "sick",
-  "casual",
-  "earned",
-  "maternity",
-  "paternity",
-  "bereavement",
-  "unpaid",
-  "other",
-];
+// ✅ FIXED: Safely get employee email
+const getEmployeeEmail = (employee: any): string => {
+  if (!employee) return "";
+  if (typeof employee === "object" && employee.email) {
+    return employee.email;
+  }
+  return "";
+};
+
+// ✅ FIXED: Safely get employee ID
+const getEmployeeId = (employee: any): string => {
+  if (!employee) return "N/A";
+  if (typeof employee === "object" && employee.employeeId) {
+    return employee.employeeId;
+  }
+  if (typeof employee === "object" && employee._id) {
+    return employee._id;
+  }
+  if (typeof employee === "string") return employee;
+  return "N/A";
+};
+
+// ✅ FIXED: Safely get employee ID as string
+const getEmployeeIdString = (employee: any): string => {
+  if (!employee) return "N/A";
+  if (typeof employee === "object" && employee._id) {
+    return employee._id;
+  }
+  if (typeof employee === "string") return employee;
+  return "N/A";
+};
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
-export default function EmployeeLeaveHistoryPage() {
-  const router = useRouter();
+export default function LeaveHistoryPage() {
   const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
 
-  // State
-  const [allLeaves, setAllLeaves] = useState<LeaveRequest[]>([]);
-  const [employees, setEmployees] = useState<EmployeeLeaveSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [employees, setEmployees] = useState<EmployeeLeaveSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterDepartment, setFilterDepartment] = useState<string>("all");
+  const [departments, setDepartments] = useState<string[]>([]);
   const [selectedEmployee, setSelectedEmployee] =
     useState<EmployeeLeaveSummary | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filterDepartment, setFilterDepartment] = useState<string>("all");
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedEmployeeData, setSelectedEmployeeData] = useState<any>(null);
 
   // ============================================================================
   // EFFECTS
@@ -250,48 +279,6 @@ export default function EmployeeLeaveHistoryPage() {
 
   // ============================================================================
   // DATA FETCHING
-  // ============================================================================
-
-  const fetchLeaveData = async () => {
-    try {
-      setLoading(true);
-      setRefreshing(true);
-
-      // Fetch all leave requests
-      const response = await api.get("/leaves/all");
-
-      if (response.data.success) {
-        const leaves: LeaveRequest[] = response.data.data || [];
-        setAllLeaves(leaves);
-
-        // Process data to get employee summaries
-        const summaries = processEmployeeLeaveData(leaves);
-        setEmployees(summaries);
-
-        // Extract unique departments for filter
-        const deptSet = new Set<string>();
-        summaries.forEach((emp) => {
-          if (emp.departmentName) {
-            deptSet.add(emp.departmentName);
-          }
-        });
-        setDepartments(Array.from(deptSet));
-      }
-    } catch (error: any) {
-      console.error("Error fetching leave data:", error);
-      toast.error(
-        error.response?.data?.message || "Failed to load employee leave data",
-      );
-      setAllLeaves([]);
-      setEmployees([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  // ============================================================================
-  // DATA PROCESSING
   // ============================================================================
 
   const processEmployeeLeaveData = (
@@ -313,15 +300,15 @@ export default function EmployeeLeaveHistoryPage() {
     >();
 
     leaves.forEach((leave) => {
-      const empId = leave.employeeId?._id || (leave.employeeId as string);
+      // ✅ FIXED: Safely get employee ID
+      const empId = getEmployeeIdString(leave.employeeId);
 
       if (!employeeMap.has(empId)) {
         const emp = leave.employeeId;
         employeeMap.set(empId, {
           employeeId: empId,
-          employeeName:
-            typeof emp === "object" ? emp?.fullName || "Unknown" : "Unknown",
-          employeeEmail: typeof emp === "object" ? emp?.email || "" : "",
+          employeeName: getEmployeeName(emp),
+          employeeEmail: getEmployeeEmail(emp),
           employeeIdNumber:
             typeof emp === "object" ? emp?.employeeId : undefined,
           departmentId:
@@ -351,63 +338,27 @@ export default function EmployeeLeaveHistoryPage() {
       const { leaves, ...employeeInfo } = data;
 
       // Initialize balances with default values
-      const balances: EmployeeLeaveSummary["leaveBalances"] = {
-        annual: {
-          total: DEFAULT_LEAVE_BALANCES.annual,
+      const balances: Record<
+        string,
+        { total: number; used: number; remaining: number }
+      > = {};
+
+      LEAVE_TYPES.forEach((type) => {
+        balances[type] = {
+          total: DEFAULT_LEAVE_BALANCES[type] || 0,
           used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.annual,
-        },
-        sick: {
-          total: DEFAULT_LEAVE_BALANCES.sick,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.sick,
-        },
-        casual: {
-          total: DEFAULT_LEAVE_BALANCES.casual,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.casual,
-        },
-        earned: {
-          total: DEFAULT_LEAVE_BALANCES.earned,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.earned,
-        },
-        maternity: {
-          total: DEFAULT_LEAVE_BALANCES.maternity,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.maternity,
-        },
-        paternity: {
-          total: DEFAULT_LEAVE_BALANCES.paternity,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.paternity,
-        },
-        bereavement: {
-          total: DEFAULT_LEAVE_BALANCES.bereavement,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.bereavement,
-        },
-        unpaid: {
-          total: DEFAULT_LEAVE_BALANCES.unpaid,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.unpaid,
-        },
-        other: {
-          total: DEFAULT_LEAVE_BALANCES.other,
-          used: 0,
-          remaining: DEFAULT_LEAVE_BALANCES.other,
-        },
-      };
+          remaining: DEFAULT_LEAVE_BALANCES[type] || 0,
+        };
+      });
 
       let totalTaken = 0;
       let totalPending = 0;
 
       // Process each leave request
       leaves.forEach((leave) => {
-        const type = leave.type as keyof typeof balances;
-        if (balances[type]) {
+        if (balances[leave.type]) {
           if (leave.status === "approved") {
-            balances[type].used += leave.totalDays || 0;
+            balances[leave.type].used += leave.totalDays || 0;
             totalTaken += leave.totalDays || 0;
           } else if (leave.status === "pending") {
             totalPending += leave.totalDays || 0;
@@ -416,8 +367,7 @@ export default function EmployeeLeaveHistoryPage() {
       });
 
       // Calculate remaining balances
-      Object.keys(balances).forEach((key) => {
-        const type = key as keyof typeof balances;
+      LEAVE_TYPES.forEach((type) => {
         balances[type].remaining = Math.max(
           0,
           balances[type].total - balances[type].used,
@@ -443,6 +393,41 @@ export default function EmployeeLeaveHistoryPage() {
     });
 
     return summaries;
+  };
+
+  const fetchLeaveData = async () => {
+    try {
+      setLoading(true);
+      setRefreshing(true);
+
+      const response = await api.get("/leaves/all");
+
+      if (response.data.success) {
+        const leaves: LeaveRequest[] = response.data.data || [];
+
+        // Process data to get employee summaries
+        const summaries = processEmployeeLeaveData(leaves);
+        setEmployees(summaries);
+
+        // Extract unique departments for filter
+        const deptSet = new Set<string>();
+        summaries.forEach((emp) => {
+          if (emp.departmentName) {
+            deptSet.add(emp.departmentName);
+          }
+        });
+        setDepartments(Array.from(deptSet));
+      }
+    } catch (error: any) {
+      console.error("Error fetching leave data:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to load employee leave data",
+      );
+      setEmployees([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
   // ============================================================================
@@ -486,6 +471,10 @@ export default function EmployeeLeaveHistoryPage() {
 
   const getStatusColor = (status: string) => {
     return statusColors[status] || "bg-gray-100 text-gray-700 border-gray-200";
+  };
+
+  const handleRefresh = () => {
+    fetchLeaveData();
   };
 
   // ============================================================================
@@ -581,9 +570,7 @@ export default function EmployeeLeaveHistoryPage() {
             HR
           </Link>
           <ChevronRightIcon size={14} className="text-gray-300" />
-          <span className="text-gray-700 font-medium">
-            Employee Leave History
-          </span>
+          <span className="text-gray-700 font-medium">Leave History</span>
         </motion.div>
 
         {/* ============================================================
@@ -608,9 +595,9 @@ export default function EmployeeLeaveHistoryPage() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => fetchLeaveData()}
+              onClick={handleRefresh}
               disabled={refreshing}
-              className="cursor-pointer px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition-all text-sm flex items-center gap-2 shadow-sm disabled:opacity-50"
+              className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition-all text-sm flex items-center gap-2 shadow-sm disabled:opacity-50"
             >
               <RefreshCw
                 className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
@@ -618,10 +605,8 @@ export default function EmployeeLeaveHistoryPage() {
               Refresh
             </button>
             <button
-              onClick={() => {
-                toast.success("Exporting employee leave data...");
-              }}
-              className="cursor-pointer px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl transition-all text-sm font-medium shadow-md shadow-indigo-500/25 flex items-center gap-2"
+              onClick={() => toast.success("Exporting employee leave data...")}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl transition-all text-sm font-medium shadow-md shadow-indigo-500/25 flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
               Export
@@ -729,14 +714,14 @@ export default function EmployeeLeaveHistoryPage() {
                 placeholder="Search employees by name, email, ID, or department..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="text-black w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 hover:bg-white transition-colors"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 hover:bg-white transition-colors"
               />
             </div>
             <div className="flex gap-3 flex-wrap">
               <select
                 value={filterDepartment}
                 onChange={(e) => setFilterDepartment(e.target.value)}
-                className="text-black px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 hover:bg-white transition-colors min-w-[160px]"
+                className="px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 hover:bg-white transition-colors min-w-[160px]"
               >
                 <option value="all">All Departments</option>
                 {departments.map((dept) => (
@@ -751,7 +736,7 @@ export default function EmployeeLeaveHistoryPage() {
                   setFilterDepartment("all");
                   fetchLeaveData();
                 }}
-                className="cursor-pointer px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                className="px-4 py-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
                 title="Reset filters"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -844,10 +829,7 @@ export default function EmployeeLeaveHistoryPage() {
                     {/* Quick Balance Overview */}
                     <div className="flex flex-wrap gap-1.5">
                       {LEAVE_TYPES.map((type) => {
-                        const balance =
-                          employee.leaveBalances[
-                            type as keyof typeof employee.leaveBalances
-                          ];
+                        const balance = employee.leaveBalances[type];
                         if (!balance || balance.total === 0) return null;
                         const Icon = getLeaveTypeIcon(type);
                         const isLow = balance.remaining < balance.total * 0.2;
@@ -883,7 +865,7 @@ export default function EmployeeLeaveHistoryPage() {
                         setSelectedEmployee(employee);
                         setShowDetailsModal(true);
                       }}
-                      className="cursor-pointer px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
+                      className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-colors text-sm font-medium flex items-center gap-2"
                     >
                       <Eye className="w-4 h-4" />
                       View Details
@@ -958,7 +940,7 @@ export default function EmployeeLeaveHistoryPage() {
                     setShowDetailsModal(false);
                     setSelectedEmployee(null);
                   }}
-                  className="cursor-pointer p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
                 >
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
@@ -973,10 +955,7 @@ export default function EmployeeLeaveHistoryPage() {
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {LEAVE_TYPES.map((type) => {
-                      const balance =
-                        selectedEmployee.leaveBalances[
-                          type as keyof typeof selectedEmployee.leaveBalances
-                        ];
+                      const balance = selectedEmployee.leaveBalances[type];
                       if (!balance || balance.total === 0) return null;
                       const Icon = getLeaveTypeIcon(type);
                       const label = getLeaveTypeLabel(type);
