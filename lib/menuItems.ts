@@ -733,6 +733,7 @@ export const subMenuItems: SubNavItem[] = [
     roles: [
       ROLES.SUPER_ADMIN,
       ROLES.ADMIN,
+      ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
       ROLES.EMPLOYEE,
