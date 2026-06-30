@@ -726,6 +726,20 @@ export const subMenuItems: SubNavItem[] = [
     description: "View all tasks",
   },
   {
+    name: "Task Workload",
+    href: "/workload",
+    icon: BarChart3,
+    parent: "Tasks",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    description: "View tasks on calendar",
+  },
+  {
     name: "Task Calendar",
     href: "/tasks/calendar",
     icon: Kanban,
