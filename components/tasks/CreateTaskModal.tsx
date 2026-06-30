@@ -24,6 +24,7 @@ import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 
+// ============ TYPE DEFINITIONS ============
 interface User {
   _id: string;
   fullName: string;
@@ -67,6 +68,40 @@ interface CreateTaskModalProps {
   onTaskCreated: () => void;
 }
 
+// ============ TYPE GUARDS ============
+const isDepartmentObject = (
+  dept: string | { _id: string; name: string; code: string } | undefined,
+): dept is { _id: string; name: string; code: string } => {
+  return typeof dept === "object" && dept !== null && "_id" in dept;
+};
+
+const isManagerObject = (
+  manager:
+    | string
+    | { _id: string; fullName: string; email: string }
+    | undefined,
+): manager is { _id: string; fullName: string; email: string } => {
+  return typeof manager === "object" && manager !== null && "_id" in manager;
+};
+
+// ============ HELPER FUNCTIONS ============
+const getDepartmentId = (user: User): string | null => {
+  if (!user.departmentId) return null;
+  if (isDepartmentObject(user.departmentId)) {
+    return user.departmentId._id;
+  }
+  return user.departmentId;
+};
+
+const getManagerId = (user: User): string | null => {
+  if (!user.managerId) return null;
+  if (isManagerObject(user.managerId)) {
+    return user.managerId._id;
+  }
+  return user.managerId;
+};
+
+// ============ MAIN COMPONENT ============
 export default function CreateTaskModal({
   isOpen,
   onClose,
@@ -109,7 +144,6 @@ export default function CreateTaskModal({
   const isLineManager = user?.role === "line_manager";
   const isEmployee = user?.role === "employee";
 
-  // Check if user can assign to others
   const canAssignToOthers =
     isSuperAdmin ||
     isAdmin ||
@@ -118,7 +152,7 @@ export default function CreateTaskModal({
     isProjectManager ||
     isLineManager;
 
-  // Fetch departments
+  // ============ API CALLS ============
   const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.get("/departments");
@@ -130,7 +164,6 @@ export default function CreateTaskModal({
     }
   }, []);
 
-  // Fetch projects
   const fetchProjects = useCallback(async () => {
     try {
       const response = await api.get("/projects");
@@ -142,40 +175,28 @@ export default function CreateTaskModal({
     }
   }, []);
 
-  // Fetch all users with role-based filtering
-  // components/CreateTaskModal.tsx - Updated fetchAllUsers
-
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      // Use the /users endpoint (NOT /auth/users)
       const response = await api.get("/users");
       console.log("Users API Response:", response.data);
 
       if (response.data.success) {
         const usersData = response.data.data || [];
-
-        // The backend already filters based on role,
-        // but we can do additional filtering if needed
         let filtered: User[] = usersData;
 
-        // Additional frontend filtering if needed
         if (isDeptManager) {
-          const managerDeptId =
-            user?.departmentId?._id?.toString() ||
-            user?.departmentId?.toString();
+          const managerDeptId = getDepartmentId(user as User);
           filtered = usersData.filter((u: User) => {
             if (u.role === "super_admin") return false;
-            const userDeptId =
-              u.departmentId?._id?.toString() || u.departmentId?.toString();
+            const userDeptId = getDepartmentId(u);
             return userDeptId === managerDeptId;
           });
         } else if (isLineManager) {
           filtered = usersData.filter((u: User) => {
             if (u.role === "super_admin") return false;
-            const managerId =
-              u.managerId?._id?.toString() || u.managerId?.toString();
-            return managerId === user?._id;
+            const userManagerId = getManagerId(u);
+            return userManagerId === user?._id;
           });
         } else if (isEmployee) {
           filtered = usersData.filter((u: User) => u._id === user?._id);
@@ -192,7 +213,7 @@ export default function CreateTaskModal({
     }
   }, [user, isDeptManager, isLineManager, isEmployee]);
 
-  // Load data when modal opens
+  // ============ EFFECTS ============
   useEffect(() => {
     if (isOpen && !isDataLoaded) {
       const loadData = async () => {
@@ -216,14 +237,7 @@ export default function CreateTaskModal({
   useEffect(() => {
     if (selectedDepartment && users.length > 0) {
       const filtered = users.filter((u) => {
-        let userDeptId: string | null = null;
-        if (u.departmentId) {
-          if (typeof u.departmentId === "object" && "_id" in u.departmentId) {
-            userDeptId = u.departmentId._id;
-          } else if (typeof u.departmentId === "string") {
-            userDeptId = u.departmentId;
-          }
-        }
+        const userDeptId = getDepartmentId(u);
         return userDeptId === selectedDepartment;
       });
       setFilteredUsers(filtered);
@@ -256,6 +270,7 @@ export default function CreateTaskModal({
     }
   }, [isQuickTask, user]);
 
+  // ============ HANDLERS ============
   const handleAddEvidenceUrl = () => {
     if (newUrl && newUrl.trim()) {
       setEvidenceUrls([...evidenceUrls, newUrl.trim()]);
@@ -267,7 +282,6 @@ export default function CreateTaskModal({
     setEvidenceUrls(evidenceUrls.filter((_, i) => i !== index));
   };
 
-  // Create a default project
   const createDefaultProject = async (
     departmentId: string,
   ): Promise<string | null> => {
@@ -320,10 +334,9 @@ export default function CreateTaskModal({
       finalAssignedTo = user._id;
 
       if (!selectedDepartment) {
-        const userDept = users.find((u) => u._id === user._id)?.departmentId;
-        if (userDept) {
-          finalDepartment =
-            typeof userDept === "object" ? userDept._id : userDept;
+        const userDeptId = getDepartmentId(user as User);
+        if (userDeptId) {
+          finalDepartment = userDeptId;
         } else if (departments.length > 0) {
           finalDepartment = departments[0]._id;
         } else {
@@ -351,22 +364,16 @@ export default function CreateTaskModal({
         return;
       }
 
-      // Additional validation for role-based assignment
       if (!canAssignToOthers && formData.assignedTo !== user?._id) {
         toast.error("You can only assign tasks to yourself");
         return;
       }
 
-      // Department Manager: Check if assigned user is in their department
       if (isDeptManager) {
         const assignedUser = users.find((u) => u._id === formData.assignedTo);
         if (assignedUser) {
-          const assignedUserDept =
-            assignedUser.departmentId?._id?.toString() ||
-            assignedUser.departmentId?.toString();
-          const managerDept =
-            user?.departmentId?._id?.toString() ||
-            user?.departmentId?.toString();
+          const assignedUserDept = getDepartmentId(assignedUser);
+          const managerDept = getDepartmentId(user as User);
           if (assignedUserDept !== managerDept) {
             toast.error(
               "You can only assign tasks to users in your department",
@@ -376,13 +383,10 @@ export default function CreateTaskModal({
         }
       }
 
-      // Line Manager: Check if assigned user is a direct report
       if (isLineManager) {
         const assignedUser = users.find((u) => u._id === formData.assignedTo);
         if (assignedUser) {
-          const managerId =
-            assignedUser.managerId?._id?.toString() ||
-            assignedUser.managerId?.toString();
+          const managerId = getManagerId(assignedUser);
           if (managerId !== user?._id) {
             toast.error("You can only assign tasks to your direct reports");
             return;
@@ -478,49 +482,34 @@ export default function CreateTaskModal({
     setIsQuickTask(false);
   };
 
-  if (!isOpen) return null;
-
+  // ============ GET AVAILABLE USERS ============
   const getAvailableUsers = () => {
-    // Super Admin, Admin, HR can see all filtered users
     if (isSuperAdmin || isAdmin || isHrManager) {
       return filteredUsers;
     }
 
-    // Department Manager: Only see users in their department
     if (isDeptManager) {
-      const managerDeptId =
-        user?.departmentId?._id?.toString() || user?.departmentId?.toString();
+      const managerDeptId = getDepartmentId(user as User);
       return filteredUsers.filter((u) => {
-        // Don't show super admins
         if (u.role === "super_admin") return false;
-        // Don't show self if not allowed
         if (!canAssignToOthers && u._id === user?._id) return false;
-
-        const userDeptId =
-          u.departmentId?._id?.toString() || u.departmentId?.toString();
+        const userDeptId = getDepartmentId(u);
         return userDeptId === managerDeptId;
       });
     }
 
-    // Project Manager: Show project team members
     if (isProjectManager) {
-      return filteredUsers.filter((u) => {
-        if (u.role === "super_admin") return false;
-        return true;
-      });
+      return filteredUsers.filter((u) => u.role !== "super_admin");
     }
 
-    // Line Manager: Show direct reports
     if (isLineManager) {
       return filteredUsers.filter((u) => {
         if (u.role === "super_admin") return false;
-        const managerId =
-          u.managerId?._id?.toString() || u.managerId?.toString();
+        const managerId = getManagerId(u);
         return managerId === user?._id;
       });
     }
 
-    // Employee: Only show themselves
     if (isEmployee) {
       return filteredUsers.filter((u) => u._id === user?._id);
     }
@@ -530,7 +519,7 @@ export default function CreateTaskModal({
 
   const availableUsers = getAvailableUsers();
 
-  // Toggle switch component
+  // ============ TOGGLE SWITCH COMPONENT ============
   const ToggleSwitch = ({
     enabled,
     onToggle,
@@ -570,6 +559,9 @@ export default function CreateTaskModal({
     );
   };
 
+  if (!isOpen) return null;
+
+  // ============ RENDER ============
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="relative w-full max-w-3xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden animate-fade-in-up">
@@ -596,7 +588,7 @@ export default function CreateTaskModal({
           </button>
         </div>
 
-        {/* Quick Task Toggle - Hide for Department Managers */}
+        {/* Quick Task Toggle */}
         {(isSuperAdmin || isAdmin || isEmployee) && (
           <div className="px-5 pt-5 pb-0">
             <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
@@ -628,7 +620,7 @@ export default function CreateTaskModal({
           </div>
         )}
 
-        {/* Role Info Banner for Department Managers */}
+        {/* Role Info Banners */}
         {isDeptManager && (
           <div className="px-5 pt-4">
             <div className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
