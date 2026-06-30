@@ -10,6 +10,7 @@ import {
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 
+// In AuthContext.tsx
 interface User {
   _id: string;
   fullName: string;
@@ -21,7 +22,7 @@ interface User {
   location?: string;
   position?: string;
   bio?: string;
-  profilePhoto?: string;
+  profilePhoto?: string; // ✅ This allows undefined
   onboardingCompleted?: boolean;
   firstLogin?: boolean;
   workSettings?: any;
