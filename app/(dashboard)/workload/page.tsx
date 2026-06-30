@@ -332,6 +332,7 @@ export default function WorkloadCapacityPage() {
     }
   };
 
+  console.log(filteredData, "all users")
   // Show loading state
   if (authLoading || loading) {
     return (
