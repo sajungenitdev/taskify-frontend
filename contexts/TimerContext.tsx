@@ -84,6 +84,12 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timerStateRef = useRef(timerState);
+
+  // Update ref whenever state changes
+  useEffect(() => {
+    timerStateRef.current = timerState;
+  }, [timerState]);
 
   // ============ LOCAL STORAGE HELPERS ============
   const saveTimerToStorage = useCallback((state: TimerState) => {
@@ -124,13 +130,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       console.log("🟢 TimerContext: startTimer called for task:", taskId);
       setTimerState((prev) => {
         const now = Date.now();
-        return {
+        const newState = {
           taskId,
           isRunning: true,
           seconds: initialSeconds,
           elapsedSeconds: initialSeconds,
           lastSavedTime: now,
         };
+        return newState;
       });
     },
     [],
@@ -160,20 +167,24 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // FIXED: Use timerStateRef to always get the latest state
   const stopTimer = useCallback(
     (taskId: string) => {
       console.log("🔴 TimerContext: stopTimer called for task:", taskId);
-      console.log("🔴 Current timerState.taskId:", timerState.taskId);
+      console.log(
+        "🔴 Current timerState.taskId:",
+        timerStateRef.current.taskId,
+      );
 
-      // Check if this is the active task
-      if (timerState.taskId !== taskId) {
+      // Check if this is the active task using the ref
+      if (timerStateRef.current.taskId !== taskId) {
         console.log(
           "❌ Task ID mismatch! Cannot stop timer for different task.",
         );
         return { success: false, minutes: 0, displayTime: "0m" };
       }
 
-      const totalSeconds = timerState.elapsedSeconds;
+      const totalSeconds = timerStateRef.current.elapsedSeconds;
       const minutes = Math.floor(totalSeconds / 60);
       console.log(`⏱️ Timer stopped with ${totalSeconds}s (${minutes}m)`);
 
@@ -225,28 +236,25 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         };
       }
     },
-    [timerState, formatTimeShort],
+    [formatTimeShort],
   );
 
   const getDisplayTimeForTask = useCallback(
     (taskId: string, actualMinutes: number = 0): string => {
-      if (timerState.taskId === taskId) {
-        return formatTimeShort(timerState.elapsedSeconds);
+      if (timerStateRef.current.taskId === taskId) {
+        return formatTimeShort(timerStateRef.current.elapsedSeconds);
       }
       if (actualMinutes > 0) {
         return `${actualMinutes}m`;
       }
       return "0m";
     },
-    [timerState.taskId, timerState.elapsedSeconds, formatTimeShort],
+    [formatTimeShort],
   );
 
-  const isTimerActiveForTask = useCallback(
-    (taskId: string): boolean => {
-      return timerState.taskId === taskId;
-    },
-    [timerState.taskId],
-  );
+  const isTimerActiveForTask = useCallback((taskId: string): boolean => {
+    return timerStateRef.current.taskId === taskId;
+  }, []);
 
   // ============ COMPUTED VALUES ============
   const isTimerRunning = timerState.isRunning && timerState.taskId !== null;

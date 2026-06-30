@@ -586,10 +586,10 @@ export default function TaskDetailPage() {
 
   // Handle submit for review - FIXED to open modal when evidence is required
   // Handle submit for review - ALWAYS SHOW EVIDENCE MODAL
-const handleSubmitForReview = () => {
-  // ALWAYS show evidence modal - evidence is required for ALL tasks
-  setShowEvidenceModal(true);
-};
+  const handleSubmitForReview = () => {
+    // ALWAYS show evidence modal - evidence is required for ALL tasks
+    setShowEvidenceModal(true);
+  };
 
   // Handle submit with evidence - called from modal
   const handleSubmitWithEvidence = async () => {
@@ -748,8 +748,21 @@ const handleSubmitForReview = () => {
     toast.success("▶️ Timer resumed");
   };
 
+  // In TaskDetailPage.tsx - Fixed handleStopTimer
+
   const handleStopTimer = async () => {
     if (!task) return;
+
+    console.log("🛑 Stopping timer for task:", task._id);
+    console.log("🛑 Active timer task ID from context:", activeTimerTaskId);
+
+    // Check if timer is active for this task
+    if (activeTimerTaskId !== task._id) {
+      console.log("⚠️ Timer is not active for this task");
+      toast.error("Timer is not active for this task");
+      return;
+    }
+
     const result = await stopTimer(task._id);
     if (result.success && result.minutes > 0) {
       toast.success(`⏱️ Time tracked: ${result.displayTime}`);

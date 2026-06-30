@@ -363,7 +363,7 @@ export const menuItems: NavItem[] = [
     name: "My Settings",
     href: "/users",
     icon: Users,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,],
     section: "main",
     description: "Manage all users in the system",
   },
@@ -526,7 +526,7 @@ export const subMenuItems: SubNavItem[] = [
     href: "/profile",
     icon: User,
     parent: "My Settings",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,],
     description: "Manage your profile information",
   },
   {
@@ -534,7 +534,7 @@ export const subMenuItems: SubNavItem[] = [
     href: "/onboarding",
     icon: ClipboardList,
     parent: "My Settings",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,],
     description: "Configure onboarding settings",
   },
   {
@@ -542,7 +542,7 @@ export const subMenuItems: SubNavItem[] = [
     href: "/performance/my",
     icon: ChartNoAxesCombined,
     parent: "My Settings",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,],
     description: "View your performance reports",
   },
   {
