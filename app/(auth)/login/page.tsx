@@ -27,6 +27,7 @@ import { Button } from "@/components/UI/Button";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
+import Link from "next/link";
 
 interface ActiveUser {
   _id: string;
@@ -560,12 +561,12 @@ export default function LoginPage() {
                     <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                       Password
                     </label>
-                    <button
-                      type="button"
+                    <Link
+                      href="/forgot-password"
                       className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
                     >
                       Forgot?
-                    </button>
+                    </Link>
                   </div>
                   <motion.div
                     className={`relative transition-all duration-300 ${

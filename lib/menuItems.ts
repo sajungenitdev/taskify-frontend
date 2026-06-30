@@ -32,7 +32,6 @@ import {
   ChevronUp,
   ChevronDown,
   Home,
-
   // User & Profile
   User,
   Users,
@@ -338,6 +337,7 @@ export const sectionIcons: Record<string, React.ElementType> = {
  * These items are always visible to all authenticated users
  * They appear at the top of the sidebar and don't have submenus
  */
+// Singel menus
 export const personalItems: NavItem[] = [
   {
     name: "Dashboard",
@@ -346,43 +346,6 @@ export const personalItems: NavItem[] = [
     roles: ["all"],
     section: "main",
     description: "Overview of your work and activities",
-  },
-  {
-    name: "My Profile",
-    href: "/profile",
-    icon: User,
-    roles: ["all"],
-    section: "main",
-    description: "View and manage your personal information",
-  },
-  {
-    name: "My Performance",
-    href: "/performance/my",
-    icon: ChartNoAxesCombined,
-    roles: [ROLES.EMPLOYEE],
-    section: "main",
-    description: "Track your performance metrics and goals",
-  },
-  {
-    name: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-    roles: ["all"],
-    section: "main",
-    badgeKey: "notifications", // ✅ Dynamic badge
-    badgeColor: "bg-red-500",
-    description: "View all your notifications",
-  },
-  {
-    name: "AI Assistant",
-    href: "/ai-assistant",
-    icon: Sparkles,
-    roles: ["all"],
-    section: "main",
-    badge: "New", // Static badge for new feature
-    badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
-    description: "Get help from your AI assistant",
-    isNew: true,
   },
 ];
 
@@ -396,6 +359,14 @@ export const personalItems: NavItem[] = [
  * Each can have submenu items defined below
  */
 export const menuItems: NavItem[] = [
+  {
+    name: "My Settings",
+    href: "/users",
+    icon: Users,
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    section: "main",
+    description: "Manage all users in the system",
+  },
   // --------------------------------------------------------------------------
   // USER MANAGEMENT
   // --------------------------------------------------------------------------
@@ -550,6 +521,52 @@ export const menuItems: NavItem[] = [
  * Organized by parent name for easy maintenance
  */
 export const subMenuItems: SubNavItem[] = [
+  {
+    name: "Update Profile",
+    href: "/profile",
+    icon: User,
+    parent: "My Settings",
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Manage your profile information",
+  },
+  {
+    name: "Onboarding Setup",
+    href: "/onboarding",
+    icon: ClipboardList,
+    parent: "My Settings",
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "Configure onboarding settings",
+  },
+  {
+    name: "My Performance",
+    href: "/performance/my",
+    icon: ChartNoAxesCombined,
+    parent: "My Settings",
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    description: "View your performance reports",
+  },
+  {
+    name: "All Notifications",
+    href: "/notifications",
+    icon: Bell,
+    roles: ["all"],
+    parent: "My Settings",
+    badgeKey: "notifications", // ✅ Dynamic badge
+    badgeColor: "bg-red-500",
+    description: "View all your notifications",
+  },
+  {
+    name: "AI Assistant",
+    href: "/ai-assistant",
+    icon: Sparkles,
+    roles: ["all"],
+    parent: "My Settings",
+    badge: "New", // Static badge for new feature
+    badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
+    description: "Get help from your AI assistant",
+    // isNew: true,
+  },
+
   // --------------------------------------------------------------------------
   // USER MANAGEMENT SUBMENUS
   // --------------------------------------------------------------------------
@@ -840,7 +857,7 @@ export const subMenuItems: SubNavItem[] = [
     href: "/hr/leaves/my",
     icon: FileCheck,
     parent: "Human Resources",
-    roles: [ROLES.EMPLOYEE,ROLES.DEPT_MANAGER,],
+    roles: [ROLES.EMPLOYEE, ROLES.DEPT_MANAGER],
     description: "View and manage your leave requests",
   },
   {

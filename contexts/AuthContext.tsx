@@ -17,6 +17,15 @@ interface User {
   role: string;
   employeeId?: string;
   departmentId?: any;
+  phoneNumber?: string;
+  location?: string;
+  position?: string;
+  bio?: string;
+  profilePhoto?: string;
+  onboardingCompleted?: boolean;
+  firstLogin?: boolean;
+  workSettings?: any;
+  notificationPreferences?: any;
 }
 
 interface AuthContextType {
@@ -26,9 +35,10 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   hasRole: (roles: string | string[]) => boolean;
+  updateUser: (userData: Partial<User>) => void;
+  refreshUser: () => Promise<void>;
 }
 
-// EXPORT THIS - so it can be imported in useAuth hook
 export const AuthContext = createContext<AuthContextType | undefined>(
   undefined,
 );
@@ -45,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
-        // Set default authorization header
         api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       } catch (error) {
         console.error("Error parsing user:", error);
@@ -94,11 +103,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const roleList = Array.isArray(roles) ? roles : [roles];
     const userRole = user.role?.toLowerCase();
 
-    // Super admin has all access
     if (userRole === "super_admin") return true;
 
-    // Check if user has any of the required roles
     return roleList.some((role) => role.toLowerCase() === userRole);
+  };
+
+  const updateUser = (userData: Partial<User>) => {
+    if (!user) return;
+
+    const updatedUser = { ...user, ...userData };
+    setUser(updatedUser);
+    localStorage.setItem("user", JSON.stringify(updatedUser));
+  };
+
+  const refreshUser = async () => {
+    try {
+      const response = await api.get("/auth/me");
+      if (response.data.success) {
+        const userData = response.data.data;
+        setUser(userData);
+        localStorage.setItem("user", JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error("Error refreshing user:", error);
+    }
   };
 
   return (
@@ -110,6 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         hasRole,
+        updateUser,
+        refreshUser,
       }}
     >
       {children}
@@ -117,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// This is the hook - it will work now because AuthContext is exported
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {

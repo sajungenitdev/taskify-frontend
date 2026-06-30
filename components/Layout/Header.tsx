@@ -22,6 +22,7 @@ import {
   Zap,
   X,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -68,6 +69,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [isBellBuzzing, setIsBellBuzzing] = useState(false);
+  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -101,11 +104,28 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       );
   }, []);
 
+  // Trigger bell animation when new notifications arrive
+  useEffect(() => {
+    if (unreadCount > prevUnreadCount) {
+      // New notification arrived - trigger bell buzz
+      setIsBellBuzzing(true);
+
+      // Stop buzzing after animation completes
+      const timer = setTimeout(() => {
+        setIsBellBuzzing(false);
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+    setPrevUnreadCount(unreadCount);
+  }, [unreadCount, prevUnreadCount]);
+
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
 
     try {
+      setLoading(true);
       const response = await api.get("/notifications?limit=20");
       if (response.data.success) {
         const formattedNotifications = (response.data.data || []).map(
@@ -132,6 +152,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       }
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
+      // Silent fail - don't show error to user
+    } finally {
+      setLoading(false);
     }
   }, [user]);
 
@@ -433,7 +456,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <X size={14} />
               </button>
             )}
-            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md border border-gray-200">
+            <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-md border border-gray-200 hidden lg:inline-block">
               ⌘K
             </kbd>
           </div>
@@ -504,18 +527,42 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             <HelpCircle size={18} />
           </Link>
 
-          {/* Notifications Dropdown */}
+          {/* Notifications Dropdown with Buzzing Bell */}
           <div className="relative">
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowProfileDropdown(false);
+                // Reset bell buzzing when clicked
+                setIsBellBuzzing(false);
               }}
               className="relative text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
             >
-              <Bell size={18} />
+              <div className="relative">
+                <Bell
+                  size={18}
+                  className={`transition-all duration-300 ${
+                    isBellBuzzing
+                      ? "text-amber-500 animate-bell-buzz"
+                      : unreadCount > 0
+                        ? "text-indigo-500"
+                        : ""
+                  }`}
+                />
+                {/* Bell ring effect - pulsing ring */}
+                {isBellBuzzing && (
+                  <>
+                    <span className="absolute inset-0 rounded-full animate-ping-ring border-2 border-amber-400/40" />
+                    <span className="absolute inset-0 rounded-full animate-ping-ring-delayed border-2 border-amber-400/20" />
+                  </>
+                )}
+              </div>
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30">
+                <span
+                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${
+                    isBellBuzzing ? "animate-bounce" : ""
+                  }`}
+                >
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
@@ -650,10 +697,16 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               }}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors p-1 rounded-lg hover:bg-gray-100"
             >
-              <div className="w-8 h-8 bg-linear-to-r from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-md">
-                <span className="text-white text-xs font-bold">
-                  {user?.fullName?.charAt(0) || user?.email?.charAt(0) || "U"}
-                </span>
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                {user?.profilePhoto ? (
+                  <img
+                    src={user.profilePhoto}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <User className="w-5 h-5 text-white" />
+                )}
               </div>
               <div className="hidden lg:block text-left">
                 <p className="text-sm font-medium text-gray-800 max-w-[120px] truncate">
@@ -678,7 +731,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                   <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-linear-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                         <span className="text-white text-sm font-bold">
                           {user?.fullName?.charAt(0) ||
                             user?.email?.charAt(0) ||
@@ -801,6 +854,92 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(99, 102, 241, 0.5);
+        }
+
+        /* Bell Buzzing Animation */
+        @keyframes bellBuzz {
+          0%,
+          100% {
+            transform: rotate(0deg);
+          }
+          10% {
+            transform: rotate(15deg);
+          }
+          20% {
+            transform: rotate(-15deg);
+          }
+          30% {
+            transform: rotate(12deg);
+          }
+          40% {
+            transform: rotate(-12deg);
+          }
+          50% {
+            transform: rotate(8deg);
+          }
+          60% {
+            transform: rotate(-8deg);
+          }
+          70% {
+            transform: rotate(5deg);
+          }
+          80% {
+            transform: rotate(-5deg);
+          }
+          90% {
+            transform: rotate(2deg);
+          }
+        }
+
+        @keyframes pingRing {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(1.8);
+            opacity: 0;
+          }
+        }
+
+        @keyframes pingRingDelayed {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+
+        @keyframes bounce {
+          0%,
+          100% {
+            transform: scale(1);
+          }
+          50% {
+            transform: scale(1.1);
+          }
+          75% {
+            transform: scale(0.95);
+          }
+        }
+
+        .animate-bell-buzz {
+          animation: bellBuzz 0.8s ease-in-out;
+        }
+
+        .animate-ping-ring {
+          animation: pingRing 0.8s ease-out;
+        }
+
+        .animate-ping-ring-delayed {
+          animation: pingRingDelayed 0.8s ease-out 0.15s;
+        }
+
+        .animate-bounce {
+          animation: bounce 0.4s ease-in-out 2;
         }
       `}</style>
     </header>

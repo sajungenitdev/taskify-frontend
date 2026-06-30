@@ -483,9 +483,9 @@ export default function Sidebar({
         )}
 
         {/* Divider between personal items and main menu */}
-        {filteredPersonalItems.length > 0 &&
+        {/* {filteredPersonalItems.length > 0 &&
           filteredParentItems.length > 0 &&
-          !isCollapsed && <div className="h-px bg-gray-200/60 my-2" />}
+          !isCollapsed && <div className="h-px bg-gray-200/60 my-2" />} */}
 
         {/* Parent Menu Items - No Section Titles */}
         {sectionOrder.map((section) => {
