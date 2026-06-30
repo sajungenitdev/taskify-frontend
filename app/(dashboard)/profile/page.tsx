@@ -1,3 +1,4 @@
+// app/(dashboard)/profile/page.tsx
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -111,9 +112,11 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, updateUser, updateProfilePhoto, refreshUser } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // All state declarations
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -122,6 +125,9 @@ export default function ProfilePage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [imageTimestamp, setImageTimestamp] = useState(Date.now());
+  const [profileImagePreview, setProfileImagePreview] = useState<string | null>(
+    null,
+  );
   const [newSkill, setNewSkill] = useState("");
   const [newLanguage, setNewLanguage] = useState("");
   const [newAchievement, setNewAchievement] = useState({
@@ -163,11 +169,25 @@ export default function ProfilePage() {
     return colors[role] || "bg-indigo-100 text-indigo-800 border-indigo-200";
   }, []);
 
-  // Get full image URL
-  const getImageUrl = useCallback(
+  // Check if image is base64
+  const isBase64Image = useCallback(
+    (imagePath: string | undefined): boolean => {
+      if (!imagePath) return false;
+      return imagePath.startsWith("data:image/");
+    },
+    [],
+  );
+
+  // Get image source
+  const getImageSource = useCallback(
     (imagePath: string | undefined): string | null => {
       if (!imagePath || imageError) {
         return null;
+      }
+
+      // If it's a base64 image, return as is
+      if (isBase64Image(imagePath)) {
+        return imagePath;
       }
 
       // If the image path already starts with http, return as is
@@ -185,12 +205,28 @@ export default function ProfilePage() {
 
       return `${baseUrl}${path}`;
     },
-    [imageError],
+    [imageError, isBase64Image],
+  );
+
+  // Get full image URL for display
+  const getImageUrl = useCallback(
+    (imagePath: string | undefined): string | null => {
+      if (!imagePath) return null;
+
+      // If we have a preview image (for newly uploaded), use it
+      if (profileImagePreview) {
+        return profileImagePreview;
+      }
+
+      return getImageSource(imagePath);
+    },
+    [profileImagePreview, getImageSource],
   );
 
   const refreshImage = useCallback(() => {
     setImageTimestamp(Date.now());
     setImageError(false);
+    setProfileImagePreview(null);
   }, []);
 
   // Handle save profile
@@ -199,16 +235,33 @@ export default function ProfilePage() {
 
     setIsSaving(true);
     try {
-      const response = await api.put("/auth/profile", formData);
+      // If there's a base64 image preview, include it in the update
+      const updateData = { ...formData };
+
+      // If we have a preview image (base64), send it as profilePhoto
+      if (
+        profileImagePreview &&
+        profileImagePreview.startsWith("data:image/")
+      ) {
+        updateData.profilePhoto = profileImagePreview;
+      }
+
+      const response = await api.put("/auth/profile", updateData);
 
       if (response.data.success) {
-        setProfile(response.data.data);
-        setFormData(response.data.data);
+        const updatedData = response.data.data;
+
+        // Update profile state
+        setProfile(updatedData);
+        setFormData(updatedData);
+
+        // Update AuthContext user
+        if (updatedData.profilePhoto) {
+          updateProfilePhoto(updatedData.profilePhoto);
+        }
+
         setIsEditing(false);
         toast.success("Profile updated successfully!");
-
-        const updatedUser = { ...user, ...response.data.data };
-        localStorage.setItem("user", JSON.stringify(updatedUser));
         refreshImage();
       }
     } catch (error: any) {
@@ -217,9 +270,9 @@ export default function ProfilePage() {
     } finally {
       setIsSaving(false);
     }
-  }, [formData, user, refreshImage]);
+  }, [formData, updateProfilePhoto, refreshImage, profileImagePreview]);
 
-  // Handle profile photo upload
+  // Handle profile photo upload - Convert to Base64
   const handleProfilePhotoUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -241,28 +294,62 @@ export default function ProfilePage() {
         return;
       }
 
-      const uploadFormData = new FormData();
-      uploadFormData.append("profilePhoto", file);
       setIsUploading(true);
 
       try {
-        const response = await api.post("/auth/profile/photo", uploadFormData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        // Convert file to Base64
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const base64Image = event.target?.result as string;
 
-        if (response.data.success) {
-          toast.success("Profile photo updated successfully!");
-          const profileResponse = await api.get("/auth/me");
-          if (profileResponse.data.success) {
-            setProfile(profileResponse.data.data);
-            setFormData(profileResponse.data.data);
+          // Set preview immediately
+          setProfileImagePreview(base64Image);
+
+          // Update form data with base64 image
+          setFormData((prev) => ({
+            ...prev,
+            profilePhoto: base64Image,
+          }));
+
+          // Upload to server
+          const uploadFormData = new FormData();
+          uploadFormData.append("profilePhoto", file);
+
+          const response = await api.post(
+            "/auth/profile/photo",
+            uploadFormData,
+            {
+              headers: { "Content-Type": "multipart/form-data" },
+            },
+          );
+
+          if (response.data.success) {
+            toast.success("Profile photo updated successfully!");
+
+            // Get the updated user data from the response
+            const updatedUserData = response.data.data;
+
+            // Update profile state
+            setProfile(updatedUserData);
+            setFormData(updatedUserData);
+
+            // Update AuthContext user
+            if (updatedUserData.profilePhoto) {
+              updateProfilePhoto(updatedUserData.profilePhoto);
+            } else {
+              // If no photo returned, refresh from server
+              await refreshUser();
+            }
+
             refreshImage();
           }
-        }
+        };
+        reader.readAsDataURL(file);
       } catch (error: any) {
         console.error("Upload error:", error);
         toast.error(error.response?.data?.message || "Failed to upload photo");
         setImageError(true);
+        setProfileImagePreview(null);
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) {
@@ -270,7 +357,7 @@ export default function ProfilePage() {
         }
       }
     },
-    [refreshImage],
+    [updateProfilePhoto, refreshUser],
   );
 
   // Handle password change
@@ -522,13 +609,12 @@ export default function ProfilePage() {
                     <div className="flex items-center justify-center w-full h-full bg-gray-100">
                       <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
                     </div>
-                  ) : profileImageUrl ? (
+                  ) : profileImageUrl && !imageError ? (
                     <img
-                      src={`${profileImageUrl}?t=${imageTimestamp}`}
+                      src={`${profileImageUrl}${!isBase64Image(profileImageUrl) ? `?t=${imageTimestamp}` : ""}`}
                       alt={profile.fullName}
                       className="w-full h-full object-cover"
                       onError={() => {
-                        // If image fails, use fallback avatar
                         setImageError(true);
                       }}
                     />
@@ -1275,6 +1361,7 @@ export default function ProfilePage() {
                     onClick={() => {
                       setIsEditing(false);
                       setFormData(profile);
+                      setProfileImagePreview(null);
                     }}
                     className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
                   >

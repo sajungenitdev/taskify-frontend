@@ -1,3 +1,4 @@
+// contexts/AuthContext.tsx
 "use client";
 
 import {
@@ -6,11 +7,11 @@ import {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from "react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 
-// In AuthContext.tsx
 interface User {
   _id: string;
   fullName: string;
@@ -22,7 +23,7 @@ interface User {
   location?: string;
   position?: string;
   bio?: string;
-  profilePhoto?: string; // ✅ This allows undefined
+  profilePhoto?: string;
   onboardingCompleted?: boolean;
   firstLogin?: boolean;
   workSettings?: any;
@@ -38,6 +39,7 @@ interface AuthContextType {
   hasRole: (roles: string | string[]) => boolean;
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
+  updateProfilePhoto: (photoUrl: string) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -48,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Load user from localStorage on mount
   useEffect(() => {
     const token = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
@@ -130,6 +133,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // NEW: Update profile photo and refresh user
+  const updateProfilePhoto = useCallback(
+    async (photoUrl: string) => {
+      if (!user) return;
+
+      // Update local user state immediately
+      const updatedUser = { ...user, profilePhoto: photoUrl };
+      setUser(updatedUser);
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+
+      // Also refresh from server to ensure consistency
+      try {
+        const response = await api.get("/auth/me");
+        if (response.data.success) {
+          const userData = response.data.data;
+          setUser(userData);
+          localStorage.setItem("user", JSON.stringify(userData));
+        }
+      } catch (error) {
+        console.error("Error refreshing user after photo update:", error);
+      }
+    },
+    [user],
+  );
+
   return (
     <AuthContext.Provider
       value={{
@@ -141,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hasRole,
         updateUser,
         refreshUser,
+        updateProfilePhoto,
       }}
     >
       {children}

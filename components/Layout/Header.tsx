@@ -71,6 +71,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [searching, setSearching] = useState(false);
   const [isBellBuzzing, setIsBellBuzzing] = useState(false);
   const [prevUnreadCount, setPrevUnreadCount] = useState(0);
+  const [imageError, setImageError] = useState(false);
+  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -104,21 +106,61 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       );
   }, []);
 
+  // Refresh image when user profile photo changes
+  useEffect(() => {
+    setImageTimestamp(Date.now());
+    setImageError(false);
+  }, [user?.profilePhoto]);
+
   // Trigger bell animation when new notifications arrive
   useEffect(() => {
     if (unreadCount > prevUnreadCount) {
-      // New notification arrived - trigger bell buzz
       setIsBellBuzzing(true);
-
-      // Stop buzzing after animation completes
       const timer = setTimeout(() => {
         setIsBellBuzzing(false);
       }, 1500);
-
       return () => clearTimeout(timer);
     }
     setPrevUnreadCount(unreadCount);
   }, [unreadCount, prevUnreadCount]);
+
+  // Helper function to get image URL
+  const getImageUrl = useCallback(
+    (imagePath: string | undefined): string | null => {
+      if (!imagePath) return null;
+
+      // If it's a base64 image, return as is
+      if (imagePath.startsWith("data:image/")) {
+        return imagePath;
+      }
+
+      // If it's already a full URL, return as is
+      if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+        return imagePath;
+      }
+
+      // Get the base URL without /api/v1
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+      const baseUrl = apiUrl.replace("/api/v1", "");
+
+      // Ensure the path starts with /
+      const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+
+      // Add timestamp to prevent caching
+      return `${baseUrl}${path}?t=${imageTimestamp}`;
+    },
+    [imageTimestamp],
+  );
+
+  // Check if image is base64
+  const isBase64Image = useCallback(
+    (imagePath: string | undefined): boolean => {
+      if (!imagePath) return false;
+      return imagePath.startsWith("data:image/");
+    },
+    [],
+  );
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -152,7 +194,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       }
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
-      // Silent fail - don't show error to user
     } finally {
       setLoading(false);
     }
@@ -219,7 +260,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      // Optimistic update
       setNotifications((prev) =>
         prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)),
       );
@@ -395,6 +435,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return "Workspace";
   };
 
+  // Get the profile image URL
+  const profileImageUrl = getImageUrl(user?.profilePhoto);
+
   if (!user) return null;
 
   return (
@@ -533,7 +576,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowProfileDropdown(false);
-                // Reset bell buzzing when clicked
                 setIsBellBuzzing(false);
               }}
               className="relative text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
@@ -549,7 +591,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         : ""
                   }`}
                 />
-                {/* Bell ring effect - pulsing ring */}
                 {isBellBuzzing && (
                   <>
                     <span className="absolute inset-0 rounded-full animate-ping-ring border-2 border-amber-400/40" />
@@ -697,15 +738,20 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               }}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors p-1 rounded-lg hover:bg-gray-100"
             >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
-                {user?.profilePhoto ? (
+              <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
+                {profileImageUrl && !imageError ? (
                   <img
-                    src={user.profilePhoto}
-                    alt="Profile"
+                    src={profileImageUrl}
+                    alt={user?.fullName || "Profile"}
                     className="w-full h-full object-cover"
+                    onError={() => {
+                      setImageError(true);
+                    }}
                   />
                 ) : (
-                  <User className="w-5 h-5 text-white" />
+                  <span className="text-white text-sm font-bold">
+                    {user?.fullName?.charAt(0) || user?.email?.charAt(0) || "U"}
+                  </span>
                 )}
               </div>
               <div className="hidden lg:block text-left">
@@ -731,12 +777,23 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
                   <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                        <span className="text-white text-sm font-bold">
-                          {user?.fullName?.charAt(0) ||
-                            user?.email?.charAt(0) ||
-                            "U"}
-                        </span>
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
+                        {profileImageUrl && !imageError ? (
+                          <img
+                            src={profileImageUrl}
+                            alt={user?.fullName || "Profile"}
+                            className="w-full h-full object-cover"
+                            onError={() => {
+                              setImageError(true);
+                            }}
+                          />
+                        ) : (
+                          <span className="text-white text-sm font-bold">
+                            {user?.fullName?.charAt(0) ||
+                              user?.email?.charAt(0) ||
+                              "U"}
+                          </span>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-800 truncate">
@@ -856,7 +913,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           background: rgba(99, 102, 241, 0.5);
         }
 
-        /* Bell Buzzing Animation */
         @keyframes bellBuzz {
           0%,
           100% {

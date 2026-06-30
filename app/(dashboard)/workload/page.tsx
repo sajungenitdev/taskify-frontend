@@ -1,7 +1,7 @@
 // app/(dashboard)/workload/page.tsx
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -48,6 +48,7 @@ interface TeamMember {
     department: string;
     role: string;
     avatar?: string;
+    profilePhoto?: string;
   };
   workload: {
     activeHours: number;
@@ -114,6 +115,58 @@ export default function WorkloadCapacityPage() {
     new Set(),
   );
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+
+  // Helper function to check if image is base64
+  const isBase64Image = useCallback(
+    (imagePath: string | undefined): boolean => {
+      if (!imagePath) return false;
+      return imagePath.startsWith("data:image/");
+    },
+    [],
+  );
+
+  // Helper function to get image URL for a specific user
+  const getImageUrl = useCallback(
+    (member: TeamMember): string | null => {
+      const imagePath = member.user.profilePhoto || member.user.avatar;
+      if (!imagePath) return null;
+
+      // If image has error for this user, return null
+      if (imageErrors[member.user._id]) return null;
+
+      // If it's a base64 image, return as is
+      if (isBase64Image(imagePath)) {
+        return imagePath;
+      }
+
+      // If it's already a full URL, return as is
+      if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+        return imagePath;
+      }
+
+      // If it's a relative path, construct full URL
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+      const baseUrl = apiUrl.replace("/api/v1", "");
+
+      // Ensure the path starts with /
+      const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+
+      // Add timestamp to prevent caching
+      const timestamp = Date.now();
+      return `${baseUrl}${path}?t=${timestamp}`;
+    },
+    [imageErrors, isBase64Image],
+  );
+
+  // Handle image error for a specific user
+  const handleImageError = useCallback((userId: string) => {
+    setImageErrors((prev) => ({
+      ...prev,
+      [userId]: true,
+    }));
+  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -149,6 +202,8 @@ export default function WorkloadCapacityPage() {
         );
         setTeamData(response.data.data || []);
         setAggregates(response.data.aggregates || null);
+        // Reset image errors when new data loads
+        setImageErrors({});
       } else {
         console.error("API returned error:", response.data.message);
         setError(response.data.message || "Failed to load workload data");
@@ -656,255 +711,291 @@ export default function WorkloadCapacityPage() {
                 </p>
               </div>
             ) : (
-              filteredData.map((member, index) => (
-                <motion.div
-                  key={member.user._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
-                >
-                  {/* Member Row */}
-                  <div
-                    className="p-4 cursor-pointer hover:bg-gray-50 transition"
-                    onClick={() => toggleMemberExpansion(member.user._id)}
+              filteredData.map((member, index) => {
+                const imageUrl = getImageUrl(member);
+
+                return (
+                  <motion.div
+                    key={member.user._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                   >
-                    <div className="flex items-center gap-4">
-                      {/* Avatar */}
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-                        <span className="text-white text-lg font-bold">
-                          {member.user.fullName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-gray-800 font-medium">
-                            {member.user.fullName}
-                          </h3>
-                          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                            {member.user.employeeId || "N/A"}
-                          </span>
-                          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                            {member.user.role}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
-                          <span>{member.user.email}</span>
-                          <span className="w-1 h-1 bg-gray-300 rounded-full" />
-                          <span>
-                            {member.user.department || "No Department"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="hidden md:flex items-center gap-6">
-                        <div className="text-center">
-                          <p className="text-sm font-semibold text-gray-800">
-                            {member.workload.activeHours}h
-                          </p>
-                          <p className="text-xs text-gray-400">Active</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm font-semibold text-gray-800">
-                            {member.workload.taskCount}
-                          </p>
-                          <p className="text-xs text-gray-400">Tasks</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-sm font-semibold text-gray-800">
-                            {member.projects}
-                          </p>
-                          <p className="text-xs text-gray-400">Projects</p>
-                        </div>
-                      </div>
-
-                      {/* Capacity Bar */}
-                      <div className="w-32 md:w-40">
-                        <div className="flex items-center justify-between mb-1">
-                          <span
-                            className={`text-sm font-bold ${
-                              member.workload.capacityPercentage > 100
-                                ? "text-red-600"
-                                : member.workload.capacityPercentage > 80
-                                  ? "text-amber-600"
-                                  : "text-emerald-600"
-                            }`}
-                          >
-                            {member.workload.capacityPercentage}%
-                          </span>
-                          {getStatusIcon(member.workload.statusColor)}
-                        </div>
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${getCapacityColor(member.workload.capacityPercentage)}`}
-                            style={{
-                              width: `${Math.min(member.workload.capacityPercentage, 100)}%`,
-                            }}
-                          />
-                        </div>
-                        <p className="text-[10px] text-gray-400 mt-0.5">
-                          {getStatusText(member.workload.statusColor)}
-                        </p>
-                      </div>
-
-                      {/* Expand Button */}
-                      <button
-                        className="p-2 hover:bg-gray-100 rounded-lg transition"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleMemberExpansion(member.user._id);
-                        }}
-                      >
-                        {expandedMembers.has(member.user._id) ? (
-                          <ChevronUp size={18} className="text-gray-400" />
-                        ) : (
-                          <ChevronDown size={18} className="text-gray-400" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expanded Details */}
-                  <AnimatePresence>
-                    {expandedMembers.has(member.user._id) && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="border-t border-gray-100"
-                      >
-                        <div className="p-4 bg-gray-50">
-                          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {/* Task Breakdown */}
-                            <div className="bg-white rounded-lg p-4 border border-gray-100">
-                              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                <Target size={14} className="text-indigo-500" />
-                                Task Breakdown
-                              </h4>
-                              <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">Pending</span>
-                                  <span className="font-medium text-gray-700">
-                                    {member.breakdown.taskBreakdown.pending}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">
-                                    In Progress
-                                  </span>
-                                  <span className="font-medium text-amber-600">
-                                    {member.breakdown.taskBreakdown.inProgress}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">
-                                    Submitted
-                                  </span>
-                                  <span className="font-medium text-purple-600">
-                                    {member.breakdown.taskBreakdown.submitted}
-                                  </span>
-                                </div>
-                              </div>
+                    {/* Member Row */}
+                    <div
+                      className="p-4 cursor-pointer hover:bg-gray-50 transition"
+                      onClick={() => toggleMemberExpansion(member.user._id)}
+                    >
+                      <div className="flex items-center gap-4">
+                        {/* Avatar */}
+                        <div className="w-12 h-12 rounded-full flex-shrink-0 shadow-sm overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600">
+                          {imageUrl ? (
+                            <img
+                              src={imageUrl}
+                              alt={member.user.fullName}
+                              className="w-full h-full object-cover"
+                              onError={() => handleImageError(member.user._id)}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <span className="text-white text-lg font-bold">
+                                {member.user.fullName.charAt(0).toUpperCase()}
+                              </span>
                             </div>
+                          )}
+                        </div>
 
-                            {/* Priority Distribution */}
-                            <div className="bg-white rounded-lg p-4 border border-gray-100">
-                              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                <AlertCircle
-                                  size={14}
-                                  className="text-amber-500"
-                                />
-                                Priority Distribution
-                              </h4>
-                              <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">Low</span>
-                                  <span className="font-medium text-emerald-600">
-                                    {member.breakdown.priorityDistribution.low}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">Normal</span>
-                                  <span className="font-medium text-blue-600">
-                                    {
-                                      member.breakdown.priorityDistribution
-                                        .normal
-                                    }
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">High</span>
-                                  <span className="font-medium text-amber-600">
-                                    {member.breakdown.priorityDistribution.high}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-gray-500">Urgent</span>
-                                  <span className="font-medium text-red-600">
-                                    {
-                                      member.breakdown.priorityDistribution
-                                        .urgent
-                                    }
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Upcoming Deadlines */}
-                            <div className="bg-white rounded-lg p-4 border border-gray-100">
-                              <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                <Calendar size={14} className="text-red-500" />
-                                Upcoming Deadlines
-                              </h4>
-                              {member.breakdown.upcomingDeadlines.length ===
-                              0 ? (
-                                <p className="text-sm text-gray-400">
-                                  No upcoming deadlines
-                                </p>
-                              ) : (
-                                <div className="space-y-2 max-h-32 overflow-y-auto">
-                                  {member.breakdown.upcomingDeadlines.map(
-                                    (task) => (
-                                      <div
-                                        key={task._id}
-                                        className="flex justify-between text-sm"
-                                      >
-                                        <span className="text-gray-600 truncate max-w-[120px]">
-                                          {task.title}
-                                        </span>
-                                        <span className="text-gray-400 text-xs">
-                                          {new Date(
-                                            task.deadline,
-                                          ).toLocaleDateString()}
-                                        </span>
-                                      </div>
-                                    ),
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-gray-800 font-medium">
+                              {member.user.fullName}
+                            </h3>
+                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                              {member.user.employeeId || "N/A"}
+                            </span>
+                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                              {member.user.role}
+                            </span>
                           </div>
+                          <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
+                            <span>{member.user.email}</span>
+                            <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                            <span>
+                              {member.user.department || "No Department"}
+                            </span>
+                          </div>
+                        </div>
 
-                          {/* View Details Button */}
-                          <div className="mt-4 flex justify-end">
-                            <Link
-                              href={`/workload/${member.user._id}`}
-                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 text-sm shadow-sm"
+                        {/* Stats */}
+                        <div className="hidden md:flex items-center gap-6">
+                          <div className="text-center">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {member.workload.activeHours}h
+                            </p>
+                            <p className="text-xs text-gray-400">Active</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {member.workload.taskCount}
+                            </p>
+                            <p className="text-xs text-gray-400">Tasks</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-semibold text-gray-800">
+                              {member.projects}
+                            </p>
+                            <p className="text-xs text-gray-400">Projects</p>
+                          </div>
+                        </div>
+
+                        {/* Capacity Bar */}
+                        <div className="w-32 md:w-40">
+                          <div className="flex items-center justify-between mb-1">
+                            <span
+                              className={`text-sm font-bold ${
+                                member.workload.capacityPercentage > 100
+                                  ? "text-red-600"
+                                  : member.workload.capacityPercentage > 80
+                                    ? "text-amber-600"
+                                    : "text-emerald-600"
+                              }`}
                             >
-                              <Eye size={14} />
-                              View Full Details
-                            </Link>
+                              {member.workload.capacityPercentage}%
+                            </span>
+                            {getStatusIcon(member.workload.statusColor)}
                           </div>
+                          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${getCapacityColor(member.workload.capacityPercentage)}`}
+                              style={{
+                                width: `${Math.min(member.workload.capacityPercentage, 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {getStatusText(member.workload.statusColor)}
+                          </p>
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              ))
+
+                        {/* Expand Button */}
+                        <button
+                          className="p-2 hover:bg-gray-100 rounded-lg transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMemberExpansion(member.user._id);
+                          }}
+                        >
+                          {expandedMembers.has(member.user._id) ? (
+                            <ChevronUp size={18} className="text-gray-400" />
+                          ) : (
+                            <ChevronDown size={18} className="text-gray-400" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expanded Details */}
+                    <AnimatePresence>
+                      {expandedMembers.has(member.user._id) && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="border-t border-gray-100"
+                        >
+                          <div className="p-4 bg-gray-50">
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {/* Task Breakdown */}
+                              <div className="bg-white rounded-lg p-4 border border-gray-100">
+                                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                  <Target
+                                    size={14}
+                                    className="text-indigo-500"
+                                  />
+                                  Task Breakdown
+                                </h4>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">
+                                      Pending
+                                    </span>
+                                    <span className="font-medium text-gray-700">
+                                      {member.breakdown.taskBreakdown.pending}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">
+                                      In Progress
+                                    </span>
+                                    <span className="font-medium text-amber-600">
+                                      {
+                                        member.breakdown.taskBreakdown
+                                          .inProgress
+                                      }
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">
+                                      Submitted
+                                    </span>
+                                    <span className="font-medium text-purple-600">
+                                      {member.breakdown.taskBreakdown.submitted}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Priority Distribution */}
+                              <div className="bg-white rounded-lg p-4 border border-gray-100">
+                                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                  <AlertCircle
+                                    size={14}
+                                    className="text-amber-500"
+                                  />
+                                  Priority Distribution
+                                </h4>
+                                <div className="space-y-2">
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Low</span>
+                                    <span className="font-medium text-emerald-600">
+                                      {
+                                        member.breakdown.priorityDistribution
+                                          .low
+                                      }
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">
+                                      Normal
+                                    </span>
+                                    <span className="font-medium text-blue-600">
+                                      {
+                                        member.breakdown.priorityDistribution
+                                          .normal
+                                      }
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">High</span>
+                                    <span className="font-medium text-amber-600">
+                                      {
+                                        member.breakdown.priorityDistribution
+                                          .high
+                                      }
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">
+                                      Urgent
+                                    </span>
+                                    <span className="font-medium text-red-600">
+                                      {
+                                        member.breakdown.priorityDistribution
+                                          .urgent
+                                      }
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Upcoming Deadlines */}
+                              <div className="bg-white rounded-lg p-4 border border-gray-100">
+                                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                  <Calendar
+                                    size={14}
+                                    className="text-red-500"
+                                  />
+                                  Upcoming Deadlines
+                                </h4>
+                                {member.breakdown.upcomingDeadlines.length ===
+                                0 ? (
+                                  <p className="text-sm text-gray-400">
+                                    No upcoming deadlines
+                                  </p>
+                                ) : (
+                                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    {member.breakdown.upcomingDeadlines.map(
+                                      (task) => (
+                                        <div
+                                          key={task._id}
+                                          className="flex justify-between text-sm"
+                                        >
+                                          <span className="text-gray-600 truncate max-w-[120px]">
+                                            {task.title}
+                                          </span>
+                                          <span className="text-gray-400 text-xs">
+                                            {new Date(
+                                              task.deadline,
+                                            ).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                      ),
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* View Details Button */}
+                            <div className="mt-4 flex justify-end">
+                              <Link
+                                href={`/workload/${member.user._id}`}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 text-sm shadow-sm"
+                              >
+                                <Eye size={14} />
+                                View Full Details
+                              </Link>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })
             )}
           </motion.div>
 
