@@ -36,6 +36,13 @@ interface User {
         code: string;
       }
     | string;
+  managerId?:
+    | {
+        _id: string;
+        fullName: string;
+        email: string;
+      }
+    | string;
 }
 
 interface Department {
@@ -95,6 +102,21 @@ export default function CreateTaskModal({
   });
 
   const isSuperAdmin = user?.role === "super_admin";
+  const isAdmin = user?.role === "admin";
+  const isHrManager = user?.role === "hr_manager";
+  const isDeptManager = user?.role === "dept_manager";
+  const isProjectManager = user?.role === "project_manager";
+  const isLineManager = user?.role === "line_manager";
+  const isEmployee = user?.role === "employee";
+
+  // Check if user can assign to others
+  const canAssignToOthers =
+    isSuperAdmin ||
+    isAdmin ||
+    isHrManager ||
+    isDeptManager ||
+    isProjectManager ||
+    isLineManager;
 
   // Fetch departments
   const fetchDepartments = useCallback(async () => {
@@ -120,27 +142,55 @@ export default function CreateTaskModal({
     }
   }, []);
 
-  // Fetch all users
+  // Fetch all users with role-based filtering
+  // components/CreateTaskModal.tsx - Updated fetchAllUsers
+
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const response = await api.get("/auth/users");
+      // Use the /users endpoint (NOT /auth/users)
+      const response = await api.get("/users");
+      console.log("Users API Response:", response.data);
+
       if (response.data.success) {
         const usersData = response.data.data || [];
-        const filtered = usersData.filter((u: User) => {
-          if (u.role === "super_admin" && u._id !== user?._id) return false;
-          return true;
-        });
+
+        // The backend already filters based on role,
+        // but we can do additional filtering if needed
+        let filtered: User[] = usersData;
+
+        // Additional frontend filtering if needed
+        if (isDeptManager) {
+          const managerDeptId =
+            user?.departmentId?._id?.toString() ||
+            user?.departmentId?.toString();
+          filtered = usersData.filter((u: User) => {
+            if (u.role === "super_admin") return false;
+            const userDeptId =
+              u.departmentId?._id?.toString() || u.departmentId?.toString();
+            return userDeptId === managerDeptId;
+          });
+        } else if (isLineManager) {
+          filtered = usersData.filter((u: User) => {
+            if (u.role === "super_admin") return false;
+            const managerId =
+              u.managerId?._id?.toString() || u.managerId?.toString();
+            return managerId === user?._id;
+          });
+        } else if (isEmployee) {
+          filtered = usersData.filter((u: User) => u._id === user?._id);
+        }
+
         setUsers(filtered);
         setFilteredUsers(filtered);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching users:", error);
-      toast.error("Failed to load users");
+      toast.error(error.response?.data?.message || "Failed to load users");
     } finally {
       setLoadingUsers(false);
     }
-  }, [user]);
+  }, [user, isDeptManager, isLineManager, isEmployee]);
 
   // Load data when modal opens
   useEffect(() => {
@@ -300,6 +350,45 @@ export default function CreateTaskModal({
         toast.error("Please set a deadline");
         return;
       }
+
+      // Additional validation for role-based assignment
+      if (!canAssignToOthers && formData.assignedTo !== user?._id) {
+        toast.error("You can only assign tasks to yourself");
+        return;
+      }
+
+      // Department Manager: Check if assigned user is in their department
+      if (isDeptManager) {
+        const assignedUser = users.find((u) => u._id === formData.assignedTo);
+        if (assignedUser) {
+          const assignedUserDept =
+            assignedUser.departmentId?._id?.toString() ||
+            assignedUser.departmentId?.toString();
+          const managerDept =
+            user?.departmentId?._id?.toString() ||
+            user?.departmentId?.toString();
+          if (assignedUserDept !== managerDept) {
+            toast.error(
+              "You can only assign tasks to users in your department",
+            );
+            return;
+          }
+        }
+      }
+
+      // Line Manager: Check if assigned user is a direct report
+      if (isLineManager) {
+        const assignedUser = users.find((u) => u._id === formData.assignedTo);
+        if (assignedUser) {
+          const managerId =
+            assignedUser.managerId?._id?.toString() ||
+            assignedUser.managerId?.toString();
+          if (managerId !== user?._id) {
+            toast.error("You can only assign tasks to your direct reports");
+            return;
+          }
+        }
+      }
     }
 
     // Always ensure we have a projectId
@@ -392,11 +481,51 @@ export default function CreateTaskModal({
   if (!isOpen) return null;
 
   const getAvailableUsers = () => {
-    if (isSuperAdmin) {
+    // Super Admin, Admin, HR can see all filtered users
+    if (isSuperAdmin || isAdmin || isHrManager) {
       return filteredUsers;
-    } else {
-      return filteredUsers.filter((u) => u._id !== user?._id);
     }
+
+    // Department Manager: Only see users in their department
+    if (isDeptManager) {
+      const managerDeptId =
+        user?.departmentId?._id?.toString() || user?.departmentId?.toString();
+      return filteredUsers.filter((u) => {
+        // Don't show super admins
+        if (u.role === "super_admin") return false;
+        // Don't show self if not allowed
+        if (!canAssignToOthers && u._id === user?._id) return false;
+
+        const userDeptId =
+          u.departmentId?._id?.toString() || u.departmentId?.toString();
+        return userDeptId === managerDeptId;
+      });
+    }
+
+    // Project Manager: Show project team members
+    if (isProjectManager) {
+      return filteredUsers.filter((u) => {
+        if (u.role === "super_admin") return false;
+        return true;
+      });
+    }
+
+    // Line Manager: Show direct reports
+    if (isLineManager) {
+      return filteredUsers.filter((u) => {
+        if (u.role === "super_admin") return false;
+        const managerId =
+          u.managerId?._id?.toString() || u.managerId?.toString();
+        return managerId === user?._id;
+      });
+    }
+
+    // Employee: Only show themselves
+    if (isEmployee) {
+      return filteredUsers.filter((u) => u._id === user?._id);
+    }
+
+    return filteredUsers;
   };
 
   const availableUsers = getAvailableUsers();
@@ -467,33 +596,71 @@ export default function CreateTaskModal({
           </button>
         </div>
 
-        {/* Quick Task Toggle */}
-        <div className="px-5 pt-5 pb-0">
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
-                <Zap className="w-4 h-4 text-indigo-600" />
+        {/* Quick Task Toggle - Hide for Department Managers */}
+        {(isSuperAdmin || isAdmin || isEmployee) && (
+          <div className="px-5 pt-5 pb-0">
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
+                  <Zap className="w-4 h-4 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    Quick Task
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Auto-assign to yourself and simplify the form
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-800">Quick Task</p>
-                <p className="text-xs text-gray-500">
-                  Auto-assign to yourself and simplify the form
-                </p>
-              </div>
+              <ToggleSwitch
+                enabled={isQuickTask}
+                onToggle={() => setIsQuickTask(!isQuickTask)}
+                size="md"
+              />
             </div>
-            <ToggleSwitch
-              enabled={isQuickTask}
-              onToggle={() => setIsQuickTask(!isQuickTask)}
-              size="md"
-            />
+            {isQuickTask && (
+              <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-fade-in">
+                <CheckSquare className="w-3 h-3" />
+                Task will be assigned to you with default settings
+              </p>
+            )}
           </div>
-          {isQuickTask && (
-            <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-fade-in">
-              <CheckSquare className="w-3 h-3" />
-              Task will be assigned to you with default settings
-            </p>
-          )}
-        </div>
+        )}
+
+        {/* Role Info Banner for Department Managers */}
+        {isDeptManager && (
+          <div className="px-5 pt-4">
+            <div className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
+              <Users className="w-4 h-4 text-blue-600" />
+              <p className="text-xs text-blue-700">
+                You can assign tasks to users in your department only.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isLineManager && (
+          <div className="px-5 pt-4">
+            <div className="flex items-center gap-2 p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+              <Users className="w-4 h-4 text-emerald-600" />
+              <p className="text-xs text-emerald-700">
+                You can assign tasks to your direct reports only.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isEmployee && (
+          <div className="px-5 pt-4">
+            <div className="flex items-center gap-2 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
+              <UserIcon className="w-4 h-4 text-amber-600" />
+              <p className="text-xs text-amber-700">
+                You can only create tasks for yourself.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Modal Body */}
         <form
@@ -615,7 +782,7 @@ export default function CreateTaskModal({
                   }
                   className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
                   required={!isQuickTask}
-                  disabled={isQuickTask}
+                  disabled={isQuickTask || (!canAssignToOthers && !isQuickTask)}
                 >
                   <option value="">
                     {!selectedDepartment && !isQuickTask
@@ -623,7 +790,11 @@ export default function CreateTaskModal({
                       : loadingUsers
                         ? "Loading users..."
                         : availableUsers.length === 0
-                          ? "No users available"
+                          ? isDeptManager
+                            ? "No users in your department"
+                            : isLineManager
+                              ? "No direct reports found"
+                              : "No users available"
                           : "Select team member"}
                   </option>
                   {availableUsers.map((u) => (
@@ -634,25 +805,46 @@ export default function CreateTaskModal({
                   ))}
                 </select>
               </div>
-              {!isQuickTask && !isSuperAdmin && (
+
+              {/* Role-based info messages */}
+              {!isQuickTask && !canAssignToOthers && (
                 <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
                   <UserIcon className="w-3 h-3" />
-                  You cannot assign tasks to yourself
+                  You can only assign tasks to yourself
                 </p>
               )}
-              {!isQuickTask && isSuperAdmin && (
+
+              {!isQuickTask && isDeptManager && (
+                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  You can assign tasks to users in your department
+                </p>
+              )}
+
+              {!isQuickTask && isLineManager && (
+                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  You can assign tasks to your direct reports
+                </p>
+              )}
+
+              {!isQuickTask && (isSuperAdmin || isAdmin || isHrManager) && (
                 <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                  <UserIcon className="w-3 h-3" />
-                  As Super Admin, you can assign tasks to anyone including
-                  yourself
+                  <Users className="w-3 h-3" />
+                  You can assign tasks to anyone in the system
                 </p>
               )}
+
               {selectedDepartment &&
                 availableUsers.length === 0 &&
                 !loadingUsers &&
                 !isQuickTask && (
                   <p className="text-xs text-amber-500 mt-1">
-                    No users available in this department.
+                    {isDeptManager
+                      ? "No users available in your department."
+                      : isLineManager
+                        ? "No direct reports found."
+                        : "No users available in this department."}
                   </p>
                 )}
             </div>
