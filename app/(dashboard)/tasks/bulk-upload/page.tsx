@@ -35,6 +35,7 @@ import {
   AlertCircle,
   ChevronDown,
   Sparkles,
+  Mail,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -68,21 +69,6 @@ interface BulkTask {
   evidenceRequired: boolean;
 }
 
-interface ValidationError {
-  index: number;
-  field: string;
-  message: string;
-}
-
-interface UploadResult {
-  success: boolean;
-  message: string;
-  data?: any[];
-  successful: any[];
-  failed: { index: number; task: any; error: string }[];
-  total: number;
-}
-
 // ============ CONSTANTS ============
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low", color: "emerald" },
@@ -98,285 +84,9 @@ const PRIORITY_COLORS = {
   urgent: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
-const STATUS_COLORS = {
-  success: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  error: "bg-rose-50 text-rose-700 border-rose-200",
-  warning: "bg-amber-50 text-amber-700 border-amber-200",
-  info: "bg-blue-50 text-blue-700 border-blue-200",
-};
-
-// ============ COMPONENTS ============
-const StatCard = ({
-  icon: Icon,
-  label,
-  value,
-  color = "blue",
-  subtitle,
-}: {
-  icon: any;
-  label: string;
-  value: number | string;
-  color?: "blue" | "emerald" | "rose" | "amber";
-  subtitle?: string;
-}) => {
-  const colors = {
-    blue: "bg-blue-50 text-blue-600 border-blue-200",
-    emerald: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    rose: "bg-rose-50 text-rose-600 border-rose-200",
-    amber: "bg-amber-50 text-amber-600 border-amber-200",
-  };
-
-  return (
-    <div
-      className={`rounded-xl border p-4 ${colors[color]} flex items-center gap-4`}
-    >
-      <div className={`p-2 rounded-lg bg-white/50`}>
-        <Icon className="w-5 h-5" />
-      </div>
-      <div>
-        <p className="text-2xl font-bold">{value}</p>
-        <p className="text-xs opacity-80">{label}</p>
-        {subtitle && <p className="text-xs opacity-60 mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-  );
-};
-
-const TaskRow = ({
-  task,
-  index,
-  isEditing,
-  onEdit,
-  onSave,
-  onCancel,
-  onRemove,
-  users,
-  editData,
-  setEditData,
-}: {
-  task: BulkTask;
-  index: number;
-  isEditing: boolean;
-  onEdit: (index: number) => void;
-  onSave: (index: number) => void;
-  onCancel: () => void;
-  onRemove: (index: number) => void;
-  users: User[];
-  editData: BulkTask | null;
-  setEditData: React.Dispatch<React.SetStateAction<BulkTask | null>>;
-}) => {
-  const getUserName = (userId: string) => {
-    const user = users.find((u: User) => u._id === userId);
-    return user ? `${user.fullName} (${user.email})` : "Unknown User";
-  };
-
-  // Helper function to safely get priority color
-  const getPriorityColor = (priority: string) => {
-    const key = priority as keyof typeof PRIORITY_COLORS;
-    return PRIORITY_COLORS[key] || PRIORITY_COLORS.normal;
-  };
-
-  return (
-    <motion.tr
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="hover:bg-gray-50/80 transition-colors group"
-    >
-      <td className="px-4 py-3 text-sm text-gray-400 font-mono">
-        #{index + 1}
-      </td>
-      <td className="px-4 py-3">
-        {isEditing ? (
-          <input
-            type="text"
-            value={editData?.title || ""}
-            onChange={(e) =>
-              setEditData((prev) =>
-                prev ? { ...prev, title: e.target.value } : null,
-              )
-            }
-            className="w-full min-w-[150px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-            placeholder="Task title"
-            autoFocus
-          />
-        ) : (
-          <div
-            className="text-sm font-medium text-gray-800 truncate max-w-[180px]"
-            title={task.title}
-          >
-            {task.title}
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {isEditing ? (
-          <input
-            type="text"
-            value={editData?.description || ""}
-            onChange={(e) =>
-              setEditData((prev) =>
-                prev ? { ...prev, description: e.target.value } : null,
-              )
-            }
-            className="w-full min-w-[200px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-            placeholder="Description"
-          />
-        ) : (
-          <div
-            className="text-sm text-gray-600 truncate max-w-[230px]"
-            title={task.description}
-          >
-            {task.description}
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {isEditing ? (
-          <select
-            value={editData?.assignedTo || ""}
-            onChange={(e) =>
-              setEditData((prev) =>
-                prev ? { ...prev, assignedTo: e.target.value } : null,
-              )
-            }
-            className="w-full min-w-[150px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-          >
-            <option value="">Select user</option>
-            {users.map((user: User) => (
-              <option key={user._id} value={user._id}>
-                {user.fullName} ({user.email})
-              </option>
-            ))}
-          </select>
-        ) : (
-          <div className="flex items-center gap-2 text-sm">
-            <User className="w-3.5 h-3.5 text-gray-400" />
-            <span className="text-gray-700">
-              {getUserName(task.assignedTo)}
-            </span>
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {isEditing ? (
-          <input
-            type="date"
-            value={editData?.deadline || ""}
-            onChange={(e) =>
-              setEditData((prev) =>
-                prev ? { ...prev, deadline: e.target.value } : null,
-              )
-            }
-            className="w-full min-w-[130px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-          />
-        ) : (
-          <div className="flex items-center gap-2 text-sm">
-            <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
-            <span className="text-gray-700">{task.deadline}</span>
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {isEditing ? (
-          <select
-            value={editData?.priority || "normal"}
-            onChange={(e) =>
-              setEditData((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      priority: e.target.value as BulkTask["priority"],
-                    }
-                  : null,
-              )
-            }
-            className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-          >
-            {PRIORITY_OPTIONS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span
-            className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityColor(task.priority)}`}
-          >
-            <Flag className="w-3 h-3" />
-            {task.priority || "normal"}
-          </span>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {isEditing ? (
-          <input
-            type="number"
-            value={editData?.estimatedHours || 0}
-            onChange={(e) =>
-              setEditData((prev) =>
-                prev
-                  ? { ...prev, estimatedHours: parseFloat(e.target.value) || 0 }
-                  : null,
-              )
-            }
-            className="w-20 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-            step="0.5"
-            min="0"
-          />
-        ) : (
-          <div className="flex items-center gap-1.5 text-sm text-gray-600">
-            <Clock className="w-3.5 h-3.5 text-gray-400" />
-            {task.estimatedHours}h
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-center gap-1">
-          {isEditing ? (
-            <>
-              <button
-                onClick={() => onSave(index)}
-                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
-                title="Save"
-              >
-                <Save className="w-4 h-4" />
-              </button>
-              <button
-                onClick={onCancel}
-                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                title="Cancel"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => onEdit(index)}
-                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                title="Edit"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onRemove(index)}
-                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                title="Remove"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
-          )}
-        </div>
-      </td>
-    </motion.tr>
-  );
-};
-
 // ============ MAIN COMPONENT ============
 export default function BulkUploadPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -387,18 +97,14 @@ export default function BulkUploadPage() {
   const [tasks, setTasks] = useState<BulkTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<UploadResult | null>(null);
+  const [result, setResult] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
-    [],
-  );
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editData, setEditData] = useState<BulkTask | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterPriority, setFilterPriority] = useState<string>("all");
-  const [sortField, setSortField] = useState<keyof BulkTask>("title");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Auth check
   useEffect(() => {
@@ -416,33 +122,27 @@ export default function BulkUploadPage() {
       }
     } catch (error: any) {
       console.error("Error fetching projects:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch projects");
     }
   }, []);
 
   const fetchUsers = useCallback(async () => {
     try {
-      // Try to fetch all users first
       const response = await api.get("/users");
       if (response.data.success) {
         setUsers(response.data.data || []);
       }
     } catch (error: any) {
-      // If access denied, try to get current user only
       if (error.response?.status === 403) {
         try {
           const meResponse = await api.get("/auth/me");
           if (meResponse.data.success) {
             setUsers([meResponse.data.data]);
-            toast.error("Limited user list available");
           }
         } catch (meError) {
           console.error("Error fetching current user:", meError);
-          toast.error("Failed to load user data");
         }
       } else {
         console.error("Error fetching users:", error);
-        toast.error(error.response?.data?.message || "Failed to fetch users");
       }
     }
   }, []);
@@ -456,29 +156,34 @@ export default function BulkUploadPage() {
     loadData();
   }, [fetchProjects, fetchUsers]);
 
-  // File handling
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(e.type === "dragenter" || e.type === "dragover");
-  }, []);
+  // ============ VALIDATION HELPERS ============
+  const isValidDate = (dateString: string): boolean => {
+    if (!dateString) return false;
+    // Try to parse the date in various formats
+    const date = new Date(dateString);
+    return !isNaN(date.getTime());
+  };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    const files = e.dataTransfer.files;
-    if (files?.[0]) handleFile(files[0]);
-  }, []);
+  const formatDateForInput = (dateString: string): string => {
+    if (!dateString) return "";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "";
+      return date.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
 
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files?.[0]) handleFile(files[0]);
-    },
-    [],
-  );
+  const isFutureDate = (dateString: string): boolean => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return date >= today;
+  };
 
+  // ============ FILE HANDLING ============
   const handleFile = useCallback(
     (file: File) => {
       const reader = new FileReader();
@@ -498,6 +203,9 @@ export default function BulkUploadPage() {
             return;
           }
 
+          // Log what we parsed
+          // console.log("Parsed tasks:", tasksArray);
+
           if (!tasksArray.length) {
             toast.error("No tasks found in file");
             return;
@@ -508,7 +216,169 @@ export default function BulkUploadPage() {
             return;
           }
 
-          validateAndSetTasks(tasksArray);
+          // Process and validate tasks
+          const errors: string[] = [];
+          const processedTasks = tasksArray.map((task, index) => {
+            const taskNum = index + 1;
+
+            // Map field names if they're using different names
+            const title =
+              task.title ||
+              task["Task"] ||
+              task["task"] ||
+              task["Task Title"] ||
+              task["task title"] ||
+              "";
+            const description =
+              task.description ||
+              task["Description"] ||
+              task["desc"] ||
+              task["Task Description"] ||
+              "";
+            const assignedTo =
+              task.assignedTo ||
+              task["AssignedTo"] ||
+              task["assignedto"] ||
+              task["Assigned To"] ||
+              task["User"] ||
+              task["user"] ||
+              "";
+            const deadline =
+              task.deadline ||
+              task["Deadline"] ||
+              task["due"] ||
+              task["Due Date"] ||
+              task["date"] ||
+              "";
+            const priority = task.priority || task["Priority"] || "normal";
+            const estimatedHours =
+              task.estimatedHours ||
+              task["EstimatedHours"] ||
+              task["estimated"] ||
+              task["Estimated"] ||
+              task["Hours"] ||
+              task["hours"] ||
+              "0";
+            const isApprovalRequired =
+              task.isApprovalRequired ||
+              task["IsApprovalRequired"] ||
+              task["Approval Required"] ||
+              task["approval"] ||
+              "false";
+            const evidenceRequired =
+              task.evidenceRequired ||
+              task["EvidenceRequired"] ||
+              task["Evidence Required"] ||
+              task["evidence"] ||
+              "false";
+
+            // Find user by email or ID
+            let assignedUser = null;
+            if (assignedTo) {
+              assignedUser = users.find(
+                (u) =>
+                  u.email?.toLowerCase() === assignedTo.toLowerCase() ||
+                  u._id === assignedTo,
+              );
+            }
+
+            // Validate date - try to parse it
+            let formattedDeadline = "";
+            if (deadline) {
+              // Try different date formats
+              let date = null;
+
+              // Try MM/DD/YYYY or M/D/YYYY
+              if (deadline.includes("/")) {
+                const parts = deadline.split("/");
+                if (parts.length === 3) {
+                  const month = parseInt(parts[0]) - 1;
+                  const day = parseInt(parts[1]);
+                  const year = parseInt(parts[2]);
+                  date = new Date(year, month, day);
+                }
+              } else {
+                // Try standard ISO format
+                date = new Date(deadline);
+              }
+
+              if (date && !isNaN(date.getTime())) {
+                formattedDeadline = date.toISOString().split("T")[0];
+              } else {
+                errors.push(
+                  `Task ${taskNum}: Invalid date format "${deadline}"`,
+                );
+              }
+            }
+
+            // Validate user
+            if (assignedTo && !assignedUser) {
+              errors.push(`Task ${taskNum}: User "${assignedTo}" not found`);
+            }
+
+            // Parse boolean values
+            const parseBoolean = (val: any): boolean => {
+              if (typeof val === "boolean") return val;
+              if (typeof val === "string") {
+                const lower = val.toLowerCase();
+                return (
+                  lower === "true" ||
+                  lower === "yes" ||
+                  lower === "1" ||
+                  lower === "t" ||
+                  lower === "y"
+                );
+              }
+              return false;
+            };
+
+            return {
+              title: title.trim() || "",
+              description: description.trim() || "",
+              assignedTo: assignedUser?._id || assignedTo || "",
+              deadline: formattedDeadline,
+              priority: priority?.toLowerCase() || "normal",
+              estimatedHours: parseFloat(estimatedHours) || 0,
+              isApprovalRequired: parseBoolean(isApprovalRequired),
+              evidenceRequired: parseBoolean(evidenceRequired),
+            };
+          });
+
+          // Show validation errors
+          if (errors.length > 0) {
+            setValidationErrors(errors);
+            toast.error(`${errors.length} validation error(s) found`);
+          } else {
+            setValidationErrors([]);
+          }
+
+          // Filter out tasks with missing required fields
+          const validTasks = processedTasks.filter(
+            (t) => t.title && t.description && t.assignedTo && t.deadline,
+          );
+
+          if (validTasks.length === 0) {
+            toast.error("No valid tasks found. Please check the format.");
+            // Log the first task to help debug
+            // if (processedTasks.length > 0) {
+            //   console.log("First task data:", processedTasks[0]);
+            //   console.log("Expected format:", {
+            //     title: "Task title",
+            //     description: "Task description",
+            //     assignedTo: "user@email.com",
+            //     deadline: "2026-07-14",
+            //     priority: "normal",
+            //     estimatedHours: 4,
+            //     isApprovalRequired: false,
+            //     evidenceRequired: false,
+            //   });
+            // }
+            return;
+          }
+
+          setTasks(validTasks);
+          setShowPreview(true);
+          toast.success(`Loaded ${validTasks.length} valid tasks! 🎉`);
         } catch (error: any) {
           console.error("File parse error:", error);
           toast.error(error.message || "Invalid file format");
@@ -523,36 +393,7 @@ export default function BulkUploadPage() {
     const lines = csv.trim().split("\n");
     if (lines.length < 2) throw new Error("CSV must have headers and data");
 
-    const headerMap: Record<string, string> = {
-      title: "title",
-      "task title": "title",
-      "task name": "title",
-      name: "title",
-      description: "description",
-      "task description": "description",
-      desc: "description",
-      assignedto: "assignedTo",
-      "assigned to": "assignedTo",
-      assignee: "assignedTo",
-      user: "assignedTo",
-      "assigned user": "assignedTo",
-      deadline: "deadline",
-      "due date": "deadline",
-      due: "deadline",
-      date: "deadline",
-      priority: "priority",
-      estimatedhours: "estimatedHours",
-      "estimated hours": "estimatedHours",
-      hours: "estimatedHours",
-      "est hours": "estimatedHours",
-      isapprovalrequired: "isApprovalRequired",
-      "approval required": "isApprovalRequired",
-      evidencerequired: "evidenceRequired",
-      "evidence required": "evidenceRequired",
-    };
-
-    const rawHeaders = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    const headers = rawHeaders.map((h) => headerMap[h] || h);
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
 
     return lines
       .slice(1)
@@ -574,109 +415,22 @@ export default function BulkUploadPage() {
         const task: any = {};
         headers.forEach((header, idx) => {
           const raw = values[idx]?.replace(/^"|"$/g, "") || "";
-          let value: any = raw;
-
-          if (header === "estimatedHours") value = parseFloat(raw) || 0;
-          else if (header === "priority") {
-            const p = raw.toLowerCase();
-            value = ["low", "normal", "high", "urgent"].includes(p)
-              ? p
-              : "normal";
-          } else if (
-            header === "isApprovalRequired" ||
-            header === "evidenceRequired"
-          ) {
-            value = ["true", "yes", "1"].includes(raw.toLowerCase());
-          } else value = raw;
-
-          task[header] = value;
+          task[header] = raw;
         });
         return task;
       });
   };
 
-  const validateAndSetTasks = useCallback(
-    (tasksData: any[]) => {
-      const validTasks: BulkTask[] = [];
-      const errors: ValidationError[] = [];
-
-      tasksData.forEach((task, index) => {
-        const errs: string[] = [];
-        if (!task.title?.trim()) errs.push("Title is required");
-        if (!task.description?.trim()) errs.push("Description is required");
-        if (!task.assignedTo?.trim()) errs.push("AssignedTo is required");
-
-        if (task.deadline) {
-          const date = new Date(task.deadline);
-          if (isNaN(date.getTime())) errs.push("Invalid deadline format");
-        } else {
-          errs.push("Deadline is required");
-        }
-
-        // Validate user
-        if (task.assignedTo) {
-          const exists = users.some(
-            (u) => u._id === task.assignedTo || u.email === task.assignedTo,
-          );
-          if (!exists) errs.push(`User "${task.assignedTo}" not found`);
-        }
-
-        if (errs.length) {
-          errors.push({
-            index,
-            field: "multiple",
-            message: `Task ${index + 1}: ${errs.join(", ")}`,
-          });
-          return;
-        }
-
-        const user = users.find(
-          (u) => u._id === task.assignedTo || u.email === task.assignedTo,
-        );
-        const priority = task.priority?.toLowerCase();
-
-        validTasks.push({
-          title: task.title.trim(),
-          description: task.description.trim(),
-          assignedTo: user?._id || task.assignedTo,
-          deadline: task.deadline,
-          priority: ["low", "normal", "high", "urgent"].includes(priority)
-            ? (priority as BulkTask["priority"])
-            : "normal",
-          estimatedHours: parseFloat(task.estimatedHours) || 0,
-          isApprovalRequired:
-            task.isApprovalRequired === true ||
-            task.isApprovalRequired === "true",
-          evidenceRequired:
-            task.evidenceRequired === true || task.evidenceRequired === "true",
-        });
-      });
-
-      setValidationErrors(errors);
-      if (errors.length) {
-        toast.error(`${errors.length} validation error(s) found`);
-      }
-
-      if (validTasks.length) {
-        setTasks(validTasks);
-        setShowPreview(true);
-        toast.success(`Loaded ${validTasks.length} valid tasks`);
-      } else {
-        toast.error("No valid tasks found");
-      }
-    },
-    [users],
-  );
-
-  // Task operations
+  // ============ TASK OPERATIONS ============
   const addEmptyTask = useCallback(() => {
+    const today = new Date().toISOString().split("T")[0];
     setTasks((prev) => [
       ...prev,
       {
         title: "",
         description: "",
         assignedTo: "",
-        deadline: "",
+        deadline: today,
         priority: "normal",
         estimatedHours: 0,
         isApprovalRequired: false,
@@ -685,11 +439,10 @@ export default function BulkUploadPage() {
     ]);
     setEditingIndex(tasks.length);
     setEditData(null);
-    toast.success("New task added");
   }, [tasks.length]);
 
   const removeTask = useCallback((index: number) => {
-    if (confirm("Remove this task?")) {
+    if (window.confirm("Remove this task?")) {
       setTasks((prev) => prev.filter((_, i) => i !== index));
       toast.success("Task removed");
     }
@@ -720,99 +473,108 @@ export default function BulkUploadPage() {
     setEditData(null);
   }, []);
 
-  // Filter and sort tasks
-  const filteredTasks = useMemo(() => {
-    let filtered = [...tasks];
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.title.toLowerCase().includes(term) ||
-          t.description.toLowerCase().includes(term),
-      );
-    }
-
-    if (filterPriority !== "all") {
-      filtered = filtered.filter((t) => t.priority === filterPriority);
-    }
-
-    filtered.sort((a, b) => {
-      const aVal = a[sortField]?.toString().toLowerCase() || "";
-      const bVal = b[sortField]?.toString().toLowerCase() || "";
-      return sortDirection === "asc"
-        ? aVal.localeCompare(bVal)
-        : bVal.localeCompare(aVal);
-    });
-
-    return filtered;
-  }, [tasks, searchTerm, filterPriority, sortField, sortDirection]);
-
-  // Upload
+  // ============ UPLOAD ============
   const handleBulkUpload = useCallback(async () => {
-    if (!selectedProject) {
-      toast.error("Please select a project");
-      return;
-    }
     if (!tasks.length) {
       toast.error("No tasks to upload");
       return;
     }
 
+    // Validate required fields
+    const invalidTasks = tasks.filter(
+      (t) =>
+        !t.title.trim() ||
+        !t.description.trim() ||
+        !t.assignedTo ||
+        !t.deadline,
+    );
+
+    if (invalidTasks.length > 0) {
+      toast.error(
+        `Please fill in all required fields for ${invalidTasks.length} task(s)`,
+      );
+      return;
+    }
+
+    // Validate dates
+    const invalidDates = tasks.filter(
+      (t) => t.deadline && !isValidDate(t.deadline),
+    );
+
+    if (invalidDates.length > 0) {
+      toast.error(`${invalidDates.length} task(s) have invalid date format`);
+      return;
+    }
+
+    // Validate future dates
+    const pastDates = tasks.filter(
+      (t) => t.deadline && !isFutureDate(t.deadline),
+    );
+
+    if (pastDates.length > 0) {
+      toast.error(`${pastDates.length} task(s) have deadlines in the past`);
+      return;
+    }
+
     setUploading(true);
     try {
-      const response = await api.post(
-        `/tasks/project/${selectedProject}/bulk`,
-        {
-          tasks: tasks.map(
-            ({
-              title,
-              description,
-              assignedTo,
-              deadline,
-              priority,
-              estimatedHours,
-              isApprovalRequired,
-              evidenceRequired,
-            }) => ({
-              title,
-              description,
-              assignedTo,
-              deadline,
-              priority,
-              estimatedHours,
-              isApprovalRequired,
-              evidenceRequired,
-            }),
-          ),
-        },
-      );
+      const projectId = selectedProject;
+
+      // Prepare task data
+      const taskData = tasks.map((t) => ({
+        title: t.title.trim(),
+        description: t.description.trim(),
+        assignedTo: t.assignedTo,
+        deadline: t.deadline,
+        priority: t.priority,
+        estimatedHours: t.estimatedHours,
+        isApprovalRequired: t.isApprovalRequired,
+        evidenceRequired: t.evidenceRequired,
+      }));
+
+      let response;
+
+      if (projectId) {
+        // Use project-specific bulk upload
+        response = await api.post(`/tasks/project/${projectId}/bulk`, {
+          tasks: taskData,
+        });
+      } else {
+        // Use bulk upload without project
+        response = await api.post("/tasks/bulk", {
+          tasks: taskData,
+        });
+      }
 
       if (response.data.success) {
         const successful = response.data.data || [];
-        setResult({
-          success: true,
-          message: response.data.message,
-          successful,
-          failed: [],
-          total: tasks.length,
-        });
-        toast.success(`Successfully uploaded ${successful.length} tasks`);
-        setTimeout(() => router.push("/tasks"), 2000);
+        setUploadedCount(successful.length);
+        setShowSuccess(true);
+        toast.success(`🎉 Successfully uploaded ${successful.length} tasks!`);
+        setTimeout(() => {
+          router.push("/tasks");
+        }, 3000);
       }
     } catch (error: any) {
       console.error("Bulk upload error:", error);
-      const message = error.response?.data?.message || "Failed to upload tasks";
-      toast.error(message);
+
+      let errorMessage = "Failed to upload tasks";
+      if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        if (Array.isArray(errors)) {
+          errorMessage = errors.join(". ");
+        } else if (typeof errors === "object") {
+          errorMessage = Object.values(errors).join(". ");
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+
+      toast.error(errorMessage);
       setResult({
         success: false,
-        message,
-        successful: [],
-        failed: error.response?.data?.errors?.map((e: any, i: number) => ({
-          index: i,
-          task: {},
-          error: e.message || e,
-        })) || [{ index: 0, task: {}, error: message }],
+        message: errorMessage,
+        errors: error.response?.data?.errors || [{ message: errorMessage }],
         total: tasks.length,
       });
     } finally {
@@ -820,10 +582,9 @@ export default function BulkUploadPage() {
     }
   }, [selectedProject, tasks, router]);
 
-  // Download template
+  // ============ DOWNLOAD TEMPLATE ============
   const downloadTemplate = useCallback(
     (format: "json" | "csv") => {
-      const sampleUser = users[0]?.email || "user@example.com";
       const sampleDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         .toISOString()
         .split("T")[0];
@@ -831,12 +592,22 @@ export default function BulkUploadPage() {
       const template = [
         {
           title: "Example Task",
-          description: "Task description",
-          assignedTo: sampleUser,
+          description: "Task description here",
+          assignedTo: users.length > 0 ? users[0].email : "user@example.com",
           deadline: sampleDate,
-          priority: "normal" as const,
+          priority: "normal",
           estimatedHours: 4,
           isApprovalRequired: false,
+          evidenceRequired: false,
+        },
+        {
+          title: "Another Task",
+          description: "Another task description",
+          assignedTo: users.length > 0 ? users[0].email : "user@example.com",
+          deadline: sampleDate,
+          priority: "high",
+          estimatedHours: 2,
+          isApprovalRequired: true,
           evidenceRequired: false,
         },
       ];
@@ -850,11 +621,18 @@ export default function BulkUploadPage() {
               [
                 Object.keys(template[0]).join(",") +
                   "\n" +
-                  Object.values(template[0])
-                    .map((v) =>
-                      typeof v === "string" && v.includes(",") ? `"${v}"` : v,
+                  template
+                    .map((row) =>
+                      Object.values(row)
+                        .map((v) =>
+                          typeof v === "string" &&
+                          (v.includes(",") || v.includes(" "))
+                            ? `"${v}"`
+                            : v,
+                        )
+                        .join(","),
                     )
-                    .join(","),
+                    .join("\n"),
               ],
               { type: "text/csv" },
             );
@@ -870,18 +648,18 @@ export default function BulkUploadPage() {
     [users],
   );
 
-  // Reset
+  // ============ RESET ============
   const resetUpload = useCallback(() => {
     setTasks([]);
     setShowPreview(false);
-    setValidationErrors([]);
     setResult(null);
+    setShowSuccess(false);
+    setUploadedCount(0);
     setSelectedProject("");
-    setSearchTerm("");
-    setFilterPriority("all");
+    setValidationErrors([]);
   }, []);
 
-  // Loading states
+  // ============ LOADING ============
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -895,8 +673,9 @@ export default function BulkUploadPage() {
 
   if (!isAuthenticated) return null;
 
+  // ============ RENDER ============
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm mb-6 text-gray-500">
@@ -918,7 +697,8 @@ export default function BulkUploadPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2">
+              <Upload className="w-7 h-7 text-emerald-500" />
               Bulk Task Upload
             </h1>
             <p className="text-gray-500 text-sm mt-1">
@@ -943,10 +723,11 @@ export default function BulkUploadPage() {
           </div>
         </div>
 
-        {/* Project Selection */}
+        {/* Project Selection - Optional */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select Project <span className="text-rose-500">*</span>
+            Select Project{" "}
+            <span className="text-gray-400 text-xs">(Optional)</span>
           </label>
           <div className="relative max-w-md">
             <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -955,7 +736,7 @@ export default function BulkUploadPage() {
               onChange={(e) => setSelectedProject(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition cursor-pointer appearance-none"
             >
-              <option value="">Select a project</option>
+              <option value="">No Project (Unassigned)</option>
               {projects.map((project) => (
                 <option key={project._id} value={project._id}>
                   {project.name} ({project.code})
@@ -964,28 +745,34 @@ export default function BulkUploadPage() {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
-          {!projects.length && (
-            <p className="text-amber-600 text-xs mt-2 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" />
-              No projects found. Please create a project first.
-            </p>
-          )}
+          <p className="text-xs text-gray-400 mt-2">
+            💡 Tasks can be uploaded without a project. They will be created as
+            unassigned tasks.
+          </p>
         </div>
 
         {/* Upload Area */}
-        {!showPreview && (
+        {!showPreview && !showSuccess && (
           <div
             className={`border-2 border-dashed rounded-xl p-8 md:p-12 text-center transition-all ${
               dragActive
                 ? "border-indigo-400 bg-indigo-50 scale-[1.02]"
                 : "border-gray-300 bg-white hover:border-indigo-300 hover:bg-indigo-50/30"
             }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
+            onDragEnter={() => setDragActive(true)}
+            onDragLeave={() => setDragActive(false)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragActive(true);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragActive(false);
+              const files = e.dataTransfer.files;
+              if (files?.[0]) handleFile(files[0]);
+            }}
           >
-            <Upload className="w-12 h-12 md:w-16 md:h-16 text-gray-300 mx-auto mb-4" />
+            <Upload className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-800 mb-1">
               Upload Tasks File
             </h3>
@@ -996,7 +783,11 @@ export default function BulkUploadPage() {
               ref={fileInputRef}
               type="file"
               accept=".json,.csv"
-              onChange={handleFileSelect}
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files?.[0]) handleFile(files[0]);
+                e.target.value = "";
+              }}
               className="hidden"
             />
             <button
@@ -1013,34 +804,77 @@ export default function BulkUploadPage() {
         )}
 
         {/* Validation Errors */}
-        {validationErrors.length > 0 && !showPreview && (
-          <div className="bg-rose-50 rounded-xl border border-rose-200 p-4 mt-4">
+        {validationErrors.length > 0 && !showSuccess && (
+          <div className="mt-4 bg-amber-50 rounded-xl border border-amber-200 p-4">
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-rose-500 mt-0.5 flex-shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="text-sm font-semibold text-rose-700">
+                <h3 className="text-sm font-semibold text-amber-700">
                   Validation Errors ({validationErrors.length})
                 </h3>
-                <ul className="mt-1 space-y-0.5">
-                  {validationErrors.slice(0, 5).map((err, idx) => (
-                    <li key={idx} className="text-xs text-rose-600">
-                      {err.message}
+                <ul className="mt-1 space-y-0.5 max-h-32 overflow-y-auto">
+                  {validationErrors.slice(0, 10).map((err, idx) => (
+                    <li key={idx} className="text-xs text-amber-600">
+                      • {err}
                     </li>
                   ))}
-                  {validationErrors.length > 5 && (
+                  {validationErrors.length > 10 && (
                     <li className="text-xs text-gray-500">
-                      ... and {validationErrors.length - 5} more errors
+                      ... and {validationErrors.length - 10} more errors
                     </li>
                   )}
                 </ul>
+                <button
+                  onClick={() => setValidationErrors([])}
+                  className="mt-2 text-xs text-amber-600 hover:text-amber-700 font-medium"
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
           </div>
         )}
 
+        {/* Success State */}
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mt-6 bg-white rounded-xl border border-emerald-200 p-8 text-center shadow-sm"
+          >
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-10 h-10 text-emerald-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              🎉 Upload Successful!
+            </h2>
+            <p className="text-gray-600 mb-1">
+              Successfully uploaded <strong>{uploadedCount}</strong> task
+              {uploadedCount !== 1 ? "s" : ""}
+            </p>
+            <p className="text-sm text-gray-400 mb-6">
+              Redirecting to tasks page...
+            </p>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={() => router.push("/tasks")}
+                className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
+              >
+                View Tasks
+              </button>
+              <button
+                onClick={resetUpload}
+                className="px-6 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+              >
+                Upload More
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Task Preview */}
         <AnimatePresence>
-          {showPreview && (
+          {showPreview && tasks.length > 0 && !showSuccess && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1050,12 +884,10 @@ export default function BulkUploadPage() {
               {/* Toolbar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
+                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-emerald-500" />
                     Task List ({tasks.length} tasks)
                   </h2>
-                  <p className="text-sm text-gray-500">
-                    Review and edit tasks before uploading
-                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -1069,35 +901,9 @@ export default function BulkUploadPage() {
                     onClick={resetUpload}
                     className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm rounded-lg transition"
                   >
-                    Upload New File
+                    Cancel
                   </button>
                 </div>
-              </div>
-
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search tasks..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  />
-                </div>
-                <select
-                  value={filterPriority}
-                  onChange={(e) => setFilterPriority(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value="all">All Priorities</option>
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p.value} value={p.value}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               {/* Table */}
@@ -1106,89 +912,268 @@ export default function BulkUploadPage() {
                   <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-50/80 border-b border-gray-200">
                       <tr>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
                           #
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Title
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                          Title *
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Description
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                          Description *
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Assignee
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                          Assignee *
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Deadline
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
+                          Deadline *
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
                           Priority
                         </th>
-                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">
                           Hours
                         </th>
-                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase">
                           Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {filteredTasks.map((task, index) => {
-                        const originalIndex = tasks.indexOf(task);
-                        return (
-                          <TaskRow
-                            key={originalIndex}
-                            task={task}
-                            index={originalIndex}
-                            isEditing={editingIndex === originalIndex}
-                            onEdit={startEdit}
-                            onSave={saveEdit}
-                            onCancel={cancelEdit}
-                            onRemove={removeTask}
-                            users={users}
-                            editData={editData}
-                            setEditData={setEditData}
-                          />
-                        );
-                      })}
-                      {!filteredTasks.length && (
-                        <tr>
-                          <td
-                            colSpan={8}
-                            className="text-center py-8 text-gray-400"
-                          >
-                            {tasks.length
-                              ? "No tasks match your filters"
-                              : "No tasks to display"}
+                      {tasks.map((task, index) => (
+                        <tr
+                          key={index}
+                          className="hover:bg-gray-50/80 transition-colors group"
+                        >
+                          <td className="px-4 py-3 text-sm text-gray-400 font-mono">
+                            #{index + 1}
+                          </td>
+                          <td className="px-4 py-3">
+                            {editingIndex === index ? (
+                              <input
+                                type="text"
+                                value={editData?.title || ""}
+                                onChange={(e) =>
+                                  setEditData((prev) =>
+                                    prev
+                                      ? { ...prev, title: e.target.value }
+                                      : null,
+                                  )
+                                }
+                                className="text-black w-full min-w-[150px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                placeholder="Task title"
+                                autoFocus
+                              />
+                            ) : (
+                              <div
+                                className="text-sm font-medium text-gray-800 truncate max-w-[180px]"
+                                title={task.title}
+                              >
+                                {task.title || (
+                                  <span className="text-gray-400">(empty)</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {editingIndex === index ? (
+                              <input
+                                type="text"
+                                value={editData?.description || ""}
+                                onChange={(e) =>
+                                  setEditData((prev) =>
+                                    prev
+                                      ? { ...prev, description: e.target.value }
+                                      : null,
+                                  )
+                                }
+                                className="text-black w-full min-w-[200px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                placeholder="Description"
+                              />
+                            ) : (
+                              <div
+                                className="text-sm text-gray-600 truncate max-w-[230px]"
+                                title={task.description}
+                              >
+                                {task.description || (
+                                  <span className="text-gray-400">(empty)</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {editingIndex === index ? (
+                              <select
+                                value={editData?.assignedTo || ""}
+                                onChange={(e) =>
+                                  setEditData((prev) =>
+                                    prev
+                                      ? { ...prev, assignedTo: e.target.value }
+                                      : null,
+                                  )
+                                }
+                                className="text-black w-full min-w-[150px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                              >
+                                <option value="">Select user</option>
+                                {users.map((u) => (
+                                  <option key={u._id} value={u._id}>
+                                    {u.fullName} ({u.email})
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="flex items-center gap-2 text-sm">
+                                <User className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-gray-700">
+                                  {users.find((u) => u._id === task.assignedTo)
+                                    ?.fullName || "Not assigned"}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {editingIndex === index ? (
+                              <input
+                                type="date"
+                                value={editData?.deadline || ""}
+                                onChange={(e) =>
+                                  setEditData((prev) =>
+                                    prev
+                                      ? { ...prev, deadline: e.target.value }
+                                      : null,
+                                  )
+                                }
+                                className="text-black w-full min-w-[130px] px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                min={new Date().toISOString().split("T")[0]}
+                              />
+                            ) : (
+                              <div className="flex items-center gap-2 text-sm">
+                                <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="text-gray-700">
+                                  {task.deadline || "Not set"}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {editingIndex === index ? (
+                              <select
+                                value={editData?.priority || "normal"}
+                                onChange={(e) =>
+                                  setEditData((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          priority: e.target
+                                            .value as BulkTask["priority"],
+                                        }
+                                      : null,
+                                  )
+                                }
+                                className="text-black w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                              >
+                                {PRIORITY_OPTIONS.map((p) => (
+                                  <option key={p.value} value={p.value}>
+                                    {p.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span
+                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                                  PRIORITY_COLORS[
+                                    task.priority as keyof typeof PRIORITY_COLORS
+                                  ] || PRIORITY_COLORS.normal
+                                }`}
+                              >
+                                <Flag className="w-3 h-3" />
+                                {task.priority || "normal"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {editingIndex === index ? (
+                              <input
+                                type="number"
+                                value={editData?.estimatedHours || 0}
+                                onChange={(e) =>
+                                  setEditData((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          estimatedHours:
+                                            parseFloat(e.target.value) || 0,
+                                        }
+                                      : null,
+                                  )
+                                }
+                                className="text-black w-20 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                step="0.5"
+                                min="0"
+                              />
+                            ) : (
+                              <div className="flex items-center gap-1.5 text-sm text-gray-600">
+                                <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                {task.estimatedHours}h
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {editingIndex === index ? (
+                                <>
+                                  <button
+                                    onClick={() => saveEdit(index)}
+                                    className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition"
+                                    title="Save"
+                                  >
+                                    <Save className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={cancelEdit}
+                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                    title="Cancel"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => startEdit(index)}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                    title="Edit"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => removeTask(index)}
+                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                    title="Remove"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
-                      )}
+                      ))}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* Stats & Upload */}
+              {/* Upload Button */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
                 <div className="flex items-center gap-4 text-sm text-gray-500">
                   <span>
                     Total:{" "}
                     <strong className="text-gray-800">{tasks.length}</strong>
                   </span>
-                  <span>
-                    Valid:{" "}
-                    <strong className="text-emerald-600">
-                      {filteredTasks.length}
-                    </strong>
+                  <span className="flex items-center gap-1 text-emerald-600">
+                    <CheckCircle className="w-4 h-4" />
+                    Ready to upload
                   </span>
-                  {validationErrors.length > 0 && (
-                    <span>
-                      Errors:{" "}
-                      <strong className="text-rose-600">
-                        {validationErrors.length}
-                      </strong>
-                    </span>
-                  )}
                 </div>
                 <div className="flex gap-3">
                   <button
@@ -1199,7 +1184,7 @@ export default function BulkUploadPage() {
                   </button>
                   <button
                     onClick={handleBulkUpload}
-                    disabled={uploading || !tasks.length || !selectedProject}
+                    disabled={uploading}
                     className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
                   >
                     {uploading ? (
@@ -1210,8 +1195,7 @@ export default function BulkUploadPage() {
                     ) : (
                       <>
                         <Upload className="w-4 h-4" />
-                        Upload {tasks.length} Task
-                        {tasks.length !== 1 ? "s" : ""}
+                        Upload All Tasks
                       </>
                     )}
                   </button>
@@ -1221,87 +1205,47 @@ export default function BulkUploadPage() {
           )}
         </AnimatePresence>
 
-        {/* Results */}
-        <AnimatePresence>
-          {result && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="mt-6 bg-white rounded-xl border border-gray-200 p-6 shadow-sm"
-            >
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">
-                Upload Results
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <StatCard
-                  icon={CheckCircle}
-                  label="Successful"
-                  value={result.successful?.length || 0}
-                  color="emerald"
-                />
-                <StatCard
-                  icon={XCircle}
-                  label="Failed"
-                  value={result.failed?.length || 0}
-                  color="rose"
-                />
-                <StatCard
-                  icon={Users}
-                  label="Total Tasks"
-                  value={result.total || 0}
-                  color="blue"
-                />
-                <StatCard
-                  icon={Sparkles}
-                  label="Status"
-                  value={result.success ? "Completed" : "Failed"}
-                  color={result.success ? "emerald" : "rose"}
-                  subtitle={result.message}
-                />
-              </div>
-
-              {result.failed?.length > 0 && (
-                <div className="space-y-2 mb-4">
-                  <h3 className="text-sm font-medium text-gray-700">Errors:</h3>
-                  <div className="max-h-48 overflow-y-auto space-y-1.5">
-                    {result.failed.map((fail, idx) => (
-                      <div
-                        key={idx}
-                        className="bg-rose-50 rounded-lg p-2.5 border border-rose-200"
-                      >
-                        <p className="text-sm text-rose-600">{fail.error}</p>
-                      </div>
+        {/* Error Result */}
+        {result && !result.success && !showSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 bg-rose-50 rounded-xl border border-rose-200 p-6"
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-rose-500 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-rose-700">
+                  Upload Failed
+                </h3>
+                <p className="text-sm text-rose-600 mt-1">{result.message}</p>
+                {result.errors?.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {result.errors.map((err: any, idx: number) => (
+                      <li key={idx} className="text-xs text-rose-500">
+                        • {err.message || err}
+                      </li>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    if (result.successful?.length > 0) {
-                      router.push("/tasks");
-                    } else {
-                      resetUpload();
-                    }
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
-                >
-                  {result.successful?.length > 0 ? "View Tasks" : "Done"}
-                </button>
-                {result.failed?.length > 0 && (
+                  </ul>
+                )}
+                <div className="flex gap-3 mt-4">
                   <button
                     onClick={resetUpload}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition shadow-sm"
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition text-sm"
                   >
                     Try Again
                   </button>
-                )}
+                  <button
+                    onClick={() => setResult(null)}
+                    className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition text-sm"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
 
         {/* Help Section */}
         <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
@@ -1309,13 +1253,23 @@ export default function BulkUploadPage() {
             <HelpCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-blue-700">
-                Need help with bulk upload?
+                💡 Tips for bulk upload
               </p>
               <ul className="text-xs text-blue-600 mt-1 space-y-0.5">
                 <li>• Download the template to see the required format</li>
-                <li>• Ensure all required fields (*) are filled</li>
-                <li>• Assign users must exist in the system</li>
+                <li>
+                  • Use email addresses in the "assignedTo" column - we'll
+                  auto-match them
+                </li>
+                <li>• All fields with * are required</li>
+                <li>
+                  • Deadline must be today or in the future (YYYY-MM-DD format)
+                </li>
                 <li>• Maximum 100 tasks per upload</li>
+                <li>
+                  • Project selection is optional - tasks can be created without
+                  a project
+                </li>
               </ul>
             </div>
           </div>

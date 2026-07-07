@@ -753,12 +753,12 @@ export default function TaskDetailPage() {
   const handleStopTimer = async () => {
     if (!task) return;
 
-    console.log("🛑 Stopping timer for task:", task._id);
-    console.log("🛑 Active timer task ID from context:", activeTimerTaskId);
+    // console.log("🛑 Stopping timer for task:", task._id);
+    // console.log("🛑 Active timer task ID from context:", activeTimerTaskId);
 
     // Check if timer is active for this task
     if (activeTimerTaskId !== task._id) {
-      console.log("⚠️ Timer is not active for this task");
+      // console.log("⚠️ Timer is not active for this task");
       toast.error("Timer is not active for this task");
       return;
     }

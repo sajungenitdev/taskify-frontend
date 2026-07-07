@@ -170,9 +170,9 @@ export default function WorkloadCapacityPage() {
 
   // Redirect if not authenticated
   useEffect(() => {
-    console.log("Auth state:", { authLoading, isAuthenticated, user });
+    // console.log("Auth state:", { authLoading, isAuthenticated, user });
     if (!authLoading && !isAuthenticated) {
-      console.log("Not authenticated, redirecting to login");
+      // console.log("Not authenticated, redirecting to login");
       router.push("/login");
     }
   }, [authLoading, isAuthenticated, router]);
@@ -180,7 +180,7 @@ export default function WorkloadCapacityPage() {
   // Fetch workload data
   useEffect(() => {
     if (isAuthenticated) {
-      console.log("User authenticated, fetching workload data...");
+      // console.log("User authenticated, fetching workload data...");
       fetchWorkloadData();
     }
   }, [isAuthenticated]);
@@ -189,17 +189,17 @@ export default function WorkloadCapacityPage() {
     try {
       setLoading(true);
       setError(null);
-      console.log("Fetching workload data from API...");
+      // console.log("Fetching workload data from API...");
 
       const response = await api.get("/workload/capacity");
-      console.log("API Response:", response.data);
+      // console.log("API Response:", response.data);
 
       if (response.data.success) {
-        console.log(
-          "Success! Data received:",
-          response.data.data.length,
-          "members",
-        );
+        // console.log(
+        //   "Success! Data received:",
+        //   response.data.data.length,
+        //   "members",
+        // );
         setTeamData(response.data.data || []);
         setAggregates(response.data.aggregates || null);
         // Reset image errors when new data loads
@@ -226,7 +226,7 @@ export default function WorkloadCapacityPage() {
       toast.error(errorMessage);
     } finally {
       setLoading(false);
-      console.log("Loading state set to false");
+      // console.log("Loading state set to false");
     }
   };
 
@@ -332,7 +332,7 @@ export default function WorkloadCapacityPage() {
     }
   };
 
-  console.log(filteredData, "all users")
+  // console.log(filteredData, "all users")
   // Show loading state
   if (authLoading || loading) {
     return (

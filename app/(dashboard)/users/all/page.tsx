@@ -33,6 +33,11 @@ import {
   Clock,
   BadgeCheck,
   UserCircle,
+  Save,
+  Key,
+  Lock,
+  EyeOff,
+  Eye as EyeIcon,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -54,6 +59,11 @@ interface User {
   isActive: boolean;
   lastLogin?: string;
   createdAt: string;
+  updatedAt?: string;
+  bio?: string;
+  position?: string;
+  location?: string;
+  profilePhoto?: string;
 }
 
 interface Department {
@@ -80,6 +90,16 @@ export default function AllUsersPage() {
   const [showRoleModal, setShowRoleModal] = useState<string | null>(null);
   const [selectedRoleForUser, setSelectedRoleForUser] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [passwordData, setPasswordData] = useState({
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     fullName: "",
     email: "",
@@ -89,16 +109,31 @@ export default function AllUsersPage() {
     departmentId: "",
     phoneNumber: "",
   });
+  const [editFormData, setEditFormData] = useState({
+    fullName: "",
+    email: "",
+    phoneNumber: "",
+    role: "",
+    departmentId: "",
+    employeeId: "",
+    isActive: true,
+    position: "",
+    location: "",
+    bio: "",
+  });
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sortField, setSortField] = useState<keyof User>("fullName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const canManageUsers = hasRole(["super_admin", "admin", "hr_manager"]);
   const canChangeRole = hasRole(["super_admin"]);
   const canDeleteUser = hasRole(["super_admin"]);
   const canCreateUser = hasRole(["super_admin", "admin", "hr_manager"]);
+  const canEditUser = hasRole(["super_admin", "admin", "hr_manager"]);
+  const canChangePassword = hasRole(["super_admin", "admin", "hr_manager"]);
 
   // Check permission
   useEffect(() => {
@@ -189,6 +224,126 @@ export default function AllUsersPage() {
     } finally {
       setCreating(false);
     }
+  };
+
+  // ============ EDIT USER ============
+  const handleEditUser = (userItem: User) => {
+    setEditingUser(userItem);
+    setEditFormData({
+      fullName: userItem.fullName,
+      email: userItem.email,
+      phoneNumber: userItem.phoneNumber || "",
+      role: userItem.role,
+      departmentId: userItem.departmentId?._id || "",
+      employeeId: userItem.employeeId,
+      isActive: userItem.isActive,
+      position: (userItem as any).position || "",
+      location: (userItem as any).location || "",
+      bio: (userItem as any).bio || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    if (
+      !editFormData.fullName ||
+      !editFormData.email ||
+      !editFormData.employeeId
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setEditing(true);
+    try {
+      const response = await api.put(`/auth/users/${editingUser._id}`, {
+        fullName: editFormData.fullName,
+        email: editFormData.email,
+        phoneNumber: editFormData.phoneNumber,
+        role: editFormData.role,
+        departmentId: editFormData.departmentId || null,
+        employeeId: editFormData.employeeId,
+        isActive: editFormData.isActive,
+        position: editFormData.position,
+        location: editFormData.location,
+        bio: editFormData.bio,
+      });
+      if (response.data.success) {
+        toast.success("User updated successfully");
+        setShowEditModal(false);
+        setEditingUser(null);
+        await fetchUsers();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update user");
+    } finally {
+      setEditing(false);
+    }
+  };
+
+  // ============ CHANGE PASSWORD ============
+  const handleOpenPasswordModal = (userItem: User) => {
+    setSelectedUser(userItem);
+    setPasswordData({
+      newPassword: "",
+      confirmPassword: "",
+    });
+    setShowPassword(false);
+    setShowPasswordModal(true);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUser) return;
+
+    if (!passwordData.newPassword || !passwordData.confirmPassword) {
+      toast.error("Please fill in all password fields");
+      return;
+    }
+
+    if (passwordData.newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const response = await api.post(
+        `/auth/users/${selectedUser._id}/change-password`,
+        {
+          newPassword: passwordData.newPassword,
+        },
+      );
+      if (response.data.success) {
+        toast.success(
+          `Password changed successfully for ${selectedUser.fullName}`,
+        );
+        setShowPasswordModal(false);
+        setSelectedUser(null);
+        setPasswordData({
+          newPassword: "",
+          confirmPassword: "",
+        });
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to change password");
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  // ============ VIEW USER ============
+  const handleViewUser = (userItem: User) => {
+    setSelectedUser(userItem);
+    setShowViewModal(true);
   };
 
   const handleDeleteUser = async (userId: string) => {
@@ -357,20 +512,6 @@ export default function AllUsersPage() {
                   Add User
                 </button>
               )}
-              <Link
-                href="/users/import"
-                className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm rounded-xl flex items-center gap-2 transition shadow-sm"
-              >
-                <Upload size={16} />
-                Import
-              </Link>
-              <Link
-                href="/users/export"
-                className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm rounded-xl flex items-center gap-2 transition shadow-sm"
-              >
-                <Download size={16} />
-                Export
-              </Link>
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
@@ -686,13 +827,33 @@ export default function AllUsersPage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Link
-                                href={`/users/${userItem._id}`}
+                              <button
+                                onClick={() => handleViewUser(userItem)}
                                 className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                                 title="View User"
                               >
                                 <Eye size={16} />
-                              </Link>
+                              </button>
+                              {canEditUser && (
+                                <button
+                                  onClick={() => handleEditUser(userItem)}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                  title="Edit User"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                              )}
+                              {canChangePassword && (
+                                <button
+                                  onClick={() =>
+                                    handleOpenPasswordModal(userItem)
+                                  }
+                                  className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                  title="Change Password"
+                                >
+                                  <Key size={16} />
+                                </button>
+                              )}
                               {canDeleteUser && userItem._id !== user?._id && (
                                 <button
                                   onClick={() =>
@@ -704,12 +865,6 @@ export default function AllUsersPage() {
                                   <Trash2 size={16} />
                                 </button>
                               )}
-                              <button
-                                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition opacity-0 group-hover:opacity-100"
-                                title="More"
-                              >
-                                <MoreVertical size={16} />
-                              </button>
                             </div>
                           </td>
                         </motion.tr>
@@ -810,7 +965,10 @@ export default function AllUsersPage() {
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handleCreateUser} className="p-5 space-y-4">
+            <form
+              onSubmit={handleCreateUser}
+              className="p-5 space-y-4 max-h-[70vh] overflow-y-auto"
+            >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Full Name *
@@ -954,6 +1112,569 @@ export default function AllUsersPage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
+                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <Edit2 className="w-4 h-4 text-white" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  Edit User
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form
+              onSubmit={handleUpdateUser}
+              className="p-5 space-y-4 max-h-[70vh] overflow-y-auto"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.fullName}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      fullName: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      email: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Employee ID *
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.employeeId}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      employeeId: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editFormData.phoneNumber}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      phoneNumber: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <select
+                  value={editFormData.role}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      role: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                >
+                  {roles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Department
+                </label>
+                <select
+                  value={editFormData.departmentId}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      departmentId: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                >
+                  <option value="">No Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept._id} value={dept._id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Position
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.position}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      position: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="e.g. Senior Developer"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.location}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      location: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="e.g. New York, USA"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={editFormData.isActive === true}
+                      onChange={() =>
+                        setEditFormData({ ...editFormData, isActive: true })
+                      }
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-700">Active</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={editFormData.isActive === false}
+                      onChange={() =>
+                        setEditFormData({ ...editFormData, isActive: false })
+                      }
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-700">Inactive</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bio
+                </label>
+                <textarea
+                  value={editFormData.bio}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      bio: e.target.value,
+                    })
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  placeholder="Brief description about the user"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={editing}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                >
+                  {editing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  {editing ? "Saving..." : "Update User"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingUser(null);
+                  }}
+                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* View User Modal */}
+      {showViewModal && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                  <Eye className="w-4 h-4 text-white" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  User Details
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* User Header */}
+              <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
+                <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                  <span className="text-white text-2xl font-bold">
+                    {selectedUser.fullName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-800">
+                    {selectedUser.fullName}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getRoleBadgeColor(selectedUser.role)}`}
+                    >
+                      {selectedUser.role.replace(/_/g, " ")}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
+                        selectedUser.isActive
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                      }`}
+                    >
+                      {selectedUser.isActive ? "Active" : "Inactive"}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      ID: {selectedUser.employeeId}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* User Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Email</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {selectedUser.email}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Phone</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {selectedUser.phoneNumber || "Not provided"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Department</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {selectedUser.departmentId
+                      ? (selectedUser.departmentId as any).name
+                      : "Not assigned"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Position</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {(selectedUser as any).position || "Not specified"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Location</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {(selectedUser as any).location || "Not specified"}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Last Login</p>
+                  <p className="text-sm text-gray-800 font-medium">
+                    {selectedUser.lastLogin
+                      ? new Date(selectedUser.lastLogin).toLocaleString()
+                      : "Never"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Bio */}
+              {(selectedUser as any).bio && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500">Bio</p>
+                  <p className="text-sm text-gray-700 mt-1">
+                    {(selectedUser as any).bio}
+                  </p>
+                </div>
+              )}
+
+              {/* Created/Updated Info */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1">
+                <p className="text-xs text-gray-500">Account Info</p>
+                <div className="flex items-center gap-4 text-xs text-gray-600">
+                  <span>
+                    Created:{" "}
+                    {new Date(selectedUser.createdAt).toLocaleDateString()}
+                  </span>
+                  {selectedUser.updatedAt && (
+                    <span>
+                      Updated:{" "}
+                      {new Date(selectedUser.updatedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
+                {canEditUser && (
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleEditUser(selectedUser);
+                    }}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <Edit2 size={16} />
+                    Edit User
+                  </button>
+                )}
+                {canChangePassword && (
+                  <button
+                    onClick={() => {
+                      setShowViewModal(false);
+                      handleOpenPasswordModal(selectedUser);
+                    }}
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
+                  >
+                    <Key size={16} />
+                    Change Password
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setShowViewModal(false);
+                    setSelectedUser(null);
+                  }}
+                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showPasswordModal && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+                  <Key className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Change Password
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    For {selectedUser.fullName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setSelectedUser(null);
+                  setPasswordData({
+                    newPassword: "",
+                    confirmPassword: "",
+                  });
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  New Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={passwordData.newPassword}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        newPassword: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition pr-10"
+                    placeholder="Enter new password (min 8 characters)"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} />
+                    ) : (
+                      <EyeIcon size={18} />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Password must be at least 8 characters long
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Confirm Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={passwordData.confirmPassword}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        confirmPassword: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition pr-10"
+                    placeholder="Confirm new password"
+                    required
+                  />
+                </div>
+              </div>
+              {passwordData.newPassword && passwordData.confirmPassword && (
+                <div className="flex items-center gap-2">
+                  {passwordData.newPassword === passwordData.confirmPassword ? (
+                    <CheckCircle size={16} className="text-emerald-500" />
+                  ) : (
+                    <XCircle size={16} className="text-rose-500" />
+                  )}
+                  <span
+                    className={`text-sm ${passwordData.newPassword === passwordData.confirmPassword ? "text-emerald-600" : "text-rose-600"}`}
+                  >
+                    {passwordData.newPassword === passwordData.confirmPassword
+                      ? "Passwords match"
+                      : "Passwords do not match"}
+                  </span>
+                </div>
+              )}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                >
+                  {changingPassword ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Key size={16} />
+                  )}
+                  {changingPassword ? "Changing..." : "Change Password"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPasswordModal(false);
+                    setSelectedUser(null);
+                    setPasswordData({
+                      newPassword: "",
+                      confirmPassword: "",
+                    });
+                  }}
                   className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
                 >
                   Cancel

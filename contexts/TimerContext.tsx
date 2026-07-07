@@ -127,7 +127,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   // ============ TIMER FUNCTIONS ============
   const startTimer = useCallback(
     (taskId: string, initialSeconds: number = 0) => {
-      console.log("🟢 TimerContext: startTimer called for task:", taskId);
+      // console.log("🟢 TimerContext: startTimer called for task:", taskId);
       setTimerState((prev) => {
         const now = Date.now();
         const newState = {
@@ -144,7 +144,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   );
 
   const pauseTimer = useCallback(() => {
-    console.log("🟡 TimerContext: pauseTimer called");
+    // console.log("🟡 TimerContext: pauseTimer called");
     setTimerState((prev) => {
       if (!prev.isRunning || !prev.taskId) return prev;
       return {
@@ -156,7 +156,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resumeTimer = useCallback(() => {
-    console.log("🟢 TimerContext: resumeTimer called");
+    // console.log("🟢 TimerContext: resumeTimer called");
     setTimerState((prev) => {
       if (prev.isRunning || !prev.taskId) return prev;
       return {
@@ -170,23 +170,23 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   // FIXED: Use timerStateRef to always get the latest state
   const stopTimer = useCallback(
     (taskId: string) => {
-      console.log("🔴 TimerContext: stopTimer called for task:", taskId);
-      console.log(
-        "🔴 Current timerState.taskId:",
-        timerStateRef.current.taskId,
-      );
+      // console.log("🔴 TimerContext: stopTimer called for task:", taskId);
+      // console.log(
+      //   "🔴 Current timerState.taskId:",
+      //   timerStateRef.current.taskId,
+      // );
 
       // Check if this is the active task using the ref
       if (timerStateRef.current.taskId !== taskId) {
-        console.log(
-          "❌ Task ID mismatch! Cannot stop timer for different task.",
-        );
+        // console.log(
+        //   "❌ Task ID mismatch! Cannot stop timer for different task.",
+        // );
         return { success: false, minutes: 0, displayTime: "0m" };
       }
 
       const totalSeconds = timerStateRef.current.elapsedSeconds;
       const minutes = Math.floor(totalSeconds / 60);
-      console.log(`⏱️ Timer stopped with ${totalSeconds}s (${minutes}m)`);
+      // console.log(`⏱️ Timer stopped with ${totalSeconds}s (${minutes}m)`);
 
       // Clear interval
       if (timerIntervalRef.current) {

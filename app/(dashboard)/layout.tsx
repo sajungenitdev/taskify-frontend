@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Layout/Sidebar";
 import Header from "@/components/Layout/Header";
+import AssistantWizard from "@/components/Assistant/AssistantWizard";
 
 export default function DashboardLayout({
   children,
@@ -129,6 +130,7 @@ export default function DashboardLayout({
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
+       <AssistantWizard />
     </div>
   );
 }

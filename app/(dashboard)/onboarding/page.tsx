@@ -204,9 +204,9 @@ export default function OnboardingWizard() {
       try {
         setLoading(true);
 
-        console.log("👤 ===== USER DATA FROM AUTH ===== 👤");
-        console.log("User:", user);
-        console.log("=====================================");
+        // console.log("👤 ===== USER DATA FROM AUTH ===== 👤");
+        // console.log("User:", user);
+        // console.log("=====================================");
 
         if (user) {
           setFormData((prev) => ({
@@ -372,9 +372,9 @@ export default function OnboardingWizard() {
         firstLogin: false,
       };
 
-      console.log("📝 ===== ONBOARDING DATA ===== 📝");
-      console.log("📦 Full Payload:", payload);
-      console.log("=====================================");
+      // console.log("📝 ===== ONBOARDING DATA ===== 📝");
+      // console.log("📦 Full Payload:", payload);
+      // console.log("=====================================");
 
       const response = await api.post("/onboarding/complete", payload);
 
