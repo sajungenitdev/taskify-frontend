@@ -1805,7 +1805,7 @@ export default function MyTasksPage() {
                       isCompleting === selectedTask._id ||
                       isSubmitting === selectedTask._id
                     }
-                    className="flex-1 min-w-[150px] px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                    className="cursor-pointer flex-1 min-w-[150px] px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
                   >
                     <option value="pending">Pending</option>
                     <option value="in_progress">In Progress</option>
@@ -1820,7 +1820,7 @@ export default function MyTasksPage() {
                         handleSendForRework(selectedTask._id);
                       }}
                       disabled={isReworking === selectedTask._id}
-                      className="flex-1 min-w-[120px] px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                       {isReworking === selectedTask._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1839,7 +1839,7 @@ export default function MyTasksPage() {
                             handleSubmitForReview(selectedTask._id);
                           }}
                           disabled={isSubmitting === selectedTask._id}
-                          className="flex-1 min-w-[120px] px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {isSubmitting === selectedTask._id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1853,7 +1853,7 @@ export default function MyTasksPage() {
                             handleMarkComplete(selectedTask._id);
                           }}
                           disabled={isCompleting === selectedTask._id}
-                          className="flex-1 min-w-[120px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
                         >
                           {isCompleting === selectedTask._id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1866,10 +1866,18 @@ export default function MyTasksPage() {
                     )}
                   <button
                     onClick={() => setSelectedTask(null)}
-                    className="flex-1 min-w-[100px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
+                    className="cursor-pointer flex-1 min-w-[100px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
                   >
                     Close
                   </button>
+                  <Link
+                    href={`/tasks/${selectedTask._id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="cursor-pointer flex-1 min-w-[100px] bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 py-2.5 rounded-xl transition flex items-center justify-center gap-2"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Check Details
+                  </Link>
                 </div>
               </div>
             </motion.div>
