@@ -713,7 +713,7 @@ export const subMenuItems: SubNavItem[] = [
     description: "View your assigned tasks",
   },
   {
-    name: "All Tasks",
+    name: "All Employee Tasks",
     href: "/tasks/tasks-board",
     icon: Kanban,
     parent: "Tasks",
@@ -724,6 +724,20 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.PROJECT_MANAGER,
     ],
     description: "View all tasks",
+  },
+  {
+    name: "Task Kanban Board",
+    href: "/tasks/kanban",
+    icon: Kanban,
+    parent: "Tasks",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    description: "Kanban board view",
   },
   {
     name: "Task Workload",
@@ -743,20 +757,6 @@ export const subMenuItems: SubNavItem[] = [
   {
     name: "Task Calendar",
     href: "/tasks/calendar",
-    icon: Kanban,
-    parent: "Tasks",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View tasks on calendar",
-  },
-  {
-    name: "Task Board",
-    href: "/tasks/kanban",
     icon: ListTodo,
     parent: "Tasks",
     roles: [
@@ -766,7 +766,7 @@ export const subMenuItems: SubNavItem[] = [
       ROLES.PROJECT_MANAGER,
       ROLES.EMPLOYEE,
     ],
-    description: "Kanban board view",
+    description: "View tasks on calendar",
   },
   {
     name: "Gantt Chart",

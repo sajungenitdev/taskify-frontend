@@ -1,3 +1,4 @@
+// app/(dashboard)/tasks/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -54,13 +55,14 @@ import {
   Layers,
   Orbit,
   Gem,
+  Send,
+  Check,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import CreateTaskModal from "@/components/tasks/CreateTaskModal";
-import { BiTask } from "react-icons/bi";
 
 // ============ TYPES ============
 interface Task {
@@ -68,7 +70,7 @@ interface Task {
   title: string;
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
-  status: "pending" | "in_progress" | "submitted" | "completed" | "overdue";
+  status: "pending" | "in_progress" | "submitted" | "completed" | "overdue" | "rejected";
   deadline: string;
   estimatedHours: number;
   actualMinutes: number;
@@ -82,6 +84,10 @@ interface Task {
   createdAt: string;
   updatedAt: string;
   isStarred?: boolean;
+  evidenceRequired?: boolean;
+  evidenceUrls?: string[];
+  rejectionReason?: string;
+  approvalNote?: string;
 }
 
 // ============ CONSTANTS ============
@@ -143,7 +149,7 @@ const STATUS_CONFIG = {
     gradient: "from-purple-500 to-violet-600",
     bg: "bg-gradient-to-br from-purple-50 to-violet-50",
     border: "border-purple-200",
-    icon: CheckCircle,
+    icon: Send,
   },
   completed: {
     label: "Completed",
@@ -160,6 +166,14 @@ const STATUS_CONFIG = {
     bg: "bg-gradient-to-br from-rose-50 to-red-50",
     border: "border-rose-200",
     icon: AlertCircle,
+  },
+  rejected: {
+    label: "Rejected",
+    color: "red",
+    gradient: "from-red-500 to-rose-600",
+    bg: "bg-gradient-to-br from-red-50 to-rose-50",
+    border: "border-red-200",
+    icon: X,
   },
 } as const;
 
@@ -216,244 +230,6 @@ const StatCard = ({
   </motion.div>
 );
 
-const TaskCard = ({
-  task,
-  index,
-  isTimerActive,
-  isRunning,
-  displayTime,
-  totalTime,
-  onSelect,
-  onToggleStar,
-  onStartTimer,
-  onPauseTimer,
-  onResumeTimer,
-  onStopTimer,
-  onStatusChange,
-  formatDate,
-  formatTime,
-  getPriorityIcon,
-  activeTimerTaskId,
-  timerState,
-  isTimerRunning,
-}: any) => {
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 30, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{
-        delay: index * 0.04,
-        duration: 0.3,
-        type: "spring",
-        stiffness: 120,
-      }}
-      whileHover={{ y: -4, scale: 1.01 }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
-      onClick={() => onSelect(task)}
-      className="group relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200/50 hover:border-indigo-300/50 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl hover:shadow-indigo-500/10"
-    >
-      {/* Glass effect overlay */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-      {/* Priority bar */}
-      <div
-        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-gradient-to-r ${getPriorityConfig(task.priority).gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-      />
-
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
-            >
-              {getPriorityIcon(task.priority)}
-              {task.priority.toUpperCase()}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border}`}
-            >
-              {task.status.replace("_", " ")}
-            </span>
-            {isTimerActive && (
-              <span
-                className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${isRunning ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}
-              >
-                <ClockIcon className="w-3 h-3" />
-                {displayTime}
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
-                />
-              </span>
-            )}
-            {totalTime > 0 && !isTimerActive && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
-                <History className="w-3 h-3" />
-                {totalTime}m
-              </span>
-            )}
-          </div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleStar(task._id);
-            }}
-            className={`transition-all duration-300 ${isHovered ? "opacity-100" : "opacity-0"}`}
-          >
-            <Star
-              className={`w-4 h-4 transition-colors ${task.isStarred ? "fill-amber-400 text-amber-400" : "text-gray-300 hover:text-amber-400"}`}
-            />
-          </button>
-        </div>
-
-        {/* Title */}
-        <h3 className="text-gray-800 font-semibold text-base mb-1.5 line-clamp-2 group-hover:text-indigo-600 transition-colors">
-          {task.title}
-        </h3>
-
-        {/* Description */}
-        <p className="text-gray-500 text-sm line-clamp-2 mb-3">
-          {task.description}
-        </p>
-
-        {/* Project badge */}
-        {task.projectId && (
-          <div className="flex items-center gap-1.5 mb-3">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
-              <FolderKanban className="w-3 h-3" />
-              {task.projectId.name}
-            </span>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
-              <span className="text-white text-[10px] font-bold">
-                {task.assignedBy?.fullName?.charAt(0) || "?"}
-              </span>
-            </div>
-            <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
-              Assigned by: {task.assignedBy?.fullName?.split(" ")[0]}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {task.estimatedHours > 0 && (
-              <div className="flex items-center gap-1 text-gray-400">
-                <Timer className="w-3 h-3" />
-                <span className="text-[10px] font-medium text-gray-500">
-                  {task.estimatedHours}h
-                </span>
-              </div>
-            )}
-            {task.deadline && (
-              <div className="flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-gray-400" />
-                <span
-                  className={`text-[10px] font-medium ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-500"}`}
-                >
-                  {formatDate(task.deadline)}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Timer Controls */}
-        {task.status !== "completed" && task.status !== "submitted" && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center gap-2">
-              {isTimerActive ? (
-                <>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <ClockIcon className="w-3.5 h-3.5 text-indigo-500" />
-                      <span className="text-xs font-mono font-semibold text-gray-700 tabular-nums">
-                        {formatTime(timerState.elapsedSeconds)}
-                      </span>
-                      <span
-                        className={`text-[10px] font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
-                      >
-                        {isRunning ? "● Running" : "● Paused"}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isRunning ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPauseTimer();
-                        }}
-                        className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                      >
-                        <Pause className="w-3 h-3" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onResumeTimer();
-                        }}
-                        className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                      >
-                        <Play className="w-3 h-3" />
-                      </button>
-                    )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onStopTimer(task._id);
-                      }}
-                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                    >
-                      <Square className="w-3 h-3" />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex-1">
-                    <span className="text-xs text-gray-400">
-                      {task.actualMinutes
-                        ? `${task.actualMinutes}m logged`
-                        : "No time tracked"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStartTimer(task._id);
-                    }}
-                    className="px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
-                    disabled={activeTimerTaskId !== null}
-                  >
-                    <Play className="w-3 h-3 me-2" />
-                    Start
-                  </button>
-                </>
-              )}
-              <Link
-                href={`/tasks/${task._id}`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button className="px-2.5 py-1 cursor-pointer flex items-center bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
-                  <EyeIcon className="w-3 h-3 me-2" />
-                  View
-                </button>
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
 // ============ MAIN COMPONENT ============
 export default function MyTasksPage() {
   const { user, isAuthenticated, hasRole } = useAuth();
@@ -470,6 +246,7 @@ export default function MyTasksPage() {
     isTimerActiveForTask,
     isTimerRunning,
     activeTimerTaskId,
+    syncTimerWithBackend,
   } = useTimer();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -487,6 +264,9 @@ export default function MyTasksPage() {
     "deadline",
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [isCompleting, setIsCompleting] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+  const [isReworking, setIsReworking] = useState<string | null>(null);
 
   const itemsPerPage = 9;
 
@@ -527,8 +307,122 @@ export default function MyTasksPage() {
     }
   };
 
+  // ============ MARK COMPLETE ============
+  const handleMarkComplete = async (taskId: string) => {
+    if (isCompleting === taskId) return;
+
+    const task = tasks.find(t => t._id === taskId);
+    if (!task) return;
+
+    // Check if evidence is required
+    if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
+      toast.error("⚠️ Evidence required! Please upload evidence before completing this task.");
+      return;
+    }
+
+    setIsCompleting(taskId);
+    try {
+      // Stop timer if running for this task
+      let actualMinutes = task.actualMinutes || 0;
+      if (isTimerActiveForTask(taskId)) {
+        const timerResult = await stopTimer(taskId);
+        if (timerResult.success && timerResult.minutes > 0) {
+          actualMinutes = timerResult.minutes;
+          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
+        }
+      }
+
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: "completed",
+        actualMinutes: actualMinutes,
+        approvalNote: "Task marked as complete by assignee",
+      });
+
+      if (response.data.success) {
+        toast.success(`✅ Task marked as complete! ${actualMinutes > 0 ? `Time tracked: ${formatTimeShort(actualMinutes * 60)}` : ''}`);
+        await fetchMyTasks();
+        setSelectedTask(null);
+      }
+    } catch (error: any) {
+      console.error("Error marking task complete:", error);
+      toast.error(error.response?.data?.message || "Failed to mark task as complete");
+    } finally {
+      setIsCompleting(null);
+    }
+  };
+
+  // ============ SUBMIT FOR REVIEW ============
+  const handleSubmitForReview = async (taskId: string) => {
+    if (isSubmitting === taskId) return;
+
+    const task = tasks.find(t => t._id === taskId);
+    if (!task) return;
+
+    // Check if evidence is required
+    if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
+      toast.error("⚠️ Evidence required! Please upload evidence before submitting.");
+      return;
+    }
+
+    setIsSubmitting(taskId);
+    try {
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: "submitted",
+      });
+
+      if (response.data.success) {
+        toast.success(`✅ Task submitted for review!`);
+        await fetchMyTasks();
+        setSelectedTask(null);
+      }
+    } catch (error: any) {
+      console.error("Error submitting task:", error);
+      toast.error(error.response?.data?.message || "Failed to submit task");
+    } finally {
+      setIsSubmitting(null);
+    }
+  };
+
+  // ============ SEND FOR REWORK ============
+  const handleSendForRework = async (taskId: string) => {
+    if (isReworking === taskId) return;
+
+    if (!confirm("Send this task back for rework?")) return;
+
+    setIsReworking(taskId);
+    try {
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: "pending",
+      });
+
+      if (response.data.success) {
+        toast.success(`🔄 Task sent back for rework!`);
+        await fetchMyTasks();
+        setSelectedTask(null);
+      }
+    } catch (error: any) {
+      console.error("Error sending for rework:", error);
+      toast.error(error.response?.data?.message || "Failed to send for rework");
+    } finally {
+      setIsReworking(null);
+    }
+  };
+
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     if (updatingStatus === taskId) return;
+
+    // If status is "completed", use the mark complete handler
+    if (newStatus === "completed") {
+      await handleMarkComplete(taskId);
+      return;
+    }
+
+    // If status is "submitted", use the submit handler
+    if (newStatus === "submitted") {
+      await handleSubmitForReview(taskId);
+      return;
+    }
+
     setUpdatingStatus(taskId);
     try {
       const response = await api.patch(`/tasks/${taskId}/status`, {
@@ -544,7 +438,7 @@ export default function MyTasksPage() {
           ),
         );
         if (newStatus === "completed" && activeTimerTaskId === taskId) {
-          await handleStopTimer(taskId);
+          await stopTimer(taskId);
         }
       }
     } catch (error: any) {
@@ -555,19 +449,23 @@ export default function MyTasksPage() {
     }
   };
 
-  const toggleStar = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
-      ),
-    );
-    const task = tasks.find((t) => t._id === taskId);
-    toast.success(task?.isStarred ? "Unstarred" : "Starred ⭐");
-  };
-
+  // ============ TIMER HANDLERS ============
   const handleStartTimer = async (taskId: string) => {
     const task = tasks.find((t) => t._id === taskId);
     if (!task) return;
+
+    // If another task timer is active, auto-stop it
+    if (activeTimerTaskId && activeTimerTaskId !== taskId) {
+      const currentTask = tasks.find((t) => t._id === activeTimerTaskId);
+      const result = await stopTimer(activeTimerTaskId);
+      if (result.success && result.minutes > 0) {
+        toast.success(
+          `⏱️ Timer stopped for "${currentTask?.title}". Tracked: ${result.displayTime}`,
+        );
+        await fetchMyTasks();
+      }
+    }
+
     const baselineSeconds = (task.actualMinutes || 0) * 60;
     startTimer(taskId, baselineSeconds);
     toast.success(`⏱️ Timer started for "${task.title}"`);
@@ -586,7 +484,7 @@ export default function MyTasksPage() {
   const handleStopTimer = useCallback(
     async (taskId: string) => {
       try {
-        const result = stopTimer(taskId);
+        const result = await stopTimer(taskId);
 
         if (result.success) {
           if (result.minutes > 0) {
@@ -595,9 +493,9 @@ export default function MyTasksPage() {
               prev.map((task) =>
                 task._id === taskId
                   ? {
-                      ...task,
-                      actualMinutes: (task.actualMinutes || 0) + result.minutes,
-                    }
+                    ...task,
+                    actualMinutes: (task.actualMinutes || 0) + result.minutes,
+                  }
                   : task,
               ),
             );
@@ -617,6 +515,16 @@ export default function MyTasksPage() {
     },
     [stopTimer, setTasks],
   );
+
+  const toggleStar = (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
+      ),
+    );
+    const task = tasks.find((t) => t._id === taskId);
+    toast.success(task?.isStarred ? "Unstarred" : "Starred ⭐");
+  };
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
@@ -692,6 +600,7 @@ export default function MyTasksPage() {
     submitted: tasks.filter((t) => t.status === "submitted").length,
     completed: tasks.filter((t) => t.status === "completed").length,
     overdue: tasks.filter((t) => t.status === "overdue").length,
+    rejected: tasks.filter((t) => t.status === "rejected").length,
   };
 
   const totalTimeTracked = tasks.reduce(
@@ -736,6 +645,24 @@ export default function MyTasksPage() {
   };
 
   const activeTask = tasks.find((t) => t._id === activeTimerTaskId);
+
+  // Helper to get total time for a task including current timer session
+  const getTotalTimeForTask = useCallback((task: Task) => {
+    if (!task) return { minutes: 0, display: "0m" };
+
+    let totalMinutes = task.actualMinutes || 0;
+
+    if (isTimerActiveForTask(task._id)) {
+      const currentSeconds = timerState.elapsedSeconds;
+      const currentMinutes = Math.floor(currentSeconds / 60);
+      totalMinutes = (task.actualMinutes || 0) + currentMinutes;
+    }
+
+    return {
+      minutes: totalMinutes,
+      display: formatTimeShort(totalMinutes * 60)
+    };
+  }, [timerState, isTimerActiveForTask, formatTimeShort]);
 
   if (loading) {
     return (
@@ -794,22 +721,20 @@ export default function MyTasksPage() {
             <div className="flex bg-white/80 backdrop-blur-sm rounded-xl p-1 border border-gray-200 shadow-sm">
               <button
                 onClick={() => setView("grid")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${
-                  view === "grid"
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "grid"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <LayoutGrid className="w-4 h-4" />
                 Grid
               </button>
               <button
                 onClick={() => setView("list")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${
-                  view === "list"
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "list"
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <List className="w-4 h-4" />
                 List
@@ -863,7 +788,7 @@ export default function MyTasksPage() {
             delay={0.1}
           />
           <StatCard
-            icon={CheckCircle}
+            icon={Send}
             label="Submitted"
             value={stats.submitted}
             gradient="from-purple-500 to-violet-600"
@@ -883,87 +808,46 @@ export default function MyTasksPage() {
             gradient="from-rose-500 to-red-600"
             delay={0.25}
           />
-          <div
-            className={`bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 border border-indigo-300 shadow-lg hover:shadow-xl transition-all duration-300 ${
-              isTimerRunning ? "animate-pulse" : ""
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                {isTimerRunning ? (
-                  <>
-                    <p className="text-2xl font-bold text-white">
-                      {formatTimeShort(timerState.elapsedSeconds)}
-                    </p>
-                    <p className="text-[10px] text-indigo-200 mt-0.5 truncate max-w-[100px]">
-                      {activeTask?.title || "No task"}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
-                      <span className="text-[8px] text-indigo-200 font-medium">
-                        Running
-                      </span>
-                    </div>
-                  </>
-                ) : activeTimerTaskId ? (
-                  <>
-                    <p className="text-2xl font-bold text-white">
-                      {formatTimeShort(timerState.elapsedSeconds)}
-                    </p>
-                    <p className="text-[10px] text-indigo-200 mt-0.5 truncate max-w-[100px]">
-                      {activeTask?.title || "No task"}
-                    </p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-amber-300" />
-                      <span className="text-[8px] text-indigo-200 font-medium">
-                        Paused
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-2xl font-bold text-white">--:--</p>
-                    <p className="text-[10px] text-indigo-200 mt-0.5">
-                      No timer
-                    </p>
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
-                      <span className="text-[8px] text-indigo-200 font-medium">
-                        Inactive
-                      </span>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <PlayCircle className="w-5 h-5 text-white" />
-              </div>
-            </div>
-            {activeTimerTaskId && (
-              <div className="mt-2 flex gap-1">
-                {isTimerRunning ? (
-                  <button
-                    onClick={handlePauseTimer}
-                    className="flex-1 py-0.5 bg-white/20 hover:bg-white/30 text-white text-[10px] rounded transition"
-                  >
-                    Pause
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleResumeTimer}
-                    className="flex-1 py-0.5 bg-white/20 hover:bg-white/30 text-white text-[10px] rounded transition"
-                  >
-                    Resume
-                  </button>
-                )}
-                <button
-                  onClick={() => handleStopTimer(activeTimerTaskId)}
-                  className="flex-1 py-0.5 bg-white/20 hover:bg-white/30 text-white text-[10px] rounded transition"
-                >
-                  Stop
-                </button>
-              </div>
-            )}
+          <StatCard
+            icon={X}
+            label="Rejected"
+            value={stats.rejected}
+            gradient="from-red-500 to-rose-600"
+            delay={0.3}
+          />
+        </div>
+
+        {/* Time Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
+            <p className="text-sm text-gray-500">Total Time Tracked</p>
+            <p className="text-2xl font-bold text-gray-800">
+              {totalHours > 0 ? `${totalHours}h ${totalMinutes}m` : `${totalMinutes}m`}
+            </p>
+          </div>
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
+            <p className="text-sm text-gray-500">Completion Rate</p>
+            <p className="text-2xl font-bold text-emerald-600">
+              {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
+            </p>
+          </div>
+          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
+            <p className="text-sm text-gray-500">Active Timer</p>
+            <p className="text-2xl font-bold text-indigo-600">
+              {isTimerRunning ? (
+                <span className="flex items-center gap-2">
+                  {formatTimeShort(timerState.elapsedSeconds)}
+                  <span className="text-sm font-normal text-emerald-500">● Running</span>
+                </span>
+              ) : activeTimerTaskId ? (
+                <span className="flex items-center gap-2 text-amber-500">
+                  {formatTimeShort(timerState.elapsedSeconds)}
+                  <span className="text-sm font-normal">● Paused</span>
+                </span>
+              ) : (
+                "No active timer"
+              )}
+            </p>
           </div>
         </div>
 
@@ -981,11 +865,10 @@ export default function MyTasksPage() {
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${
-              showFilters
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
-                : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
-            }`}
+            className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${showFilters
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+              : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
+              }`}
           >
             <Filter className="w-4 h-4" />
             Filters
@@ -994,6 +877,16 @@ export default function MyTasksPage() {
             ) : (
               <ChevronRight className="w-4 h-4" />
             )}
+          </button>
+          <button
+            onClick={() => {
+              setSelectedStatus("in_progress");
+              setSearchTerm("");
+            }}
+            className="px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-sm transition border border-amber-200"
+          >
+            <Paperclip className="w-4 h-4 inline mr-1" />
+            Evidence Required
           </button>
         </div>
 
@@ -1028,6 +921,7 @@ export default function MyTasksPage() {
                   <option value="submitted">Submitted</option>
                   <option value="completed">Completed</option>
                   <option value="overdue">Overdue</option>
+                  <option value="rejected">Rejected</option>
                 </select>
                 <select
                   value={sortBy}
@@ -1073,11 +967,12 @@ export default function MyTasksPage() {
                 <CheckSquare className="w-12 h-12 text-indigo-400" />
               </div>
               <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                No tasks assigned yet
+                No tasks found
               </h3>
               <p className="text-gray-500 text-sm max-w-md mx-auto">
-                You don't have any tasks assigned to you. Click the button below
-                to create your first task.
+                {searchTerm || selectedPriority || selectedStatus
+                  ? "Try adjusting your filters"
+                  : "You don't have any tasks assigned to you."}
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
                 <button
@@ -1105,31 +1000,261 @@ export default function MyTasksPage() {
                     task._id,
                     task.actualMinutes,
                   );
-                  const totalTime = task.actualMinutes || 0;
+                  const totalTime = getTotalTimeForTask(task);
+                  const isRejected = task.status === "rejected";
 
                   return (
-                    <TaskCard
+                    <motion.div
                       key={task._id}
-                      task={task}
-                      index={index}
-                      isTimerActive={isTimerActive}
-                      isRunning={isRunning}
-                      displayTime={displayTime}
-                      totalTime={totalTime}
-                      onSelect={setSelectedTask}
-                      onToggleStar={toggleStar}
-                      onStartTimer={handleStartTimer}
-                      onPauseTimer={handlePauseTimer}
-                      onResumeTimer={handleResumeTimer}
-                      onStopTimer={handleStopTimer}
-                      onStatusChange={handleStatusChange}
-                      formatDate={formatDate}
-                      formatTime={formatTime}
-                      getPriorityIcon={getPriorityIcon}
-                      activeTimerTaskId={activeTimerTaskId}
-                      timerState={timerState}
-                      isTimerRunning={isTimerRunning}
-                    />
+                      initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{
+                        delay: index * 0.04,
+                        duration: 0.3,
+                        type: "spring",
+                        stiffness: 120,
+                      }}
+                      whileHover={{ y: -4, scale: 1.01 }}
+                      className={`group relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl ${isRejected
+                        ? "border-red-200 hover:border-red-300 hover:shadow-red-500/10"
+                        : "border-gray-200/50 hover:border-indigo-300/50 hover:shadow-indigo-500/10"
+                        }`}
+                      onClick={() => setSelectedTask(task)}
+                    >
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                      <div
+                        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-gradient-to-r ${getPriorityConfig(task.priority).gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+                      />
+
+                      <div className="relative z-10">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
+                            >
+                              {getPriorityIcon(task.priority)}
+                              {task.priority.toUpperCase()}
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border}`}
+                            >
+                              {task.status.replace("_", " ")}
+                            </span>
+                            {task.evidenceRequired && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
+                                <Paperclip className="w-3 h-3" />
+                                Evidence Required
+                              </span>
+                            )}
+                            {isTimerActive && (
+                              <span
+                                className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${isRunning ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}
+                              >
+                                <ClockIcon className="w-3 h-3" />
+                                {displayTime}
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
+                                />
+                              </span>
+                            )}
+                            {totalTime.minutes > 0 && !isTimerActive && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
+                                <History className="w-3 h-3" />
+                                {totalTime.display}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleStar(task._id);
+                            }}
+                            className="transition-all duration-300 opacity-0 group-hover:opacity-100"
+                          >
+                            <Star
+                              className={`w-4 h-4 transition-colors ${task.isStarred ? "fill-amber-400 text-amber-400" : "text-gray-300 hover:text-amber-400"}`}
+                            />
+                          </button>
+                        </div>
+
+                        <h3 className="text-gray-800 font-semibold text-base mb-1.5 line-clamp-2 group-hover:text-indigo-600 transition-colors">
+                          {task.title}
+                        </h3>
+                        <p className="text-gray-500 text-sm line-clamp-2 mb-3">
+                          {task.description}
+                        </p>
+
+                        {task.projectId && (
+                          <div className="flex items-center gap-1.5 mb-3">
+                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
+                              <FolderKanban className="w-3 h-3" />
+                              {task.projectId.name}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                              <span className="text-white text-[10px] font-bold">
+                                {task.assignedBy?.fullName?.charAt(0) || "?"}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
+                              Assigned by:{" "}
+                              {task.assignedBy?.fullName?.split(" ")[0]}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {task.estimatedHours > 0 && (
+                              <div className="flex items-center gap-1 text-gray-400">
+                                <Timer className="w-3 h-3" />
+                                <span className="text-[10px] font-medium text-gray-500">
+                                  {task.estimatedHours}h
+                                </span>
+                              </div>
+                            )}
+                            {task.deadline && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-gray-400" />
+                                <span
+                                  className={`text-[10px] font-medium ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-500"}`}
+                                >
+                                  {formatDate(task.deadline)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {task.status !== "completed" &&
+                          task.status !== "submitted" &&
+                          task.status !== "rejected" && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {isTimerActive ? (
+                                  <>
+                                    <div className="flex-1 min-w-[100px]">
+                                      <div className="flex items-center gap-2">
+                                        <ClockIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                        <span className="text-xs font-mono font-semibold text-gray-700 tabular-nums">
+                                          {formatTime(
+                                            timerState.elapsedSeconds,
+                                          )}
+                                        </span>
+                                        <span
+                                          className={`text-[10px] font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
+                                        >
+                                          {isRunning ? "●" : "⏸"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {isRunning ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePauseTimer();
+                                          }}
+                                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
+                                          title="Pause Timer"
+                                        >
+                                          <Pause className="w-3 h-3" />
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleResumeTimer();
+                                          }}
+                                          className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
+                                          title="Resume Timer"
+                                        >
+                                          <Play className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleStopTimer(task._id);
+                                        }}
+                                        className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
+                                        title="Stop Timer"
+                                      >
+                                        <Square className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1 min-w-[80px]">
+                                      <span className="text-xs text-gray-400">
+                                        {task.actualMinutes
+                                          ? `${task.actualMinutes}m logged`
+                                          : "No time tracked"}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStartTimer(task._id);
+                                      }}
+                                      className="px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
+                                      disabled={
+                                        activeTimerTaskId !== null &&
+                                        activeTimerTaskId !== task._id
+                                      }
+                                      title="Start Timer"
+                                    >
+                                      <Play className="w-3 h-3 me-2" />
+                                      Start
+                                    </button>
+                                  </>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSubmitForReview(task._id);
+                                  }}
+                                  disabled={isSubmitting === task._id}
+                                  className="px-2.5 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
+                                  title="Submit for Review"
+                                >
+                                  {isSubmitting === task._id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Send className="w-3 h-3" />
+                                  )}
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarkComplete(task._id);
+                                  }}
+                                  disabled={isCompleting === task._id}
+                                  className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
+                                  title="Mark Complete"
+                                >
+                                  {isCompleting === task._id ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Check className="w-3 h-3" />
+                                  )}
+                                </button>
+                                <Link
+                                  href={`/tasks/${task._id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button className="px-2.5 py-1 cursor-pointer flex items-center bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
+                                    <EyeIcon className="w-3 h-3 me-2" />
+                                    View
+                                  </button>
+                                </Link>
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    </motion.div>
                   );
                 })}
               </div>
@@ -1165,11 +1290,10 @@ export default function MyTasksPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${
-                            currentPage === pageNum
-                              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                              : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:bg-gray-50"
-                          }`}
+                          className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${currentPage === pageNum
+                            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                            : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -1190,7 +1314,7 @@ export default function MyTasksPage() {
             </>
           )
         ) : (
-          // List View
+          // List View - Updated with all features
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1216,7 +1340,10 @@ export default function MyTasksPage() {
                       Deadline
                     </th>
                     <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Time Tracked
+                      Time
+                    </th>
+                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Evidence
                     </th>
                     <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -1226,26 +1353,11 @@ export default function MyTasksPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-16">
+                      <td colSpan={8} className="text-center py-16">
                         <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-500 font-medium">
-                          No tasks assigned yet
+                          No tasks found
                         </p>
-                        <div className="flex gap-3 justify-center mt-4">
-                          <button
-                            onClick={() => setShowCreateModal(true)}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl transition shadow-md hover:shadow-lg"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Create Task
-                          </button>
-                          <Link href="/tasks/bulk-upload">
-                            <button className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm rounded-xl transition shadow-md hover:shadow-lg">
-                              <Upload className="w-4 h-4" />
-                              Bulk Upload
-                            </button>
-                          </Link>
-                        </div>
                       </td>
                     </tr>
                   ) : (
@@ -1256,14 +1368,16 @@ export default function MyTasksPage() {
                         task._id,
                         task.actualMinutes,
                       );
-                      const totalTime = task.actualMinutes || 0;
+                      const totalTime = getTotalTimeForTask(task);
+                      const isRejected = task.status === "rejected";
 
                       return (
                         <motion.tr
                           key={task._id}
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
-                          className="hover:bg-indigo-50/30 transition cursor-pointer group"
+                          className={`hover:bg-indigo-50/30 transition cursor-pointer group ${isRejected ? "bg-red-50/20" : ""
+                            }`}
                           onClick={() => setSelectedTask(task)}
                         >
                           <td className="px-4 py-3">
@@ -1291,12 +1405,18 @@ export default function MyTasksPage() {
                               }}
                               className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border} bg-white cursor-pointer outline-none focus:ring-2 focus:ring-indigo-300`}
                               onClick={(e) => e.stopPropagation()}
+                              disabled={
+                                updatingStatus === task._id ||
+                                isCompleting === task._id ||
+                                isSubmitting === task._id
+                              }
                             >
                               <option value="pending">Pending</option>
                               <option value="in_progress">In Progress</option>
                               <option value="submitted">Submitted</option>
                               <option value="completed">Completed</option>
                               <option value="overdue">Overdue</option>
+                              <option value="rejected">Rejected</option>
                             </select>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-500">
@@ -1324,24 +1444,34 @@ export default function MyTasksPage() {
                                 </>
                               ) : (
                                 <span className="text-xs text-gray-400">
-                                  {totalTime > 0 ? `${totalTime}m` : "-"}
+                                  {totalTime.minutes > 0 ? `${totalTime.display}` : "-"}
                                 </span>
                               )}
                             </div>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1">
+                            {task.evidenceRequired && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
+                                <Paperclip className="w-3 h-3" />
+                                Required
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-1 flex-wrap">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedTask(task);
                                 }}
                                 className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                title="View"
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
                               {task.status !== "completed" &&
-                                task.status !== "submitted" && (
+                                task.status !== "submitted" &&
+                                task.status !== "rejected" && (
                                   <>
                                     {isTimerActive ? (
                                       <>
@@ -1353,6 +1483,7 @@ export default function MyTasksPage() {
                                               : handleResumeTimer();
                                           }}
                                           className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                          title={isRunning ? "Pause" : "Resume"}
                                         >
                                           {isRunning ? (
                                             <Pause className="w-4 h-4" />
@@ -1366,6 +1497,7 @@ export default function MyTasksPage() {
                                             handleStopTimer(task._id);
                                           }}
                                           className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                          title="Stop Timer"
                                         >
                                           <Square className="w-4 h-4" />
                                         </button>
@@ -1377,13 +1509,64 @@ export default function MyTasksPage() {
                                           handleStartTimer(task._id);
                                         }}
                                         className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-40"
-                                        disabled={activeTimerTaskId !== null}
+                                        disabled={
+                                          activeTimerTaskId !== null &&
+                                          activeTimerTaskId !== task._id
+                                        }
+                                        title="Start Timer"
                                       >
                                         <Play className="w-4 h-4" />
                                       </button>
                                     )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSubmitForReview(task._id);
+                                      }}
+                                      disabled={isSubmitting === task._id}
+                                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition disabled:opacity-40"
+                                      title="Submit for Review"
+                                    >
+                                      {isSubmitting === task._id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Send className="w-4 h-4" />
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleMarkComplete(task._id);
+                                      }}
+                                      disabled={isCompleting === task._id}
+                                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-40"
+                                      title="Mark Complete"
+                                    >
+                                      {isCompleting === task._id ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Check className="w-4 h-4" />
+                                      )}
+                                    </button>
                                   </>
                                 )}
+                              {task.status === "rejected" && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendForRework(task._id);
+                                  }}
+                                  disabled={isReworking === task._id}
+                                  className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition disabled:opacity-40"
+                                  title="Send for Rework"
+                                >
+                                  {isReworking === task._id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </td>
                         </motion.tr>
@@ -1429,6 +1612,12 @@ export default function MyTasksPage() {
                       >
                         {selectedTask.status.replace("_", " ").toUpperCase()}
                       </span>
+                      {selectedTask.evidenceRequired && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
+                          <Paperclip className="w-3 h-3" />
+                          Evidence Required
+                        </span>
+                      )}
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
                         <History className="w-3 h-3" />
                         {getDisplayTimeForTask(
@@ -1453,6 +1642,21 @@ export default function MyTasksPage() {
                   </p>
                   <p className="text-gray-800">{selectedTask.description}</p>
                 </div>
+
+                {selectedTask.rejectionReason && (
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <p className="text-xs text-red-500 font-medium mb-1">Rejection Reason</p>
+                    <p className="text-sm text-red-700">{selectedTask.rejectionReason}</p>
+                  </div>
+                )}
+
+                {selectedTask.approvalNote && (
+                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                    <p className="text-xs text-emerald-500 font-medium mb-1">Approval Note</p>
+                    <p className="text-sm text-emerald-700">{selectedTask.approvalNote}</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Project</p>
@@ -1505,7 +1709,8 @@ export default function MyTasksPage() {
 
                 {/* Timer Controls in Modal */}
                 {selectedTask.status !== "completed" &&
-                  selectedTask.status !== "submitted" && (
+                  selectedTask.status !== "submitted" &&
+                  selectedTask.status !== "rejected" && (
                     <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
                       <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                         <TimerIcon className="w-4 h-4 text-indigo-600" />
@@ -1574,7 +1779,10 @@ export default function MyTasksPage() {
                                 setSelectedTask(null);
                               }}
                               className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
-                              disabled={activeTimerTaskId !== null}
+                              disabled={
+                                activeTimerTaskId !== null &&
+                                activeTimerTaskId !== selectedTask._id
+                              }
                             >
                               <Play className="w-4 h-4" />
                               Start Timer
@@ -1585,25 +1793,80 @@ export default function MyTasksPage() {
                     </div>
                   )}
 
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <div className="flex gap-3 pt-4 border-t border-gray-200 flex-wrap">
                   <select
                     value={selectedTask.status}
                     onChange={(e) => {
                       handleStatusChange(selectedTask._id, e.target.value);
                       setSelectedTask(null);
                     }}
-                    disabled={updatingStatus === selectedTask._id}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                    disabled={
+                      updatingStatus === selectedTask._id ||
+                      isCompleting === selectedTask._id ||
+                      isSubmitting === selectedTask._id
+                    }
+                    className="flex-1 min-w-[150px] px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
                   >
                     <option value="pending">Pending</option>
                     <option value="in_progress">In Progress</option>
                     <option value="submitted">Submitted</option>
                     <option value="completed">Completed</option>
                     <option value="overdue">Overdue</option>
+                    <option value="rejected">Rejected</option>
                   </select>
+                  {selectedTask.status === "rejected" && (
+                    <button
+                      onClick={() => {
+                        handleSendForRework(selectedTask._id);
+                      }}
+                      disabled={isReworking === selectedTask._id}
+                      className="flex-1 min-w-[120px] px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isReworking === selectedTask._id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                      Send for Rework
+                    </button>
+                  )}
+                  {selectedTask.status !== "completed" &&
+                    selectedTask.status !== "submitted" &&
+                    selectedTask.status !== "rejected" && (
+                      <>
+                        <button
+                          onClick={() => {
+                            handleSubmitForReview(selectedTask._id);
+                          }}
+                          disabled={isSubmitting === selectedTask._id}
+                          className="flex-1 min-w-[120px] px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isSubmitting === selectedTask._id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                          Submit Review
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleMarkComplete(selectedTask._id);
+                          }}
+                          disabled={isCompleting === selectedTask._id}
+                          className="flex-1 min-w-[120px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isCompleting === selectedTask._id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                          Complete
+                        </button>
+                      </>
+                    )}
                   <button
                     onClick={() => setSelectedTask(null)}
-                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
+                    className="flex-1 min-w-[100px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
                   >
                     Close
                   </button>
