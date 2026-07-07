@@ -1,3 +1,4 @@
+// app/(dashboard)/tasks/[id]/page.tsx
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -52,6 +53,9 @@ import {
   Pause,
   Square,
   Text,
+  CheckCircle,
+  CalendarClock,
+  Save,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -130,6 +134,84 @@ interface Review {
   updatedAt: string;
 }
 
+interface ExtensionRequest {
+  _id: string;
+  requestedDate: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  approvedBy?: { _id: string; fullName: string };
+  createdAt: string;
+}
+
+// Rejection Reason Modal Component
+function RejectionReasonModal({
+  isOpen,
+  onClose,
+  rejectionReason,
+  onRework,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  rejectionReason: string;
+  onRework: () => void;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+      >
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
+              <MessageCircle className="w-6 h-6 text-rose-500" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">Task Rejected</h3>
+              <p className="text-xs text-gray-500">
+                Feedback from the reviewer
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 mb-4">
+            <p className="text-sm text-rose-700 leading-relaxed">
+              {rejectionReason}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg mb-4">
+            <Info className="w-4 h-4 text-gray-400" />
+            <span>
+              Please review the feedback and resubmit with improvements.
+            </span>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={onRework}
+              className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+            >
+              <RefreshCw size={14} />
+              Send for Rework
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 export default function TaskDetailPage() {
   const { id } = useParams();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -199,11 +281,22 @@ export default function TaskDetailPage() {
   const [showRejectionReasonModal, setShowRejectionReasonModal] =
     useState(false);
 
-  // Evidence submission state - ALWAYS REQUIRED
+  // Evidence submission state
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [evidenceText, setEvidenceText] = useState("");
   const [submittingEvidence, setSubmittingEvidence] = useState(false);
   const [hasSubmittedEvidence, setHasSubmittedEvidence] = useState(false);
+
+  // Extension Request state
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [extensionData, setExtensionData] = useState({
+    requestedDate: "",
+    reason: "",
+  });
+  const [submittingExtension, setSubmittingExtension] = useState(false);
+  const [extensionRequests, setExtensionRequests] = useState<
+    ExtensionRequest[]
+  >([]);
 
   const userRole = user?.role;
   const isSuperAdmin = userRole === "super_admin";
@@ -219,6 +312,8 @@ export default function TaskDetailPage() {
     userRole === "line_manager";
   const isAssignee = task?.assignedTo?._id === user?._id;
   const canReview = task?.status === "completed" && (isAssignee || canManage);
+  const canRequestExtension =
+    isAssignee && task?.status !== "completed" && task?.status !== "submitted";
 
   // Helper Functions
   const getFileIcon = (mimeType: string) => {
@@ -239,6 +334,15 @@ export default function TaskDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  // Check if evidence is provided
+  const hasEvidence = () => {
+    return (
+      (task?.evidenceUrls && task.evidenceUrls.length > 0) ||
+      attachments.length > 0 ||
+      hasSubmittedEvidence
+    );
+  };
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/login");
@@ -251,6 +355,7 @@ export default function TaskDetailPage() {
       fetchComments();
       fetchAttachments();
       fetchReviews();
+      fetchExtensionRequests();
     }
   }, [isAuthenticated, id]);
 
@@ -298,7 +403,6 @@ export default function TaskDetailPage() {
           evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
         };
         setTask(formattedTask);
-        // Reset evidence submission state
         setHasSubmittedEvidence(false);
       } else {
         throw new Error("Invalid task data received");
@@ -315,6 +419,18 @@ export default function TaskDetailPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch Extension Requests
+  const fetchExtensionRequests = async () => {
+    try {
+      const response = await api.get(`/tasks/${id}/extension-requests`);
+      if (response.data.success) {
+        setExtensionRequests(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching extension requests:", error);
     }
   };
 
@@ -584,14 +700,139 @@ export default function TaskDetailPage() {
     }
   };
 
-  // Handle submit for review - FIXED to open modal when evidence is required
-  // Handle submit for review - ALWAYS SHOW EVIDENCE MODAL
+  // ============ MARK COMPLETE ============
+  const handleMarkComplete = async () => {
+    if (!task) return;
+
+    // Stop timer first if running
+    if (isTimerActiveForTask(task._id) && isTimerRunning) {
+      const result = await stopTimer(task._id);
+      if (result.success && result.minutes > 0) {
+        toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+      }
+    }
+
+    // Check if evidence is required and provided
+    if (task.evidenceRequired && !hasEvidence()) {
+      toast.error("Please upload evidence before marking as complete");
+      return;
+    }
+
+    // Show confirmation dialog
+    if (!confirm("Are you sure you want to mark this task as complete?")) {
+      return;
+    }
+
+    setUpdating(true);
+    try {
+      // Get current timer time if available
+      let actualMinutes = task.actualMinutes || 0;
+      if (isTimerActiveForTask(task._id)) {
+        const timerResult = await stopTimer(task._id);
+        if (timerResult.success && timerResult.minutes > 0) {
+          actualMinutes = timerResult.minutes;
+        }
+      }
+
+      const response = await api.patch(`/tasks/${id}/status`, {
+        status: "completed",
+        actualMinutes: actualMinutes,
+        approvalNote: "Task marked as complete by assignee",
+      });
+
+      if (response.data.success) {
+        toast.success(
+          `✅ Task marked as complete! ${actualMinutes > 0 ? `Time tracked: ${formatTimeShort(actualMinutes * 60)}` : ""}`,
+        );
+        fetchTask();
+      }
+    } catch (error: any) {
+      console.error("Error marking task complete:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to mark task as complete",
+      );
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  // ============ TIME EXTENSION ============
+  const handleRequestExtension = async () => {
+    if (!extensionData.requestedDate) {
+      toast.error("Please select a new deadline");
+      return;
+    }
+
+    if (!extensionData.reason.trim()) {
+      toast.error("Please provide a reason for extension");
+      return;
+    }
+
+    setSubmittingExtension(true);
+    try {
+      const response = await api.post(`/tasks/${id}/request-extension`, {
+        requestedDate: extensionData.requestedDate,
+        reason: extensionData.reason.trim(),
+      });
+
+      if (response.data.success) {
+        toast.success("Extension request submitted successfully!");
+        setShowExtensionModal(false);
+        setExtensionData({
+          requestedDate: "",
+          reason: "",
+        });
+        fetchExtensionRequests();
+        fetchTask();
+      }
+    } catch (error: any) {
+      console.error("Error requesting extension:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to request extension",
+      );
+    } finally {
+      setSubmittingExtension(false);
+    }
+  };
+
+  // ============ APPROVE EXTENSION ============
+  const handleApproveExtension = async (
+    extensionId: string,
+    newDeadline: string,
+  ) => {
+    if (!confirm("Approve this extension request?")) return;
+
+    try {
+      const response = await api.post(
+        `/tasks/${id}/approve-extension/${extensionId}`,
+        {
+          newDeadline: newDeadline,
+        },
+      );
+
+      if (response.data.success) {
+        toast.success("Extension approved successfully!");
+        fetchExtensionRequests();
+        fetchTask();
+      }
+    } catch (error: any) {
+      console.error("Error approving extension:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to approve extension",
+      );
+    }
+  };
+
+  // ============ SUBMIT FOR REVIEW ============
   const handleSubmitForReview = () => {
-    // ALWAYS show evidence modal - evidence is required for ALL tasks
+    // Check if evidence is required and provided
+    if (task?.evidenceRequired && !hasEvidence()) {
+      toast.error("Please upload evidence before submitting for review");
+      return;
+    }
     setShowEvidenceModal(true);
   };
 
-  // Handle submit with evidence - called from modal
   const handleSubmitWithEvidence = async () => {
     if (!evidenceText.trim()) {
       toast.error("Please provide evidence details");
@@ -600,7 +841,6 @@ export default function TaskDetailPage() {
 
     setSubmittingEvidence(true);
     try {
-      // Split by new lines and filter empty lines
       const evidenceUrls = evidenceText
         .split("\n")
         .map((line) => line.trim())
@@ -612,7 +852,6 @@ export default function TaskDetailPage() {
         return;
       }
 
-      // Update task with evidence and submit
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "submitted",
         evidenceUrls: evidenceUrls,
@@ -636,14 +875,13 @@ export default function TaskDetailPage() {
     }
   };
 
-  // Open approval/rejection note modal
+  // ============ APPROVAL/REJECTION ============
   const openApprovalNoteModal = (action: "approve" | "reject") => {
     setPendingAction(action);
     setApprovalNote("");
     setShowApprovalNoteModal(true);
   };
 
-  // Handle approve with note
   const handleApproveWithNote = async () => {
     if (!approvalNote.trim()) {
       toast.error("Please provide feedback for approval");
@@ -676,7 +914,6 @@ export default function TaskDetailPage() {
     }
   };
 
-  // Handle reject with note
   const handleRejectWithNote = async () => {
     if (!approvalNote.trim()) {
       toast.error("Please provide a reason for rejection");
@@ -748,17 +985,10 @@ export default function TaskDetailPage() {
     toast.success("▶️ Timer resumed");
   };
 
-  // In TaskDetailPage.tsx - Fixed handleStopTimer
-
   const handleStopTimer = async () => {
     if (!task) return;
 
-    // console.log("🛑 Stopping timer for task:", task._id);
-    // console.log("🛑 Active timer task ID from context:", activeTimerTaskId);
-
-    // Check if timer is active for this task
     if (activeTimerTaskId !== task._id) {
-      // console.log("⚠️ Timer is not active for this task");
       toast.error("Timer is not active for this task");
       return;
     }
@@ -799,16 +1029,6 @@ export default function TaskDetailPage() {
     }
   };
 
-  // Check if evidence is provided
-  const hasEvidence = () => {
-    return (
-      (task?.evidenceUrls && task.evidenceUrls.length > 0) ||
-      attachments.length > 0 ||
-      hasSubmittedEvidence
-    );
-  };
-
-  // Helper Functions
   const getPriorityConfig = (priority: string) => {
     const config = {
       low: {
@@ -959,13 +1179,70 @@ export default function TaskDetailPage() {
     );
   };
 
-  // Render evidence required badge
+  // Render extension requests
+  const renderExtensionRequests = () => {
+    if (extensionRequests.length === 0) return null;
+
+    return (
+      <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+        <div className="flex items-center gap-2 mb-3">
+          <CalendarClock className="w-4 h-4 text-blue-600" />
+          <p className="text-sm font-medium text-blue-800">
+            Extension Requests
+          </p>
+        </div>
+        <div className="space-y-2">
+          {extensionRequests.map((req) => (
+            <div
+              key={req._id}
+              className="bg-white rounded-lg p-3 border border-blue-100"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500">
+                    Requested: {formatDate(req.requestedDate)}
+                  </p>
+                  <p className="text-sm text-gray-700 mt-1">{req.reason}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      req.status === "approved"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : req.status === "rejected"
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {req.status.toUpperCase()}
+                  </span>
+                  {canApprove && req.status === "pending" && (
+                    <button
+                      onClick={() =>
+                        handleApproveExtension(req._id, req.requestedDate)
+                      }
+                      className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded transition"
+                    >
+                      Approve
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Render evidence badge
   const renderEvidenceBadge = () => {
     if (!task?.evidenceRequired) return null;
 
     const hasEvidence =
       (task.evidenceUrls && task.evidenceUrls.length > 0) ||
-      attachments.length > 0;
+      attachments.length > 0 ||
+      hasSubmittedEvidence;
 
     return (
       <span
@@ -978,235 +1255,6 @@ export default function TaskDetailPage() {
         <Paperclip size={12} />
         {hasEvidence ? "Evidence Submitted" : "Evidence Required"}
       </span>
-    );
-  };
-
-  // Comment Item Component
-  const CommentItem = ({
-    comment,
-    depth = 0,
-  }: {
-    comment: Comment;
-    depth?: number;
-  }) => {
-    const [showReply, setShowReply] = useState(false);
-    const [localReplyContent, setLocalReplyContent] = useState("");
-    const isLiked = comment.likes?.includes(user?._id || "");
-
-    return (
-      <div className={`${depth > 0 ? "ml-8 mt-3" : "mb-4"}`}>
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <span className="text-white text-xs font-bold">
-                {getInitials(comment.author?.fullName)}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
-                <div>
-                  <span className="text-gray-800 text-sm font-medium">
-                    {comment.author?.fullName}
-                  </span>
-                  <span className="text-gray-400 text-xs ml-2">
-                    {formatDateTime(comment.createdAt)}
-                  </span>
-                  {comment.isEdited && (
-                    <span className="text-gray-400 text-xs ml-2">(edited)</span>
-                  )}
-                </div>
-                {(comment.author?._id === user?._id || canManage) && (
-                  <div className="flex items-center gap-1">
-                    {comment.author?._id === user?._id && (
-                      <button
-                        onClick={() => {
-                          setEditingComment(comment._id);
-                          setEditContent(comment.content);
-                        }}
-                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                      >
-                        <Edit2 size={12} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDeleteComment(comment._id)}
-                      className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {editingComment === comment._id ? (
-                <div className="mt-2">
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                    rows={2}
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => handleUpdateComment(comment._id)}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg transition shadow-sm"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingComment(null);
-                        setEditContent("");
-                      }}
-                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg transition"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-700 text-sm">{comment.content}</p>
-              )}
-
-              <div className="flex items-center gap-4 mt-2">
-                <button
-                  onClick={() => handleLikeComment(comment._id)}
-                  className={`flex items-center gap-1 text-xs transition ${
-                    isLiked
-                      ? "text-indigo-600"
-                      : "text-gray-400 hover:text-indigo-600"
-                  }`}
-                >
-                  <ThumbsUp size={12} />
-                  {comment.likes?.length || 0} Likes
-                </button>
-                <button
-                  onClick={() => setShowReply(!showReply)}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition"
-                >
-                  <Reply size={12} />
-                  Reply
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {showReply && (
-          <div className="mt-2 ml-8">
-            <div className="flex gap-2">
-              <textarea
-                value={localReplyContent}
-                onChange={(e) => setLocalReplyContent(e.target.value)}
-                placeholder="Write a reply..."
-                rows={2}
-                className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
-              />
-              <button
-                onClick={async () => {
-                  if (!localReplyContent.trim()) return;
-                  try {
-                    const response = await api.post(`/tasks/${id}/comments`, {
-                      content: localReplyContent,
-                      parentCommentId: comment._id,
-                    });
-                    if (response.data.success) {
-                      toast.success("Reply added successfully");
-                      setLocalReplyContent("");
-                      setShowReply(false);
-                      fetchComments();
-                      fetchTask();
-                    }
-                  } catch (error: any) {
-                    toast.error(
-                      error.response?.data?.message || "Failed to add reply",
-                    );
-                  }
-                }}
-                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
-              >
-                <Send size={14} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {comment.replies && comment.replies.length > 0 && (
-          <div className="mt-2">
-            {comment.replies.map((reply) => (
-              <CommentItem key={reply._id} comment={reply} depth={depth + 1} />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // Rejection Reason Modal
-  const RejectionReasonModal = () => {
-    if (!task?.rejectionReason) return null;
-
-    return (
-      <AnimatePresence>
-        {showRejectionReasonModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
-            >
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
-                    <MessageCircle className="w-6 h-6 text-rose-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-800">
-                      Task Rejected
-                    </h3>
-                    <p className="text-xs text-gray-500">
-                      Feedback from the reviewer
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 mb-4">
-                  <p className="text-sm text-rose-700 leading-relaxed">
-                    {task.rejectionReason}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg mb-4">
-                  <Info className="w-4 h-4 text-gray-400" />
-                  <span>
-                    Please review the feedback and resubmit with improvements.
-                  </span>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowRejectionReasonModal(false);
-                      updateTaskStatus("pending");
-                    }}
-                    className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    <RefreshCw size={14} />
-                    Send for Rework
-                  </button>
-                  <button
-                    onClick={() => setShowRejectionReasonModal(false)}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     );
   };
 
@@ -1405,6 +1453,9 @@ export default function TaskDetailPage() {
 
                   {/* Approval Note */}
                   {renderApprovalNote()}
+
+                  {/* Extension Requests */}
+                  {renderExtensionRequests()}
 
                   {/* Task Meta Tags */}
                   <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
@@ -1659,7 +1710,14 @@ export default function TaskDetailPage() {
                         </div>
                       ) : (
                         comments.map((comment) => (
-                          <CommentItem key={comment._id} comment={comment} />
+                          <CommentItem
+                            key={comment._id}
+                            comment={comment}
+                            onCommentUpdate={() => {
+                              fetchComments();
+                              fetchTask();
+                            }}
+                          />
                         ))
                       )}
                     </div>
@@ -1700,7 +1758,6 @@ export default function TaskDetailPage() {
 
                 {showAttachments && (
                   <div className="p-5 pt-0">
-                    {/* Evidence Required Warning */}
                     {task?.evidenceRequired &&
                       task?.status === "in_progress" && (
                         <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2">
@@ -1711,13 +1768,12 @@ export default function TaskDetailPage() {
                             </p>
                             <p className="text-xs text-amber-700">
                               Please upload evidence before submitting this task
-                              for review.
+                              for review or marking as complete.
                             </p>
                           </div>
                         </div>
                       )}
 
-                    {/* Upload Area */}
                     <div className="mb-4">
                       <input
                         ref={fileInputRef}
@@ -1749,7 +1805,6 @@ export default function TaskDetailPage() {
                       </label>
                     </div>
 
-                    {/* Attachments List */}
                     {attachments.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         {task?.evidenceRequired
@@ -1960,20 +2015,44 @@ export default function TaskDetailPage() {
                   )}
 
                   {task.status === "in_progress" && (
+                    <>
+                      <button
+                        onClick={handleMarkComplete}
+                        disabled={updating}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                      >
+                        {updating ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <CheckCircle size={16} />
+                        )}
+                        Mark Complete
+                      </button>
+                      <button
+                        onClick={handleSubmitForReview}
+                        disabled={updating || submittingForReview}
+                        className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                      >
+                        {updating || submittingForReview ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                        Submit for Review
+                        <span className="text-xs bg-purple-400/30 px-2 py-0.5 rounded-full">
+                          Evidence Required
+                        </span>
+                      </button>
+                    </>
+                  )}
+
+                  {canRequestExtension && (
                     <button
-                      onClick={handleSubmitForReview}
-                      disabled={updating || submittingForReview}
-                      className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                      onClick={() => setShowExtensionModal(true)}
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                     >
-                      {updating || submittingForReview ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Send size={16} />
-                      )}
-                      Submit for Review
-                      <span className="text-xs bg-purple-400/30 px-2 py-0.5 rounded-full">
-                        Evidence Required
-                      </span>
+                      <CalendarClock size={16} />
+                      Request Extension
                     </button>
                   )}
 
@@ -2095,7 +2174,7 @@ export default function TaskDetailPage() {
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Time Tracked</span>
                     <span className="text-gray-800 text-sm font-medium">
-                      {displayTime}
+                      {task.actualMinutes ? `${task.actualMinutes}m` : "0m"}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
@@ -2193,6 +2272,104 @@ export default function TaskDetailPage() {
         </div>
       </div>
 
+      {/* Extension Request Modal */}
+      <AnimatePresence>
+        {showExtensionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
+                    <CalendarClock className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    Request Deadline Extension
+                  </h3>
+                </div>
+
+                <p className="text-gray-500 text-sm mb-4">
+                  Request a new deadline for this task. Your manager will review
+                  the request.
+                </p>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Deadline <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={extensionData.requestedDate}
+                    onChange={(e) =>
+                      setExtensionData({
+                        ...extensionData,
+                        requestedDate: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    min={
+                      task.deadline || new Date().toISOString().split("T")[0]
+                    }
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Current deadline: {formatDate(task.deadline)}
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={extensionData.reason}
+                    onChange={(e) =>
+                      setExtensionData({
+                        ...extensionData,
+                        reason: e.target.value,
+                      })
+                    }
+                    placeholder="Explain why you need an extension..."
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRequestExtension}
+                    disabled={submittingExtension}
+                    className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    {submittingExtension ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <CalendarClock size={14} />
+                    )}
+                    Submit Request
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowExtensionModal(false);
+                      setExtensionData({
+                        requestedDate: "",
+                        reason: "",
+                      });
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Image Lightbox Modal */}
       {selectedImage && (
         <div
@@ -2215,7 +2392,7 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {/* Evidence Submission Modal - Make sure this is in your JSX */}
+      {/* Evidence Submission Modal */}
       <AnimatePresence>
         {showEvidenceModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -2247,7 +2424,6 @@ export default function TaskDetailPage() {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Evidence Required Warning */}
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
                   <AlertTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>
@@ -2261,7 +2437,6 @@ export default function TaskDetailPage() {
                   </div>
                 </div>
 
-                {/* Evidence Text Area */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Evidence Details <span className="text-rose-500">*</span>
@@ -2270,13 +2445,7 @@ export default function TaskDetailPage() {
                     value={evidenceText}
                     onChange={(e) => setEvidenceText(e.target.value)}
                     rows={6}
-                    placeholder="Enter evidence details or URLs...
-              
-Example:
-- https://drive.google.com/file/evidence1
-- https://docs.google.com/document/evidence2
-- Screenshots attached in comments
-- Source code: https://github.com/..."
+                    placeholder="Enter evidence details or URLs...\n\nExample:\n- https://drive.google.com/file/evidence1\n- https://docs.google.com/document/evidence2\n- Screenshots attached in comments\n- Source code: https://github.com/..."
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none text-gray-800 placeholder:text-gray-400 font-mono text-sm"
                   />
                   <p className="text-xs text-gray-400 mt-1.5">
@@ -2286,7 +2455,6 @@ Example:
                   </p>
                 </div>
 
-                {/* Actions */}
                 <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <button
                     onClick={handleSubmitWithEvidence}
@@ -2469,7 +2637,15 @@ Example:
       </AnimatePresence>
 
       {/* Rejection Reason Modal */}
-      <RejectionReasonModal />
+      <RejectionReasonModal
+        isOpen={showRejectionReasonModal}
+        onClose={() => setShowRejectionReasonModal(false)}
+        rejectionReason={task?.rejectionReason || ""}
+        onRework={() => {
+          setShowRejectionReasonModal(false);
+          updateTaskStatus("pending");
+        }}
+      />
 
       {/* Review Modal */}
       <AnimatePresence>
@@ -2573,6 +2749,252 @@ Example:
           font-variant-numeric: tabular-nums;
         }
       `}</style>
+    </div>
+  );
+}
+
+// Comment Item Component
+function CommentItem({
+  comment,
+  depth = 0,
+  onCommentUpdate,
+}: {
+  comment: Comment;
+  depth?: number;
+  onCommentUpdate: () => void;
+}) {
+  const { user } = useAuth();
+  const { id } = useParams();
+  const [showReply, setShowReply] = useState(false);
+  const [localReplyContent, setLocalReplyContent] = useState("");
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const isLiked = comment.likes?.includes(user?._id || "");
+
+  const handleLikeComment = async (commentId: string) => {
+    try {
+      const response = await api.post(
+        `/tasks/${id}/comments/${commentId}/like`,
+      );
+      if (response.data.success) {
+        onCommentUpdate();
+      }
+    } catch (error: any) {
+      console.error("Error liking comment:", error);
+      toast.error(error.response?.data?.message || "Failed to like comment");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Are you sure you want to delete this comment?")) return;
+
+    try {
+      const response = await api.delete(`/tasks/${id}/comments/${commentId}`);
+      if (response.data.success) {
+        toast.success("Comment deleted successfully");
+        onCommentUpdate();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete comment");
+    }
+  };
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (!editContent.trim()) {
+      toast.error("Please enter content");
+      return;
+    }
+
+    try {
+      const response = await api.put(`/tasks/${id}/comments/${commentId}`, {
+        content: editContent,
+      });
+
+      if (response.data.success) {
+        toast.success("Comment updated successfully");
+        setEditingComment(null);
+        setEditContent("");
+        onCommentUpdate();
+      }
+    } catch (error: any) {
+      console.error("Error updating comment:", error);
+      toast.error(error.response?.data?.message || "Failed to update comment");
+    }
+  };
+
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return "No date set";
+    try {
+      return new Date(dateString).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "Invalid date";
+    }
+  };
+
+  const getInitials = (name: string) => {
+    return name?.charAt(0)?.toUpperCase() || "?";
+  };
+
+  const canManage =
+    user?.role === "admin" ||
+    user?.role === "super_admin" ||
+    user?.role === "hr_manager";
+
+  return (
+    <div className={`${depth > 0 ? "ml-8 mt-3" : "mb-4"}`}>
+      <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+            <span className="text-white text-xs font-bold">
+              {getInitials(comment.author?.fullName)}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
+              <div>
+                <span className="text-gray-800 text-sm font-medium">
+                  {comment.author?.fullName}
+                </span>
+                <span className="text-gray-400 text-xs ml-2">
+                  {formatDateTime(comment.createdAt)}
+                </span>
+                {comment.isEdited && (
+                  <span className="text-gray-400 text-xs ml-2">(edited)</span>
+                )}
+              </div>
+              {(comment.author?._id === user?._id || canManage) && (
+                <div className="flex items-center gap-1">
+                  {comment.author?._id === user?._id && (
+                    <button
+                      onClick={() => {
+                        setEditingComment(comment._id);
+                        setEditContent(comment.content);
+                      }}
+                      className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                    >
+                      <Edit2 size={12} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDeleteComment(comment._id)}
+                    className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {editingComment === comment._id ? (
+              <div className="mt-2">
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  rows={2}
+                />
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => handleUpdateComment(comment._id)}
+                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg transition shadow-sm"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingComment(null);
+                      setEditContent("");
+                    }}
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-700 text-sm">{comment.content}</p>
+            )}
+
+            <div className="flex items-center gap-4 mt-2">
+              <button
+                onClick={() => handleLikeComment(comment._id)}
+                className={`flex items-center gap-1 text-xs transition ${
+                  isLiked
+                    ? "text-indigo-600"
+                    : "text-gray-400 hover:text-indigo-600"
+                }`}
+              >
+                <ThumbsUp size={12} />
+                {comment.likes?.length || 0} Likes
+              </button>
+              <button
+                onClick={() => setShowReply(!showReply)}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600 transition"
+              >
+                <Reply size={12} />
+                Reply
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showReply && (
+        <div className="mt-2 ml-8">
+          <div className="flex gap-2">
+            <textarea
+              value={localReplyContent}
+              onChange={(e) => setLocalReplyContent(e.target.value)}
+              placeholder="Write a reply..."
+              rows={2}
+              className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+            />
+            <button
+              onClick={async () => {
+                if (!localReplyContent.trim()) return;
+                try {
+                  const response = await api.post(`/tasks/${id}/comments`, {
+                    content: localReplyContent,
+                    parentCommentId: comment._id,
+                  });
+                  if (response.data.success) {
+                    toast.success("Reply added successfully");
+                    setLocalReplyContent("");
+                    setShowReply(false);
+                    onCommentUpdate();
+                  }
+                } catch (error: any) {
+                  toast.error(
+                    error.response?.data?.message || "Failed to add reply",
+                  );
+                }
+              }}
+              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
+            >
+              <Send size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {comment.replies && comment.replies.length > 0 && (
+        <div className="mt-2">
+          {comment.replies.map((reply) => (
+            <CommentItem
+              key={reply._id}
+              comment={reply}
+              depth={depth + 1}
+              onCommentUpdate={onCommentUpdate}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
