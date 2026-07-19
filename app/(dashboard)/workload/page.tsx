@@ -33,26 +33,11 @@ import {
   Star,
   Award,
   AlertCircle,
-  Plus,
-  X,
-  Info,
-  Shield,
-  Mail,
-  Phone,
-  MapPin,
-  Building2,
-  Calendar as CalendarIcon,
-  CheckCheck,
-  Hourglass,
-  Flame,
-  Gauge,
-  TrendingUp as TrendingUpIcon,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import CreateTaskModal from "@/components/tasks/CreateTaskModal";
 
 interface TeamMember {
   user: {
@@ -132,13 +117,6 @@ export default function WorkloadCapacityPage() {
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
-  // Overload Popup State
-  const [showOverloadPopup, setShowOverloadPopup] = useState(false);
-  const [overloadMember, setOverloadMember] = useState<TeamMember | null>(null);
-  const [pendingTaskData, setPendingTaskData] = useState<any>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [overloadWarningAccepted, setOverloadWarningAccepted] = useState(false);
-
   // Helper function to check if image is base64
   const isBase64Image = useCallback(
     (imagePath: string | undefined): boolean => {
@@ -154,21 +132,28 @@ export default function WorkloadCapacityPage() {
       const imagePath = member.user.profilePhoto || member.user.avatar;
       if (!imagePath) return null;
 
+      // If image has error for this user, return null
       if (imageErrors[member.user._id]) return null;
 
+      // If it's a base64 image, return as is
       if (isBase64Image(imagePath)) {
         return imagePath;
       }
 
+      // If it's already a full URL, return as is
       if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
         return imagePath;
       }
 
+      // If it's a relative path, construct full URL
       const apiUrl =
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
       const baseUrl = apiUrl.replace("/api/v1", "");
 
+      // Ensure the path starts with /
       const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+
+      // Add timestamp to prevent caching
       const timestamp = Date.now();
       return `${baseUrl}${path}?t=${timestamp}`;
     },
@@ -185,7 +170,9 @@ export default function WorkloadCapacityPage() {
 
   // Redirect if not authenticated
   useEffect(() => {
+    // console.log("Auth state:", { authLoading, isAuthenticated, user });
     if (!authLoading && !isAuthenticated) {
+      // console.log("Not authenticated, redirecting to login");
       router.push("/login");
     }
   }, [authLoading, isAuthenticated, router]);
@@ -193,6 +180,7 @@ export default function WorkloadCapacityPage() {
   // Fetch workload data
   useEffect(() => {
     if (isAuthenticated) {
+      // console.log("User authenticated, fetching workload data...");
       fetchWorkloadData();
     }
   }, [isAuthenticated]);
@@ -201,12 +189,20 @@ export default function WorkloadCapacityPage() {
     try {
       setLoading(true);
       setError(null);
+      // console.log("Fetching workload data from API...");
 
       const response = await api.get("/workload/capacity");
+      // console.log("API Response:", response.data);
 
       if (response.data.success) {
+        // console.log(
+        //   "Success! Data received:",
+        //   response.data.data.length,
+        //   "members",
+        // );
         setTeamData(response.data.data || []);
         setAggregates(response.data.aggregates || null);
+        // Reset image errors when new data loads
         setImageErrors({});
       } else {
         console.error("API returned error:", response.data.message);
@@ -215,6 +211,13 @@ export default function WorkloadCapacityPage() {
       }
     } catch (error: any) {
       console.error("Error fetching workload data:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config,
+      });
+
       const errorMessage =
         error.response?.data?.message ||
         error.message ||
@@ -223,108 +226,15 @@ export default function WorkloadCapacityPage() {
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+      // console.log("Loading state set to false");
     }
   };
-
-  // ============ OVERLOAD CHECK ============
-  const checkOverload = useCallback(
-    (member: TeamMember, estimatedHours: number) => {
-      const currentCapacity = member.workload.capacityPercentage;
-      const newActiveHours = member.workload.activeHours + estimatedHours;
-      const newCapacity = Math.min(
-        Math.round((newActiveHours / member.workload.monthlyCapacity) * 100),
-        200,
-      );
-
-      // If new capacity > 100%, show overload warning
-      if (newCapacity > 100) {
-        return {
-          isOverload: true,
-          currentCapacity,
-          newCapacity,
-          estimatedHours,
-          activeHours: member.workload.activeHours,
-          newActiveHours,
-          monthlyCapacity: member.workload.monthlyCapacity,
-          overloadAmount: newCapacity - 100,
-        };
-      }
-
-      return {
-        isOverload: false,
-        currentCapacity,
-        newCapacity,
-        estimatedHours,
-        activeHours: member.workload.activeHours,
-        newActiveHours,
-        monthlyCapacity: member.workload.monthlyCapacity,
-        overloadAmount: 0,
-      };
-    },
-    [],
-  );
-
-  // Handle task creation with overload check
-  const handleCreateTask = useCallback(
-    (taskData: any) => {
-      // Find the assigned member
-      const member = teamData.find((m) => m.user._id === taskData.assignedTo);
-      if (!member) {
-        // If member not found in workload data, proceed with task creation
-        setPendingTaskData(taskData);
-        setShowCreateModal(true);
-        return;
-      }
-
-      const overloadCheck = checkOverload(member, taskData.estimatedHours || 0);
-
-      if (overloadCheck.isOverload) {
-        // Show overload popup
-        setOverloadMember({
-          ...member,
-          overloadDetails: overloadCheck,
-        } as any);
-        setPendingTaskData(taskData);
-        setOverloadWarningAccepted(false);
-        setShowOverloadPopup(true);
-      } else {
-        // Proceed with task creation
-        setPendingTaskData(taskData);
-        setShowCreateModal(true);
-      }
-    },
-    [teamData, checkOverload],
-  );
-
-  // Handle overload confirmation
-  const handleOverloadConfirm = useCallback(() => {
-    setOverloadWarningAccepted(true);
-    setShowOverloadPopup(false);
-    // Open create task modal with the pending task data
-    setShowCreateModal(true);
-  }, []);
-
-  // Handle overload cancel
-  const handleOverloadCancel = useCallback(() => {
-    setShowOverloadPopup(false);
-    setOverloadMember(null);
-    setPendingTaskData(null);
-    setOverloadWarningAccepted(false);
-    toast.error("Task creation cancelled");
-  }, []);
-
-  // Handle task created successfully
-  const handleTaskCreated = useCallback(() => {
-    setShowCreateModal(false);
-    setPendingTaskData(null);
-    fetchWorkloadData();
-    toast.success("Task created successfully!");
-  }, []);
 
   // Filter and sort data
   const filteredData = useMemo(() => {
     let filtered = [...teamData];
 
+    // Apply search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -336,12 +246,14 @@ export default function WorkloadCapacityPage() {
       );
     }
 
+    // Apply department filter
     if (departmentFilter !== "all") {
       filtered = filtered.filter(
         (member) => member.user.department === departmentFilter,
       );
     }
 
+    // Apply sorting
     filtered.sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
@@ -420,6 +332,7 @@ export default function WorkloadCapacityPage() {
     }
   };
 
+  // console.log(filteredData, "all users")
   // Show loading state
   if (authLoading || loading) {
     return (
@@ -532,6 +445,7 @@ export default function WorkloadCapacityPage() {
               </button>
               <button
                 onClick={() => {
+                  // Export functionality
                   try {
                     const csv = [
                       [
@@ -800,7 +714,6 @@ export default function WorkloadCapacityPage() {
             ) : (
               filteredData.map((member, index) => {
                 const imageUrl = getImageUrl(member);
-                const isOverCapacity = member.workload.capacityPercentage > 100;
 
                 return (
                   <motion.div
@@ -808,11 +721,7 @@ export default function WorkloadCapacityPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-shadow overflow-hidden ${
-                      isOverCapacity
-                        ? "border-red-300 ring-1 ring-red-200"
-                        : "border-gray-200"
-                    }`}
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                   >
                     {/* Member Row */}
                     <div
@@ -850,20 +759,6 @@ export default function WorkloadCapacityPage() {
                             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                               {member.user.role}
                             </span>
-                            {/* Over Capacity Badge */}
-                            {isOverCapacity && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 animate-pulse">
-                                <AlertCircle className="w-3 h-3" />
-                                Over Capacity
-                              </span>
-                            )}
-                            {member.workload.capacityPercentage > 80 &&
-                              member.workload.capacityPercentage <= 100 && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
-                                  <AlertTriangle className="w-3 h-3" />
-                                  Near Full
-                                </span>
-                              )}
                           </div>
                           <div className="flex items-center gap-3 text-sm text-gray-500 mt-0.5">
                             <span>{member.user.email}</span>
@@ -901,7 +796,7 @@ export default function WorkloadCapacityPage() {
                           <div className="flex items-center justify-between mb-1">
                             <span
                               className={`text-sm font-bold ${
-                                isOverCapacity
+                                member.workload.capacityPercentage > 100
                                   ? "text-red-600"
                                   : member.workload.capacityPercentage > 80
                                     ? "text-amber-600"
@@ -991,14 +886,6 @@ export default function WorkloadCapacityPage() {
                                       {member.breakdown.taskBreakdown.submitted}
                                     </span>
                                   </div>
-                                  <div className="flex justify-between text-sm pt-2 border-t border-gray-100">
-                                    <span className="text-gray-500">
-                                      Completed
-                                    </span>
-                                    <span className="font-medium text-emerald-600">
-                                      {member.workload.completedTaskCount}
-                                    </span>
-                                  </div>
                                 </div>
                               </div>
 
@@ -1075,7 +962,7 @@ export default function WorkloadCapacityPage() {
                                       (task) => (
                                         <div
                                           key={task._id}
-                                          className="flex justify-between text-sm items-center"
+                                          className="flex justify-between text-sm"
                                         >
                                           <span className="text-gray-600 truncate max-w-[120px]">
                                             {task.title}
@@ -1135,193 +1022,6 @@ export default function WorkloadCapacityPage() {
           </motion.div>
         </div>
       </div>
-
-      {/* ============================================================ */}
-      {/* OVERLOAD POPUP - Blocks assignment until manager confirms */}
-      {/* ============================================================ */}
-      <AnimatePresence>
-        {showOverloadPopup && overloadMember && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-md"
-            onClick={handleOverloadCancel}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header with Warning Icon */}
-              <div className="relative p-6 border-b border-gray-100">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/25 animate-pulse">
-                      <AlertCircle className="w-7 h-7 text-white" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                      ⚠️ Capacity Overload Warning
-                      <span className="text-xs font-normal text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                        Action Required
-                      </span>
-                    </h2>
-                    <p className="text-gray-500 text-sm mt-1">
-                      This assignment would overload the team member. Please
-                      review before proceeding.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleOverloadCancel}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Member Info */}
-              <div className="p-6 space-y-4">
-                <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3 border border-gray-100">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
-                    <span className="text-white text-sm font-bold">
-                      {overloadMember.user.fullName.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-800">
-                      {overloadMember.user.fullName}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {overloadMember.user.email} •{" "}
-                      {overloadMember.user.department || "No Department"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Capacity Comparison */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3 text-center border border-gray-100">
-                    <p className="text-xs text-gray-500">Current Capacity</p>
-                    <p className="text-2xl font-bold text-gray-700">
-                      {overloadMember.workload.capacityPercentage}%
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {overloadMember.workload.activeHours}h /{" "}
-                      {overloadMember.workload.monthlyCapacity}h
-                    </p>
-                  </div>
-                  <div className="bg-red-50 rounded-xl p-3 text-center border border-red-200">
-                    <p className="text-xs text-red-500">New Capacity</p>
-                    <p className="text-2xl font-bold text-red-600">
-                      {Math.min(
-                        Math.round(
-                          ((overloadMember.workload.activeHours +
-                            (pendingTaskData?.estimatedHours || 0)) /
-                            overloadMember.workload.monthlyCapacity) *
-                            100,
-                        ),
-                        200,
-                      )}
-                      %
-                    </p>
-                    <p className="text-xs text-red-500">
-                      +{pendingTaskData?.estimatedHours || 0}h added
-                    </p>
-                  </div>
-                </div>
-
-                {/* Impact Details */}
-                <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
-                  <div className="flex items-start gap-2">
-                    <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-amber-800">
-                        Impact of this assignment:
-                      </p>
-                      <ul className="text-xs text-amber-700 mt-1 space-y-1">
-                        <li>
-                          • This will push{" "}
-                          {overloadMember.user.fullName.split(" ")[0]} to{" "}
-                          <span className="font-bold">
-                            {Math.min(
-                              Math.round(
-                                ((overloadMember.workload.activeHours +
-                                  (pendingTaskData?.estimatedHours || 0)) /
-                                  overloadMember.workload.monthlyCapacity) *
-                                  100,
-                              ),
-                              200,
-                            )}
-                            %
-                          </span>{" "}
-                          capacity
-                        </li>
-                        <li>
-                          • Overload by{" "}
-                          <span className="font-bold">
-                            {Math.max(
-                              0,
-                              Math.min(
-                                Math.round(
-                                  ((overloadMember.workload.activeHours +
-                                    (pendingTaskData?.estimatedHours || 0)) /
-                                    overloadMember.workload.monthlyCapacity) *
-                                    100,
-                                ),
-                                200,
-                              ) - 100,
-                            )}
-                            %
-                          </span>{" "}
-                          above capacity
-                        </li>
-                        <li>• May impact quality and delivery timeline</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={handleOverloadConfirm}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-md shadow-red-500/25"
-                  >
-                    <Shield className="w-4 h-4" />
-                    Confirm Overload Assignment
-                  </button>
-                  <button
-                    onClick={handleOverloadCancel}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-400 text-center">
-                  By confirming, you acknowledge that this assignment exceeds
-                  the team member's recommended capacity.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false);
-          setPendingTaskData(null);
-        }}
-        onTaskCreated={handleTaskCreated}
-        initialData={pendingTaskData}
-      />
     </div>
   );
 }
