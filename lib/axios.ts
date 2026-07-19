@@ -1,3 +1,4 @@
+// lib/axios.ts - Updated version
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
@@ -21,12 +22,6 @@ const API_BASE_URL: string =
   // "https://taskify-server-5gat.onrender.com/api/v1";
   "http://localhost:5000/api/v1";
 
-// Development fallback
-// const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
-
-// console.log("🚀 API Base URL:", API_BASE_URL);
-// console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
-
 // ============ CREATE AXIOS INSTANCE ============
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -35,12 +30,14 @@ const api: AxiosInstance = axios.create({
     Accept: "application/json",
   },
   withCredentials: false,
-  timeout: 30000, // 30 seconds timeout
+  timeout: 30000, // 30 seconds default timeout
 });
 
 // ============ RETRY CONFIGURATION ============
 const MAX_RETRIES = 3;
 let retryCount = 0;
+const RETRYABLE_STATUSES = [408, 429, 500, 502, 503, 504];
+const RETRYABLE_ERRORS = ["ECONNABORTED", "ERR_NETWORK", "ETIMEDOUT"];
 
 // ============ TOKEN REFRESH ============
 let isRefreshing = false;
@@ -60,6 +57,32 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
+// ============ CHECK IF ERROR IS RETRYABLE ============
+const isRetryableError = (error: AxiosError): boolean => {
+  // Network errors
+  if (error.code && RETRYABLE_ERRORS.includes(error.code)) {
+    return true;
+  }
+
+  // HTTP status codes
+  if (
+    error.response?.status &&
+    RETRYABLE_STATUSES.includes(error.response.status)
+  ) {
+    return true;
+  }
+
+  // Timeout errors
+  if (
+    error.message?.includes("timeout") ||
+    error.message?.includes("exceeded")
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 // ============ REQUEST INTERCEPTOR ============
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
@@ -74,13 +97,25 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Increase timeout for specific endpoints
+    if (config.url?.includes("/tasks") && config.method === "post") {
+      config.timeout = 120000; // 2 minutes for task creation
+    }
+
+    // For multipart/form-data (file uploads)
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+      // Increase timeout further for large file uploads
+      config.timeout = 180000; // 3 minutes
+    }
+
     // Log request in development
-    // if (process.env.NODE_ENV === "development") {
-    //   console.log(
-    //     `📤 [${requestId}] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
-    //     config.data || "",
-    //   );
-    // }
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `📤 [${requestId}] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+        config.data instanceof FormData ? "FormData" : config.data || "",
+      );
+    }
 
     return config;
   },
@@ -101,8 +136,10 @@ api.interceptors.response.use(
       response.data.includes("<!DOCTYPE")
     ) {
       console.warn(`⚠️ [${requestId}] Received HTML response instead of JSON`);
-      console.warn("This usually means the endpoint is returning a 404 page");
     }
+
+    // Reset retry count on success
+    retryCount = 0;
 
     // Log response in development
     if (process.env.NODE_ENV === "development") {
@@ -123,23 +160,21 @@ api.interceptors.response.use(
       console.error(`🌐 [${requestId}] Network Error:`, error.message);
 
       // Retry on network errors
-      if (
-        (error.code === "ECONNABORTED" || error.code === "ERR_NETWORK") &&
-        retryCount < MAX_RETRIES &&
-        error.config
-      ) {
+      if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
         retryCount++;
+        const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
         console.log(
-          `🔄 [${requestId}] Retry ${retryCount}/${MAX_RETRIES} for ${error.config.url}`,
+          `🔄 [${requestId}] Retry ${retryCount}/${MAX_RETRIES} for ${error.config.url} (delay: ${delay}ms)`,
         );
-        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+        await new Promise((resolve) => setTimeout(resolve, delay));
         return api.request(error.config);
       }
-      retryCount = 0; // Reset retry count
+      retryCount = 0;
 
       return Promise.reject({
         success: false,
         message: "Network error - Please check your internet connection",
+        code: error.code,
         originalError: error,
       });
     }
@@ -148,6 +183,18 @@ api.interceptors.response.use(
     const { response } = error;
     const status = response.status;
     const data = response.data as any;
+
+    // ============ RETRY ON RETRYABLE STATUS CODES ============
+    if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
+      retryCount++;
+      const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+      console.log(
+        `🔄 [${requestId}] Retry ${retryCount}/${MAX_RETRIES} for ${error.config.url} (status: ${status}, delay: ${delay}ms)`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return api.request(error.config);
+    }
+    retryCount = 0;
 
     console.error(`❌ [${requestId}] API Error:`, {
       status,
@@ -165,7 +212,6 @@ api.interceptors.response.use(
       case 401: {
         console.error("❌ Unauthorized - Token expired or invalid");
 
-        // Check if we should attempt token refresh
         const originalRequest = error.config as any;
         if (
           !originalRequest._retry &&
@@ -174,7 +220,6 @@ api.interceptors.response.use(
           originalRequest._retry = true;
 
           if (isRefreshing) {
-            // Queue the request if refresh is in progress
             return new Promise((resolve, reject) => {
               failedQueue.push({ resolve, reject });
             })
@@ -210,10 +255,7 @@ api.interceptors.response.use(
               }
             } catch (refreshError) {
               processQueue(refreshError, null);
-              // Clear session on refresh failure
-              localStorage.removeItem("token");
-              localStorage.removeItem("user");
-              localStorage.removeItem("refreshToken");
+              clearSession();
               if (typeof window !== "undefined") {
                 window.location.href = "/login";
               }
@@ -222,45 +264,25 @@ api.interceptors.response.use(
               isRefreshing = false;
             }
           } else {
-            // No refresh token, redirect to login
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            localStorage.removeItem("refreshToken");
+            clearSession();
             if (typeof window !== "undefined") {
               window.location.href = "/login";
             }
-          }
-        } else {
-          // Already retried, redirect to login
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          localStorage.removeItem("refreshToken");
-          if (
-            typeof window !== "undefined" &&
-            !window.location.pathname.includes("/login")
-          ) {
-            window.location.href = "/login";
           }
         }
         break;
       }
 
       case 403:
-        console.error(
-          "❌ Forbidden - Insufficient permissions:",
-          data?.message,
-        );
+        console.error("❌ Forbidden:", data?.message);
         break;
 
       case 404:
-        console.error("❌ Not Found:", data?.message || "Resource not found");
+        console.error("❌ Not Found:", data?.message);
         break;
 
       case 409:
-        console.error(
-          "❌ Conflict:",
-          data?.message || "Resource already exists",
-        );
+        console.error("❌ Conflict:", data?.message);
         break;
 
       case 422:
@@ -295,23 +317,14 @@ api.interceptors.response.use(
 
 // ============ UTILITY FUNCTIONS ============
 
-/**
- * Set authentication token
- */
 export const setAuthToken = (token: string): void => {
   localStorage.setItem("token", token);
 };
 
-/**
- * Set refresh token
- */
 export const setRefreshToken = (token: string): void => {
   localStorage.setItem("refreshToken", token);
 };
 
-/**
- * Remove all authentication tokens
- */
 export const removeAuthToken = (): void => {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
@@ -319,30 +332,18 @@ export const removeAuthToken = (): void => {
   delete api.defaults.headers.common["Authorization"];
 };
 
-/**
- * Get authentication token
- */
 export const getAuthToken = (): string | null => {
   return localStorage.getItem("token");
 };
 
-/**
- * Get refresh token
- */
 export const getRefreshToken = (): string | null => {
   return localStorage.getItem("refreshToken");
 };
 
-/**
- * Check if user is authenticated
- */
 export const isAuthenticated = (): boolean => {
   return !!getAuthToken();
 };
 
-/**
- * Get current user from localStorage
- */
 export const getCurrentUser = <T = any>(): T | null => {
   try {
     const user = localStorage.getItem("user");
@@ -352,16 +353,10 @@ export const getCurrentUser = <T = any>(): T | null => {
   }
 };
 
-/**
- * Set current user
- */
 export const setCurrentUser = (user: any): void => {
   localStorage.setItem("user", JSON.stringify(user));
 };
 
-/**
- * Clear all session data
- */
 export const clearSession = (): void => {
   removeAuthToken();
   localStorage.removeItem("user");
@@ -369,9 +364,6 @@ export const clearSession = (): void => {
   delete api.defaults.headers.common["Authorization"];
 };
 
-/**
- * Handle logout
- */
 export const logout = (): void => {
   clearSession();
   if (typeof window !== "undefined") {
@@ -381,9 +373,6 @@ export const logout = (): void => {
 
 // ============ GENERIC API METHODS ============
 
-/**
- * Generic API service with type safety
- */
 export const apiService = {
   get: <T = any>(
     url: string,
@@ -426,9 +415,6 @@ export const apiService = {
 
 // ============ AUTH SERVICE ============
 export const authService = {
-  /**
-   * Login user
-   */
   login: async (email: string, password: string): Promise<ApiResponse<any>> => {
     const response = await api.post("/auth/login", { email, password });
     const { token, user, refreshToken } = response.data.data;
@@ -445,16 +431,10 @@ export const authService = {
     return response.data;
   },
 
-  /**
-   * Logout user
-   */
   logout: (): void => {
     clearSession();
   },
 
-  /**
-   * Refresh token
-   */
   refreshToken: async (): Promise<string | null> => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return null;
@@ -474,16 +454,9 @@ export const authService = {
     }
   },
 
-  /**
-   * Get current user profile
-   */
   getProfile: async (): Promise<ApiResponse<any>> => {
     return apiService.get("/auth/me");
   },
 };
 
-// ============ EXPORT DEFAULT ============
 export default api;
-
-// ============ EXPORT TYPES ============
-export type { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError };
