@@ -37,7 +37,6 @@ import {
   X,
   Info,
   Shield,
-  Warning,
   Mail,
   Phone,
   MapPin,
@@ -311,7 +310,7 @@ export default function WorkloadCapacityPage() {
     setOverloadMember(null);
     setPendingTaskData(null);
     setOverloadWarningAccepted(false);
-    toast.info("Task creation cancelled");
+    toast.error("Task creation cancelled");
   }, []);
 
   // Handle task created successfully
