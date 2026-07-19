@@ -1,6 +1,7 @@
+// components/tasks/CreateTaskModal.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   X,
   Calendar,
@@ -19,10 +20,13 @@ import {
   Sparkles,
   CheckSquare,
   Zap,
+  Gauge,
+  AlertCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { motion, AnimatePresence } from "framer-motion";
 
 // ============ TYPE DEFINITIONS ============
 interface User {
@@ -44,6 +48,8 @@ interface User {
         email: string;
       }
     | string;
+  profilePhoto?: string;
+  avatar?: string;
 }
 
 interface Department {
@@ -60,6 +66,15 @@ interface Project {
   description: string;
   status: string;
   departmentId?: { _id: string; name: string };
+}
+
+interface WorkloadInfo {
+  userId: string;
+  capacityPercentage: number;
+  statusColor: "green" | "amber" | "red";
+  activeHours: number;
+  taskCount: number;
+  monthlyCapacity: number;
 }
 
 interface CreateTaskModalProps {
@@ -121,6 +136,12 @@ export default function CreateTaskModal({
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isQuickTask, setIsQuickTask] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [workloadData, setWorkloadData] = useState<
+    Record<string, WorkloadInfo>
+  >({});
+  const [selectedUserWorkload, setSelectedUserWorkload] =
+    useState<WorkloadInfo | null>(null);
+  const [showWorkloadWarning, setShowWorkloadWarning] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -152,6 +173,31 @@ export default function CreateTaskModal({
     isProjectManager ||
     isLineManager;
 
+  // ============ FETCH WORKLOAD DATA ============
+  const fetchWorkloadData = useCallback(async (usersList: User[]) => {
+    if (!usersList || usersList.length === 0) return;
+
+    try {
+      const response = await api.get("/workload/capacity");
+      if (response.data.success) {
+        const workloadMap: Record<string, WorkloadInfo> = {};
+        response.data.data.forEach((item: any) => {
+          workloadMap[item.user._id] = {
+            userId: item.user._id,
+            capacityPercentage: item.workload.capacityPercentage,
+            statusColor: item.workload.statusColor,
+            activeHours: item.workload.activeHours,
+            taskCount: item.workload.taskCount,
+            monthlyCapacity: item.workload.monthlyCapacity,
+          };
+        });
+        setWorkloadData(workloadMap);
+      }
+    } catch (error) {
+      console.error("Error fetching workload data:", error);
+    }
+  }, []);
+
   // ============ API CALLS ============
   const fetchDepartments = useCallback(async () => {
     try {
@@ -179,7 +225,6 @@ export default function CreateTaskModal({
     try {
       setLoadingUsers(true);
       const response = await api.get("/users");
-      // console.log("Users API Response:", response.data);
 
       if (response.data.success) {
         const usersData = response.data.data || [];
@@ -204,6 +249,9 @@ export default function CreateTaskModal({
 
         setUsers(filtered);
         setFilteredUsers(filtered);
+
+        // Fetch workload data for these users
+        await fetchWorkloadData(filtered);
       }
     } catch (error: any) {
       console.error("Error fetching users:", error);
@@ -211,7 +259,7 @@ export default function CreateTaskModal({
     } finally {
       setLoadingUsers(false);
     }
-  }, [user, isDeptManager, isLineManager, isEmployee]);
+  }, [user, isDeptManager, isLineManager, isEmployee, fetchWorkloadData]);
 
   // ============ EFFECTS ============
   useEffect(() => {
@@ -230,6 +278,8 @@ export default function CreateTaskModal({
     if (!isOpen) {
       setIsDataLoaded(false);
       resetForm();
+      setSelectedUserWorkload(null);
+      setShowWorkloadWarning(false);
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
@@ -249,7 +299,23 @@ export default function CreateTaskModal({
   // Reset assignee when department changes
   useEffect(() => {
     setFormData((prev) => ({ ...prev, assignedTo: "" }));
+    setSelectedUserWorkload(null);
+    setShowWorkloadWarning(false);
   }, [selectedDepartment]);
+
+  // Check workload when assignee changes
+  useEffect(() => {
+    if (formData.assignedTo && workloadData[formData.assignedTo]) {
+      const workload = workloadData[formData.assignedTo];
+      setSelectedUserWorkload(workload);
+      setShowWorkloadWarning(
+        workload.statusColor === "red" || workload.statusColor === "amber",
+      );
+    } else {
+      setSelectedUserWorkload(null);
+      setShowWorkloadWarning(false);
+    }
+  }, [formData.assignedTo, workloadData]);
 
   // Handle quick task toggle
   useEffect(() => {
@@ -364,6 +430,17 @@ export default function CreateTaskModal({
         return;
       }
 
+      // Check workload before assigning
+      if (selectedUserWorkload && selectedUserWorkload.statusColor === "red") {
+        if (
+          !confirm(
+            `⚠️ This user is at ${selectedUserWorkload.capacityPercentage}% capacity (OVERLOADED). Assigning this task may cause burnout. Continue anyway?`,
+          )
+        ) {
+          return;
+        }
+      }
+
       if (!canAssignToOthers && formData.assignedTo !== user?._id) {
         toast.error("You can only assign tasks to yourself");
         return;
@@ -410,9 +487,9 @@ export default function CreateTaskModal({
     }
 
     if (!finalProjectId) {
-      toast.loading("Creating default project...", { id: "create-project" });
+      const toastId = toast.loading("Creating default project...");
       const newProjectId = await createDefaultProject(finalDepartment);
-      toast.dismiss("create-project");
+      toast.dismiss(toastId);
 
       if (newProjectId) {
         finalProjectId = newProjectId;
@@ -426,6 +503,8 @@ export default function CreateTaskModal({
     }
 
     setLoading(true);
+    const toastId = toast.loading("Creating task...");
+
     try {
       const taskData = {
         title: formData.title.trim(),
@@ -446,6 +525,8 @@ export default function CreateTaskModal({
       };
 
       const response = await api.post("/tasks", taskData);
+      toast.dismiss(toastId);
+
       if (response.data.success) {
         toast.success("Task created successfully! 🎉");
         resetForm();
@@ -453,6 +534,7 @@ export default function CreateTaskModal({
         onClose();
       }
     } catch (error: any) {
+      toast.dismiss(toastId);
       console.error("Create task error:", error);
       toast.error(error.response?.data?.message || "Failed to create task");
     } finally {
@@ -480,6 +562,8 @@ export default function CreateTaskModal({
     setEvidenceUrls([]);
     setNewUrl("");
     setIsQuickTask(false);
+    setSelectedUserWorkload(null);
+    setShowWorkloadWarning(false);
   };
 
   // ============ GET AVAILABLE USERS ============
@@ -518,6 +602,41 @@ export default function CreateTaskModal({
   };
 
   const availableUsers = getAvailableUsers();
+
+  // ============ GET WORKLOAD STATUS ============
+  const getWorkloadStatus = (userId: string) => {
+    const workload = workloadData[userId];
+    if (!workload) return null;
+
+    const statusConfig = {
+      green: {
+        label: "Good Capacity",
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        icon: <CheckSquare className="w-4 h-4 text-emerald-500" />,
+      },
+      amber: {
+        label: "Near Full",
+        color: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      },
+      red: {
+        label: "Over Capacity",
+        color: "text-red-600",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        icon: <AlertCircle className="w-4 h-4 text-red-500" />,
+      },
+    };
+
+    return {
+      ...workload,
+      status: statusConfig[workload.statusColor],
+    };
+  };
 
   // ============ TOGGLE SWITCH COMPONENT ============
   const ToggleSwitch = ({
@@ -559,14 +678,73 @@ export default function CreateTaskModal({
     );
   };
 
+  // ============ WORKLOAD BADGE COMPONENT ============
+  const WorkloadBadge = ({ userId }: { userId: string }) => {
+    const workload = getWorkloadStatus(userId);
+    if (!workload) return null;
+
+    return (
+      <div
+        className={`mt-1.5 p-2 rounded-lg border ${workload.status.bg} ${workload.status.border}`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {workload.status.icon}
+            <span className={`text-xs font-medium ${workload.status.color}`}>
+              {workload.status.label}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">
+              {workload.activeHours}h / {workload.monthlyCapacity}h
+            </span>
+            <span className={`text-xs font-bold ${workload.status.color}`}>
+              {workload.capacityPercentage}%
+            </span>
+          </div>
+        </div>
+        <div className="mt-1.5 w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${
+              workload.statusColor === "red"
+                ? "bg-red-500"
+                : workload.statusColor === "amber"
+                  ? "bg-amber-500"
+                  : "bg-emerald-500"
+            }`}
+            style={{ width: `${Math.min(workload.capacityPercentage, 100)}%` }}
+          />
+        </div>
+        {workload.statusColor === "red" && (
+          <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+            <AlertCircle className="w-3 h-3" />
+            Overloaded! Assigning more tasks may cause burnout.
+          </p>
+        )}
+        {workload.statusColor === "amber" && (
+          <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3" />
+            Near capacity. Consider workload distribution.
+          </p>
+        )}
+      </div>
+    );
+  };
+
   if (!isOpen) return null;
 
   // ============ RENDER ============
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden animate-fade-in-up">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.2 }}
+        className="relative w-full max-w-3xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+      >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
               <Sparkles className="w-4 h-4 text-white" />
@@ -588,564 +766,555 @@ export default function CreateTaskModal({
           </button>
         </div>
 
-        {/* Quick Task Toggle */}
-        {(isSuperAdmin || isAdmin || isEmployee) && (
-          <div className="px-5 pt-5 pb-0">
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-indigo-600" />
+        {/* Modal Body */}
+        <div className="p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+          {/* Quick Task Toggle */}
+          {(isSuperAdmin || isAdmin || isEmployee) && (
+            <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      Quick Task
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Auto-assign to yourself and simplify the form
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">
-                    Quick Task
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Auto-assign to yourself and simplify the form
-                  </p>
-                </div>
+                <ToggleSwitch
+                  enabled={isQuickTask}
+                  onToggle={() => setIsQuickTask(!isQuickTask)}
+                  size="md"
+                />
               </div>
-              <ToggleSwitch
-                enabled={isQuickTask}
-                onToggle={() => setIsQuickTask(!isQuickTask)}
-                size="md"
-              />
+              {isQuickTask && (
+                <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1">
+                  <CheckSquare className="w-3 h-3" />
+                  Task will be assigned to you with default settings
+                </p>
+              )}
             </div>
-            {isQuickTask && (
-              <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1 animate-fade-in">
-                <CheckSquare className="w-3 h-3" />
-                Task will be assigned to you with default settings
-              </p>
-            )}
-          </div>
-        )}
+          )}
 
-        {/* Role Info Banners */}
-        {isDeptManager && (
-          <div className="px-5 pt-4">
+          {/* Role Info Banners */}
+          {isDeptManager && (
             <div className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
               <Users className="w-4 h-4 text-blue-600" />
               <p className="text-xs text-blue-700">
                 You can assign tasks to users in your department only.
               </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {isLineManager && (
-          <div className="px-5 pt-4">
+          {isLineManager && (
             <div className="flex items-center gap-2 p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
               <Users className="w-4 h-4 text-emerald-600" />
               <p className="text-xs text-emerald-700">
                 You can assign tasks to your direct reports only.
               </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {isEmployee && (
-          <div className="px-5 pt-4">
+          {isEmployee && (
             <div className="flex items-center gap-2 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
               <UserIcon className="w-4 h-4 text-amber-600" />
               <p className="text-xs text-amber-700">
                 You can only create tasks for yourself.
               </p>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Modal Body */}
-        <form
-          onSubmit={handleSubmit}
-          className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar"
-        >
-          {/* Title & Project Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Title & Project Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Task Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                  className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
+                  placeholder="Enter task title"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Project{" "}
+                  <span className="text-gray-400 text-xs">
+                    (Auto-assigned if empty)
+                  </span>
+                </label>
+                <div className="relative">
+                  <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                  >
+                    <option value="">Auto-assign Project</option>
+                    {projects.map((project) => (
+                      <option key={project._id} value={project._id}>
+                        {project.name} ({project.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {isCreatingProject && (
+                  <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Creating default project...
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Description */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Task Title <span className="text-rose-500">*</span>
+                Description <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                value={formData.title}
+              <textarea
+                value={formData.description}
                 onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
+                  setFormData({ ...formData, description: e.target.value })
                 }
-                className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
-                placeholder="Enter task title"
+                rows={3}
+                className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none placeholder:text-gray-400"
+                placeholder="Describe the task details..."
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Project{" "}
-                <span className="text-gray-400 text-xs">
-                  (Auto-assigned if empty)
-                </span>
-              </label>
-              <div className="relative">
-                <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <select
-                  value={selectedProject}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                >
-                  <option value="">Auto-assign Project</option>
-                  {projects.map((project) => (
-                    <option key={project._id} value={project._id}>
-                      {project.name} ({project.code})
-                    </option>
-                  ))}
-                </select>
+            {/* Department & Assign To Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Department{" "}
+                  {!isQuickTask && <span className="text-rose-500">*</span>}
+                  {isQuickTask && (
+                    <span className="text-gray-400 text-xs">
+                      {" "}
+                      (Auto-assigned)
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                    required={!isQuickTask}
+                    disabled={isQuickTask}
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map((dept) => (
+                      <option key={dept._id} value={dept._id}>
+                        {dept.name} ({dept.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              {isCreatingProject && (
-                <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Creating default project...
-                </p>
-              )}
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Assign To{" "}
+                  {!isQuickTask && <span className="text-rose-500">*</span>}
+                  {isQuickTask && (
+                    <span className="text-gray-400 text-xs"> (You)</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={formData.assignedTo}
+                    onChange={(e) =>
+                      setFormData({ ...formData, assignedTo: e.target.value })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                    required={!isQuickTask}
+                    disabled={
+                      isQuickTask || (!canAssignToOthers && !isQuickTask)
+                    }
+                  >
+                    <option value="">
+                      {!selectedDepartment && !isQuickTask
+                        ? "Select department first"
+                        : loadingUsers
+                          ? "Loading users..."
+                          : availableUsers.length === 0
+                            ? isDeptManager
+                              ? "No users in your department"
+                              : isLineManager
+                                ? "No direct reports found"
+                                : "No users available"
+                            : "Select team member"}
+                    </option>
+                    {availableUsers.map((u) => (
+                      <option key={u._id} value={u._id}>
+                        {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
+                        {u._id === user?._id && " (You)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Workload Badge - Shows when a user is selected */}
+                {formData.assignedTo && !isQuickTask && (
+                  <WorkloadBadge userId={formData.assignedTo} />
+                )}
+
+                {/* Role-based info messages */}
+                {!isQuickTask && !canAssignToOthers && (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <UserIcon className="w-3 h-3" />
+                    You can only assign tasks to yourself
+                  </p>
+                )}
+
+                {!isQuickTask && isDeptManager && (
+                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    You can assign tasks to users in your department
+                  </p>
+                )}
+
+                {!isQuickTask && isLineManager && (
+                  <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    You can assign tasks to your direct reports
+                  </p>
+                )}
+
+                {!isQuickTask && (isSuperAdmin || isAdmin || isHrManager) && (
+                  <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                    <Users className="w-3 h-3" />
+                    You can assign tasks to anyone in the system
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Description <span className="text-rose-500">*</span>
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-              rows={3}
-              className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none placeholder:text-gray-400"
-              placeholder="Describe the task details..."
-              required
-            />
-          </div>
+            {/* Priority, Estimated Hours, Actual Minutes */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Priority
+                </label>
+                <div className="relative">
+                  <Flag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <select
+                    value={formData.priority}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        priority: e.target.value as
+                          | "low"
+                          | "normal"
+                          | "high"
+                          | "urgent",
+                      })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
 
-          {/* Department & Assign To Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Estimated Hours
+                </label>
+                <div className="relative">
+                  <Hourglass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={formData.estimatedHours}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        estimatedHours: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
+                    placeholder="Hours"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Actual Minutes
+                </label>
+                <div className="relative">
+                  <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="15"
+                    value={formData.actualMinutes}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        actualMinutes: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
+                    placeholder="Minutes"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Start Time & End Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Start Time
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="datetime-local"
+                    value={formData.startTime}
+                    onChange={(e) =>
+                      setFormData({ ...formData, startTime: e.target.value })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  End Time
+                </label>
+                <div className="relative">
+                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="datetime-local"
+                    value={formData.endTime}
+                    onChange={(e) =>
+                      setFormData({ ...formData, endTime: e.target.value })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Deadlines */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Deadline{" "}
+                  {!isQuickTask && <span className="text-rose-500">*</span>}
+                  {isQuickTask && (
+                    <span className="text-gray-400 text-xs"> (Auto-set)</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={formData.deadline}
+                    onChange={(e) =>
+                      setFormData({ ...formData, deadline: e.target.value })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    required={!isQuickTask}
+                    min={new Date().toISOString().split("T")[0]}
+                    disabled={isQuickTask}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Revised Deadline
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={formData.revisedDeadline}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        revisedDeadline: e.target.value,
+                      })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    min={
+                      formData.deadline ||
+                      new Date().toISOString().split("T")[0]
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Evidence URLs */}
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Department{" "}
-                {!isQuickTask && <span className="text-rose-500">*</span>}
-                {isQuickTask && (
-                  <span className="text-gray-400 text-xs">
-                    {" "}
-                    (Auto-assigned)
+                Evidence URLs
+                {formData.evidenceRequired && (
+                  <span className="text-xs text-amber-600 font-medium ml-2">
+                    (Required for submission)
                   </span>
                 )}
               </label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <select
-                  value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                  required={!isQuickTask}
-                  disabled={isQuickTask}
+              <div className="flex gap-2 mb-2">
+                <div className="relative flex-1">
+                  <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="url"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
+                    placeholder="https://example.com/evidence"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddEvidenceUrl}
+                  className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition shadow-sm"
                 >
-                  <option value="">Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept._id} value={dept._id}>
-                      {dept.name} ({dept.code})
-                    </option>
+                  Add
+                </button>
+              </div>
+              {evidenceUrls.length > 0 && (
+                <div className="space-y-1 mt-2">
+                  {evidenceUrls.map((url, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-indigo-600 hover:text-indigo-800 truncate flex-1"
+                      >
+                        {url}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEvidenceUrl(index)}
+                        className="text-gray-400 hover:text-rose-500 ml-2"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   ))}
-                </select>
+                </div>
+              )}
+            </div>
+
+            {/* Toggle Options */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      Approval Required
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Task needs manager approval before completion
+                    </p>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  enabled={formData.isApprovalRequired}
+                  onToggle={() =>
+                    setFormData({
+                      ...formData,
+                      isApprovalRequired: !formData.isApprovalRequired,
+                    })
+                  }
+                  size="md"
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <Paperclip className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      Evidence Required
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Submit proof of work upon completion
+                    </p>
+                  </div>
+                </div>
+                <ToggleSwitch
+                  enabled={formData.evidenceRequired}
+                  onToggle={() =>
+                    setFormData({
+                      ...formData,
+                      evidenceRequired: !formData.evidenceRequired,
+                    })
+                  }
+                  size="md"
+                />
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Assign To{" "}
-                {!isQuickTask && <span className="text-rose-500">*</span>}
-                {isQuickTask && (
-                  <span className="text-gray-400 text-xs"> (You)</span>
+            {/* Modal Footer */}
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button
+                type="submit"
+                disabled={loading || isCreatingProject}
+                className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading || isCreatingProject ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    {isCreatingProject
+                      ? "Creating Project..."
+                      : "Creating Task..."}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    Create Task
+                  </>
                 )}
-              </label>
-              <div className="relative">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <select
-                  value={formData.assignedTo}
-                  onChange={(e) =>
-                    setFormData({ ...formData, assignedTo: e.target.value })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                  required={!isQuickTask}
-                  disabled={isQuickTask || (!canAssignToOthers && !isQuickTask)}
-                >
-                  <option value="">
-                    {!selectedDepartment && !isQuickTask
-                      ? "Select department first"
-                      : loadingUsers
-                        ? "Loading users..."
-                        : availableUsers.length === 0
-                          ? isDeptManager
-                            ? "No users in your department"
-                            : isLineManager
-                              ? "No direct reports found"
-                              : "No users available"
-                          : "Select team member"}
-                  </option>
-                  {availableUsers.map((u) => (
-                    <option key={u._id} value={u._id}>
-                      {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
-                      {u._id === user?._id && " (You)"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Role-based info messages */}
-              {!isQuickTask && !canAssignToOthers && (
-                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                  <UserIcon className="w-3 h-3" />
-                  You can only assign tasks to yourself
-                </p>
-              )}
-
-              {!isQuickTask && isDeptManager && (
-                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  You can assign tasks to users in your department
-                </p>
-              )}
-
-              {!isQuickTask && isLineManager && (
-                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  You can assign tasks to your direct reports
-                </p>
-              )}
-
-              {!isQuickTask && (isSuperAdmin || isAdmin || isHrManager) && (
-                <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  You can assign tasks to anyone in the system
-                </p>
-              )}
-
-              {selectedDepartment &&
-                availableUsers.length === 0 &&
-                !loadingUsers &&
-                !isQuickTask && (
-                  <p className="text-xs text-amber-500 mt-1">
-                    {isDeptManager
-                      ? "No users available in your department."
-                      : isLineManager
-                        ? "No direct reports found."
-                        : "No users available in this department."}
-                  </p>
-                )}
-            </div>
-          </div>
-
-          {/* Priority, Estimated Hours, Actual Minutes */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Priority
-              </label>
-              <div className="relative">
-                <Flag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <select
-                  value={formData.priority}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      priority: e.target.value as
-                        | "low"
-                        | "normal"
-                        | "high"
-                        | "urgent",
-                    })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Estimated Hours
-              </label>
-              <div className="relative">
-                <Hourglass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={formData.estimatedHours}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      estimatedHours: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
-                  placeholder="Hours"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Actual Minutes
-              </label>
-              <div className="relative">
-                <Timer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="number"
-                  min="0"
-                  step="15"
-                  value={formData.actualMinutes}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      actualMinutes: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
-                  placeholder="Minutes"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Start Time & End Time */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Start Time
-              </label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="datetime-local"
-                  value={formData.startTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, startTime: e.target.value })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                End Time
-              </label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="datetime-local"
-                  value={formData.endTime}
-                  onChange={(e) =>
-                    setFormData({ ...formData, endTime: e.target.value })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Deadlines */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Deadline{" "}
-                {!isQuickTask && <span className="text-rose-500">*</span>}
-                {isQuickTask && (
-                  <span className="text-gray-400 text-xs"> (Auto-set)</span>
-                )}
-              </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) =>
-                    setFormData({ ...formData, deadline: e.target.value })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required={!isQuickTask}
-                  min={new Date().toISOString().split("T")[0]}
-                  disabled={isQuickTask}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Revised Deadline
-              </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="date"
-                  value={formData.revisedDeadline}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      revisedDeadline: e.target.value,
-                    })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  min={
-                    formData.deadline || new Date().toISOString().split("T")[0]
-                  }
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Evidence URLs */}
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              Evidence URLs
-              {formData.evidenceRequired && (
-                <span className="text-xs text-amber-600 font-medium ml-2">
-                  (Required for submission)
-                </span>
-              )}
-            </label>
-            <div className="flex gap-2 mb-2">
-              <div className="relative flex-1">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="url"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
-                  placeholder="https://example.com/evidence"
-                />
-              </div>
+              </button>
               <button
                 type="button"
-                onClick={handleAddEvidenceUrl}
-                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition shadow-sm"
+                onClick={onClose}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition-all"
               >
-                Add
+                Cancel
               </button>
             </div>
-            {evidenceUrls.length > 0 && (
-              <div className="space-y-1 mt-2">
-                {evidenceUrls.map((url, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
-                  >
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-indigo-600 hover:text-indigo-800 truncate flex-1"
-                    >
-                      {url}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveEvidenceUrl(index)}
-                      className="text-gray-400 hover:text-rose-500 ml-2"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Toggle Options */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">
-                    Approval Required
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Task needs manager approval before completion
-                  </p>
-                </div>
-              </div>
-              <ToggleSwitch
-                enabled={formData.isApprovalRequired}
-                onToggle={() =>
-                  setFormData({
-                    ...formData,
-                    isApprovalRequired: !formData.isApprovalRequired,
-                  })
-                }
-                size="md"
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <Paperclip className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">
-                    Evidence Required
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Submit proof of work upon completion
-                  </p>
-                </div>
-              </div>
-              <ToggleSwitch
-                enabled={formData.evidenceRequired}
-                onToggle={() =>
-                  setFormData({
-                    ...formData,
-                    evidenceRequired: !formData.evidenceRequired,
-                  })
-                }
-                size="md"
-              />
-            </div>
-          </div>
-
-          {/* Modal Footer */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="submit"
-              disabled={loading || isCreatingProject}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading || isCreatingProject ? (
-                <div className="flex items-center justify-center gap-2">
-                  <Loader2 size={16} className="animate-spin" />
-                  {isCreatingProject
-                    ? "Creating Project..."
-                    : "Creating Task..."}
-                </div>
-              ) : (
-                "Create Task"
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition-all"
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      </motion.div>
 
       <style jsx>{`
         @keyframes fade-in-up {
