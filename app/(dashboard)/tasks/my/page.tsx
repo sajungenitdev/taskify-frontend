@@ -1390,7 +1390,7 @@ export default function MyTasksPage() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
+                              className={`inline-flex items-center gap-1.5 text-taupe-950 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
                             >
                               {getPriorityIcon(task.priority)}
                               {task.priority}
@@ -1403,7 +1403,7 @@ export default function MyTasksPage() {
                                 e.stopPropagation();
                                 handleStatusChange(task._id, e.target.value);
                               }}
-                              className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border} bg-white cursor-pointer outline-none focus:ring-2 focus:ring-indigo-300`}
+                              className={`text-[10px] font-semibold text-taupe-950 px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border} bg-white cursor-pointer outline-none focus:ring-2 focus:ring-indigo-300`}
                               onClick={(e) => e.stopPropagation()}
                               disabled={
                                 updatingStatus === task._id ||
