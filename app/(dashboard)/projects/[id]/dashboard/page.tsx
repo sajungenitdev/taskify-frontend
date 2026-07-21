@@ -1,4 +1,3 @@
-// app/(dashboard)/projects/[id]/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -61,6 +60,12 @@ import {
   Printer,
   Share2,
   GanttChart,
+  Table,
+  UserCheck,
+  Timer,
+  CheckSquare,
+  AlertOctagon,
+  Trophy,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -219,6 +224,41 @@ interface Task {
   dueDate?: string;
   completedAt?: string;
   createdAt: string;
+  estimatedHours?: number;
+  actualHours?: number;
+}
+
+// New interface for Member Contribution
+interface MemberContribution {
+  userId: string;
+  fullName: string;
+  email: string;
+  avatar?: string;
+  role: string;
+  tasksCompleted: number;
+  totalTasks: number;
+  completionRate: number;
+  hoursLogged: number;
+  estimatedHours: number;
+  hoursAccuracy: number;
+  onTimeTasks: number;
+  lateTasks: number;
+  onTimeRate: number;
+  avgTaskCompletionTime: number;
+  taskBreakdown: {
+    pending: number;
+    inProgress: number;
+    submitted: number;
+    completed: number;
+    overdue: number;
+  };
+  priorityBreakdown: {
+    low: number;
+    normal: number;
+    high: number;
+    critical: number;
+  };
+  trend: "up" | "down" | "stable";
 }
 
 export default function ProjectDashboardPage() {
@@ -233,15 +273,27 @@ export default function ProjectDashboardPage() {
   const [taskStats, setTaskStats] = useState<TaskStats | null>(null);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [teamPerformance, setTeamPerformance] = useState<TeamPerformance[]>([]);
+  const [memberContributions, setMemberContributions] = useState<
+    MemberContribution[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTimeRange, setSelectedTimeRange] = useState<
     "week" | "month" | "all"
   >("month");
   const [showBurndownDetails, setShowBurndownDetails] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "velocity" | "team">(
-    "overview",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "velocity" | "team" | "contributions"
+  >("overview");
+
+  // Contribution table sorting
+  const [contributionSortBy, setContributionSortBy] = useState<
+    "name" | "tasks" | "rate" | "hours" | "onTime"
+  >("rate");
+  const [contributionSortOrder, setContributionSortOrder] = useState<
+    "asc" | "desc"
+  >("desc");
+  const [contributionSearch, setContributionSearch] = useState("");
 
   const canManage = hasRole([
     "super_admin",
@@ -249,6 +301,21 @@ export default function ProjectDashboardPage() {
     "dept_manager",
     "project_manager",
   ]);
+
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
 
   // Generate burndown data from tasks
   const generateBurndownData = useCallback(
@@ -264,7 +331,6 @@ export default function ProjectDashboardPage() {
       );
       const totalTasks = tasks.length;
 
-      // Get completed tasks sorted by completion date
       const completedTasks = tasks
         .filter((task) => task.status === "completed" && task.completedAt)
         .sort(
@@ -277,13 +343,11 @@ export default function ProjectDashboardPage() {
       let completedCount = 0;
       let taskIndex = 0;
 
-      // Generate daily data points
       for (let i = 0; i <= totalDays; i++) {
         const currentDate = new Date(startDate);
         currentDate.setDate(currentDate.getDate() + i);
         const dateStr = currentDate.toISOString().split("T")[0];
 
-        // Count tasks completed up to this date
         while (
           taskIndex < completedTasks.length &&
           new Date(completedTasks[taskIndex].completedAt!) <= currentDate
@@ -360,7 +424,6 @@ export default function ProjectDashboardPage() {
       byAssignee: [],
     };
 
-    // Group by assignee
     const assigneeMap = new Map();
     tasks.forEach((task) => {
       if (task.assignedTo) {
@@ -444,10 +507,179 @@ export default function ProjectDashboardPage() {
     [],
   );
 
-  // Fetch all project data
-  // app/(dashboard)/projects/[id]/dashboard/page.tsx
-  // Only the fetchProjectData function needs to be updated
+  // Generate member contributions
+  const generateMemberContributions = useCallback(
+    (tasks: Task[], teamMembers: any[]) => {
+      if (!teamMembers || teamMembers.length === 0) {
+        return [];
+      }
 
+      const contributions: MemberContribution[] = teamMembers.map((member) => {
+        const memberId = member.userId._id;
+
+        // Filter tasks assigned to this member
+        const memberTasks = tasks.filter((t) => t.assignedTo?._id === memberId);
+
+        if (memberTasks.length === 0) {
+          return {
+            userId: memberId,
+            fullName: member.userId.fullName,
+            email: member.userId.email,
+            avatar: member.userId.avatar,
+            role: member.role,
+            tasksCompleted: 0,
+            totalTasks: 0,
+            completionRate: 0,
+            hoursLogged: 0,
+            estimatedHours: 0,
+            hoursAccuracy: 0,
+            onTimeTasks: 0,
+            lateTasks: 0,
+            onTimeRate: 0,
+            avgTaskCompletionTime: 0,
+            taskBreakdown: {
+              pending: 0,
+              inProgress: 0,
+              submitted: 0,
+              completed: 0,
+              overdue: 0,
+            },
+            priorityBreakdown: {
+              low: 0,
+              normal: 0,
+              high: 0,
+              critical: 0,
+            },
+            trend: "stable" as const,
+          };
+        }
+
+        const completed = memberTasks.filter(
+          (t) => t.status === "completed",
+        ).length;
+        const pending = memberTasks.filter(
+          (t) => t.status === "pending" || t.status === "todo",
+        ).length;
+        const inProgress = memberTasks.filter(
+          (t) => t.status === "in_progress" || t.status === "in-progress",
+        ).length;
+        const submitted = memberTasks.filter(
+          (t) => t.status === "submitted" || t.status === "review",
+        ).length;
+        const overdue = memberTasks.filter(
+          (t) =>
+            t.status !== "completed" &&
+            t.dueDate &&
+            new Date(t.dueDate) < new Date(),
+        ).length;
+
+        // Calculate on-time tasks
+        const completedTasks = memberTasks.filter(
+          (t) => t.status === "completed",
+        );
+        const onTime = completedTasks.filter((t) => {
+          if (!t.dueDate || !t.completedAt) return false;
+          return new Date(t.completedAt) <= new Date(t.dueDate);
+        }).length;
+        const lateTasks = completed - onTime;
+
+        // Calculate hours
+        const estimatedHours = memberTasks.reduce(
+          (sum, t) => sum + (t.estimatedHours || 0),
+          0,
+        );
+        const actualHours = memberTasks.reduce(
+          (sum, t) => sum + (t.actualHours || 0),
+          0,
+        );
+        const hoursAccuracy =
+          estimatedHours > 0
+            ? Math.round((actualHours / estimatedHours) * 100)
+            : 0;
+
+        // Calculate average completion time
+        const completedWithTime = completedTasks.filter(
+          (t) => t.completedAt && t.createdAt,
+        );
+        const avgTime =
+          completedWithTime.length > 0
+            ? Math.round(
+                completedWithTime.reduce((sum, t) => {
+                  const diff =
+                    new Date(t.completedAt!).getTime() -
+                    new Date(t.createdAt).getTime();
+                  return sum + diff / (1000 * 60 * 60);
+                }, 0) / completedWithTime.length,
+              )
+            : 0;
+
+        // Calculate trend
+        const sortedTasks = [...memberTasks].sort(
+          (a, b) =>
+            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+        );
+        const recentTasks = sortedTasks.slice(-5);
+        const oldTasks = sortedTasks.slice(0, 5);
+        const recentCompleted =
+          recentTasks.filter((t) => t.status === "completed").length /
+          (recentTasks.length || 1);
+        const oldCompleted =
+          oldTasks.filter((t) => t.status === "completed").length /
+          (oldTasks.length || 1);
+        let trend: "up" | "down" | "stable" = "stable";
+        if (recentCompleted > oldCompleted + 0.1) trend = "up";
+        else if (recentCompleted < oldCompleted - 0.1) trend = "down";
+
+        // Priority breakdown
+        const priorityBreakdown = {
+          low: memberTasks.filter((t) => t.priority === "low").length,
+          normal: memberTasks.filter(
+            (t) => t.priority === "normal" || t.priority === "medium",
+          ).length,
+          high: memberTasks.filter((t) => t.priority === "high").length,
+          critical: memberTasks.filter(
+            (t) => t.priority === "critical" || t.priority === "urgent",
+          ).length,
+        };
+
+        return {
+          userId: memberId,
+          fullName: member.userId.fullName,
+          email: member.userId.email,
+          avatar: member.userId.avatar,
+          role: member.role,
+          tasksCompleted: completed,
+          totalTasks: memberTasks.length,
+          completionRate:
+            memberTasks.length > 0
+              ? Math.round((completed / memberTasks.length) * 100)
+              : 0,
+          hoursLogged: actualHours,
+          estimatedHours: estimatedHours,
+          hoursAccuracy: hoursAccuracy,
+          onTimeTasks: onTime,
+          lateTasks: lateTasks,
+          onTimeRate:
+            completed > 0 ? Math.round((onTime / completed) * 100) : 0,
+          avgTaskCompletionTime: avgTime,
+          taskBreakdown: {
+            pending,
+            inProgress,
+            submitted,
+            completed,
+            overdue,
+          },
+          priorityBreakdown,
+          trend,
+        };
+      });
+
+      return contributions;
+    },
+    [],
+  );
+
+  // Fetch all project data
   const fetchProjectData = useCallback(async () => {
     try {
       setLoading(true);
@@ -461,125 +693,119 @@ export default function ProjectDashboardPage() {
       const projectData = projectRes.data.data;
       setProject(projectData);
 
-      // Try to fetch burndown from API
+      // Try to fetch tasks from the correct endpoint
+      let tasksData: Task[] = [];
       try {
-        const burndownRes = await api.get(`/projects/${projectId}/burndown`, {
-          params: { range: selectedTimeRange },
+        // Tasks are at /tasks endpoint, not /projects/:id/tasks
+        const tasksRes = await api.get("/tasks", {
+          params: {
+            projectId: projectId, // Filter tasks by projectId if your API supports it
+          },
+          validateStatus: (status) => status >= 200 && status < 500,
         });
-        if (burndownRes.data.success && burndownRes.data.data?.length > 0) {
-          setBurndownData(burndownRes.data.data);
+
+        // Check if we got a valid response with data
+        if (
+          tasksRes.status === 200 &&
+          tasksRes.data?.success &&
+          tasksRes.data?.data
+        ) {
+          // If the API returns tasks with projectId, filter them
+          const allTasks = tasksRes.data.data;
+          if (Array.isArray(allTasks)) {
+            tasksData = allTasks.filter(
+              (task: any) =>
+                task.projectId === projectId || task.project === projectId,
+            );
+            console.log(
+              `✅ Found ${tasksData.length} tasks for project from API`,
+            );
+          } else {
+            tasksData = [];
+          }
+        } else {
+          console.log("📝 Tasks API returned no data, using mock data");
         }
-      } catch (burndownError) {
-        console.log("Burndown API not available, using generated data");
-        // Generate burndown from mock data if project has dates
-        if (projectData.startDate && projectData.endDate) {
-          const mockTasks = generateMockTasks(projectData);
-          const burndown = generateBurndownData(
-            mockTasks,
-            projectData.startDate,
-            projectData.endDate,
-          );
-          setBurndownData(burndown);
-        }
+      } catch (tasksError) {
+        console.log("📝 Could not fetch tasks, using mock data:", tasksError);
       }
 
-      // Try to fetch task stats from API
-      try {
-        const statsRes = await api.get(`/projects/${projectId}/task-stats`);
-        if (statsRes.data.success && statsRes.data.data) {
-          setTaskStats(statsRes.data.data);
-        }
-      } catch (statsError) {
-        console.log("Task stats API not available, using generated data");
-        // Generate mock task stats
-        const mockStats = generateMockTaskStats();
-        setTaskStats(mockStats);
+      // If no tasks from API, generate mock tasks
+      if (tasksData.length === 0 && projectData) {
+        tasksData = generateMockTasks(projectData);
+        console.log(`📝 Generated ${tasksData.length} mock tasks`);
       }
+      setTasks(tasksData);
 
-      // Try to fetch activities
-      try {
-        const activitiesRes = await api.get(
-          `/projects/${projectId}/activities`,
+      // Generate all data from tasks
+      if (projectData.startDate && projectData.endDate) {
+        const burndown = generateBurndownData(
+          tasksData,
+          projectData.startDate,
+          projectData.endDate,
         );
-        if (activitiesRes.data.success) {
-          setActivities(activitiesRes.data.data || []);
-        }
-      } catch (activitiesError) {
-        console.log("Activities API not available, using generated data");
-        // Generate mock activities
-        if (projectData.createdAt) {
-          setActivities([
-            {
-              _id: "1",
-              action: "created",
-              description: `Project "${projectData.name}" was created`,
+        setBurndownData(burndown);
+      }
+
+      const stats = generateTaskStats(tasksData);
+      setTaskStats(stats);
+
+      if (projectData.teamMembers && projectData.teamMembers.length > 0) {
+        const performance = generateTeamPerformance(
+          tasksData,
+          projectData.teamMembers,
+        );
+        setTeamPerformance(performance);
+
+        const contributions = generateMemberContributions(
+          tasksData,
+          projectData.teamMembers,
+        );
+        setMemberContributions(contributions);
+      }
+
+      // Generate mock activities
+      if (projectData.createdAt) {
+        const activitiesData = [
+          {
+            _id: "1",
+            action: "created",
+            description: `Project "${projectData.name}" was created`,
+            userId: {
+              _id: projectData.createdBy?._id || "unknown",
+              fullName: projectData.createdBy?.fullName || "System",
+              email: projectData.createdBy?.email || "",
+            },
+            createdAt: projectData.createdAt,
+          },
+        ];
+
+        // Add task-related activities
+        if (tasksData.length > 0) {
+          const recentTasks = tasksData.slice(0, 5);
+          recentTasks.forEach((task, index) => {
+            activitiesData.push({
+              _id: `task-${index}`,
+              action: task.status === "completed" ? "completed" : "created",
+              description: `Task "${task.title}" was ${
+                task.status === "completed" ? "completed" : "created"
+              }`,
               userId: {
-                _id: projectData.createdBy?._id || "unknown",
-                fullName: projectData.createdBy?.fullName || "System",
-                email: projectData.createdBy?.email || "",
+                _id: task.assignedTo?._id || "system",
+                fullName: task.assignedTo?.fullName || "System",
+                email: "",
               },
-              createdAt: projectData.createdAt,
-            },
-            ...(projectData.updatedAt &&
-            projectData.updatedAt !== projectData.createdAt
-              ? [
-                  {
-                    _id: "2",
-                    action: "updated",
-                    description: `Project was updated`,
-                    userId: {
-                      _id: "system",
-                      fullName: "System",
-                      email: "",
-                    },
-                    createdAt: projectData.updatedAt,
-                  },
-                ]
-              : []),
-          ]);
+              createdAt: task.completedAt || task.createdAt,
+            });
+          });
         }
-      }
 
-      // Try to fetch team performance from API
-      try {
-        const teamRes = await api.get(
-          `/projects/${projectId}/team-performance`,
+        // Sort by date (newest first)
+        activitiesData.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         );
-        if (teamRes.data.success && teamRes.data.data) {
-          setTeamPerformance(teamRes.data.data);
-        }
-      } catch (teamError) {
-        console.log("Team performance API not available, using generated data");
-        // Generate team performance from project team members
-        if (projectData.teamMembers && projectData.teamMembers.length > 0) {
-          const performance = projectData.teamMembers.map((member: any) => ({
-            userId: member.userId._id,
-            fullName: member.userId.fullName,
-            email: member.userId.email,
-            avatar: member.userId.avatar,
-            role: member.role,
-            tasksAssigned: Math.floor(Math.random() * 10) + 1,
-            tasksCompleted: Math.floor(Math.random() * 8),
-            completionRate: Math.floor(Math.random() * 100),
-            averageTime: Math.floor(Math.random() * 10),
-            taskBreakdown: {
-              pending: Math.floor(Math.random() * 3),
-              inProgress: Math.floor(Math.random() * 3),
-              submitted: Math.floor(Math.random() * 2),
-              completed: Math.floor(Math.random() * 5),
-            },
-          }));
-          setTeamPerformance(performance);
-        }
-      }
-
-      // If we have tasks data from the project, use it for the velocity chart
-      if (projectData.tasks && projectData.tasks.length > 0) {
-        setTasks(projectData.tasks);
-      } else {
-        // Generate mock tasks for the velocity chart
-        const mockTasks = generateMockTasks(projectData);
-        setTasks(mockTasks);
+        setActivities(activitiesData.slice(0, 10));
       }
     } catch (error: any) {
       console.error("Error fetching project data:", error);
@@ -588,8 +814,13 @@ export default function ProjectDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [projectId, selectedTimeRange, generateBurndownData]);
-
+  }, [
+    projectId,
+    generateBurndownData,
+    generateTaskStats,
+    generateTeamPerformance,
+    generateMemberContributions,
+  ]);
   // Helper function to generate mock tasks
   const generateMockTasks = (projectData: Project) => {
     const tasks: Task[] = [];
@@ -608,6 +839,9 @@ export default function ProjectDashboardPage() {
       "Email notifications",
       "Payment integration",
       "Analytics tracking",
+      "Testing framework",
+      "Deployment automation",
+      "Security audit",
     ];
 
     const startDate = new Date(projectData.startDate);
@@ -616,65 +850,66 @@ export default function ProjectDashboardPage() {
       (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    for (let i = 0; i < Math.min(12, taskNames.length); i++) {
+    const teamMembers = projectData.teamMembers || [];
+    const memberCount = teamMembers.length || 1;
+
+    // Generate 15-20 tasks
+    const numTasks = Math.floor(Math.random() * 6) + 15;
+
+    for (let i = 0; i < numTasks; i++) {
       const createdAt = new Date(startDate);
       createdAt.setDate(
-        createdAt.getDate() + Math.floor(Math.random() * daysDiff * 0.8),
+        createdAt.getDate() + Math.floor(Math.random() * daysDiff * 0.9),
       );
 
       const status = statuses[Math.floor(Math.random() * statuses.length)];
       const isCompleted = status === "completed";
 
+      // Assign to a random team member
+      const memberIndex = i % memberCount;
+      const member = teamMembers[memberIndex];
+
+      // Calculate due date (somewhere between start and end)
+      const dueDate = new Date(startDate);
+      dueDate.setDate(
+        dueDate.getDate() +
+          Math.floor(Math.random() * daysDiff * 0.8) +
+          Math.floor(daysDiff * 0.1),
+      );
+
+      // Completion date (if completed)
+      let completedAt: string | undefined;
+      if (isCompleted) {
+        completedAt = new Date(
+          createdAt.getTime() +
+            Math.random() * (dueDate.getTime() - createdAt.getTime()) * 0.9,
+        ).toISOString();
+      }
+
       tasks.push({
         _id: `mock-task-${i}`,
-        title: taskNames[i % taskNames.length],
+        title:
+          taskNames[i % taskNames.length] +
+          (i >= taskNames.length
+            ? ` ${Math.floor(i / taskNames.length) + 1}`
+            : ""),
         status: status,
         priority: priorities[Math.floor(Math.random() * priorities.length)],
-        assignedTo:
-          projectData.teamMembers && projectData.teamMembers.length > 0
-            ? {
-                _id: projectData.teamMembers[
-                  Math.floor(Math.random() * projectData.teamMembers.length)
-                ].userId._id,
-                fullName:
-                  projectData.teamMembers[
-                    Math.floor(Math.random() * projectData.teamMembers.length)
-                  ].userId.fullName,
-              }
-            : undefined,
-        dueDate: new Date(
-          startDate.getTime() + Math.random() * daysDiff * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        completedAt: isCompleted
-          ? new Date(
-              createdAt.getTime() + Math.random() * 7 * 24 * 60 * 60 * 1000,
-            ).toISOString()
+        assignedTo: member
+          ? {
+              _id: member.userId._id,
+              fullName: member.userId.fullName,
+            }
           : undefined,
+        dueDate: dueDate.toISOString(),
+        completedAt: completedAt,
         createdAt: createdAt.toISOString(),
+        estimatedHours: Math.floor(Math.random() * 8) + 2,
+        actualHours: Math.floor(Math.random() * 10) + 1,
       });
     }
 
     return tasks;
-  };
-
-  // Helper function to generate mock task stats
-  const generateMockTaskStats = (): TaskStats => {
-    return {
-      total: 12,
-      completed: 4,
-      inProgress: 3,
-      pending: 2,
-      submitted: 2,
-      overdue: 1,
-      rejected: 0,
-      byPriority: {
-        low: 3,
-        normal: 4,
-        high: 3,
-        urgent: 2,
-      },
-      byAssignee: [],
-    };
   };
 
   useEffect(() => {
@@ -682,6 +917,74 @@ export default function ProjectDashboardPage() {
       fetchProjectData();
     }
   }, [projectId, fetchProjectData]);
+
+  // Filter tasks based on selected time range
+  const getFilteredTasks = useCallback(() => {
+    if (!tasks || tasks.length === 0) return tasks;
+
+    const now = new Date();
+    let cutoffDate = new Date();
+
+    switch (selectedTimeRange) {
+      case "week":
+        cutoffDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        cutoffDate.setMonth(now.getMonth() - 1);
+        break;
+      case "all":
+      default:
+        return tasks;
+    }
+
+    return tasks.filter((task) => {
+      const taskDate = new Date(task.createdAt);
+      return taskDate >= cutoffDate;
+    });
+  }, [tasks, selectedTimeRange]);
+
+  // Update stats when time range changes
+  useEffect(() => {
+    if (tasks.length > 0) {
+      const filteredTasks = getFilteredTasks();
+      const stats = generateTaskStats(filteredTasks);
+      setTaskStats(stats);
+
+      // Update burndown data based on filtered tasks
+      if (project?.startDate && project?.endDate) {
+        const burndown = generateBurndownData(
+          filteredTasks,
+          project.startDate,
+          project.endDate,
+        );
+        setBurndownData(burndown);
+      }
+
+      // Update team performance and contributions
+      if (project?.teamMembers) {
+        const performance = generateTeamPerformance(
+          filteredTasks,
+          project.teamMembers,
+        );
+        setTeamPerformance(performance);
+
+        const contributions = generateMemberContributions(
+          filteredTasks,
+          project.teamMembers,
+        );
+        setMemberContributions(contributions);
+      }
+    }
+  }, [
+    selectedTimeRange,
+    tasks,
+    project,
+    generateTaskStats,
+    generateBurndownData,
+    generateTeamPerformance,
+    generateMemberContributions,
+    getFilteredTasks,
+  ]);
 
   // Calculate burndown accuracy
   const burndownAccuracy = useMemo(() => {
@@ -768,6 +1071,132 @@ export default function ProjectDashboardPage() {
     }
   };
 
+  // Filter and sort contributions
+  const filteredContributions = useMemo(() => {
+    let filtered = memberContributions;
+
+    if (contributionSearch) {
+      filtered = filtered.filter(
+        (c) =>
+          c.fullName.toLowerCase().includes(contributionSearch.toLowerCase()) ||
+          c.email.toLowerCase().includes(contributionSearch.toLowerCase()),
+      );
+    }
+
+    filtered.sort((a, b) => {
+      let aVal: any, bVal: any;
+      switch (contributionSortBy) {
+        case "name":
+          aVal = a.fullName;
+          bVal = b.fullName;
+          break;
+        case "tasks":
+          aVal = a.tasksCompleted;
+          bVal = b.tasksCompleted;
+          break;
+        case "rate":
+          aVal = a.completionRate;
+          bVal = b.completionRate;
+          break;
+        case "hours":
+          aVal = a.hoursLogged;
+          bVal = b.hoursLogged;
+          break;
+        case "onTime":
+          aVal = a.onTimeRate;
+          bVal = b.onTimeRate;
+          break;
+        default:
+          aVal = a.completionRate;
+          bVal = b.completionRate;
+      }
+      if (typeof aVal === "string") {
+        return contributionSortOrder === "asc"
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      return contributionSortOrder === "asc" ? aVal - bVal : bVal - aVal;
+    });
+
+    return filtered;
+  }, [
+    memberContributions,
+    contributionSearch,
+    contributionSortBy,
+    contributionSortOrder,
+  ]);
+
+  // Export contributions as CSV
+  const exportContributions = () => {
+    if (filteredContributions.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const headers = [
+        "Member",
+        "Role",
+        "Tasks Completed",
+        "Total Tasks",
+        "Completion Rate",
+        "Hours Logged",
+        "Est. Hours",
+        "Hours Accuracy",
+        "On-Time Tasks",
+        "Late Tasks",
+        "On-Time Rate",
+        "Avg Completion Time",
+      ];
+
+      const rows = filteredContributions.map((c) => [
+        c.fullName,
+        c.role,
+        c.tasksCompleted,
+        c.totalTasks,
+        `${c.completionRate}%`,
+        c.hoursLogged,
+        c.estimatedHours,
+        `${c.hoursAccuracy}%`,
+        c.onTimeTasks,
+        c.lateTasks,
+        `${c.onTimeRate}%`,
+        `${c.avgTaskCompletionTime}h`,
+      ]);
+
+      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
+        "\n",
+      );
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `contributions_${project?.code}_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Contributions exported successfully");
+    } catch (error) {
+      toast.error("Failed to export contributions");
+      console.error("Export error:", error);
+    }
+  };
+
+  // Get trend icon
+  const getTrendIcon = (trend: string) => {
+    switch (trend) {
+      case "up":
+        return <TrendingUp size={14} className="text-emerald-500" />;
+      case "down":
+        return <TrendingDown size={14} className="text-rose-500" />;
+      default:
+        return <Minus size={14} className="text-amber-500" />;
+    }
+  };
+
+  const Minus = ({ size, className }: { size: number; className?: string }) => (
+    <span className={className}>—</span>
+  );
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -844,109 +1273,48 @@ export default function ProjectDashboardPage() {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4"
+            className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6"
           >
-            <div className="flex items-center gap-4">
-              <Link
-                href={`/projects/${projectId}`}
-                className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-gray-600 hover:text-gray-800"
-              >
-                <ArrowLeft size={18} />
-              </Link>
-              <div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                    <FolderKanban className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                      {project.name}
-                    </h1>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      <span className="text-xs font-mono text-gray-400">
-                        {project.code}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor(project.status)}`}
-                      >
-                        {project.status.replace("_", " ")}
-                      </span>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border flex items-center gap-1 ${getPriorityColor(project.priority)}`}
-                      >
-                        {getPriorityIcon(project.priority)}
-                        {project.priority}
-                      </span>
-                    </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-indigo-50 rounded-xl">
+                  <FolderKanban className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h1 className="text-xl md:text-2xl font-bold text-gray-800">
+                    {project.name}
+                  </h1>
+                  <div className="flex items-center gap-3 mt-1">
+                    <span className="text-xs text-gray-400">
+                      {project.code}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor(project.status)}`}
+                    >
+                      {project.status.replace("_", " ")}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Progress: {project.progress || 0}%
+                    </span>
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => {
-                  if (burndownData.length === 0) {
-                    toast.error("No burndown data to export");
-                    return;
-                  }
-                  const csv = [
-                    [
-                      "Date",
-                      "Ideal Remaining",
-                      "Actual Remaining",
-                      "Completed",
-                      "Total",
-                    ],
-                    ...burndownData.map((d) => [
-                      d.date,
-                      d.idealRemaining,
-                      d.actualRemaining,
-                      d.completed,
-                      d.total,
-                    ]),
-                  ]
-                    .map((row) => row.join(","))
-                    .join("\n");
-
-                  const blob = new Blob([csv], { type: "text/csv" });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `burndown_${project.code}_${new Date().toISOString().split("T")[0]}.csv`;
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                  toast.success("Burndown data exported");
-                }}
-                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
-              >
-                <Download size={14} />
-                Export
-              </button>
-              <button
-                onClick={fetchProjectData}
-                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
-              >
-                <RefreshCw
-                  size={16}
-                  className={loading ? "animate-spin" : ""}
-                />
-              </button>
-              <Link
-                href={`/projects/${projectId}/gantt`}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
-              >
-                <GanttChart size={16} />
-                Gantt Chart
-              </Link>
-              {canManage && (
-                <Link
-                  href={`/projects/${projectId}/edit`}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={fetchProjectData}
+                  className="px-3 py-2 text-sm bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg transition flex items-center gap-2"
                 >
-                  <Edit2 size={16} />
-                  Edit Project
+                  <RefreshCw size={14} />
+                  Refresh
+                </button>
+                <Link
+                  href={`/projects/active`}
+                  className="px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 shadow-sm"
+                >
+                  <ArrowLeft size={14} />
+                  Back Project 
                 </Link>
-              )}
+              </div>
             </div>
           </motion.div>
 
@@ -988,7 +1356,6 @@ export default function ProjectDashboardPage() {
             </button>
           </motion.div>
 
-          {/* Stats Overview */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -999,7 +1366,7 @@ export default function ProjectDashboardPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-2xl font-bold text-gray-800">
-                    {project.tasksCount || tasks.length || 0}
+                    {taskStats?.total || 0}
                   </p>
                   <p className="text-xs text-gray-500">Total Tasks</p>
                 </div>
@@ -1009,7 +1376,7 @@ export default function ProjectDashboardPage() {
             <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
               <div>
                 <p className="text-2xl font-bold text-emerald-600">
-                  {project.completedTasks || taskStats?.completed || 0}
+                  {taskStats?.completed || 0}
                 </p>
                 <p className="text-xs text-gray-500">Completed</p>
               </div>
@@ -1056,17 +1423,17 @@ export default function ProjectDashboardPage() {
             </div>
           </motion.div>
 
-          {/* Tab Navigation */}
+          {/* Tab Navigation - Updated with Contributions tab */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
             className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
           >
-            <div className="flex border-b border-gray-200 bg-gray-50">
+            <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
               <button
                 onClick={() => setActiveTab("overview")}
-                className={`px-4 py-3 text-sm font-medium transition relative ${
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
                   activeTab === "overview"
                     ? "text-indigo-600"
                     : "text-gray-500 hover:text-gray-700"
@@ -1082,7 +1449,7 @@ export default function ProjectDashboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab("velocity")}
-                className={`px-4 py-3 text-sm font-medium transition relative ${
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
                   activeTab === "velocity"
                     ? "text-indigo-600"
                     : "text-gray-500 hover:text-gray-700"
@@ -1097,8 +1464,24 @@ export default function ProjectDashboardPage() {
                 )}
               </button>
               <button
+                onClick={() => setActiveTab("contributions")}
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
+                  activeTab === "contributions"
+                    ? "text-indigo-600"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Table size={14} />
+                  Contributions
+                </span>
+                {activeTab === "contributions" && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
+                )}
+              </button>
+              <button
                 onClick={() => setActiveTab("team")}
-                className={`px-4 py-3 text-sm font-medium transition relative ${
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
                   activeTab === "team"
                     ? "text-indigo-600"
                     : "text-gray-500 hover:text-gray-700"
@@ -1672,6 +2055,310 @@ export default function ProjectDashboardPage() {
                   tasks={tasks}
                   sprintData={[]}
                 />
+              )}
+
+              {/* Contributions Tab */}
+              {activeTab === "contributions" && (
+                <div className="space-y-4">
+                  {/* Contribution Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl p-4 border border-indigo-200/50">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Total Contributors
+                      </p>
+                      <p className="text-2xl font-bold text-indigo-700">
+                        {memberContributions.length}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Total Tasks Completed
+                      </p>
+                      <p className="text-2xl font-bold text-emerald-700">
+                        {memberContributions.reduce(
+                          (sum, c) => sum + c.tasksCompleted,
+                          0,
+                        )}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200/50">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Avg Completion Rate
+                      </p>
+                      <p className="text-2xl font-bold text-amber-700">
+                        {memberContributions.length > 0
+                          ? Math.round(
+                              memberContributions.reduce(
+                                (sum, c) => sum + c.completionRate,
+                                0,
+                              ) / memberContributions.length,
+                            )
+                          : 0}
+                        %
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-4 border border-purple-200/50">
+                      <p className="text-xs text-gray-500 font-medium">
+                        Total Hours Logged
+                      </p>
+                      <p className="text-2xl font-bold text-purple-700">
+                        {memberContributions.reduce(
+                          (sum, c) => sum + c.hoursLogged,
+                          0,
+                        )}
+                        h
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Contribution Table Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search contributors..."
+                          value={contributionSearch}
+                          onChange={(e) =>
+                            setContributionSearch(e.target.value)
+                          }
+                          className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition w-48 md:w-64"
+                        />
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setContributionSortBy("name")}
+                          className={`px-2 py-1 text-xs rounded-md transition ${
+                            contributionSortBy === "name"
+                              ? "bg-indigo-600 text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          Name
+                        </button>
+                        <button
+                          onClick={() => setContributionSortBy("tasks")}
+                          className={`px-2 py-1 text-xs rounded-md transition ${
+                            contributionSortBy === "tasks"
+                              ? "bg-indigo-600 text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          Tasks
+                        </button>
+                        <button
+                          onClick={() => setContributionSortBy("rate")}
+                          className={`px-2 py-1 text-xs rounded-md transition ${
+                            contributionSortBy === "rate"
+                              ? "bg-indigo-600 text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          Rate
+                        </button>
+                        <button
+                          onClick={() => setContributionSortBy("hours")}
+                          className={`px-2 py-1 text-xs rounded-md transition ${
+                            contributionSortBy === "hours"
+                              ? "bg-indigo-600 text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          Hours
+                        </button>
+                        <button
+                          onClick={() => setContributionSortBy("onTime")}
+                          className={`px-2 py-1 text-xs rounded-md transition ${
+                            contributionSortBy === "onTime"
+                              ? "bg-indigo-600 text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          On-Time
+                        </button>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setContributionSortOrder(
+                            contributionSortOrder === "asc" ? "desc" : "asc",
+                          )
+                        }
+                        className="px-2 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-md transition"
+                      >
+                        {contributionSortOrder === "asc" ? "↑" : "↓"}
+                      </button>
+                    </div>
+                    <button
+                      onClick={exportContributions}
+                      className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
+                    >
+                      <Download size={14} />
+                      Export
+                    </button>
+                  </div>
+
+                  {/* Contribution Table */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Member
+                            </th>
+                            <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Role
+                            </th>
+                            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Tasks
+                            </th>
+                            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Rate
+                            </th>
+                            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Hours
+                            </th>
+                            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              On-Time
+                            </th>
+                            <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Trend
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredContributions.length > 0 ? (
+                            filteredContributions.map((contrib) => (
+                              <tr
+                                key={contrib.userId}
+                                className="hover:bg-gray-50 transition"
+                              >
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                      {contrib.fullName.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-800">
+                                        {contrib.fullName}
+                                      </p>
+                                      <p className="text-xs text-gray-400">
+                                        {contrib.email}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">
+                                    {contrib.role}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <span className="text-sm font-medium text-gray-800">
+                                      {contrib.tasksCompleted}
+                                    </span>
+                                    <span className="text-xs text-gray-400">
+                                      / {contrib.totalTasks}
+                                    </span>
+                                  </div>
+                                  <div className="w-full max-w-16 mx-auto mt-1 bg-gray-200 rounded-full h-1">
+                                    <div
+                                      className="h-1 rounded-full bg-indigo-500"
+                                      style={{
+                                        width: `${contrib.totalTasks > 0 ? (contrib.tasksCompleted / contrib.totalTasks) * 100 : 0}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span
+                                    className={`text-sm font-medium ${
+                                      contrib.completionRate >= 80
+                                        ? "text-emerald-600"
+                                        : contrib.completionRate >= 50
+                                          ? "text-amber-600"
+                                          : "text-rose-600"
+                                    }`}
+                                  >
+                                    {contrib.completionRate}%
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div>
+                                    <span className="text-sm font-medium text-gray-800">
+                                      {contrib.hoursLogged}h
+                                    </span>
+                                    <span className="text-xs text-gray-400 ml-1">
+                                      / {contrib.estimatedHours}h
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {contrib.hoursAccuracy}% accuracy
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div>
+                                    <span
+                                      className={`text-sm font-medium ${
+                                        contrib.onTimeRate >= 80
+                                          ? "text-emerald-600"
+                                          : contrib.onTimeRate >= 50
+                                            ? "text-amber-600"
+                                            : "text-rose-600"
+                                      }`}
+                                    >
+                                      {contrib.onTimeRate}%
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    {contrib.onTimeTasks} on-time /{" "}
+                                    {contrib.lateTasks} late
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {getTrendIcon(contrib.trend)}
+                                    <span
+                                      className={`text-xs font-medium ${
+                                        contrib.trend === "up"
+                                          ? "text-emerald-600"
+                                          : contrib.trend === "down"
+                                            ? "text-rose-600"
+                                            : "text-amber-600"
+                                      }`}
+                                    >
+                                      {contrib.trend === "up"
+                                        ? "Improving"
+                                        : contrib.trend === "down"
+                                          ? "Declining"
+                                          : "Stable"}
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td
+                                colSpan={7}
+                                className="text-center py-8 text-gray-400"
+                              >
+                                <Users className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                                <p>No contribution data available</p>
+                                <p className="text-xs mt-1">
+                                  Assign tasks to team members to see
+                                  contributions
+                                </p>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Team Tab */}

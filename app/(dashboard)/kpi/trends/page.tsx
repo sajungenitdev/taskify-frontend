@@ -100,7 +100,7 @@ interface TrendData {
   month: string;
   monthIndex: number;
   year: number;
-  [key: string]: any; // Dynamic employee scores
+  [key: string]: any;
 }
 
 interface EmployeeTrend {
@@ -143,8 +143,10 @@ export default function KPITrendsPage() {
   const [showAllEmployees, setShowAllEmployees] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "average" | "trend">("average");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   const isFetching = useRef(false);
+  const initialFetchDone = useRef(false);
 
   const canManage = hasRole([
     "super_admin",
@@ -153,22 +155,25 @@ export default function KPITrendsPage() {
     "dept_manager",
   ]);
 
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
+  const months = useMemo(
+    () => [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ],
+    [],
+  );
 
-  // Get last 6 months
+  // Get last months
   const getLastMonths = useCallback(() => {
     const result = [];
     const now = new Date();
@@ -187,7 +192,7 @@ export default function KPITrendsPage() {
   // Fetch KPI history data
   const fetchTrendData = useCallback(async () => {
     if (isFetching.current) return;
-    
+
     try {
       isFetching.current = true;
       setLoading(true);
@@ -227,13 +232,13 @@ export default function KPITrendsPage() {
 
           if (response.data.success && response.data.data) {
             const scores = response.data.data.allScores || [];
-            
+
             // Create a map for quick lookup
             const scoreMap = new Map();
             scores.forEach((s: any) => {
               const userId = s.userId._id;
               scoreMap.set(userId, s);
-              
+
               if (!employeeMap.has(userId)) {
                 employeeMap.set(userId, {
                   userId: s.userId,
@@ -241,7 +246,7 @@ export default function KPITrendsPage() {
                   scores: [],
                 });
               }
-              
+
               const empData = employeeMap.get(userId);
               empData.scores.push({
                 month: monthData.month,
@@ -267,11 +272,10 @@ export default function KPITrendsPage() {
             });
 
             // Update trend data with scores
-            const monthKey = `${monthData.month} ${monthData.year}`;
             const trendEntry = allTrendData.find(
-              (t) => t.month === monthData.month && t.year === monthData.year
+              (t) => t.month === monthData.month && t.year === monthData.year,
             );
-            
+
             if (trendEntry) {
               scoreMap.forEach((score, userId) => {
                 const empData = employeeMap.get(userId);
@@ -285,7 +289,7 @@ export default function KPITrendsPage() {
           console.error(`Error fetching data for ${monthData.month}:`, e);
           // Add empty data for missing months
           const trendEntry = allTrendData.find(
-            (t) => t.month === monthData.month && t.year === monthData.year
+            (t) => t.month === monthData.month && t.year === monthData.year,
           );
           if (trendEntry) {
             usersData.forEach((user) => {
@@ -300,14 +304,16 @@ export default function KPITrendsPage() {
       employeeMap.forEach((data, userId) => {
         const scores = data.scores || [];
         const sortedScores = scores.sort(
-          (a: any, b: any) => a.monthIndex - b.monthIndex || a.year - b.year
+          (a: any, b: any) => a.monthIndex - b.monthIndex || a.year - b.year,
         );
 
         // Calculate average
         const validScores = sortedScores.filter((s: any) => s.score > 0);
-        const avg = validScores.length > 0
-          ? validScores.reduce((sum: number, s: any) => sum + s.score, 0) / validScores.length
-          : 0;
+        const avg =
+          validScores.length > 0
+            ? validScores.reduce((sum: number, s: any) => sum + s.score, 0) /
+              validScores.length
+            : 0;
 
         // Calculate trend
         let trend: "up" | "down" | "stable" = "stable";
@@ -333,14 +339,18 @@ export default function KPITrendsPage() {
           }
         });
 
-        // Calculate consistency score (lower is better - less variation)
-        const consistencyScore = validScores.length > 1
-          ? Math.round(
-              (validScores.reduce((sum: number, s: any) => sum + Math.pow(s.score - avg, 2), 0) /
-                validScores.length) *
-                100
-            ) / 100
-          : 0;
+        // Calculate consistency score
+        const consistencyScore =
+          validScores.length > 1
+            ? Math.round(
+                (validScores.reduce(
+                  (sum: number, s: any) => sum + Math.pow(s.score - avg, 2),
+                  0,
+                ) /
+                  validScores.length) *
+                  100,
+              ) / 100
+            : 0;
 
         processedTrends.push({
           userId: data.userId._id,
@@ -365,33 +375,39 @@ export default function KPITrendsPage() {
       setTrendData(allTrendData);
       setEmployeeTrends(processedTrends);
 
-      // Auto-select top performers
-      const topPerformers = processedTrends
-        .filter((t) => t.averageScore > 0)
-        .sort((a, b) => b.averageScore - a.averageScore)
-        .slice(0, 5);
-      
-      if (selectedEmployees.length === 0 && topPerformers.length > 0) {
-        setSelectedEmployees(topPerformers.map((t) => t.userId));
-      }
+      // Auto-select top performers on first load only
+      if (isFirstLoad) {
+        const topPerformers = processedTrends
+          .filter((t) => t.averageScore > 0)
+          .sort((a, b) => b.averageScore - a.averageScore)
+          .slice(0, 5);
 
+        if (topPerformers.length > 0) {
+          setSelectedEmployees(topPerformers.map((t) => t.userId));
+        }
+        setIsFirstLoad(false);
+      }
     } catch (error: any) {
       console.error("Error fetching trend data:", error);
       setError(error.response?.data?.message || "Failed to fetch trend data");
-      toast.error(error.response?.data?.message || "Failed to fetch trend data");
+      toast.error(
+        error.response?.data?.message || "Failed to fetch trend data",
+      );
     } finally {
       setLoading(false);
       isFetching.current = false;
+      initialFetchDone.current = true;
     }
-  }, [getLastMonths, monthsToShow]);
+  }, [getLastMonths, isFirstLoad]);
 
+  // Initial fetch only once
   useEffect(() => {
-    if (canManage) {
+    if (canManage && !initialFetchDone.current) {
       fetchTrendData();
     }
-  }, [canManage, fetchTrendData, monthsToShow, selectedYear]);
+  }, [canManage, fetchTrendData]);
 
-  // Filter employees
+  // Filter employees - memoized to prevent unnecessary recalculations
   const filteredEmployees = useMemo(() => {
     let filtered = employeeTrends;
 
@@ -401,7 +417,7 @@ export default function KPITrendsPage() {
         (e) =>
           e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
           e.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.employeeId.toLowerCase().includes(searchTerm.toLowerCase())
+          e.employeeId.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -431,7 +447,9 @@ export default function KPITrendsPage() {
           bVal = b.averageScore;
       }
       if (typeof aVal === "string") {
-        return sortOrder === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        return sortOrder === "asc"
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
       }
       return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
     });
@@ -441,7 +459,14 @@ export default function KPITrendsPage() {
     }
 
     return filtered;
-  }, [employeeTrends, searchTerm, departmentFilter, sortBy, sortOrder, showAllEmployees]);
+  }, [
+    employeeTrends,
+    searchTerm,
+    departmentFilter,
+    sortBy,
+    sortOrder,
+    showAllEmployees,
+  ]);
 
   // Get unique departments
   const departments = useMemo(() => {
@@ -454,7 +479,7 @@ export default function KPITrendsPage() {
     setSelectedEmployees((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+        : [...prev, userId],
     );
   };
 
@@ -478,17 +503,19 @@ export default function KPITrendsPage() {
         year: t.year,
         label: `${t.month.slice(0, 3)} ${t.year}`,
       };
-      
+
       selectedEmployees.forEach((userId) => {
         const employee = employeeTrends.find((e) => e.userId === userId);
         if (employee) {
           const score = employee.scores.find(
-            (s) => s.month === t.month && new Date(t.year, t.monthIndex).getFullYear() === t.year
+            (s) =>
+              s.month === t.month &&
+              new Date(t.year, t.monthIndex).getFullYear() === t.year,
           );
           entry[employee.fullName] = score?.score || 0;
         }
       });
-      
+
       return entry;
     });
 
@@ -497,18 +524,24 @@ export default function KPITrendsPage() {
 
   // Get summary stats
   const stats = useMemo(() => {
-    const selected = employeeTrends.filter((e) => selectedEmployees.includes(e.userId));
+    const selected = employeeTrends.filter((e) =>
+      selectedEmployees.includes(e.userId),
+    );
     const valid = selected.filter((e) => e.averageScore > 0);
-    
+
     return {
       totalEmployees: employeeTrends.length,
       selectedCount: selected.length,
-      averageScore: valid.length > 0 
-        ? Math.round(valid.reduce((sum, e) => sum + e.averageScore, 0) / valid.length)
-        : 0,
-      topPerformer: valid.length > 0 
-        ? valid.reduce((a, b) => a.averageScore > b.averageScore ? a : b)
-        : null,
+      averageScore:
+        valid.length > 0
+          ? Math.round(
+              valid.reduce((sum, e) => sum + e.averageScore, 0) / valid.length,
+            )
+          : 0,
+      topPerformer:
+        valid.length > 0
+          ? valid.reduce((a, b) => (a.averageScore > b.averageScore ? a : b))
+          : null,
       improving: selected.filter((e) => e.trend === "up").length,
       declining: selected.filter((e) => e.trend === "down").length,
       stable: selected.filter((e) => e.trend === "stable").length,
@@ -523,11 +556,15 @@ export default function KPITrendsPage() {
     }
 
     try {
-      const headers = ["Month", "Year", ...selectedEmployees.map((id) => {
-        const emp = employeeTrends.find((e) => e.userId === id);
-        return emp?.fullName || id;
-      })];
-      
+      const headers = [
+        "Month",
+        "Year",
+        ...selectedEmployees.map((id) => {
+          const emp = employeeTrends.find((e) => e.userId === id);
+          return emp?.fullName || id;
+        }),
+      ];
+
       const rows = trendData.map((t) => [
         t.month,
         t.year,
@@ -536,8 +573,10 @@ export default function KPITrendsPage() {
           return value.toFixed(1);
         }),
       ]);
-      
-      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+
+      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
+        "\n",
+      );
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -588,6 +627,13 @@ export default function KPITrendsPage() {
     return colors[level] || colors.needs_improvement;
   };
 
+  // Handle refresh manually
+  const handleRefresh = () => {
+    initialFetchDone.current = false;
+    setIsFirstLoad(true);
+    fetchTrendData();
+  };
+
   if (!canManage) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -612,7 +658,7 @@ export default function KPITrendsPage() {
     );
   }
 
-  if (loading) {
+  if (loading && initialFetchDone.current === false) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="flex flex-col items-center gap-3">
@@ -626,7 +672,7 @@ export default function KPITrendsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="container mx-auto space-y-6">
           {/* Breadcrumb */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -668,7 +714,8 @@ export default function KPITrendsPage() {
                   </h1>
                   <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Employee performance trends over the last {monthsToShow} months
+                    Employee performance trends over the last {monthsToShow}{" "}
+                    months
                   </p>
                 </div>
               </div>
@@ -683,11 +730,14 @@ export default function KPITrendsPage() {
                 Export
               </button>
               <button
-                onClick={fetchTrendData}
+                onClick={handleRefresh}
                 disabled={loading}
                 className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
               >
-                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                <RefreshCw
+                  size={16}
+                  className={loading ? "animate-spin" : ""}
+                />
                 Refresh
               </button>
             </div>
@@ -767,7 +817,11 @@ export default function KPITrendsPage() {
                 </label>
                 <select
                   value={monthsToShow}
-                  onChange={(e) => setMonthsToShow(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    setMonthsToShow(parseInt(e.target.value));
+                    initialFetchDone.current = false;
+                    setIsFirstLoad(true);
+                  }}
                   className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 >
                   <option value={3}>3 Months</option>
@@ -782,11 +836,17 @@ export default function KPITrendsPage() {
                 </label>
                 <select
                   value={selectedYear}
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    setSelectedYear(parseInt(e.target.value));
+                    initialFetchDone.current = false;
+                    setIsFirstLoad(true);
+                  }}
                   className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 >
                   {[2023, 2024, 2025, 2026].map((year) => (
-                    <option key={year} value={year}>{year}</option>
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -801,7 +861,9 @@ export default function KPITrendsPage() {
                 >
                   <option value="all">All Departments</option>
                   {departments.map((dept) => (
-                    <option key={dept} value={dept}>{dept}</option>
+                    <option key={dept} value={dept}>
+                      {dept}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -899,7 +961,10 @@ export default function KPITrendsPage() {
                       borderRadius: "8px",
                       padding: "12px",
                     }}
-                    formatter={(value: any) => [`${value.toFixed(1)}%`, "Score"]}
+                    formatter={(value: any) => [
+                      `${value.toFixed(1)}%`,
+                      "Score",
+                    ]}
                   />
                   <Legend />
                   <ReferenceLine
@@ -914,9 +979,22 @@ export default function KPITrendsPage() {
                     }}
                   />
                   {selectedEmployees.map((userId, index) => {
-                    const employee = employeeTrends.find((e) => e.userId === userId);
+                    const employee = employeeTrends.find(
+                      (e) => e.userId === userId,
+                    );
                     if (!employee) return null;
-                    const colors = ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#14b8a6", "#8b5cf6", "#f472b6"];
+                    const colors = [
+                      "#6366f1",
+                      "#8b5cf6",
+                      "#ec4899",
+                      "#f59e0b",
+                      "#10b981",
+                      "#3b82f6",
+                      "#ef4444",
+                      "#14b8a6",
+                      "#8b5cf6",
+                      "#f472b6",
+                    ];
                     return (
                       <Line
                         key={userId}
@@ -937,16 +1015,30 @@ export default function KPITrendsPage() {
             {selectedEmployees.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2">
                 {selectedEmployees.map((userId) => {
-                  const employee = employeeTrends.find((e) => e.userId === userId);
+                  const employee = employeeTrends.find(
+                    (e) => e.userId === userId,
+                  );
                   if (!employee) return null;
                   return (
                     <div
                       key={userId}
                       className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200"
                     >
-                      <span className="w-2 h-2 rounded-full" style={{
-                        backgroundColor: ["#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#14b8a6"][selectedEmployees.indexOf(userId) % 8]
-                      }} />
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{
+                          backgroundColor: [
+                            "#6366f1",
+                            "#8b5cf6",
+                            "#ec4899",
+                            "#f59e0b",
+                            "#10b981",
+                            "#3b82f6",
+                            "#ef4444",
+                            "#14b8a6",
+                          ][selectedEmployees.indexOf(userId) % 8],
+                        }}
+                      />
                       <span className="text-xs font-medium text-gray-700">
                         {employee.fullName}
                       </span>
@@ -981,7 +1073,9 @@ export default function KPITrendsPage() {
                 </h3>
                 <p className="text-xs text-gray-400">
                   {filteredEmployees.length} employees shown
-                  {!showAllEmployees && filteredEmployees.length > 10 && ` (showing top 10)`}
+                  {!showAllEmployees &&
+                    filteredEmployees.length > 10 &&
+                    ` (showing top 10)`}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1018,7 +1112,9 @@ export default function KPITrendsPage() {
                   </button>
                 </div>
                 <button
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
                   className="px-2 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-md transition"
                 >
                   {sortOrder === "asc" ? "↑" : "↓"}
@@ -1042,7 +1138,12 @@ export default function KPITrendsPage() {
                       <th className="text-left py-2 px-3 font-medium w-8">
                         <input
                           type="checkbox"
-                          checked={filteredEmployees.every((e) => selectedEmployees.includes(e.userId))}
+                          checked={
+                            filteredEmployees.length > 0 &&
+                            filteredEmployees.every((e) =>
+                              selectedEmployees.includes(e.userId),
+                            )
+                          }
                           onChange={(e) => {
                             if (e.target.checked) {
                               selectAllVisible();
@@ -1053,21 +1154,40 @@ export default function KPITrendsPage() {
                           className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                         />
                       </th>
-                      <th className="text-left py-2 px-3 font-medium">Employee</th>
-                      <th className="text-left py-2 px-3 font-medium">Department</th>
-                      <th className="text-center py-2 px-3 font-medium">Avg Score</th>
-                      <th className="text-center py-2 px-3 font-medium">Trend</th>
-                      <th className="text-center py-2 px-3 font-medium">Best</th>
-                      <th className="text-center py-2 px-3 font-medium">Worst</th>
-                      <th className="text-center py-2 px-3 font-medium">Consistency</th>
+                      <th className="text-left py-2 px-3 font-medium">
+                        Employee
+                      </th>
+                      <th className="text-left py-2 px-3 font-medium">
+                        Department
+                      </th>
+                      <th className="text-center py-2 px-3 font-medium">
+                        Avg Score
+                      </th>
+                      <th className="text-center py-2 px-3 font-medium">
+                        Trend
+                      </th>
+                      <th className="text-center py-2 px-3 font-medium">
+                        Best
+                      </th>
+                      <th className="text-center py-2 px-3 font-medium">
+                        Worst
+                      </th>
+                      <th className="text-center py-2 px-3 font-medium">
+                        Consistency
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {filteredEmployees.map((employee) => {
-                      const isSelected = selectedEmployees.includes(employee.userId);
-                      const trendInfo = getTrendInfo(employee.trend, employee.trendPercentage);
+                      const isSelected = selectedEmployees.includes(
+                        employee.userId,
+                      );
+                      const trendInfo = getTrendInfo(
+                        employee.trend,
+                        employee.trendPercentage,
+                      );
                       const TrendIcon = trendInfo.icon;
-                      
+
                       return (
                         <tr
                           key={employee.userId}
@@ -1076,12 +1196,14 @@ export default function KPITrendsPage() {
                           }`}
                           onClick={() => toggleEmployee(employee.userId)}
                         >
-                          <td className="py-3 px-3">
+                          <td
+                            className="py-3 px-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <input
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => toggleEmployee(employee.userId)}
-                              onClick={(e) => e.stopPropagation()}
                               className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                             />
                           </td>
@@ -1104,36 +1226,44 @@ export default function KPITrendsPage() {
                             {employee.department}
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <span className={`text-sm font-bold ${
-                              employee.averageScore >= 80
-                                ? "text-emerald-600"
-                                : employee.averageScore >= 60
-                                ? "text-amber-600"
-                                : "text-rose-600"
-                            }`}>
+                            <span
+                              className={`text-sm font-bold ${
+                                employee.averageScore >= 80
+                                  ? "text-emerald-600"
+                                  : employee.averageScore >= 60
+                                    ? "text-amber-600"
+                                    : "text-rose-600"
+                              }`}
+                            >
                               {employee.averageScore}%
                             </span>
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${trendInfo.bg} ${trendInfo.color}`}>
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${trendInfo.bg} ${trendInfo.color}`}
+                            >
                               <TrendIcon size={12} />
                               {trendInfo.label}
                             </span>
                           </td>
                           <td className="py-3 px-3 text-center text-sm text-emerald-600 font-medium">
-                            {employee.bestMonth.score}% ({employee.bestMonth.month})
+                            {employee.bestMonth.score}% (
+                            {employee.bestMonth.month.slice(0, 3)})
                           </td>
                           <td className="py-3 px-3 text-center text-sm text-rose-600 font-medium">
-                            {employee.worstMonth.score}% ({employee.worstMonth.month})
+                            {employee.worstMonth.score}% (
+                            {employee.worstMonth.month.slice(0, 3)})
                           </td>
                           <td className="py-3 px-3 text-center">
-                            <span className={`text-xs font-medium ${
-                              employee.consistencyScore < 10
-                                ? "text-emerald-600"
-                                : employee.consistencyScore < 20
-                                ? "text-amber-600"
-                                : "text-rose-600"
-                            }`}>
+                            <span
+                              className={`text-xs font-medium ${
+                                employee.consistencyScore < 10
+                                  ? "text-emerald-600"
+                                  : employee.consistencyScore < 20
+                                    ? "text-amber-600"
+                                    : "text-rose-600"
+                              }`}
+                            >
                               {employee.consistencyScore.toFixed(1)}
                             </span>
                           </td>

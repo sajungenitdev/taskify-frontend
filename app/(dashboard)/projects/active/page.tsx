@@ -1804,7 +1804,7 @@ export default function ProjectsPage() {
                 {activeTab === "tasks" && (
                   <div className="text-center py-8">
                     <Link
-                      href={`/projects/${selectedProject._id}/tasks`}
+                      href={`/tasks/my`}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition shadow-sm"
                     >
                       View All Tasks
