@@ -1333,7 +1333,7 @@ export default function TaskDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="container mx-auto">
           {/* Back Button & Actions */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}

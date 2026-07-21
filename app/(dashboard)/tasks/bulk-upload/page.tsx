@@ -676,7 +676,7 @@ export default function BulkUploadPage() {
   // ============ RENDER ============
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 md:py-8 max-w-7xl">
+      <div className="container mx-auto px-4 py-6 md:py-8 container">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm mb-6 text-gray-500">
           <Link

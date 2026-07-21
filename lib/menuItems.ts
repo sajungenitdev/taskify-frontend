@@ -1,38 +1,6 @@
-// lib/menuItems.ts
-
-/**
- * MENU CONFIGURATION
- *
- * This file contains the complete navigation structure for the application.
- * It defines:
- * - Main navigation items (with submenus)
- * - Personal items (always visible, no submenu)
- * - Role-based access control
- * - Section organization
- * - Dynamic badge support
- *
- * The menu is organized by sections:
- * - main: Core navigation items
- * - projects: Project management
- * - tasks: Task management
- * - team: Team collaboration
- * - hr: Human Resources (employee self-service + HR management)
- * - reports: Analytics and reporting
- * - system: System administration
- * - support: Help and support
- */
-
 import {
   // Navigation & Layout
   LayoutDashboard,
-  Menu,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
-  ChevronDown,
-  Home,
-  // User & Profile
   User,
   Users,
   UserCog,
@@ -42,131 +10,61 @@ import {
   UserCheck,
   Users2,
   UsersRound,
-  UserSearch,
-  Fingerprint,
-
-  // Tasks & Projects
   CheckSquare,
-  FolderKanban,
   Briefcase,
-  BriefcaseBusiness,
   Kanban,
   GanttChart,
   ListTodo,
   ClipboardList,
-  ClipboardCheck,
   ListChecks,
-  TimerReset,
-  Timer,
-  Clock4,
-
-  // HR & Employee
   Calendar,
-  CalendarDays,
   CalendarRange,
-  CalendarCheck,
-  CalendarClock,
-  Clock,
   FileText,
   FileCheck,
   FileSpreadsheet,
-  FileJson,
 
   // Communication
   Bell,
   MessageSquare,
-  Mail,
-  Send,
-  Inbox,
-  Archive,
-  Megaphone,
 
   // Analytics & Reports
   TrendingUp,
   BarChart3,
-  PieChart,
-  ChartColumnIncreasing,
   ChartNoAxesCombined,
-  Target,
-  Award,
   Activity,
 
   // Settings & System
   Settings,
-  Shield,
   ShieldCheck,
-  LockKeyhole,
   Key,
-  Database,
   DatabaseBackup,
-  Server,
   Network,
-  Plug,
-  Webhook,
   GitBranch,
-  Code,
   Code2,
-  Terminal,
   Layers,
   Workflow,
 
   // Financial
   DollarSign,
-  CreditCard,
-  HandCoins,
 
   // Documents & Files
-  File,
-  Folder,
-  FolderOpen,
-  FolderPlus,
   Download,
   DownloadCloud,
   Upload,
-  Copy,
-  Link2,
-  ExternalLink,
 
   // Support
   HelpCircle,
   LifeBuoy,
-  LifeBuoyIcon,
   BookOpen,
-  BookOpenCheck,
   GraduationCap,
 
   // Common Actions
-  Eye,
-  Edit2,
-  Trash2,
-  Plus,
-  Search,
-  Filter,
-  RefreshCw,
-  ArrowRight,
-  ArrowLeft,
   CheckCircle,
-  AlertCircle,
-  AlertTriangle,
-  Info,
-  Loader2,
   Sparkles,
   Rocket,
-  Zap,
 
   // Miscellaneous
   HandHelping,
-  Wrench,
-  BadgeCheck,
-  Globe,
-  Lock,
-  Unlock,
-  LogOut,
-  Cloud,
-  CloudRain,
-  Snowflake,
-  Sun,
-  Moon,
   Building2,
 } from "lucide-react";
 
@@ -311,6 +209,7 @@ export const sectionTitles: Record<string, string> = {
   reports: "REPORTS & ANALYTICS",
   system: "SYSTEM ADMINISTRATION",
   support: "HELP & SUPPORT",
+  kpi: "KPI Management",
 };
 
 /**
@@ -326,6 +225,7 @@ export const sectionIcons: Record<string, React.ElementType> = {
   reports: BarChart3,
   system: Settings,
   support: HelpCircle,
+  kpi: BarChart3,
 };
 
 // ============================================================================
@@ -363,7 +263,13 @@ export const menuItems: NavItem[] = [
     name: "My Settings",
     href: "/users",
     icon: Users,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,ROLES.DEPT_MANAGER],
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
     section: "main",
     description: "Manage all users in the system",
   },
@@ -402,7 +308,23 @@ export const menuItems: NavItem[] = [
     section: "main",
     description: "Manage departments and organizational structure",
   },
-
+  // --------------------------------------------------------------------------
+  // KPI
+  // --------------------------------------------------------------------------
+  {
+    name: "KPI Management",
+    href: "/kpi/management",
+    icon: BarChart3,
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.HR_MANAGER,
+      ROLES.PROJECT_MANAGER,
+    ],
+    section: "main",
+    description: "Analytics and reporting",
+  },
   // --------------------------------------------------------------------------
   // PROJECTS
   // --------------------------------------------------------------------------
@@ -522,11 +444,101 @@ export const menuItems: NavItem[] = [
  */
 export const subMenuItems: SubNavItem[] = [
   {
+    name: "Dashboard",
+    href: "/kpi/dashboard",
+    icon: BarChart3,
+    parent: "KPI Management",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "Manage your profile information",
+  },
+  {
+    name: "KPI Management",
+    href: "/kpi/management",
+    icon: BarChart3,
+    parent: "KPI Management",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "Manage your profile information",
+  },
+  {
+    name: "Leaderboard",
+    href: "/kpi/leaderboard",
+    icon: BarChart3,
+    parent: "KPI Management",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "Manage your profile information",
+  },
+  {
+    name: "Reports",
+    href: "/kpi/reports",
+    icon: BarChart3,
+    parent: "KPI Management",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "Manage your profile information",
+  },
+  {
+    name: "Analytics",
+    href: "/kpi/analytics",
+    icon: BarChart3,
+    parent: "KPI Management",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "Manage your profile information",
+  },
+  {
+    name: "Trends",
+    href: "/kpi/trends",
+    icon: BarChart3,
+    parent: "KPI Management",
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    description: "Manage your profile information",
+  },
+  {
     name: "Update Profile",
     href: "/profile",
     icon: User,
     parent: "My Settings",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,ROLES.DEPT_MANAGER],
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
     description: "Manage your profile information",
   },
   {
@@ -534,7 +546,13 @@ export const subMenuItems: SubNavItem[] = [
     href: "/onboarding",
     icon: ClipboardList,
     parent: "My Settings",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,ROLES.DEPT_MANAGER],
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
     description: "Configure onboarding settings",
   },
   {
@@ -542,7 +560,13 @@ export const subMenuItems: SubNavItem[] = [
     href: "/performance/my",
     icon: ChartNoAxesCombined,
     parent: "My Settings",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER,ROLES.EMPLOYEE,ROLES.DEPT_MANAGER],
+    roles: [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
     description: "View your performance reports",
   },
   {
@@ -641,7 +665,7 @@ export const subMenuItems: SubNavItem[] = [
     href: "/departments/hierarchy",
     icon: Network,
     parent: "Department Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN,ROLES.DEPT_MANAGER],
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
     description: "View organizational hierarchy",
   },
   {
@@ -649,7 +673,7 @@ export const subMenuItems: SubNavItem[] = [
     href: "/departments/budget",
     icon: DollarSign,
     parent: "Department Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN,ROLES.DEPT_MANAGER],
+    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
     description: "Manage department budgets",
   },
 
@@ -657,7 +681,7 @@ export const subMenuItems: SubNavItem[] = [
   // PROJECTS SUBMENUS
   // --------------------------------------------------------------------------
   {
-    name: "Active Projects",
+    name: "Projects Dashboard",
     href: "/projects/active",
     icon: Activity,
     parent: "Projects",

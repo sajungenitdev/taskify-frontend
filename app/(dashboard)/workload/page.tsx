@@ -390,7 +390,7 @@ export default function WorkloadCapacityPage() {
   if (!teamData || teamData.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="container mx-auto">
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm">
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-10 h-10 text-gray-400" />
@@ -419,7 +419,7 @@ export default function WorkloadCapacityPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="container mx-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}

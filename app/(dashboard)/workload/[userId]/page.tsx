@@ -753,7 +753,7 @@ export default function IndividualWorkloadPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/10 to-purple-50/10">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="container mx-auto">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <motion.div

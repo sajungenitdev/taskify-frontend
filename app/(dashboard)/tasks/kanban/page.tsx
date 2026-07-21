@@ -1,6 +1,7 @@
+// app/(dashboard)/tasks/board/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChevronRight } from "lucide-react";
 import {
@@ -39,6 +40,21 @@ import {
   Sparkles,
   Crown,
   ShieldCheck,
+  GripVertical,
+  Settings,
+  Save,
+  Trash2,
+  Edit2,
+  Move,
+  MoreVertical,
+  PlusCircle,
+  Columns,
+  Check,
+  Square,
+  ArrowRight,
+  ArrowDown,
+  ArrowUp,
+  CheckCheck,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -51,10 +67,13 @@ import {
   DragOverlay,
   DragStartEvent,
   DragEndEvent,
+  DragOverEvent,
   useSensor,
   useSensors,
   PointerSensor,
   TouchSensor,
+  KeyboardSensor,
+  defaultDropAnimationSideEffects,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -62,7 +81,11 @@ import {
 } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { arrayMove } from "@dnd-kit/sortable";
 
+// ============================================================
+// TYPES
+// ============================================================
 interface Task {
   _id: string;
   title: string;
@@ -75,11 +98,31 @@ interface Task {
   assignedTo: { _id: string; fullName: string; email: string };
   assignedBy: { _id: string; fullName: string };
   createdAt: string;
+  updatedAt: string;
   comments?: number;
   attachments?: number;
   isStarred?: boolean;
 }
 
+interface Column {
+  id: string;
+  title: string;
+  icon: any;
+  color: string;
+  tasks: Task[];
+  count: number;
+}
+
+interface ColumnSettings {
+  id: string;
+  title: string;
+  color: string;
+  visible: boolean;
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function TaskBoardPage() {
   const { user, hasRole } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -106,6 +149,34 @@ export default function TaskBoardPage() {
     overdue: 0,
     submitted: 0,
   });
+  const [columnSettings, setColumnSettings] = useState<ColumnSettings[]>([
+    { id: "pending", title: "To Do", color: "amber", visible: true },
+    { id: "in_progress", title: "In Progress", color: "sky", visible: true },
+    { id: "submitted", title: "Review", color: "purple", visible: true },
+    { id: "completed", title: "Done", color: "emerald", visible: true },
+    { id: "overdue", title: "Overdue", color: "rose", visible: true },
+  ]);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [newColumnTitle, setNewColumnTitle] = useState("");
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+
+  // ============================================================
+  // BULK SELECT STATE
+  // ============================================================
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [bulkTargetStatus, setBulkTargetStatus] = useState<string | null>(null);
+  const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
+
+  // ============================================================
+  // QUICK EDIT STATE
+  // ============================================================
+  const [quickEditTaskId, setQuickEditTaskId] = useState<string | null>(null);
+  const [quickEditPriority, setQuickEditPriority] = useState<string>("");
+  const [quickEditDeadline, setQuickEditDeadline] = useState<string>("");
 
   const canManageTasks = hasRole([
     "super_admin",
@@ -116,11 +187,43 @@ export default function TaskBoardPage() {
   ]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
     useSensor(TouchSensor, {
       activationConstraint: { delay: 200, tolerance: 5 },
     }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: (event) => {
+        const { currentTarget } = event;
+        if (!currentTarget) return null;
+        const rect = (currentTarget as HTMLElement).getBoundingClientRect();
+        return {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        };
+      },
+    }),
   );
+
+  // Load column settings from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("taskBoardColumns");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setColumnSettings(parsed);
+      } catch (e) {
+        console.error("Failed to parse column settings", e);
+      }
+    }
+  }, []);
+
+  // Save column settings to localStorage
+  const saveColumnSettings = useCallback((settings: ColumnSettings[]) => {
+    localStorage.setItem("taskBoardColumns", JSON.stringify(settings));
+    setColumnSettings(settings);
+  }, []);
 
   useEffect(() => {
     fetchTasks();
@@ -159,9 +262,15 @@ export default function TaskBoardPage() {
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
+      // Log the request for debugging
+      console.log(`Moving task ${taskId} to status: ${newStatus}`);
+
       const response = await api.patch(`/tasks/${taskId}/status`, {
         status: newStatus,
       });
+
+      console.log("Response:", response.data);
+
       if (response.data.success) {
         toast.success(`Task moved to ${newStatus.replace("_", " ")}`);
         setTasks((prev) =>
@@ -171,12 +280,108 @@ export default function TaskBoardPage() {
               : task,
           ),
         );
+        updateStats();
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update status");
+      console.error("Status update error:", error);
+      // Show more detailed error
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to update status";
+      toast.error(errorMessage);
       await fetchTasks();
     }
   };
+
+  // ============================================================
+  // BULK MOVE FUNCTIONS
+  // ============================================================
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllTasksInColumn = (columnId: string) => {
+    const tasksInColumn = tasks.filter((t) => t.status === columnId);
+    const allSelected = tasksInColumn.every((t) => selectedTaskIds.has(t._id));
+
+    setSelectedTaskIds((prev) => {
+      const newSet = new Set(prev);
+      tasksInColumn.forEach((task) => {
+        if (allSelected) {
+          newSet.delete(task._id);
+        } else {
+          newSet.add(task._id);
+        }
+      });
+      return newSet;
+    });
+  };
+
+  const handleBulkMove = async () => {
+    if (!bulkTargetStatus || selectedTaskIds.size === 0) return;
+
+    const toastId = toast.loading(`Moving ${selectedTaskIds.size} tasks...`);
+
+    try {
+      // Check if target is a custom column
+      const defaultStatuses = [
+        "pending",
+        "in_progress",
+        "submitted",
+        "completed",
+        "overdue",
+      ];
+      const isCustomColumn = !defaultStatuses.includes(bulkTargetStatus);
+      const backendStatus = isCustomColumn ? "in_progress" : bulkTargetStatus;
+
+      const promises = Array.from(selectedTaskIds).map((taskId) =>
+        api.patch(`/tasks/${taskId}/status`, { status: backendStatus }),
+      );
+
+      await Promise.all(promises);
+
+      toast.dismiss(toastId);
+      toast.success(
+        `Successfully moved ${selectedTaskIds.size} tasks to ${bulkTargetStatus.replace("_", " ")}`,
+      );
+
+      // Update local state with the custom status
+      setTasks((prev) =>
+        prev.map((task) =>
+          selectedTaskIds.has(task._id)
+            ? { ...task, status: bulkTargetStatus as Task["status"] }
+            : task,
+        ),
+      );
+
+      // Clear selection
+      setSelectedTaskIds(new Set());
+      setBulkMode(false);
+      setShowBulkMoveModal(false);
+      setBulkTargetStatus(null);
+      updateStats();
+    } catch (error: any) {
+      toast.dismiss(toastId);
+      toast.error("Failed to move tasks. Please try again.");
+      console.error("Bulk move error:", error);
+    }
+  };
+  const updateStats = () => {
+    // Stats will be updated on next fetch
+  };
+
+  // ============================================================
+  // QUICK EDIT FUNCTIONS
+  // ============================================================
 
   const toggleStar = (taskId: string) => {
     setTasks((prev) =>
@@ -187,156 +392,128 @@ export default function TaskBoardPage() {
     const task = tasks.find((t) => t._id === taskId);
     toast.success(task?.isStarred ? "Task unstarred" : "Task starred");
   };
+  const handleQuickEdit = (taskId: string, field: string, value: any) => {
+    const task = tasks.find((t) => t._id === taskId);
+    if (!task) return;
 
-  const handleDragStart = (event: DragStartEvent) =>
-    setActiveId(event.active.id as string);
-
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-    if (!over) return;
-
-    const activeTask = tasks.find((t) => t._id === active.id);
-    if (!activeTask) return;
-
-    let targetStatus: string | null = null;
-    const columnIds = [
-      "pending",
-      "in_progress",
-      "submitted",
-      "completed",
-      "overdue",
-    ];
-
-    for (const colId of columnIds) {
-      if (over.id === colId) {
-        targetStatus = colId;
-        break;
-      }
-    }
-
-    if (!targetStatus) {
-      const overTask = tasks.find((t) => t._id === over.id);
-      if (overTask) targetStatus = overTask.status;
-    }
-
-    if (targetStatus && targetStatus !== activeTask.status) {
-      await handleStatusChange(activeTask._id, targetStatus);
+    if (field === "priority") {
+      setQuickEditTaskId(taskId);
+      setQuickEditPriority(value);
+    } else if (field === "deadline") {
+      setQuickEditTaskId(taskId);
+      setQuickEditDeadline(value);
     }
   };
 
-  const handleExport = () => {
-    const headers = [
-      "Title",
-      "Priority",
-      "Status",
-      "Assignee",
-      "Deadline",
-      "Project",
-      "Created At",
-    ];
-    const rows = filteredTasks.map((t) => [
-      t.title,
-      t.priority,
-      t.status.replace("_", " "),
-      t.assignedTo?.fullName || "Unassigned",
-      new Date(t.deadline).toLocaleDateString(),
-      t.projectId?.name || "N/A",
-      new Date(t.createdAt).toLocaleDateString(),
-    ]);
+  const saveQuickEdit = async () => {
+    if (!quickEditTaskId) return;
 
-    const csvContent = [headers, ...rows]
-      .map((row) => row.join(","))
-      .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `task_board_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("Tasks exported successfully");
+    const updates: any = {};
+    if (quickEditPriority) updates.priority = quickEditPriority;
+    if (quickEditDeadline) updates.deadline = quickEditDeadline;
+
+    if (Object.keys(updates).length === 0) {
+      setQuickEditTaskId(null);
+      return;
+    }
+
+    try {
+      const response = await api.put(`/tasks/${quickEditTaskId}`, updates);
+      if (response.data.success) {
+        toast.success("Task updated successfully");
+        setTasks((prev) =>
+          prev.map((task) =>
+            task._id === quickEditTaskId ? { ...task, ...updates } : task,
+          ),
+        );
+        setQuickEditTaskId(null);
+        setQuickEditPriority("");
+        setQuickEditDeadline("");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update task");
+    }
   };
 
-  // FIXED: Removed useMemo - using IIFE instead to avoid compiler warning
-  const filteredTasks = (() => {
-    let filtered = tasks.filter((task) => {
-      const matchesSearch =
-        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesPriority =
-        !selectedPriority || task.priority === selectedPriority;
-      const matchesProject =
-        !selectedProject || task.projectId?._id === selectedProject;
-      return matchesSearch && matchesPriority && matchesProject;
-    });
+  // ============================================================
+  // COLUMN MANAGEMENT
+  // ============================================================
+  const handleRenameColumn = (columnId: string, newTitle: string) => {
+    if (!newTitle.trim()) {
+      toast.error("Column name cannot be empty");
+      return;
+    }
+    const updated = columnSettings.map((col) =>
+      col.id === columnId ? { ...col, title: newTitle.trim() } : col,
+    );
+    saveColumnSettings(updated);
+    setEditingColumnId(null);
+    toast.success("Column renamed");
+  };
 
-    // Sort
-    filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
-      switch (sortBy) {
-        case "deadline":
-          aVal = new Date(a.deadline).getTime();
-          bVal = new Date(b.deadline).getTime();
-          break;
-        case "priority":
-          const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
-          aVal = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bVal = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          break;
-        default:
-          aVal = new Date(a.createdAt).getTime();
-          bVal = new Date(b.createdAt).getTime();
-      }
-      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-    });
+  const handleToggleColumnVisibility = (columnId: string) => {
+    const updated = columnSettings.map((col) =>
+      col.id === columnId ? { ...col, visible: !col.visible } : col,
+    );
+    saveColumnSettings(updated);
+  };
 
-    return filtered;
-  })();
+  const handleAddColumn = () => {
+    if (!newColumnTitle.trim()) {
+      toast.error("Column name cannot be empty");
+      return;
+    }
+    const newId = newColumnTitle.toLowerCase().replace(/\s+/g, "_");
+    const colors = [
+      "indigo",
+      "pink",
+      "cyan",
+      "lime",
+      "orange",
+      "teal",
+      "violet",
+    ];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-  const columns = [
-    {
-      id: "pending",
-      title: "To Do",
-      icon: Clock,
-      color: "amber",
-      tasks: filteredTasks.filter((t) => t.status === "pending"),
-      count: filteredTasks.filter((t) => t.status === "pending").length,
-    },
-    {
-      id: "in_progress",
-      title: "In Progress",
-      icon: Activity,
-      color: "sky",
-      tasks: filteredTasks.filter((t) => t.status === "in_progress"),
-      count: filteredTasks.filter((t) => t.status === "in_progress").length,
-    },
-    {
-      id: "submitted",
-      title: "Review",
-      icon: CheckCircle,
-      color: "purple",
-      tasks: filteredTasks.filter((t) => t.status === "submitted"),
-      count: filteredTasks.filter((t) => t.status === "submitted").length,
-    },
-    {
-      id: "completed",
-      title: "Done",
-      icon: CheckCircle,
-      color: "emerald",
-      tasks: filteredTasks.filter((t) => t.status === "completed"),
-      count: filteredTasks.filter((t) => t.status === "completed").length,
-    },
-    {
-      id: "overdue",
-      title: "Overdue",
-      icon: AlertCircle,
-      color: "rose",
-      tasks: filteredTasks.filter((t) => t.status === "overdue"),
-      count: filteredTasks.filter((t) => t.status === "overdue").length,
-    },
-  ];
+    const newColumn: ColumnSettings = {
+      id: newId,
+      title: newColumnTitle.trim(),
+      color: randomColor,
+      visible: true,
+    };
 
+    const updated = [...columnSettings, newColumn];
+    saveColumnSettings(updated);
+    setNewColumnTitle("");
+    setIsAddingColumn(false);
+    toast.success("Column added");
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    if (
+      columnId === "pending" ||
+      columnId === "in_progress" ||
+      columnId === "submitted" ||
+      columnId === "completed" ||
+      columnId === "overdue"
+    ) {
+      toast.error("Cannot delete default columns");
+      return;
+    }
+    if (
+      confirm(
+        `Delete column "${columnSettings.find((c) => c.id === columnId)?.title}"?`,
+      )
+    ) {
+      const updated = columnSettings.filter((col) => col.id !== columnId);
+      saveColumnSettings(updated);
+      toast.success("Column deleted");
+    }
+  };
+
+  // ============================================================
+  // HELPER FUNCTIONS
+  // ============================================================
   const getPriorityColor = (priority: string) => {
     const colors = {
       low: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -383,7 +560,148 @@ export default function TaskBoardPage() {
     return `${diffDays}d`;
   };
 
+  const handleExport = () => {
+    const headers = [
+      "Title",
+      "Priority",
+      "Status",
+      "Assignee",
+      "Deadline",
+      "Project",
+      "Created At",
+    ];
+    const rows = filteredTasks.map((t) => [
+      t.title,
+      t.priority,
+      t.status.replace("_", " "),
+      t.assignedTo?.fullName || "Unassigned",
+      new Date(t.deadline).toLocaleDateString(),
+      t.projectId?.name || "N/A",
+      new Date(t.createdAt).toLocaleDateString(),
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `task_board_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Tasks exported successfully");
+  };
+
+  const filteredTasks = useMemo(() => {
+    let filtered = tasks.filter((task) => {
+      const matchesSearch =
+        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        task.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPriority =
+        !selectedPriority || task.priority === selectedPriority;
+      const matchesProject =
+        !selectedProject || task.projectId?._id === selectedProject;
+      return matchesSearch && matchesPriority && matchesProject;
+    });
+
+    filtered.sort((a, b) => {
+      let aVal: any, bVal: any;
+      switch (sortBy) {
+        case "deadline":
+          aVal = new Date(a.deadline).getTime();
+          bVal = new Date(b.deadline).getTime();
+          break;
+        case "priority":
+          const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
+          aVal = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
+          bVal = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+          break;
+        default:
+          aVal = new Date(a.createdAt).getTime();
+          bVal = new Date(b.createdAt).getTime();
+      }
+      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+    });
+
+    return filtered;
+  }, [tasks, searchTerm, selectedPriority, selectedProject, sortBy, sortOrder]);
+
+  // Build columns with tasks
+  const columns = useMemo(() => {
+    const visibleColumns = columnSettings.filter((col) => col.visible);
+    return visibleColumns.map((col) => {
+      const columnTasks = filteredTasks.filter((t) => t.status === col.id);
+      const colorMap: Record<string, string> = {
+        amber: "amber",
+        sky: "sky",
+        purple: "purple",
+        emerald: "emerald",
+        rose: "rose",
+        indigo: "indigo",
+        pink: "pink",
+        cyan: "cyan",
+        lime: "lime",
+        orange: "orange",
+        teal: "teal",
+        violet: "violet",
+      };
+      const iconMap: Record<string, any> = {
+        pending: Clock,
+        in_progress: Activity,
+        submitted: CheckCircle,
+        completed: CheckCircle,
+        overdue: AlertCircle,
+      };
+      return {
+        id: col.id,
+        title: col.title,
+        icon: iconMap[col.id] || Clock,
+        color: colorMap[col.color] || "gray",
+        tasks: columnTasks,
+        count: columnTasks.length,
+      };
+    });
+  }, [filteredTasks, columnSettings]);
+
   const getActiveTask = () => tasks.find((task) => task._id === activeId);
+
+  // ============================================================
+  // DRAG AND DROP
+  // ============================================================
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+
+    const activeTask = tasks.find((t) => t._id === active.id);
+    if (!activeTask) return;
+
+    let targetStatus: string | null = null;
+    const columnIds = columnSettings
+      .filter((col) => col.visible)
+      .map((col) => col.id);
+
+    for (const colId of columnIds) {
+      if (over.id === colId) {
+        targetStatus = colId;
+        break;
+      }
+    }
+
+    if (!targetStatus) {
+      const overTask = tasks.find((t) => t._id === over.id);
+      if (overTask) targetStatus = overTask.status;
+    }
+
+    if (targetStatus && targetStatus !== activeTask.status) {
+      await handleStatusChange(activeTask._id, targetStatus);
+    }
+  };
 
   if (loading) {
     return (
@@ -440,6 +758,34 @@ export default function TaskBoardPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {/* Bulk Mode Toggle */}
+              <button
+                onClick={() => {
+                  setBulkMode(!bulkMode);
+                  if (bulkMode) setSelectedTaskIds(new Set());
+                }}
+                className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${
+                  bulkMode
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                }`}
+              >
+                <CheckSquare size={14} />
+                {bulkMode ? "Exit Bulk" : "Bulk Select"}
+              </button>
+
+              {/* Bulk Move Button */}
+              {bulkMode && selectedTaskIds.size > 0 && (
+                <button
+                  onClick={() => setShowBulkMoveModal(true)}
+                  className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm"
+                >
+                  <Move size={14} />
+                  Move {selectedTaskIds.size} Task
+                  {selectedTaskIds.size > 1 ? "s" : ""}
+                </button>
+              )}
+
               <button
                 onClick={() => setShowStats(!showStats)}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
@@ -453,6 +799,17 @@ export default function TaskBoardPage() {
               >
                 <Download size={14} />
                 Export
+              </button>
+              <button
+                onClick={() => setShowColumnSettings(!showColumnSettings)}
+                className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${
+                  showColumnSettings
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                }`}
+              >
+                <Columns size={14} />
+                Columns
               </button>
               <div className="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
                 <button
@@ -507,6 +864,199 @@ export default function TaskBoardPage() {
             </div>
           </motion.div>
 
+          {/* Bulk Mode Info Bar */}
+          {bulkMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-4 flex items-center justify-between"
+            >
+              <div className="flex items-center gap-3">
+                <CheckSquare className="w-5 h-5 text-indigo-600" />
+                <span className="text-sm text-indigo-800">
+                  {selectedTaskIds.size} task
+                  {selectedTaskIds.size !== 1 ? "s" : ""} selected
+                </span>
+                {selectedTaskIds.size > 0 && (
+                  <button
+                    onClick={() => setSelectedTaskIds(new Set())}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedTaskIds.size > 0 && (
+                  <button
+                    onClick={() => setShowBulkMoveModal(true)}
+                    className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs rounded-lg transition flex items-center gap-1"
+                  >
+                    <Move size={12} />
+                    Move Selected
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setBulkMode(false);
+                    setSelectedTaskIds(new Set());
+                  }}
+                  className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 text-xs rounded-lg transition"
+                >
+                  Exit
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Column Settings Modal */}
+          <AnimatePresence>
+            {showColumnSettings && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden"
+              >
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Columns size={16} className="text-indigo-500" />
+                    <h3 className="font-semibold text-gray-800">
+                      Column Settings
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setShowColumnSettings(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto">
+                  {columnSettings.map((col) => (
+                    <div
+                      key={col.id}
+                      className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition group"
+                    >
+                      <div className="flex-1 flex items-center gap-3">
+                        {editingColumnId === col.id ? (
+                          <input
+                            type="text"
+                            defaultValue={col.title}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleRenameColumn(
+                                  col.id,
+                                  e.currentTarget.value,
+                                );
+                              }
+                              if (e.key === "Escape") {
+                                setEditingColumnId(null);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              handleRenameColumn(col.id, e.target.value);
+                            }}
+                            className="flex-1 px-2 py-1 border border-indigo-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="text-sm font-medium text-gray-700">
+                            {col.title}
+                          </span>
+                        )}
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full bg-${col.color}-100 text-${col.color}-700`}
+                        >
+                          {col.id}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                        <button
+                          onClick={() => setEditingColumnId(col.id)}
+                          className="p-1 text-gray-400 hover:text-indigo-600 rounded"
+                        >
+                          <Edit2 size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleColumnVisibility(col.id)}
+                          className={`p-1 rounded ${
+                            col.visible
+                              ? "text-emerald-500 hover:text-emerald-600"
+                              : "text-gray-400 hover:text-gray-600"
+                          }`}
+                        >
+                          {col.visible ? (
+                            <CheckCircle size={12} />
+                          ) : (
+                            <Eye size={12} className="opacity-50" />
+                          )}
+                        </button>
+                        {![
+                          "pending",
+                          "in_progress",
+                          "submitted",
+                          "completed",
+                          "overdue",
+                        ].includes(col.id) && (
+                          <button
+                            onClick={() => handleDeleteColumn(col.id)}
+                            className="p-1 text-gray-400 hover:text-rose-600 rounded"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {isAddingColumn ? (
+                    <div className="flex items-center gap-2 p-2 border-2 border-dashed border-indigo-300 rounded-lg">
+                      <input
+                        type="text"
+                        value={newColumnTitle}
+                        onChange={(e) => setNewColumnTitle(e.target.value)}
+                        placeholder="Enter column name..."
+                        className="flex-1 px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddColumn();
+                          if (e.key === "Escape") {
+                            setIsAddingColumn(false);
+                            setNewColumnTitle("");
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={handleAddColumn}
+                        className="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition"
+                      >
+                        Add
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAddingColumn(false);
+                          setNewColumnTitle("");
+                        }}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setIsAddingColumn(true)}
+                      className="w-full p-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-500 hover:border-indigo-300 hover:text-indigo-600 transition flex items-center justify-center gap-2"
+                    >
+                      <PlusCircle size={14} />
+                      Add Column
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Stats Cards */}
           {showStats && (
             <motion.div
@@ -515,37 +1065,37 @@ export default function TaskBoardPage() {
               transition={{ delay: 0.1 }}
               className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6"
             >
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
                 <p className="text-2xl font-bold text-gray-800">
                   {stats.total}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">Total</p>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-amber-200 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-amber-200 shadow-sm hover:shadow-md transition">
                 <p className="text-2xl font-bold text-amber-600">
                   {stats.pending}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">Pending</p>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-sky-200 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-sky-200 shadow-sm hover:shadow-md transition">
                 <p className="text-2xl font-bold text-sky-600">
                   {stats.inProgress}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">In Progress</p>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-purple-200 shadow-sm hover:shadow-md transition">
                 <p className="text-2xl font-bold text-purple-600">
                   {stats.submitted || 0}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">Submitted</p>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm hover:shadow-md transition">
                 <p className="text-2xl font-bold text-emerald-600">
                   {stats.completed}
                 </p>
                 <p className="text-xs text-gray-500 mt-0.5">Completed</p>
               </div>
-              <div className="bg-white rounded-xl p-4 border border-rose-200 shadow-sm">
+              <div className="bg-white rounded-xl p-4 border border-rose-200 shadow-sm hover:shadow-md transition">
                 <p className="text-2xl font-bold text-rose-600">
                   {stats.overdue}
                 </p>
@@ -582,60 +1132,67 @@ export default function TaskBoardPage() {
               <Filter size={14} />
               Filters
             </button>
-            {showFilters && (
-              <>
-                <select
-                  value={selectedProject}
-                  onChange={(e) => setSelectedProject(e.target.value)}
-                  className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex flex-wrap gap-2 w-full overflow-hidden"
                 >
-                  <option value="">All Projects</option>
-                  {projects.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={selectedPriority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
-                >
-                  <option value="">All Priority</option>
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
-                >
-                  <option value="deadline">Sort by Deadline</option>
-                  <option value="priority">Sort by Priority</option>
-                  <option value="createdAt">Sort by Created</option>
-                </select>
-                <button
-                  onClick={() =>
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                  }
-                  className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
-                >
-                  {sortOrder === "asc" ? "↑" : "↓"}
-                </button>
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedPriority("");
-                    setSelectedProject("");
-                  }}
-                  className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
-                >
-                  Reset
-                </button>
-              </>
-            )}
+                  <select
+                    value={selectedProject}
+                    onChange={(e) => setSelectedProject(e.target.value)}
+                    className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+                  >
+                    <option value="">All Projects</option>
+                    {projects.map((p) => (
+                      <option key={p._id} value={p._id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value)}
+                    className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+                  >
+                    <option value="">All Priority</option>
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+                  >
+                    <option value="deadline">Sort by Deadline</option>
+                    <option value="priority">Sort by Priority</option>
+                    <option value="createdAt">Sort by Created</option>
+                  </select>
+                  <button
+                    onClick={() =>
+                      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                    }
+                    className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
+                  >
+                    {sortOrder === "asc" ? "↑" : "↓"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedPriority("");
+                      setSelectedProject("");
+                    }}
+                    className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
+                  >
+                    Reset
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* Kanban Board */}
@@ -644,7 +1201,7 @@ export default function TaskBoardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="h-[calc(100vh-450px)] min-h-[400px]"
+              className="h-[calc(100vh-480px)] min-h-[500px]"
             >
               <DndContext
                 sensors={sensors}
@@ -663,15 +1220,45 @@ export default function TaskBoardPage() {
                       getStatusColor={getStatusColor}
                       formatDate={formatDate}
                       onTaskClick={setSelectedTask}
-                      onStar={toggleStar}
+                      onStar={toggleStar} // ← Make sure this is here
+                      onQuickEdit={handleQuickEdit}
+                      onSaveQuickEdit={saveQuickEdit}
+                      quickEditTaskId={quickEditTaskId}
+                      quickEditPriority={quickEditPriority}
+                      quickEditDeadline={quickEditDeadline}
+                      setQuickEditPriority={setQuickEditPriority}
+                      setQuickEditDeadline={setQuickEditDeadline}
                       activeId={activeId}
+                      bulkMode={bulkMode}
+                      selectedTaskIds={selectedTaskIds}
+                      toggleTaskSelection={toggleTaskSelection}
+                      toggleAllTasksInColumn={toggleAllTasksInColumn}
                     />
                   ))}
+                  {columns.length === 0 && (
+                    <div className="flex-1 flex items-center justify-center text-gray-400">
+                      <div className="text-center">
+                        <Columns
+                          size={32}
+                          className="mx-auto mb-2 opacity-50"
+                        />
+                        <p>No columns visible. Add columns in settings.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <DragOverlay dropAnimation={{ duration: 200 }}>
+                <DragOverlay
+                  dropAnimation={{
+                    duration: 200,
+                    easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+                    sideEffects: defaultDropAnimationSideEffects({
+                      styles: { active: { opacity: "0.4" } },
+                    }),
+                  }}
+                >
                   {activeId ? (
-                    <div className="bg-white rounded-xl border-2 border-indigo-400 shadow-2xl p-4 w-[320px] opacity-95">
+                    <div className="bg-white rounded-xl border-2 border-indigo-400 shadow-2xl p-4 w-[320px] opacity-95 scale-105">
                       {(() => {
                         const task = getActiveTask();
                         if (!task) return null;
@@ -743,6 +1330,34 @@ export default function TaskBoardPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-8">
+                        {bulkMode && (
+                          <button
+                            onClick={() => {
+                              const allSelected = filteredTasks.every((t) =>
+                                selectedTaskIds.has(t._id),
+                              );
+                              setSelectedTaskIds(
+                                allSelected
+                                  ? new Set()
+                                  : new Set(filteredTasks.map((t) => t._id)),
+                              );
+                            }}
+                            className="text-gray-400 hover:text-indigo-600"
+                          >
+                            {filteredTasks.every((t) =>
+                              selectedTaskIds.has(t._id),
+                            ) && selectedTaskIds.size > 0 ? (
+                              <CheckSquare
+                                size={16}
+                                className="text-indigo-600"
+                              />
+                            ) : (
+                              <Square size={16} />
+                            )}
+                          </button>
+                        )}
+                      </th>
                       <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Task
                       </th>
@@ -768,9 +1383,31 @@ export default function TaskBoardPage() {
                       <tr
                         key={task._id}
                         className="hover:bg-gray-50 cursor-pointer transition"
-                        onClick={() => setSelectedTask(task)}
                       >
                         <td className="px-4 py-3">
+                          {bulkMode && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTaskSelection(task._id);
+                              }}
+                              className="text-gray-400 hover:text-indigo-600"
+                            >
+                              {selectedTaskIds.has(task._id) ? (
+                                <CheckSquare
+                                  size={16}
+                                  className="text-indigo-600"
+                                />
+                              ) : (
+                                <Square size={16} />
+                              )}
+                            </button>
+                          )}
+                        </td>
+                        <td
+                          className="px-4 py-3"
+                          onClick={() => setSelectedTask(task)}
+                        >
                           <div className="flex items-center gap-2">
                             <button
                               onClick={(e) => {
@@ -799,24 +1436,46 @@ export default function TaskBoardPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span
-                            className={`text-[10px] font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 w-fit ${getPriorityColor(task.priority)}`}
+                          <select
+                            value={task.priority}
+                            onChange={(e) => {
+                              handleQuickEdit(
+                                task._id,
+                                "priority",
+                                e.target.value,
+                              );
+                              // Auto-save after selection
+                              setTimeout(saveQuickEdit, 100);
+                            }}
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${getPriorityColor(task.priority)} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            {getPriorityIcon(task.priority)}
-                            {task.priority}
-                          </span>
+                            <option value="low">Low</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                          </select>
                         </td>
-                        <td className="px-4 py-3">
+                        <td
+                          className="px-4 py-3"
+                          onClick={() => setSelectedTask(task)}
+                        >
                           <span
                             className={`text-[10px] font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 w-fit ${getStatusColor(task.status)}`}
                           >
                             {task.status.replace("_", " ")}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td
+                          className="px-4 py-3 text-sm text-gray-600"
+                          onClick={() => setSelectedTask(task)}
+                        >
                           {task.assignedTo?.fullName?.split(" ")[0] || "-"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td
+                          className="px-4 py-3"
+                          onClick={() => setSelectedTask(task)}
+                        >
                           <span
                             className={`text-xs font-medium ${
                               new Date(task.deadline) < new Date() &&
@@ -857,6 +1516,87 @@ export default function TaskBoardPage() {
           )}
         </div>
       </div>
+
+      {/* Bulk Move Modal */}
+      <AnimatePresence>
+        {showBulkMoveModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            >
+              <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                    <Move className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      Bulk Move Tasks
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                      Move {selectedTaskIds.size} selected task
+                      {selectedTaskIds.size > 1 ? "s" : ""} to another column
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Destination Column
+                  </label>
+                  <select
+                    value={bulkTargetStatus || ""}
+                    onChange={(e) => setBulkTargetStatus(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  >
+                    <option value="">Select column...</option>
+                    {columns.map((col) => (
+                      <option key={col.id} value={col.id}>
+                        {col.title} ({col.tasks.length} tasks)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium">{selectedTaskIds.size}</span>{" "}
+                    tasks will be moved to{" "}
+                    <span className="font-medium text-emerald-600">
+                      {bulkTargetStatus
+                        ? columnSettings.find((c) => c.id === bulkTargetStatus)
+                            ?.title
+                        : "..."}
+                    </span>
+                  </p>
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleBulkMove}
+                    disabled={!bulkTargetStatus}
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    <Move size={16} />
+                    Move Tasks
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowBulkMoveModal(false);
+                      setBulkTargetStatus(null);
+                    }}
+                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modals */}
       {selectedTask && (
@@ -910,7 +1650,9 @@ export default function TaskBoardPage() {
   );
 }
 
-// Droppable Column Component
+// ============================================================
+// DROPPABLE COLUMN COMPONENT
+// ============================================================
 function DroppableColumn({
   column,
   tasks,
@@ -920,9 +1662,22 @@ function DroppableColumn({
   formatDate,
   onTaskClick,
   onStar,
+  onQuickEdit,
+  onSaveQuickEdit,
+  quickEditTaskId,
+  quickEditPriority,
+  quickEditDeadline,
+  setQuickEditPriority,
+  setQuickEditDeadline,
   activeId,
+  bulkMode,
+  selectedTaskIds,
+  toggleTaskSelection,
+  toggleAllTasksInColumn,
 }: any) {
   const { setNodeRef } = useSortable({ id: column.id });
+  const allSelected =
+    tasks.length > 0 && tasks.every((t: Task) => selectedTaskIds.has(t._id));
 
   return (
     <div
@@ -937,6 +1692,18 @@ function DroppableColumn({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {bulkMode && (
+              <button
+                onClick={() => toggleAllTasksInColumn(column.id)}
+                className="text-gray-400 hover:text-indigo-600 transition"
+              >
+                {allSelected ? (
+                  <CheckSquare size={14} className="text-indigo-600" />
+                ) : (
+                  <Square size={14} />
+                )}
+              </button>
+            )}
             <div className={`p-1.5 rounded-lg bg-${column.color}-100`}>
               <column.icon size={14} className={`text-${column.color}-600`} />
             </div>
@@ -949,6 +1716,11 @@ function DroppableColumn({
               {tasks.length}
             </span>
           </div>
+          {column.count > 0 && (
+            <span className="text-[10px] text-gray-400">
+              {column.count} task{column.count !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
       </div>
 
@@ -968,6 +1740,16 @@ function DroppableColumn({
               formatDate={formatDate}
               onTaskClick={onTaskClick}
               onStar={onStar}
+              onQuickEdit={onQuickEdit}
+              onSaveQuickEdit={onSaveQuickEdit}
+              quickEditTaskId={quickEditTaskId}
+              quickEditPriority={quickEditPriority}
+              quickEditDeadline={quickEditDeadline}
+              setQuickEditPriority={setQuickEditPriority}
+              setQuickEditDeadline={setQuickEditDeadline}
+              bulkMode={bulkMode}
+              isSelected={selectedTaskIds.has(task._id)}
+              toggleTaskSelection={toggleTaskSelection}
             />
           ))}
         </SortableContext>
@@ -981,7 +1763,9 @@ function DroppableColumn({
   );
 }
 
-// Task Card Component
+// ============================================================
+// TASK CARD COMPONENT
+// ============================================================
 function TaskCard({
   task,
   getPriorityColor,
@@ -990,6 +1774,16 @@ function TaskCard({
   formatDate,
   onTaskClick,
   onStar,
+  onQuickEdit,
+  onSaveQuickEdit,
+  quickEditTaskId,
+  quickEditPriority,
+  quickEditDeadline,
+  setQuickEditPriority,
+  setQuickEditDeadline,
+  bulkMode,
+  isSelected,
+  toggleTaskSelection,
 }: any) {
   const {
     attributes,
@@ -1005,17 +1799,44 @@ function TaskCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const isQuickEditing = quickEditTaskId === task._id;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => onTaskClick(task)}
-      className="bg-white rounded-lg p-3 border border-gray-200 hover:border-indigo-300 transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5 group"
+      onClick={() => {
+        if (bulkMode) {
+          toggleTaskSelection(task._id);
+        } else {
+          onTaskClick(task);
+        }
+      }}
+      className={`bg-white rounded-lg p-3 border transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5 group ${
+        isSelected
+          ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50/30"
+          : "border-gray-200 hover:border-indigo-300"
+      }`}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 flex-wrap">
+          {bulkMode && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleTaskSelection(task._id);
+              }}
+              className="text-gray-400 hover:text-indigo-600 transition"
+            >
+              {isSelected ? (
+                <CheckSquare size={14} className="text-indigo-600" />
+              ) : (
+                <Square size={14} />
+              )}
+            </button>
+          )}
           <span
             className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border flex items-center gap-0.5 ${getPriorityColor(task.priority)}`}
           >
@@ -1073,18 +1894,53 @@ function TaskCard({
           <div className="flex items-center gap-0.5">
             <Calendar size={8} className="text-gray-400" />
             <span
-              className={`text-[8px] font-medium ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-500"}`}
+              className={`text-[8px] font-medium ${
+                formatDate(task.deadline) === "Overdue"
+                  ? "text-rose-500"
+                  : "text-gray-500"
+              }`}
             >
               {formatDate(task.deadline)}
             </span>
           </div>
         )}
       </div>
+
+      {/* Quick Edit Actions */}
+      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onQuickEdit(
+              task._id,
+              "priority",
+              task.priority === "urgent" ? "normal" : "urgent",
+            );
+            setTimeout(onSaveQuickEdit, 100);
+          }}
+          className="p-0.5 text-gray-400 hover:text-indigo-600 rounded transition"
+          title="Toggle Priority"
+        >
+          <Flag size={12} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onTaskClick(task);
+          }}
+          className="p-0.5 text-gray-400 hover:text-indigo-600 rounded transition"
+          title="Quick View"
+        >
+          <Eye size={12} />
+        </button>
+      </div>
     </div>
   );
 }
 
-// Task Details Modal
+// ============================================================
+// TASK DETAILS MODAL (Same as before)
+// ============================================================
 function TaskDetailsModal({
   task,
   onClose,
@@ -1095,10 +1951,15 @@ function TaskDetailsModal({
   formatDate,
 }: any) {
   const [updating, setUpdating] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState(task.status);
 
-  const handleStatusUpdate = async (newStatus: string) => {
+  const handleStatusUpdate = async () => {
+    if (selectedStatus === task.status) {
+      onClose();
+      return;
+    }
     setUpdating(true);
-    await onStatusChange(task._id, newStatus);
+    await onStatusChange(task._id, selectedStatus);
     setUpdating(false);
     onClose();
   };
@@ -1208,8 +2069,8 @@ function TaskDetailsModal({
           </div>
           <div className="flex gap-2 pt-3 border-t border-gray-100">
             <select
-              value={task.status}
-              onChange={(e) => handleStatusUpdate(e.target.value)}
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
               disabled={updating}
               className="flex-1 px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
             >
@@ -1219,6 +2080,17 @@ function TaskDetailsModal({
               <option value="completed">Completed</option>
               <option value="overdue">Overdue</option>
             </select>
+            <button
+              onClick={handleStatusUpdate}
+              disabled={updating}
+              className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center gap-2 shadow-sm"
+            >
+              {updating ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                "Update"
+              )}
+            </button>
             <button
               onClick={onClose}
               className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"

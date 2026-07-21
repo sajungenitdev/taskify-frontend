@@ -222,7 +222,7 @@ export default function HelpPage() {
       {/* Hero Section */}
       <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-transparent">
         <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-24">
+        <div className="relative container mx-auto px-6 lg:px-8 py-16 lg:py-24">
           <div className="text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-6">
               <LifeBuoy className="w-4 h-4 text-indigo-400" />
@@ -251,7 +251,7 @@ export default function HelpPage() {
       </div>
 
       {/* Categories */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12">
+      <div className="container mx-auto px-6 lg:px-8 py-12">
         <div className="flex flex-wrap gap-2 justify-center mb-12">
           {categories.map((category) => {
             const Icon = category.icon;
