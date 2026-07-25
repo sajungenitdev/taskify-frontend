@@ -99,6 +99,10 @@ main > * {
   }
 }
 
+/* Sidebar */
+
+/* Sidebar End */
+
 /* Prevent FOUC (Flash of Unstyled Content) */
 .nextjs-toast-errors-parent {
   display: none;

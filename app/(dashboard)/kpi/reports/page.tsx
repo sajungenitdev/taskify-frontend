@@ -2140,40 +2140,49 @@ export default function KPIReportsPage() {
                       Top Performers
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                      {reportData.topPerformers.map((performer, index) => {
-                        const perfConfig = getPerformanceConfig(
-                          performer.performanceLevel,
-                        );
-                        return (
-                          <motion.div
-                            key={performer._id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="flex items-center gap-3 p-3 bg-gradient-to-r from-amber-50/50 to-transparent rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition-all duration-200 group"
-                            onClick={() =>
-                              router.push(
-                                `/kpi/employee/${performer.userId._id}`,
-                              )
-                            }
-                          >
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
-                              {index + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-800 truncate group-hover:text-indigo-600 transition">
-                                {performer.userId.fullName}
-                              </p>
-                              <p className="text-xs text-gray-400 truncate">
-                                {performer.departmentId.name}
-                              </p>
-                            </div>
-                            <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              {formatScore(performer.totalScore)}%
-                            </span>
-                          </motion.div>
-                        );
-                      })}
+                      {reportData.topPerformers
+                        .filter(
+                          (performer) =>
+                            performer?.userId !== null &&
+                            performer?.userId !== undefined,
+                        )
+                        .map((performer, index) => {
+                          const perfConfig = getPerformanceConfig(
+                            performer.performanceLevel,
+                          );
+                          return (
+                            <motion.div
+                              key={performer._id || index}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ delay: index * 0.05 }}
+                              className="flex items-center gap-3 p-3 bg-gradient-to-r from-amber-50/50 to-transparent rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition-all duration-200 group"
+                              onClick={() => {
+                                const userId =
+                                  performer.userId?._id || performer.userId;
+                                if (userId) {
+                                  router.push(`/kpi/employee/${userId}`);
+                                }
+                              }}
+                            >
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate group-hover:text-indigo-600 transition">
+                                  {performer.userId?.fullName ?? "No Name"}
+                                </p>
+                                <p className="text-xs text-gray-400 truncate">
+                                  {performer.departmentId?.name ??
+                                    "No Department"}
+                                </p>
+                              </div>
+                              <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                {formatScore(performer.totalScore)}%
+                              </span>
+                            </motion.div>
+                          );
+                        })}
                     </div>
                   </motion.div>
                 )}

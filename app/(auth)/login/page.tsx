@@ -288,58 +288,46 @@ export default function LoginPage() {
     fetchActiveUsers();
   }, []);
 
+  // In LoginPage.tsx - Update fetchActiveUsers
+  // In LoginPage.tsx - Update fetchActiveUsers
   const fetchActiveUsers = async () => {
     try {
       setLoadingUsers(true);
+
+      // ✅ CORRECT: Use the public endpoint (no /auth prefix, just /active-users)
       const response = await api.get("/auth/active-users");
+      // ❌ WRONG: This was /users/active which requires authentication
 
-      let usersData = [];
-      if (response.data) {
-        if (response.data.data && Array.isArray(response.data.data)) {
-          usersData = response.data.data;
-        } else if (Array.isArray(response.data)) {
-          usersData = response.data;
-        } else if (response.data.users && Array.isArray(response.data.users)) {
-          usersData = response.data.users;
-        } else if (response.data.success && response.data.data) {
-          usersData = Array.isArray(response.data.data)
-            ? response.data.data
-            : [];
-        }
+      if (response.data?.success) {
+        const users = response.data.data || [];
+        const filteredUsers = users.filter((user: ActiveUser) =>
+          ALLOWED_ROLES.includes(user.role),
+        );
+
+        const rolePriority: Record<string, number> = {
+          super_admin: 1,
+          admin: 2,
+          hr_manager: 3,
+          dept_manager: 4,
+          project_manager: 5,
+          employee: 6,
+        };
+
+        filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
+          return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+        });
+
+        setActiveUsers(filteredUsers);
+      } else {
+        console.error("Failed to fetch users:", response.data?.message);
+        setActiveUsers([]);
       }
-
-      // Filter users by allowed roles
-      let filteredUsers = usersData.filter((user: ActiveUser) =>
-        ALLOWED_ROLES.includes(user.role),
+    } catch (error: any) {
+      console.error(
+        "Failed to fetch active users:",
+        error?.response?.data?.message || error.message,
       );
-
-      // Show only one employee (take the first one)
-      const employees = filteredUsers.filter(
-        (user: ActiveUser) => user.role === "employee",
-      );
-      const otherRoles = filteredUsers.filter(
-        (user: ActiveUser) => user.role !== "employee",
-      );
-      const limitedEmployees = employees.slice(0, 1);
-      filteredUsers = [...otherRoles, ...limitedEmployees];
-
-      // Sort users by role priority
-      const rolePriority: Record<string, number> = {
-        super_admin: 1,
-        admin: 2,
-        hr_manager: 3,
-        dept_manager: 4,
-        project_manager: 5,
-        employee: 6,
-      };
-
-      filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
-        return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
-      });
-
-      setActiveUsers(filteredUsers);
-    } catch (error) {
-      console.error("Failed to fetch active users:", error);
+      setActiveUsers([]);
     } finally {
       setLoadingUsers(false);
     }
@@ -351,6 +339,7 @@ export default function LoginPage() {
     setTimeout(() => setActiveUser(null), 400);
   }, []);
 
+  // In LoginPage.tsx - Updated handleSubmit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -369,9 +358,33 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
+      console.log("🚀 Calling login with:", formData.email);
+
+      // Call the login function from AuthContext
       await login(formData.email, formData.password);
-      toast.success("Login successful! Redirecting...");
-      router.push("/dashboard");
+
+      console.log("✅ Login function completed successfully");
+
+      // Check if token was saved
+      const token = localStorage.getItem("token");
+      console.log("🔑 Token after login:", token ? "YES" : "NO");
+      console.log("🔑 Token value:", token?.substring(0, 40) + "...");
+
+      if (token) {
+        toast.success("Login successful! Redirecting...");
+        // Small delay to ensure state updates
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 100);
+      } else {
+        console.error("❌ No token found after login!");
+        setLoginError(
+          "Login succeeded but no token was stored. Please try again.",
+        );
+        toast.error(
+          "Login succeeded but no token was stored. Please try again.",
+        );
+      }
     } catch (error: any) {
       console.error("Login error:", error);
       const errorMessage =
@@ -385,7 +398,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
   // Prevent hydration mismatch by not rendering animated elements on server
   if (!mounted) {
     return (

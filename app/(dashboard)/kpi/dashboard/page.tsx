@@ -1,4 +1,3 @@
-// app/(dashboard)/kpi/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -120,6 +119,7 @@ interface User {
     name: string;
     code: string;
   };
+  roles?: Array<{ _id: string; name: string; code: string; level: number }>;
   lastLogin?: string;
   createdAt: string;
 }
@@ -142,6 +142,7 @@ interface DashboardStats {
     employeeCount: number;
   }>;
   topPerformers: KPIScore[];
+  serverStatus: "healthy" | "degraded" | "down";
   scoreRangeDistribution: {
     "0-20": number;
     "21-40": number;
@@ -180,6 +181,9 @@ export default function KPIDashboardPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
+  const [userDepartmentId, setUserDepartmentId] = useState<string | null>(null);
+  const [userRoleCodes, setUserRoleCodes] = useState<string[]>([]);
 
   const canManage = hasRole([
     "super_admin",
@@ -212,21 +216,78 @@ export default function KPIDashboardPage() {
     }
   }, [currentMonth]);
 
+  // Get user role info
+  useEffect(() => {
+    if (user) {
+      setUserRole(user.role || "");
+      setUserDepartmentId(user.departmentId?._id || null);
+
+      // Get all role codes from roles array
+      if (user.roles && user.roles.length > 0) {
+        const codes = user.roles.map((r) => r.code.toLowerCase());
+        setUserRoleCodes(codes);
+      } else if (user.role) {
+        setUserRoleCodes([user.role]);
+      }
+    }
+  }, [user]);
+
   useEffect(() => {
     if (canManage) {
       fetchAllData();
     }
   }, [canManage, selectedMonth, selectedYear]);
 
+  // ============================================================
+  // ROLE-BASED FILTERING - Check if user can view all data
+  // ============================================================
+  const canViewAllData = useMemo(() => {
+    if (!user) return false;
+    return (
+      user.role === "super_admin" ||
+      user.role === "admin" ||
+      user.role === "hr_manager"
+    );
+  }, [user]);
+
+  const canViewDepartmentData = useMemo(() => {
+    if (!user) return false;
+    return (
+      user.role === "dept_manager" ||
+      user.role === "project_manager" ||
+      user.role === "line_manager"
+    );
+  }, [user]);
+
+  const canViewOwnData = useMemo(() => {
+    if (!user) return false;
+    return user.role === "employee";
+  }, [user]);
+
+  // ============================================================
+  // FETCH DATA WITH ROLE-BASED FILTERING
+  // ============================================================
   const fetchAllData = async () => {
     try {
       setLoading(true);
 
-      // Fetch all users from /users endpoint
+      // Fetch all users
       const usersResponse = await api.get("/users");
-      const usersData = usersResponse.data.success
-        ? usersResponse.data.data
-        : [];
+      let usersData = usersResponse.data.success ? usersResponse.data.data : [];
+
+      // Apply role-based filtering
+      if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
+        // Department managers see only their department
+        usersData = usersData.filter(
+          (u: User) => u.departmentId?._id === userDepartmentId,
+        );
+        console.log(`📊 Filtered to department: ${usersData.length} users`);
+      } else if (canViewOwnData && user) {
+        // Employees see only themselves
+        usersData = usersData.filter((u: User) => u._id === user._id);
+        console.log(`📊 Filtered to self: ${usersData.length} users`);
+      }
+
       setAllUsers(usersData);
 
       // Fetch KPI scores for the selected month
@@ -238,12 +299,24 @@ export default function KPIDashboardPage() {
             year: selectedYear,
           },
         });
+
         if (kpiResponse.data.success) {
           const data = kpiResponse.data.data;
-          setKpiScores(data.allScores || []);
+          let scoresData = data.allScores || [];
 
-          // Calculate stats
-          calculateStats(data.allScores || [], usersData);
+          // Apply role-based filtering to scores
+          if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
+            scoresData = scoresData.filter(
+              (s: KPIScore) => s.departmentId._id === userDepartmentId,
+            );
+          } else if (canViewOwnData && user) {
+            scoresData = scoresData.filter(
+              (s: KPIScore) => s.userId._id === user._id,
+            );
+          }
+
+          setKpiScores(scoresData);
+          calculateStats(scoresData, usersData);
         }
       } catch (kpiError) {
         console.log("No KPI data found, showing users only");
@@ -259,7 +332,7 @@ export default function KPIDashboardPage() {
   };
 
   const calculateStats = (scores: KPIScore[], users: User[]) => {
-    // Department extraction
+    // Department extraction (only from filtered users)
     const depts = [
       ...new Set(users.map((u) => u.departmentId?.name || "Unassigned")),
     ];
@@ -282,7 +355,7 @@ export default function KPIDashboardPage() {
       else scoreRanges["81-100"]++;
     });
 
-    // Calculate department averages
+    // Calculate department averages (only from filtered data)
     const deptMap = new Map();
     scores.forEach((s) => {
       const deptName = s.departmentId.name;
@@ -342,7 +415,6 @@ export default function KPIDashboardPage() {
         const kpiHistory = response.data.data || [];
         const currentKPI = kpiHistory[0] || null;
 
-        // Find user from allUsers
         const userData = allUsers.find((u) => u._id === userId);
 
         setSelectedEmployee({
@@ -465,7 +537,18 @@ export default function KPIDashboardPage() {
   // Combined data - merge users with their KPI scores
   const combinedData = useMemo(() => {
     const combined: CombinedEmployeeData[] = allUsers.map((user) => {
-      const kpi = kpiScores.find((k) => k.userId._id === user._id) || null;
+      const kpi =
+        kpiScores.find((k) => {
+          if (!k || !k.userId) return false;
+          if (typeof k.userId === "object" && k.userId._id) {
+            return k.userId._id === user._id;
+          }
+          if (typeof k.userId === "string") {
+            return k.userId === user._id;
+          }
+          return false;
+        }) || null;
+
       return { user, kpi };
     });
     return combined;
@@ -532,6 +615,37 @@ export default function KPIDashboardPage() {
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
+  // Get role display name
+  const getRoleDisplayName = (role: string) => {
+    const roleMap: Record<string, string> = {
+      super_admin: "Super Admin",
+      admin: "Admin",
+      hr_manager: "HR Manager",
+      dept_manager: "Department Manager",
+      project_manager: "Project Manager",
+      line_manager: "Line Manager",
+      employee: "Employee",
+    };
+    return roleMap[role] || role.replace(/_/g, " ");
+  };
+
+  // Check if user has any of the required roles
+  const hasRequiredRole = (requiredRoles: string[]) => {
+    if (!user) return false;
+
+    // Check legacy role
+    if (requiredRoles.includes(user.role)) return true;
+
+    // Check roles array
+    if (user.roles && user.roles.length > 0) {
+      return user.roles.some((r) =>
+        requiredRoles.includes(r.code.toLowerCase()),
+      );
+    }
+
+    return false;
+  };
+
   if (!canManage) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -595,6 +709,16 @@ export default function KPIDashboardPage() {
                   <p className="text-gray-500 text-sm mt-0.5">
                     {selectedMonth} {selectedYear} •{" "}
                     {stats?.totalEmployees || 0} employees
+                    {!canViewAllData && userDepartmentId && (
+                      <span className="ml-2 text-indigo-600">
+                        • Department View
+                      </span>
+                    )}
+                    {canViewOwnData && (
+                      <span className="ml-2 text-indigo-600">
+                        • Personal View
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -823,36 +947,94 @@ export default function KPIDashboardPage() {
               <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                 <Crown size={16} className="text-amber-500" />
                 Top Performers
+                {!canViewAllData && (
+                  <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                    Filtered View
+                  </span>
+                )}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                {stats.topPerformers.slice(0, 5).map((performer, index) => {
-                  const perfConfig = getPerformanceConfig(
-                    performer.performanceLevel,
-                  );
-                  return (
-                    <div
-                      key={performer._id}
-                      className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:shadow-md transition"
-                      onClick={() => fetchEmployeeDetail(performer.userId._id)}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm">
-                        {index + 1}
+                {stats.topPerformers
+                  .filter((performer) => {
+                    if (!performer?.userId) return false;
+                    if (typeof performer.userId === "string") return true;
+                    if (typeof performer.userId === "object") {
+                      return (
+                        performer.userId._id ||
+                        performer.userId.id ||
+                        performer.userId.fullName
+                      );
+                    }
+                    return false;
+                  })
+                  .slice(0, 5)
+                  .map((performer, index) => {
+                    const perfConfig = getPerformanceConfig(
+                      performer.performanceLevel,
+                    );
+
+                    const userId =
+                      typeof performer.userId === "object"
+                        ? performer.userId._id || performer.userId.id
+                        : performer.userId;
+
+                    const userName =
+                      typeof performer.userId === "object"
+                        ? performer.userId.fullName ||
+                          performer.userId.name ||
+                          "No Name"
+                        : "No Name";
+
+                    const deptName =
+                      typeof performer.departmentId === "object"
+                        ? performer.departmentId.name || "No Department"
+                        : "No Department";
+
+                    return (
+                      <div
+                        key={performer._id || index}
+                        className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:shadow-md transition"
+                        onClick={() => {
+                          if (userId) {
+                            fetchEmployeeDetail(userId);
+                          }
+                        }}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {userName}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {deptName}
+                          </p>
+                        </div>
+                        <span className="text-sm font-bold text-emerald-600">
+                          {formatScore(performer.totalScore ?? 0)}%
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {performer.userId.fullName}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {performer.departmentId.name}
-                        </p>
-                      </div>
-                      <span className="text-sm font-bold text-emerald-600">
-                        {formatScore(performer.totalScore)}%
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
+            </motion.div>
+          )}
+
+          {/* Role Info Banner for non-admin users */}
+          {!canViewAllData && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex items-center gap-3"
+            >
+              <Shield size={18} className="text-indigo-600" />
+              <p className="text-sm text-indigo-700">
+                {canViewDepartmentData && userDepartmentId && (
+                  <>Showing data for your department only</>
+                )}
+                {canViewOwnData && <>Showing your personal KPI data only</>}
+              </p>
             </motion.div>
           )}
 
@@ -942,7 +1124,12 @@ export default function KPIDashboardPage() {
               <h3 className="text-lg font-semibold text-gray-800 mb-2">
                 No Data Available
               </h3>
-              <p className="text-gray-500">No employees found in the system</p>
+              <p className="text-gray-500">
+                {canViewDepartmentData &&
+                  "No employees found in your department"}
+                {canViewOwnData && "No personal KPI data found"}
+                {canViewAllData && "No employees found in the system"}
+              </p>
             </div>
           ) : viewMode === "table" ? (
             <motion.div
@@ -1000,6 +1187,9 @@ export default function KPIDashboardPage() {
                                 <p className="text-xs text-gray-400">
                                   {item.user.email}
                                 </p>
+                                <span className="text-[10px] text-gray-400">
+                                  {getRoleDisplayName(item.user.role)}
+                                </span>
                               </div>
                             </div>
                           </td>
@@ -1222,6 +1412,9 @@ export default function KPIDashboardPage() {
                           <p className="text-xs text-gray-400">
                             {item.user.departmentId?.name || "Unassigned"}
                           </p>
+                          <span className="text-[10px] text-gray-400">
+                            {getRoleDisplayName(item.user.role)}
+                          </span>
                         </div>
                       </div>
                       {item.kpi && perfConfig ? (
@@ -1397,6 +1590,10 @@ export default function KPIDashboardPage() {
                           </span>
                           <span>•</span>
                           <span>ID: {selectedEmployee.employeeId}</span>
+                          <span>•</span>
+                          <span>
+                            {getRoleDisplayName(selectedEmployee.role)}
+                          </span>
                         </div>
                       </div>
                     </div>

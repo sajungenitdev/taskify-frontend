@@ -401,7 +401,7 @@ export default function HierarchyPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-4 md:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="container mx-auto space-y-6">
         {/* Breadcrumb */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}

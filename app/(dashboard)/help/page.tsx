@@ -232,7 +232,7 @@ export default function HelpPage() {
               How can we help you?
             </h1>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
-              Find answers, guides, and resources to help you get the most out of Taskify
+              Find answers, guides, and resources to help you get the most out of TaskFlow
             </p>
             
             {/* Search Bar */}
@@ -388,7 +388,7 @@ export default function HelpPage() {
                 Create Support Ticket
               </Link>
               <a
-                href="mailto:support@taskify.com"
+                href="mailto:support@TaskFlow.com"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-all"
               >
                 <Mail size={16} />
@@ -431,7 +431,7 @@ export default function HelpPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { title: "Getting Started with Taskify", duration: "5:23", icon: Play },
+              { title: "Getting Started with TaskFlow", duration: "5:23", icon: Play },
               { title: "Task Management Deep Dive", duration: "12:45", icon: Play },
               { title: "Project Setup & Collaboration", duration: "8:15", icon: Play },
             ].map((video, index) => {

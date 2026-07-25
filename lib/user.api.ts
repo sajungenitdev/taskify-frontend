@@ -20,10 +20,12 @@ export const userAPI = {
   },
 
   // Get active users
-  getActiveUsers: async (): Promise<ApiResponse<User[]>> => {
-    const response = await axios.get('/auth/active-users');
-    return response.data;
-  },
+// services/userAPI.ts
+getActiveUsers: async (): Promise<ApiResponse<User[]>> => {
+  // ✅ CORRECT: Use the public endpoint
+  const response = await axios.get('/users/active');
+  return response.data;
+},
 
   // Create user (admin only)
   createUser: async (data: Partial<User>): Promise<ApiResponse<User>> => {

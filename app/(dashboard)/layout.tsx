@@ -1,3 +1,4 @@
+// app/(dashboard)/layout.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -12,7 +13,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -30,7 +31,7 @@ export default function DashboardLayout({
     setIsNavigating(true);
     const timer = setTimeout(() => {
       setIsNavigating(false);
-    }, 300); // Reduced from 500ms for better UX
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [pathname]);
@@ -50,9 +51,9 @@ export default function DashboardLayout({
 
     window.addEventListener(
       "sidebarToggle",
-      handleSidebarToggle as EventListener
+      handleSidebarToggle as EventListener,
     );
-    
+
     // Load initial state
     const savedState = localStorage.getItem("sidebarCollapsed");
     if (savedState !== null) {
@@ -62,7 +63,7 @@ export default function DashboardLayout({
     return () =>
       window.removeEventListener(
         "sidebarToggle",
-        handleSidebarToggle as EventListener
+        handleSidebarToggle as EventListener,
       );
   }, []);
 
@@ -113,9 +114,9 @@ export default function DashboardLayout({
         className={`flex-1 transition-all duration-300 ease-in-out ${mainMarginClass}`}
       >
         <Header onMenuClick={() => setIsMobileSidebarOpen(true)} />
-        
+
         {/* Main content */}
-        <main className="pt-[73px] bg-gray-50 min-h-screen">
+        <main className="pt-15 bg-gray-50 min-h-screen">
           {/* Content wrapper with max-width and padding */}
           <div className="px-0 md:px-0 lg:px-0 py-0 w-full mx-auto">
             {children}
@@ -130,7 +131,7 @@ export default function DashboardLayout({
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
-       <AssistantWizard />
+      <AssistantWizard />
     </div>
   );
 }

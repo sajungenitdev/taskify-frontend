@@ -38,11 +38,25 @@ import {
   Lock,
   EyeOff,
   Eye as EyeIcon,
+  Layers,
+  Plus,
+  Minus,
+  Info,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+
+interface Role {
+  _id: string;
+  name: string;
+  code: string;
+  description: string;
+  level: number;
+  isSystemRole: boolean;
+  isPermanent?: boolean;
+}
 
 interface User {
   _id: string;
@@ -50,7 +64,8 @@ interface User {
   email: string;
   employeeId: string;
   phoneNumber?: string;
-  role: string;
+  role: string; // Legacy single role
+  roles?: Role[]; // New multi-role support
   departmentId?: {
     _id: string;
     name: string;
@@ -77,6 +92,7 @@ export default function AllUsersPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [allRoles, setAllRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
@@ -127,6 +143,14 @@ export default function AllUsersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [sortField, setSortField] = useState<keyof User>("fullName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [showMultiRoleModal, setShowMultiRoleModal] = useState<string | null>(
+    null,
+  );
+  const [selectedRolesForUser, setSelectedRolesForUser] = useState<string[]>(
+    [],
+  );
+  const [primaryRoleForUser, setPrimaryRoleForUser] = useState<string>("");
+  const [updatingRoles, setUpdatingRoles] = useState(false);
 
   const canManageUsers = hasRole(["super_admin", "admin", "hr_manager"]);
   const canChangeRole = hasRole(["super_admin"]);
@@ -171,17 +195,85 @@ export default function AllUsersPage() {
     }
   }, []);
 
+  // Fetch roles
+  const fetchRoles = useCallback(async () => {
+    try {
+      const response = await api.get("/roles");
+      if (response.data.success) {
+        setAllRoles(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+    }
+  }, []);
+
   // Initial fetch
   useEffect(() => {
     fetchUsers();
     fetchDepartments();
-  }, [fetchUsers, fetchDepartments]);
+    fetchRoles();
+  }, [fetchUsers, fetchDepartments, fetchRoles]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchUsers(), fetchDepartments()]);
+    await Promise.all([fetchUsers(), fetchDepartments(), fetchRoles()]);
     setRefreshing(false);
     toast.success("Data refreshed");
+  };
+
+  // ============ MULTI-ROLE HANDLING ============
+  const handleOpenMultiRoleModal = (userItem: User) => {
+    setSelectedUser(userItem);
+    const userRoles = userItem.roles?.map((r) => r._id) || [];
+    setSelectedRolesForUser(userRoles);
+    // Find primary role (legacy role)
+    const primaryRole = allRoles.find(
+      (r) => r.code.toLowerCase() === userItem.role,
+    );
+    setPrimaryRoleForUser(primaryRole?._id || userRoles[0] || "");
+    setShowMultiRoleModal(userItem._id);
+  };
+
+  const handleToggleRoleSelection = (roleId: string) => {
+    setSelectedRolesForUser((prev) =>
+      prev.includes(roleId)
+        ? prev.filter((id) => id !== roleId)
+        : [...prev, roleId],
+    );
+  };
+
+  const handleUpdateUserRoles = async () => {
+    if (!selectedUser) return;
+
+    if (selectedRolesForUser.length === 0) {
+      toast.error("User must have at least one role");
+      return;
+    }
+
+    setUpdatingRoles(true);
+    try {
+      const response = await api.put(
+        `/roles/user/${selectedUser._id}/assign`,
+        {
+          roleIds: selectedRolesForUser,
+          primaryRoleId: primaryRoleForUser || selectedRolesForUser[0],
+        },
+      );
+
+      if (response.data.success) {
+        toast.success("Roles updated successfully");
+        setShowMultiRoleModal(null);
+        setSelectedUser(null);
+        setSelectedRolesForUser([]);
+        setPrimaryRoleForUser("");
+        await fetchUsers();
+      }
+    } catch (error: any) {
+      console.error("Error updating roles:", error);
+      toast.error(error.response?.data?.message || "Failed to update roles");
+    } finally {
+      setUpdatingRoles(false);
+    }
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -226,7 +318,6 @@ export default function AllUsersPage() {
     }
   };
 
-  // ============ EDIT USER ============
   const handleEditUser = (userItem: User) => {
     setEditingUser(userItem);
     setEditFormData({
@@ -284,7 +375,6 @@ export default function AllUsersPage() {
     }
   };
 
-  // ============ CHANGE PASSWORD ============
   const handleOpenPasswordModal = (userItem: User) => {
     setSelectedUser(userItem);
     setPasswordData({
@@ -340,7 +430,6 @@ export default function AllUsersPage() {
     }
   };
 
-  // ============ VIEW USER ============
   const handleViewUser = (userItem: User) => {
     setSelectedUser(userItem);
     setShowViewModal(true);
@@ -391,6 +480,21 @@ export default function AllUsersPage() {
     }
   };
 
+  // Get user's display roles (combine legacy role + roles array)
+  const getUserDisplayRoles = (userItem: User): string => {
+    if (userItem.roles && userItem.roles.length > 0) {
+      return userItem.roles.map((r) => r.name).join(", ");
+    }
+    return userItem.role.replace(/_/g, " ") || "No Role";
+  };
+
+  const getUserRoleCodes = (userItem: User): string[] => {
+    if (userItem.roles && userItem.roles.length > 0) {
+      return userItem.roles.map((r) => r.code.toLowerCase());
+    }
+    return [userItem.role];
+  };
+
   const filteredUsers = useMemo(() => {
     let filtered = users.filter((userItem) => {
       const matchesSearch =
@@ -398,7 +502,9 @@ export default function AllUsersPage() {
         userItem.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         userItem.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesRole = !selectedRole || userItem.role === selectedRole;
+      const userRoles = getUserRoleCodes(userItem);
+      const matchesRole =
+        !selectedRole || userRoles.includes(selectedRole);
       const matchesDepartment =
         !selectedDepartment ||
         (userItem.departmentId &&
@@ -679,12 +785,8 @@ export default function AllUsersPage() {
                         </button>
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("role")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Role
-                          <ArrowUpDown size={12} />
+                        <button className="flex items-center gap-1 hover:text-gray-700">
+                          Roles
                         </button>
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -722,6 +824,9 @@ export default function AllUsersPage() {
                   <tbody className="divide-y divide-gray-100">
                     {currentUsers.map((userItem, index) => {
                       const RoleIcon = getRoleIcon(userItem.role);
+                      const userRoles = userItem.roles || [];
+                      const hasMultipleRoles = userRoles.length > 1;
+                      
                       return (
                         <motion.tr
                           key={userItem._id}
@@ -772,17 +877,34 @@ export default function AllUsersPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <button
-                              onClick={() => {
-                                setSelectedRoleForUser(userItem.role);
-                                setShowRoleModal(userItem._id);
-                              }}
-                              disabled={!canChangeRole}
-                              className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1.5 ${getRoleBadgeColor(userItem.role)} ${canChangeRole ? "cursor-pointer hover:opacity-80" : "cursor-default"}`}
-                            >
-                              <RoleIcon size={10} />
-                              {userItem.role.replace(/_/g, " ")}
-                            </button>
+                            <div className="flex flex-wrap gap-1">
+                              {userRoles.length > 0 ? (
+                                userRoles.slice(0, 2).map((role) => (
+                                  <span
+                                    key={role._id}
+                                    className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getRoleBadgeColor(role.code.toLowerCase())}`}
+                                  >
+                                    {role.code.replace(/_/g, " ")}
+                                  </span>
+                                ))
+                              ) : (
+                                <span
+                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getRoleBadgeColor(userItem.role)}`}
+                                >
+                                  {userItem.role.replace(/_/g, " ")}
+                                </span>
+                              )}
+                              {userRoles.length > 2 && (
+                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full border bg-gray-100 text-gray-600">
+                                  +{userRoles.length - 2}
+                                </span>
+                              )}
+                              {hasMultipleRoles && (
+                                <span className="px-1.5 py-0.5 text-[8px] font-medium rounded-full border border-indigo-200 bg-indigo-50 text-indigo-600">
+                                  Multi
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-sm text-gray-600">
@@ -834,6 +956,17 @@ export default function AllUsersPage() {
                               >
                                 <Eye size={16} />
                               </button>
+                              {canChangeRole && (
+                                <button
+                                  onClick={() =>
+                                    handleOpenMultiRoleModal(userItem)
+                                  }
+                                  className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
+                                  title="Manage Roles"
+                                >
+                                  <Layers size={16} />
+                                </button>
+                              )}
                               {canEditUser && (
                                 <button
                                   onClick={() => handleEditUser(userItem)}
@@ -941,183 +1074,147 @@ export default function AllUsersPage() {
         </div>
       </div>
 
-      {/* Create User Modal */}
-      {showCreateModal && (
+      {/* ============ MULTI-ROLE MANAGEMENT MODAL ============ */}
+      {showMultiRoleModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <UserPlus className="w-4 h-4 text-white" />
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <Layers className="w-4 h-4 text-white" />
                 </div>
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Create New User
-                </h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Manage Roles
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {selectedUser.fullName} - Select multiple roles
+                  </p>
+                </div>
               </div>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowMultiRoleModal(null);
+                  setSelectedUser(null);
+                }}
                 className="text-gray-400 hover:text-gray-600 transition"
               >
                 <X size={20} />
               </button>
             </div>
-            <form
-              onSubmit={handleCreateUser}
-              className="p-5 space-y-4 max-h-[70vh] overflow-y-auto"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  value={createFormData.fullName}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      fullName: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required
-                />
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  Select Roles <span className="text-rose-500">*</span>
+                </p>
+                <div className="space-y-1 border border-gray-200 rounded-lg p-2">
+                  {allRoles.map((role) => {
+                    const isSelected = selectedRolesForUser.includes(role._id);
+                    return (
+                      <label
+                        key={role._id}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${
+                          isSelected
+                            ? "bg-indigo-50 hover:bg-indigo-100"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleRoleSelection(role._id)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {role.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {role.code} • Level {role.level}
+                          </p>
+                        </div>
+                        {role.isPermanent && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                            Permanent
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400">
+                  {selectedRolesForUser.length} role(s) selected
+                </p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={createFormData.email}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      email: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required
-                />
+
+              {selectedRolesForUser.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    Primary Role
+                    <span className="text-xs text-gray-400 ml-2">
+                      (Default: first selected)
+                    </span>
+                  </p>
+                  <select
+                    value={primaryRoleForUser}
+                    onChange={(e) => setPrimaryRoleForUser(e.target.value)}
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  >
+                    {selectedRolesForUser.map((roleId) => {
+                      const role = allRoles.find((r) => r._id === roleId);
+                      return role ? (
+                        <option key={roleId} value={roleId}>
+                          {role.name} (Level {role.level})
+                        </option>
+                      ) : null;
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-start gap-2">
+                  <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">
+                      Multiple Roles Support
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Users can have multiple roles. The primary role determines
+                      the main role displayed in the UI.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password * (min 8 characters)
-                </label>
-                <input
-                  type="password"
-                  value={createFormData.password}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      password: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Employee ID *
-                </label>
-                <input
-                  type="text"
-                  value={createFormData.employeeId}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      employeeId: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role
-                </label>
-                <select
-                  value={createFormData.role}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      role: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  {roles.map((role) => (
-                    <option key={role.value} value={role.value}>
-                      {role.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Department
-                </label>
-                <select
-                  value={createFormData.departmentId}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      departmentId: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value="">No Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept._id} value={dept._id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={createFormData.phoneNumber}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      phoneNumber: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="Optional"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
+
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
                 <button
-                  type="submit"
-                  disabled={creating}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm"
+                  onClick={handleUpdateUserRoles}
+                  disabled={updatingRoles || selectedRolesForUser.length === 0}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                 >
-                  {creating ? (
-                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                  {updatingRoles ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Create User"
+                    <Save size={16} />
                   )}
+                  Save Roles
                 </button>
                 <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => {
+                    setShowMultiRoleModal(null);
+                    setSelectedUser(null);
+                  }}
                   className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
                 >
                   Cancel
                 </button>
               </div>
-            </form>
+            </div>
           </motion.div>
         </div>
       )}

@@ -69,12 +69,12 @@ interface Task {
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   status:
-  | "pending"
-  | "in_progress"
-  | "submitted"
-  | "completed"
-  | "overdue"
-  | "rejected";
+    | "pending"
+    | "in_progress"
+    | "submitted"
+    | "completed"
+    | "overdue"
+    | "rejected";
   deadline: string;
   estimatedHours: number;
   actualMinutes?: number;
@@ -172,7 +172,9 @@ function RejectionReasonModal({
             </div>
             <div>
               <h3 className="text-xl font-bold text-gray-800">Task Rejected</h3>
-              <p className="text-xs text-gray-500">Feedback from the reviewer</p>
+              <p className="text-xs text-gray-500">
+                Feedback from the reviewer
+              </p>
             </div>
           </div>
 
@@ -184,7 +186,9 @@ function RejectionReasonModal({
 
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg mb-4">
             <Info className="w-4 h-4 text-gray-400" />
-            <span>Please review the feedback and resubmit with improvements.</span>
+            <span>
+              Please review the feedback and resubmit with improvements.
+            </span>
           </div>
 
           <div className="flex gap-3">
@@ -354,7 +358,7 @@ export default function TaskDetailPage() {
 
     return {
       minutes: totalMinutes,
-      display: formatTimeShort(totalMinutes * 60)
+      display: formatTimeShort(totalMinutes * 60),
     };
   }, [task, timerState, isTimerActiveForTask, formatTimeShort]);
 
@@ -374,12 +378,17 @@ export default function TaskDetailPage() {
     }
   }, [isAuthenticated, id]);
 
-  // Fetch Task
+  // Fetch Task - With comprehensive console logging
   const fetchTask = async () => {
     try {
       setLoading(true);
       setError(null);
+
+      console.log("🔍 Fetching task with ID:", id);
+
       const response = await api.get(`/tasks/${id}`);
+
+      console.log("📦 Raw API response:", response.data);
 
       let taskData;
       if (response.data.success) {
@@ -389,6 +398,11 @@ export default function TaskDetailPage() {
       } else {
         taskData = response.data;
       }
+
+      console.log("📋 Task data received:", taskData);
+      console.log("📎 Evidence URLs in response:", taskData?.evidenceUrls);
+      console.log("🔒 Evidence Required:", taskData?.evidenceRequired);
+      console.log("✅ Evidence Submitted:", taskData?.evidenceSubmitted);
 
       if (taskData && taskData._id) {
         const formattedTask = {
@@ -417,13 +431,28 @@ export default function TaskDetailPage() {
           evidenceSubmitted: taskData.evidenceSubmitted || false,
           evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
         };
+
+        console.log("✅ Formatted task with evidence:", {
+          evidenceUrls: formattedTask.evidenceUrls,
+          evidenceRequired: formattedTask.evidenceRequired,
+          evidenceSubmitted: formattedTask.evidenceSubmitted,
+          evidenceSubmittedAt: formattedTask.evidenceSubmittedAt,
+        });
+
         setTask(formattedTask);
-        setHasSubmittedEvidence(false);
+
+        // Check if evidence has been submitted
+        if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
+          console.log("📎 Evidence found in task:", taskData.evidenceUrls);
+          setHasSubmittedEvidence(true);
+        } else {
+          console.log("❌ No evidence found in task");
+        }
       } else {
         throw new Error("Invalid task data received");
       }
     } catch (error: any) {
-      console.error("Error fetching task:", error);
+      console.error("❌ Error fetching task:", error);
       const errorMessage =
         error.response?.data?.message || "Failed to fetch task";
       setError(errorMessage);
@@ -688,11 +717,24 @@ export default function TaskDetailPage() {
 
   // Task Status Updates
   const updateTaskStatus = async (newStatus: string, data?: any) => {
+    console.log(`🔄 Updating task status to: ${newStatus}`);
+    console.log("📦 Additional data:", data);
+
     setUpdating(true);
     try {
       const payload = { status: newStatus, ...data };
+      console.log("📤 Sending payload:", payload);
+
       const response = await api.patch(`/tasks/${id}/status`, payload);
+      console.log("📦 Status update response:", response.data);
+
       if (response.data.success) {
+        console.log("✅ Task status updated successfully!");
+        console.log(
+          "📎 Updated evidence URLs:",
+          response.data.data?.evidenceUrls,
+        );
+
         const statusMessages: Record<string, string> = {
           in_progress: "🚀 Task started! Moving to In Progress",
           submitted: "📤 Task submitted for review!",
@@ -704,17 +746,21 @@ export default function TaskDetailPage() {
         fetchTask();
       }
     } catch (error: any) {
-      console.error("Error updating status:", error);
+      console.error("❌ Error updating status:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
       toast.error(
         error.response?.data?.message ||
-        error.message ||
-        "Failed to update status",
+          error.message ||
+          "Failed to update status",
       );
     } finally {
       setUpdating(false);
     }
   };
-
   // ============ MARK COMPLETE ============
   const handleMarkComplete = async () => {
     if (!task) return;
@@ -849,6 +895,9 @@ export default function TaskDetailPage() {
   };
 
   const handleSubmitWithEvidence = async () => {
+    console.log("📤 Submitting evidence for task:", id);
+    console.log("📝 Evidence text:", evidenceText);
+
     if (!evidenceText.trim()) {
       toast.error("Please provide evidence details");
       return;
@@ -861,18 +910,33 @@ export default function TaskDetailPage() {
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
 
+      console.log("📎 Parsed evidence URLs:", evidenceUrls);
+
       if (evidenceUrls.length === 0) {
         toast.error("Please provide at least one evidence item");
         setSubmittingEvidence(false);
         return;
       }
 
+      console.log("🚀 Sending evidence to API:", {
+        taskId: id,
+        evidenceUrls: evidenceUrls,
+      });
+
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "submitted",
         evidenceUrls: evidenceUrls,
       });
 
+      console.log("📦 Evidence submission response:", response.data);
+
       if (response.data.success) {
+        console.log("✅ Evidence submitted successfully!");
+        console.log(
+          "📎 Evidence URLs saved:",
+          response.data.data?.evidenceUrls,
+        );
+
         toast.success("✅ Task submitted with evidence!");
         setShowEvidenceModal(false);
         setEvidenceText("");
@@ -880,10 +944,16 @@ export default function TaskDetailPage() {
         fetchTask();
         fetchAttachments();
       } else {
+        console.error("❌ Failed to submit evidence:", response.data);
         throw new Error("Failed to submit task");
       }
     } catch (error: any) {
-      console.error("Error submitting evidence:", error);
+      console.error("❌ Error submitting evidence:", error);
+      console.error("Error details:", {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
       toast.error(error.response?.data?.message || "Failed to submit evidence");
     } finally {
       setSubmittingEvidence(false);
@@ -921,8 +991,8 @@ export default function TaskDetailPage() {
       console.error("Error approving task:", error);
       toast.error(
         error.response?.data?.message ||
-        error.message ||
-        "Failed to approve task",
+          error.message ||
+          "Failed to approve task",
       );
     } finally {
       setUpdating(false);
@@ -952,8 +1022,8 @@ export default function TaskDetailPage() {
       console.error("Error rejecting task:", error);
       toast.error(
         error.response?.data?.message ||
-        error.message ||
-        "Failed to reject task",
+          error.message ||
+          "Failed to reject task",
       );
     } finally {
       setRejecting(false);
@@ -971,8 +1041,8 @@ export default function TaskDetailPage() {
       console.error("Error deleting task:", error);
       toast.error(
         error.response?.data?.message ||
-        error.message ||
-        "Failed to delete task",
+          error.message ||
+          "Failed to delete task",
       );
     }
   };
@@ -1038,7 +1108,7 @@ export default function TaskDetailPage() {
           text: `Check out this task: ${task?.title}`,
           url: window.location.href,
         })
-        .catch(() => { });
+        .catch(() => {});
     } else {
       handleCopyLink();
     }
@@ -1221,12 +1291,13 @@ export default function TaskDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      req.status === "approved"
                         ? "bg-emerald-100 text-emerald-700"
                         : req.status === "rejected"
                           ? "bg-rose-100 text-rose-700"
                           : "bg-amber-100 text-amber-700"
-                      }`}
+                    }`}
                   >
                     {req.status.toUpperCase()}
                   </span>
@@ -1260,10 +1331,11 @@ export default function TaskDetailPage() {
 
     return (
       <span
-        className={`text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${hasEvidence
+        className={`text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${
+          hasEvidence
             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
             : "bg-amber-50 text-amber-700 border-amber-200"
-          }`}
+        }`}
       >
         <Paperclip size={12} />
         {hasEvidence ? "Evidence Submitted" : "Evidence Required"}
@@ -1288,7 +1360,7 @@ export default function TaskDetailPage() {
         <div className="p-6 lg:p-8">
           <div className="container mx-auto">
             <Link
-              href="/tasks"
+              href="/tasks/my"
               className="inline-flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors mb-6"
             >
               <ArrowLeft size={18} />
@@ -1306,7 +1378,7 @@ export default function TaskDetailPage() {
                   "The task you're looking for doesn't exist or has been deleted."}
               </p>
               <Link
-                href="/tasks"
+                href="/tasks/my"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
               >
                 <ArrowLeft size={16} />
@@ -1341,7 +1413,7 @@ export default function TaskDetailPage() {
             className="flex items-center justify-between mb-6 flex-wrap gap-3"
           >
             <Link
-              href="/tasks"
+              href="/tasks/my"
               className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors"
             >
               <ArrowLeft size={18} />
@@ -1519,11 +1591,12 @@ export default function TaskDetailPage() {
                                     ? "● Running"
                                     : "● Paused"}
                                 </span>
-                                {task.actualMinutes && task.actualMinutes > 0 && (
-                                  <span className="text-[10px] text-gray-400 ml-2">
-                                    (Saved: {task.actualMinutes}m)
-                                  </span>
-                                )}
+                                {task.actualMinutes &&
+                                  task.actualMinutes > 0 && (
+                                    <span className="text-[10px] text-gray-400 ml-2">
+                                      (Saved: {task.actualMinutes}m)
+                                    </span>
+                                  )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-400">
@@ -1880,16 +1953,16 @@ export default function TaskDetailPage() {
                               </button>
                               {(canManage ||
                                 attachment.uploadedBy?._id === user?._id) && (
-                                  <button
-                                    onClick={() =>
-                                      handleDeleteAttachment(attachment._id)
-                                    }
-                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                    title="Delete"
-                                  >
-                                    <Trash size={14} />
-                                  </button>
-                                )}
+                                <button
+                                  onClick={() =>
+                                    handleDeleteAttachment(attachment._id)
+                                  }
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  title="Delete"
+                                >
+                                  <Trash size={14} />
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1974,13 +2047,13 @@ export default function TaskDetailPage() {
                               </div>
                               {(canManage ||
                                 review.reviewer?._id === user?._id) && (
-                                  <button
-                                    onClick={() => handleDeleteReview(review._id)}
-                                    className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                )}
+                                <button
+                                  onClick={() => handleDeleteReview(review._id)}
+                                  className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           </div>
                           <p className="text-gray-700 text-sm">
@@ -2236,10 +2309,11 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className={`bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${isTimerRunningForTask
+                className={`bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${
+                  isTimerRunningForTask
                     ? "border-indigo-300"
                     : "border-gray-200"
-                  }`}
+                }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -2274,10 +2348,14 @@ export default function TaskDetailPage() {
                   ) : (
                     <>
                       <div className="text-3xl font-mono font-bold text-gray-400">
-                        {task.actualMinutes ? formatTime(task.actualMinutes * 60) : "--:--:--"}
+                        {task.actualMinutes
+                          ? formatTime(task.actualMinutes * 60)
+                          : "--:--:--"}
                       </div>
                       <p className="text-xs text-gray-400 mt-1">
-                        {task.actualMinutes ? `${task.actualMinutes}m tracked` : "No timer active"}
+                        {task.actualMinutes
+                          ? `${task.actualMinutes}m tracked`
+                          : "No timer active"}
                       </p>
                     </>
                   )}
@@ -2572,10 +2650,11 @@ export default function TaskDetailPage() {
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${pendingAction === "approve"
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      pendingAction === "approve"
                         ? "bg-emerald-50"
                         : "bg-rose-50"
-                      }`}
+                    }`}
                   >
                     {pendingAction === "approve" ? (
                       <ThumbsUp className="w-5 h-5 text-emerald-500" />
@@ -2625,10 +2704,11 @@ export default function TaskDetailPage() {
                         : handleRejectWithNote
                     }
                     disabled={!approvalNote.trim() || updating || rejecting}
-                    className={`flex-1 px-4 py-2.5 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${pendingAction === "approve"
+                    className={`flex-1 px-4 py-2.5 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+                      pendingAction === "approve"
                         ? "bg-emerald-600 hover:bg-emerald-700"
                         : "bg-rose-600 hover:bg-rose-700"
-                      }`}
+                    }`}
                   >
                     {updating || rejecting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -2945,10 +3025,11 @@ function CommentItem({
             <div className="flex items-center gap-4 mt-2">
               <button
                 onClick={() => handleLikeComment(comment._id)}
-                className={`flex items-center gap-1 text-xs transition ${isLiked
+                className={`flex items-center gap-1 text-xs transition ${
+                  isLiked
                     ? "text-indigo-600"
                     : "text-gray-400 hover:text-indigo-600"
-                  }`}
+                }`}
               >
                 <ThumbsUp size={12} />
                 {comment.likes?.length || 0} Likes

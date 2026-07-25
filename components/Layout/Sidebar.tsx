@@ -1,5 +1,3 @@
-// components/layout/Sidebar.tsx - Updated with dynamic badges
-
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -17,13 +15,23 @@ import {
   ArrowRight,
 } from "lucide-react";
 import {
-  personalItems,
-  menuItems,
-  subMenuItems,
+  PERSONAL_ITEMS,
+  MAIN_ITEMS,
+  SUB_ITEMS,
+  getSubMenuItems,
+  hasSubMenuItems,
   hasAccess,
   hasDynamicBadge,
   hasAnyBadge,
-  BadgeKey,
+  getMenuItemsForRole,
+  getMenuItemsGroupedBySection,
+  getSectionConfig,
+  SECTIONS,
+  type BadgeKey,
+  type NavItem,
+  type SubNavItem,
+  type UserRole,
+  type SectionId,
 } from "@/lib/menuItems";
 
 interface SidebarProps {
@@ -31,6 +39,193 @@ interface SidebarProps {
   onClose?: () => void;
   onCollapseChange?: (collapsed: boolean) => void;
 }
+
+// Enhanced Mandala Pattern with primary color
+const MandalaPattern = ({ primaryColor = "#0f2444" }) => (
+  <svg
+    className="absolute inset-0 w-full h-full opacity-[0.08]"
+    viewBox="0 0 800 800"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    {/* Outer petals */}
+    {Array.from({ length: 12 }).map((_, i) => {
+      const angle = (i / 12) * 360;
+      const x1 = 400 + Math.cos((angle - 15) * (Math.PI / 180)) * 380;
+      const y1 = 400 + Math.sin((angle - 15) * (Math.PI / 180)) * 380;
+      const x2 = 400 + Math.cos((angle + 15) * (Math.PI / 180)) * 380;
+      const y2 = 400 + Math.sin((angle + 15) * (Math.PI / 180)) * 380;
+      return (
+        <path
+          key={`outer-${i}`}
+          d={`M400 400 L${x1} ${y1} A 80 80 0 0 1 ${x2} ${y2} Z`}
+          fill={primaryColor}
+          opacity="0.4"
+        />
+      );
+    })}
+
+    {/* Inner petals */}
+    {Array.from({ length: 8 }).map((_, i) => {
+      const angle = (i / 8) * 360 + 22.5;
+      const x1 = 400 + Math.cos((angle - 20) * (Math.PI / 180)) * 250;
+      const y1 = 400 + Math.sin((angle - 20) * (Math.PI / 180)) * 250;
+      const x2 = 400 + Math.cos((angle + 20) * (Math.PI / 180)) * 250;
+      const y2 = 400 + Math.sin((angle + 20) * (Math.PI / 180)) * 250;
+      return (
+        <path
+          key={`inner-${i}`}
+          d={`M400 400 L${x1} ${y1} A 60 60 0 0 1 ${x2} ${y2} Z`}
+          fill={primaryColor}
+          opacity="0.3"
+        />
+      );
+    })}
+
+    {/* Concentric circles */}
+    <circle
+      cx="400"
+      cy="400"
+      r="350"
+      stroke={primaryColor}
+      strokeWidth="1.5"
+      opacity="0.2"
+    />
+    <circle
+      cx="400"
+      cy="400"
+      r="300"
+      stroke={primaryColor}
+      strokeWidth="1"
+      opacity="0.15"
+    />
+    <circle
+      cx="400"
+      cy="400"
+      r="220"
+      stroke={primaryColor}
+      strokeWidth="1.5"
+      opacity="0.18"
+    />
+    <circle
+      cx="400"
+      cy="400"
+      r="150"
+      stroke={primaryColor}
+      strokeWidth="1"
+      opacity="0.12"
+    />
+    <circle
+      cx="400"
+      cy="400"
+      r="80"
+      stroke={primaryColor}
+      strokeWidth="1.5"
+      opacity="0.15"
+    />
+
+    {/* Inner star */}
+    {Array.from({ length: 6 }).map((_, i) => {
+      const angle1 = (i / 6) * 360;
+      const angle2 = ((i + 0.5) / 6) * 360;
+      const r1 = 60;
+      const r2 = 30;
+      const x1 = 400 + Math.cos(angle1 * (Math.PI / 180)) * r1;
+      const y1 = 400 + Math.sin(angle1 * (Math.PI / 180)) * r1;
+      const x2 = 400 + Math.cos(angle2 * (Math.PI / 180)) * r2;
+      const y2 = 400 + Math.sin(angle2 * (Math.PI / 180)) * r2;
+      const x3 = 400 + Math.cos((angle1 + 30) * (Math.PI / 180)) * r1;
+      const y3 = 400 + Math.sin((angle1 + 30) * (Math.PI / 180)) * r1;
+      return (
+        <polygon
+          key={`star-${i}`}
+          points={`${x1},${y1} ${x2},${y2} ${x3},${y3}`}
+          fill={primaryColor}
+          opacity="0.2"
+        />
+      );
+    })}
+
+    {/* Decorative dots */}
+    {Array.from({ length: 24 }).map((_, i) => {
+      const angle = (i / 24) * 360;
+      const x = 400 + Math.cos(angle * (Math.PI / 180)) * 280;
+      const y = 400 + Math.sin(angle * (Math.PI / 180)) * 280;
+      return (
+        <circle
+          key={`dot-${i}`}
+          cx={x}
+          cy={y}
+          r="3"
+          fill={primaryColor}
+          opacity="0.2"
+        />
+      );
+    })}
+
+    {/* Outer decorative elements */}
+    {Array.from({ length: 12 }).map((_, i) => {
+      const angle = (i / 12) * 360 + 15;
+      const x = 400 + Math.cos(angle * (Math.PI / 180)) * 390;
+      const y = 400 + Math.sin(angle * (Math.PI / 180)) * 390;
+      return (
+        <circle
+          key={`outer-dot-${i}`}
+          cx={x}
+          cy={y}
+          r="4"
+          fill={primaryColor}
+          opacity="0.15"
+        />
+      );
+    })}
+
+    {/* Diamond shapes */}
+    {Array.from({ length: 8 }).map((_, i) => {
+      const angle = (i / 8) * 360 + 11.25;
+      const x = 400 + Math.cos(angle * (Math.PI / 180)) * 320;
+      const y = 400 + Math.sin(angle * (Math.PI / 180)) * 320;
+      const size = 12;
+      return (
+        <polygon
+          key={`diamond-${i}`}
+          points={`${x},${y - size} ${x + size},${y} ${x},${y + size} ${x - size},${y}`}
+          fill={primaryColor}
+          opacity="0.1"
+        />
+      );
+    })}
+  </svg>
+);
+
+// Subtle animated gradient overlay with primary color
+const AnimatedGradientOverlay = ({ primaryColor = "#0f2444" }) => (
+  <div className="absolute inset-0 opacity-30 pointer-events-none">
+    <div
+      className="absolute top-0 left-0 w-64 h-64 rounded-full blur-3xl animate-pulse"
+      style={{
+        backgroundColor: `${primaryColor}40`,
+        animationDuration: "8s",
+      }}
+    />
+    <div
+      className="absolute bottom-0 right-0 w-48 h-48 rounded-full blur-3xl animate-pulse"
+      style={{
+        backgroundColor: `${primaryColor}30`,
+        animationDuration: "6s",
+        animationDelay: "2s",
+      }}
+    />
+    <div
+      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl animate-pulse"
+      style={{
+        backgroundColor: `${primaryColor}20`,
+        animationDuration: "10s",
+        animationDelay: "4s",
+      }}
+    />
+  </div>
+);
 
 export default function Sidebar({
   isMobileOpen,
@@ -47,10 +242,41 @@ export default function Sidebar({
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
+  // Primary color
+  const primaryColor = "#0f2444";
+
+  // Get user role with proper typing
+  const userRole = (user?.role || "employee") as UserRole;
+
+  // Get personal items (Dashboard only)
+  const personalItems = Object.values(PERSONAL_ITEMS).filter((item) =>
+    hasAccess(userRole, item.roles),
+  );
+
+  // Get main menu items, EXCLUDING the Dashboard (since it's in personal items)
+  const mainItems = Object.values(MAIN_ITEMS).filter(
+    (item) => hasAccess(userRole, item.roles) && item.id !== "dashboard",
+  );
+
+  // Group main items by section
+  const groupedMainItems = mainItems.reduce(
+    (acc, item) => {
+      const section = item.section || "main";
+      if (!acc[section]) {
+        acc[section] = [];
+      }
+      acc[section].push(item);
+      return acc;
+    },
+    {} as Record<SectionId, NavItem[]>,
+  );
+
+  // Get all main items for submenu checking
+  const allMainItems = Object.values(MAIN_ITEMS);
+
   // Refresh badges when user logs in or changes
   useEffect(() => {
     if (user) {
-      // Initialize badge service with error handling
       const initBadges = async () => {
         try {
           await refreshBadges();
@@ -69,7 +295,6 @@ export default function Sidebar({
     setIsCollapsed(initialState);
     onCollapseChange?.(initialState);
 
-    // Dispatch event for header to listen
     window.dispatchEvent(
       new CustomEvent("sidebarToggle", { detail: { collapsed: initialState } }),
     );
@@ -109,12 +334,10 @@ export default function Sidebar({
     let leftPos = rect.right + 12;
     const dropdownWidth = 280;
 
-    // Prevent dropdown from going off-screen right
     if (leftPos + dropdownWidth > window.innerWidth) {
       leftPos = rect.left - dropdownWidth - 12;
     }
 
-    // Calculate top position ensuring dropdown stays within viewport
     let topPos = rect.top - 12;
     const dropdownHeight = Math.min(400, window.innerHeight - 40);
 
@@ -151,53 +374,27 @@ export default function Sidebar({
     setHoveredItem(null);
   };
 
-  const userRole = user?.role || "employee";
-
-  const filteredPersonalItems = personalItems.filter((item) =>
-    hasAccess(userRole, item.roles),
-  );
-
-  const filteredParentItems = menuItems.filter((item) =>
-    hasAccess(userRole, item.roles),
-  );
-
-  const groupedParentItems = filteredParentItems.reduce(
-    (acc, item) => {
-      const section = item.section || "main";
-      if (!acc[section]) acc[section] = [];
-      acc[section].push(item);
-      return acc;
-    },
-    {} as Record<string, typeof menuItems>,
-  );
-
-  const getSubItems = (parentName: string) => {
-    return subMenuItems.filter(
-      (item) => item.parent === parentName && hasAccess(userRole, item.roles),
-    );
-  };
-
-  const isParentActive = (parentName: string) => {
-    const subItems = getSubItems(parentName);
-    return subItems.some((subItem) => isActive(subItem.href));
-  };
-
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === href;
     return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const isParentActive = (parentName: string) => {
+    const subItems = getSubMenuItems(parentName, userRole);
+    return subItems.some((subItem) => isActive(subItem.href));
   };
 
   /**
    * Get badge display for an item
    * Supports both static and dynamic badges
    */
-  const getBadgeDisplay = (item: any): { text: string; isDynamic: boolean } => {
-    // Static badge takes priority
+  const getBadgeDisplay = (
+    item: NavItem | SubNavItem,
+  ): { text: string; isDynamic: boolean } => {
     if (item.badge) {
       return { text: item.badge, isDynamic: false };
     }
 
-    // Dynamic badge
     if (item.badgeKey) {
       const count = getBadgeCount(item.badgeKey as BadgeKey);
       if (count > 0) {
@@ -212,7 +409,7 @@ export default function Sidebar({
   /**
    * Check if item should show a badge
    */
-  const shouldShowBadge = (item: any): boolean => {
+  const shouldShowBadge = (item: NavItem | SubNavItem): boolean => {
     if (item.badge) return true;
     if (item.badgeKey) {
       const count = getBadgeCount(item.badgeKey as BadgeKey);
@@ -221,8 +418,10 @@ export default function Sidebar({
     return false;
   };
 
-  const sectionOrder = [
+  // Section order for consistent display
+  const sectionOrder: SectionId[] = [
     "main",
+    "kpi",
     "projects",
     "tasks",
     "team",
@@ -232,16 +431,16 @@ export default function Sidebar({
     "support",
   ];
 
-  const renderDropdownMenu = (parentName: string, items: any[]) => {
+  const renderDropdownMenu = (parentName: string, items: SubNavItem[]) => {
     if (hoveredItem !== parentName) return null;
 
-    const parentItem = menuItems.find((item) => item.name === parentName);
+    const parentItem = allMainItems.find((item) => item.name === parentName);
     const isParentActiveFlag = isParentActive(parentName);
 
     return (
       <div
         ref={dropdownRef}
-        className="fixed z-50 min-w-70 bg-white rounded-xl shadow-2xl border border-gray-200/80 overflow-hidden"
+        className="fixed z-50 min-w-70 overflow-hidden bg-[#122645]"
         style={{
           top: dropdownPosition.top,
           left: dropdownPosition.left,
@@ -250,25 +449,25 @@ export default function Sidebar({
         onMouseEnter={handleDropdownMouseEnter}
         onMouseLeave={handleDropdownMouseLeave}
       >
-        <div className="relative px-4 py-3 bg-linear-to-r from-gray-50 to-white border-b border-gray-200/60">
+        <div className="relative px-4 py-3  backdrop-blur-sm border-b border-white/10">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-md">
+            <div className="w-7 h-7 rounded-lg  flex items-center justify-center shadow-md">
               {parentItem?.icon && (
                 <parentItem.icon size={14} className="text-white" />
               )}
             </div>
             <div className="flex-1">
-              <span className="text-sm font-semibold text-gray-800">
+              <span className="text-sm font-semibold text-white">
                 {parentName}
               </span>
               {isParentActiveFlag && (
-                <div className="text-[9px] text-indigo-600 font-medium">
+                <div className="text-[9px] text-indigo-300 font-medium">
                   Active
                 </div>
               )}
             </div>
             {isParentActiveFlag && (
-              <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm shadow-indigo-300" />
+              <div className="w-2 h-2 rounded-full bg-indigo-400 shadow-sm shadow-indigo-300" />
             )}
           </div>
         </div>
@@ -282,7 +481,7 @@ export default function Sidebar({
 
             return (
               <Link
-                key={subItem.href}
+                key={subItem.id}
                 href={subItem.href}
                 onClick={() => {
                   setHoveredItem(null);
@@ -290,23 +489,23 @@ export default function Sidebar({
                 }}
                 className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${
                   isSubActive
-                    ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                    ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-white/10"
                 }`}
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
                     isSubActive
-                      ? "bg-indigo-100"
-                      : "bg-gray-100 group-hover:bg-indigo-50"
+                      ? "bg-indigo-500/30"
+                      : "bg-white/10 group-hover:bg-white/20"
                   }`}
                 >
                   <SubIcon
                     size={14}
                     className={
                       isSubActive
-                        ? "text-indigo-600"
-                        : "text-gray-500 group-hover:text-indigo-600"
+                        ? "text-indigo-300"
+                        : "text-gray-400 group-hover:text-white"
                     }
                   />
                 </div>
@@ -317,26 +516,27 @@ export default function Sidebar({
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
                       badgeInfo.isDynamic
-                        ? "bg-red-100 text-red-600 animate-pulse"
-                        : subItem.badgeColor || "bg-indigo-100 text-indigo-600"
+                        ? "bg-red-500/30 text-red-300 animate-pulse"
+                        : subItem.badgeColor ||
+                          "bg-indigo-500/30 text-indigo-300"
                     }`}
                   >
                     {badgeInfo.text}
                   </span>
                 )}
                 {isSubActive && (
-                  <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400" />
+                  <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400" />
                 )}
               </Link>
             );
           })}
         </div>
 
-        <div className="px-4 py-2 border-t border-gray-200/60 bg-gray-50/50">
+        <div className="px-4 py-2 border-t border-white/10 bg-white/5">
           <div className="flex items-center justify-between text-[10px] text-gray-400">
             <span>{items.length} menu items</span>
             <span className="flex items-center gap-1">
-              <span className="w-1 h-1 rounded-full bg-gray-300" />
+              <span className="w-1 h-1 rounded-full bg-gray-400" />
               Click to navigate
             </span>
           </div>
@@ -347,305 +547,336 @@ export default function Sidebar({
 
   const sidebarContent = (
     <aside
-      className={`relative bg-white min-h-screen flex flex-col shadow-xl transition-all duration-300 ${
+      className={`relative min-h-screen flex flex-col shadow-2xl transition-all duration-300 overflow-hidden ${
         isCollapsed ? "w-20" : "w-80"
-      }`}
+      } sidebar-layout`}
+      style={{
+        borderRight: "1px solid #122645",
+      }}
     >
-      {/* Animated gradient border */}
-      <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-indigo-400 to-purple-400 via-50% to-transparent animate-shimmer" />
-
-      {/* Header with Toggle Button */}
-      <div
-        className={`px-4 py-[12px] border-b border-gray-200/80 transition-all duration-300 sticky top-0 z-10 ${
-          scrolled ? "bg-white/95 backdrop-blur-md" : "bg-white"
-        }`}
-      >
-        <div className="flex items-center justify-between">
-          <div
-            className={`flex items-center gap-3 ${
-              isCollapsed ? "justify-center w-full" : ""
-            }`}
-          >
-            <div className="relative group">
-              <div className="absolute inset-0 bg-linear-to-r from-indigo-400 to-purple-400 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-300" />
-              <div className="relative w-10 h-10 bg-white border border-indigo-200 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-md">
-                <CheckSquare className="w-5 h-5 text-indigo-600 group-hover:text-indigo-500" />
-              </div>
-            </div>
-            {!isCollapsed && (
-              <div className="overflow-hidden">
-                <h1 className="text-lg font-bold text-gray-800 tracking-tight">
-                  Taskify
-                </h1>
-                <p className="text-gray-400 text-[10px] font-medium uppercase tracking-wider">
-                  Enterprise Suite
-                </p>
-              </div>
-            )}
-          </div>
-          {!isCollapsed && onClose && (
-            <button
-              onClick={onClose}
-              className="lg:hidden text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <X size={18} />
-            </button>
-          )}
-        </div>
+      {/* Background Image with Overlay - Now applied to the aside */}
+      <div className="absolute inset-0 pointer-events-none main-sidebar">
+        {/* Dark overlay for readability */}
+        <div className="absolute inset-0  backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0f2444]/60 via-[#0f2444]/40 to-transparent" />
       </div>
 
-      {/* Toggle Button - Positioned at top right of sidebar */}
-      <button
-        onClick={toggleCollapse}
-        className="absolute -right-3 top-20 w-6 h-6 bg-white border border-gray-200 rounded-full flex items-center justify-center hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 hover:border-transparent hover:text-white transition-all duration-200 z-50 shadow-lg group"
-      >
-        {isCollapsed ? (
-          <ChevronRight
-            size={12}
-            className="text-gray-400 group-hover:text-white transition-colors"
-          />
-        ) : (
-          <ChevronLeft
-            size={12}
-            className="text-gray-400 group-hover:text-white transition-colors"
-          />
-        )}
-      </button>
+      {/* Mandala Pattern */}
+      <div className="absolute inset-0 pointer-events-none">
+        <MandalaPattern primaryColor={primaryColor} />
+        <AnimatedGradientOverlay primaryColor={primaryColor} />
 
-      {/* Navigation - No Section Titles, Scrollable */}
-      <nav
-        className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar"
-        style={{ maxHeight: "calc(100vh - 80px)" }}
-      >
-        {/* Personal Items */}
-        {filteredPersonalItems.length > 0 && (
-          <div className="space-y-1">
-            {filteredPersonalItems.map((item) => {
-              const active = isActive(item.href);
-              const Icon = item.icon;
-              const badgeInfo = getBadgeDisplay(item);
-              const showBadge = shouldShowBadge(item);
+        {/* Subtle noise texture */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
+            backgroundSize: "128px 128px",
+          }}
+        />
+      </div>
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={onClose}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
-                    isCollapsed ? "justify-center" : ""
-                  } ${
-                    active
-                      ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                  }`}
-                  title={isCollapsed ? item.name : ""}
-                >
-                  <div className="relative">
-                    <Icon
-                      size={18}
-                      className={`transition-all duration-200 ${
-                        active
-                          ? "text-indigo-600"
-                          : "text-gray-400 group-hover:text-gray-600"
-                      }`}
-                    />
-                    {/* Collapsed badge indicator */}
-                    {isCollapsed && showBadge && (
-                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
-                    )}
-                  </div>
-                  {!isCollapsed && (
-                    <>
-                      <span className="text-sm font-medium flex-1">
-                        {item.name}
-                      </span>
-                      {showBadge && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
-                            badgeInfo.isDynamic
-                              ? "bg-red-100 text-red-600 animate-pulse"
-                              : item.badgeColor ||
-                                "bg-indigo-100 text-indigo-600"
-                          }`}
-                        >
-                          {badgeInfo.text}
-                        </span>
-                      )}
-                    </>
-                  )}
-                  {active && !isCollapsed && (
-                    <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
-                  )}
-                </Link>
-              );
-            })}
+      {/* Animated gradient border */}
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-purple-400 via-50% to-transparent animate-shimmer z-10" />
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Header with Toggle Button */}
+        <div
+          className={`px-4 py-[12px] bg-transparent  transition-all duration-300 sticky top-0 z-10 ${
+            scrolled
+              ? "bg-[#0f2444]/90 backdrop-blur-md"
+              : "bg-[#0f2444]/60 backdrop-blur-sm"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <div
+              className={`flex items-center gap-3 ${
+                isCollapsed ? "justify-center w-full" : ""
+              }`}
+            >
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-300" />
+                <div className="relative w-10 h-10 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-md">
+                  <CheckSquare className="w-5 h-5 text-white group-hover:text-indigo-300" />
+                </div>
+              </div>
+              {!isCollapsed && (
+                <div className="overflow-hidden">
+                  <h1 className="text-lg font-bold text-white tracking-tight">
+                    Task Flow
+                  </h1>
+                  <p className="text-white/40 text-[10px] font-medium uppercase tracking-wider">
+                    Enterprise Suite
+                  </p>
+                </div>
+              )}
+            </div>
+            {!isCollapsed && onClose && (
+              <button
+                onClick={onClose}
+                className="text-white/40 hover:text-white transition-colors"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
-        )}
+        </div>
 
-        {/* Divider between personal items and main menu */}
-        {/* {filteredPersonalItems.length > 0 &&
-          filteredParentItems.length > 0 &&
-          !isCollapsed && <div className="h-px bg-gray-200/60 my-2" />} */}
+        {/* Toggle Button */}
+        <button
+          onClick={toggleCollapse}
+          className="absolute -right-3 top-20 w-6 h-6 "
+        >
+          {isCollapsed ? (
+            <ChevronRight
+              size={12}
+              className="text-white/60 group-hover:text-white transition-colors"
+            />
+          ) : (
+            <ChevronLeft
+              size={12}
+              className="text-white/60 group-hover:text-white transition-colors"
+            />
+          )}
+        </button>
 
-        {/* Parent Menu Items - No Section Titles */}
-        {sectionOrder.map((section) => {
-          const items = groupedParentItems[section];
-          if (!items || items.length === 0) return null;
-
-          return (
-            <div key={section} className="space-y-1">
-              {items.map((item) => {
+        {/* Navigation - Removed sidebar-layout from here */}
+        <nav
+          className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar main-sidebar"
+          style={{ maxHeight: "calc(100vh - 80px)" }}
+        >
+          {/* Personal Items - Dashboard only */}
+          {personalItems.length > 0 && (
+            <div className="space-y-1">
+              {personalItems.map((item) => {
+                const active = isActive(item.href);
                 const Icon = item.icon;
-                const subItems = getSubItems(item.name);
-                const hasSubmenu = subItems.length > 0;
-                const isParentActiveFlag = isParentActive(item.name);
-                const isHovered = hoveredItem === item.name;
                 const badgeInfo = getBadgeDisplay(item);
                 const showBadge = shouldShowBadge(item);
 
                 return (
-                  <div
-                    key={item.name}
-                    onMouseEnter={(e) => {
-                      if (hasSubmenu) handleMouseEnter(item.name, e);
-                    }}
-                    onMouseLeave={() => {
-                      if (hasSubmenu) handleMouseLeave();
-                    }}
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    onClick={onClose}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
+                      isCollapsed ? "justify-center" : ""
+                    } ${
+                      active
+                        ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
+                        : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
+                    }`}
+                    title={isCollapsed ? item.name : ""}
                   >
-                    <div
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
-                        isCollapsed ? "justify-center" : ""
-                      } ${
-                        isParentActiveFlag || (isHovered && hasSubmenu)
-                          ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
-                          : isActive(item.href) && !hasSubmenu
-                            ? "bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-600"
-                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                      }`}
-                      title={isCollapsed ? item.name : ""}
-                    >
-                      <div className="relative">
-                        <Icon
-                          size={18}
-                          className={`transition-all duration-200 ${
-                            isParentActiveFlag || (isHovered && hasSubmenu)
-                              ? "text-indigo-600"
-                              : isActive(item.href) && !hasSubmenu
-                                ? "text-indigo-600"
-                                : "text-gray-400 group-hover:text-gray-600"
-                          }`}
-                        />
-                        {/* Collapsed badge indicator for parent items */}
-                        {isCollapsed && showBadge && !hasSubmenu && (
-                          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
-                        )}
-                      </div>
-                      {!isCollapsed && (
-                        <>
-                          <span className="text-sm font-medium flex-1 text-left">
-                            {item.name}
-                          </span>
-                          {hasSubmenu && (
-                            <ChevronRightIcon
-                              size={14}
-                              className={`transition-all duration-300 ${
-                                isHovered
-                                  ? "translate-x-1 text-indigo-600"
-                                  : "text-gray-400 group-hover:text-gray-600"
-                              }`}
-                            />
-                          )}
-                          {showBadge && !hasSubmenu && (
-                            <span
-                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
-                                badgeInfo.isDynamic
-                                  ? "bg-red-100 text-red-600 animate-pulse"
-                                  : item.badgeColor ||
-                                    "bg-indigo-100 text-indigo-600"
-                              }`}
-                            >
-                              {badgeInfo.text}
-                            </span>
-                          )}
-                        </>
+                    <div className="relative">
+                      <Icon
+                        size={18}
+                        className={`transition-all duration-200 ${
+                          active
+                            ? "text-indigo-300"
+                            : "text-gray-400 group-hover:text-white"
+                        }`}
+                      />
+                      {isCollapsed && showBadge && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
                       )}
-                      {(isParentActiveFlag ||
-                        (isActive(item.href) && !hasSubmenu)) &&
-                        !isCollapsed && (
-                          <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
-                        )}
                     </div>
-
-                    {hasSubmenu && renderDropdownMenu(item.name, subItems)}
-                  </div>
+                    {!isCollapsed && (
+                      <>
+                        <span className="text-sm font-medium flex-1">
+                          {item.name}
+                        </span>
+                        {showBadge && (
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
+                              badgeInfo.isDynamic
+                                ? "bg-red-500/30 text-red-300 animate-pulse"
+                                : item.badgeColor ||
+                                  "bg-indigo-500/30 text-indigo-300"
+                            }`}
+                          >
+                            {badgeInfo.text}
+                          </span>
+                        )}
+                      </>
+                    )}
+                    {active && !isCollapsed && (
+                      <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                    )}
+                  </Link>
                 );
               })}
             </div>
-          );
-        })}
-      </nav>
+          )}
 
-      {/* Footer */}
-      <div className="sticky bottom-0 p-4 border-t border-gray-200/80 bg-gradient-to-t from-white via-white/95 to-transparent backdrop-blur-sm">
-        <button
-          onClick={logout}
-          className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${
-            isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
-          }`}
-          title={isCollapsed ? "Logout" : ""}
-        >
-          {/* Animated gradient background */}
-          <div className="absolute inset-0 bg-linear-to-r from-red-50 to-rose-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="absolute inset-0 bg-linear-to-r from-red-500/5 to-rose-500/5 rounded-xl" />
+          {/* Main Menu Items - Grouped by Section */}
+          {sectionOrder.map((sectionId) => {
+            const items = groupedMainItems[sectionId];
+            if (!items || items.length === 0) return null;
 
-          {/* Border glow effect */}
-          <div className="absolute inset-0 rounded-xl border border-red-200 group-hover:border-red-300 transition-all duration-300" />
+            const sectionConfig = getSectionConfig(sectionId);
+            const SectionIcon = sectionConfig?.icon;
 
-          {/* Content */}
-          <div
-            className={`relative flex items-center gap-3 transition-all duration-300 ${
-              isCollapsed ? "justify-center" : "justify-center"
+            return (
+              <div key={sectionId} className="space-y-1">
+                {/* Section Title */}
+                {!isCollapsed && SectionIcon && (
+                  <div className="flex items-center gap-2 px-3 py-2 mt-2">
+                    <SectionIcon className="w-3.5 h-3.5 text-white/30" />
+                    <span className="text-[10px] font-semibold text-white/30 uppercase tracking-wider">
+                      {sectionConfig?.title || sectionId.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  const subItems = getSubMenuItems(item.name, userRole);
+                  const hasSubmenu = subItems.length > 0;
+                  const isParentActiveFlag = isParentActive(item.name);
+                  const isHovered = hoveredItem === item.name;
+                  const badgeInfo = getBadgeDisplay(item);
+                  const showBadge = shouldShowBadge(item);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseEnter={(e) => {
+                        if (hasSubmenu) handleMouseEnter(item.name, e);
+                      }}
+                      onMouseLeave={() => {
+                        if (hasSubmenu) handleMouseLeave();
+                      }}
+                    >
+                      <div
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
+                          isCollapsed ? "justify-center" : ""
+                        } ${
+                          isParentActiveFlag || (isHovered && hasSubmenu)
+                            ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm "
+                            : isActive(item.href) && !hasSubmenu
+                              ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm "
+                              : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
+                        }`}
+                        title={isCollapsed ? item.name : ""}
+                      >
+                        <div className="relative">
+                          <Icon
+                            size={18}
+                            className={`transition-all duration-200 ${
+                              isParentActiveFlag || (isHovered && hasSubmenu)
+                                ? "text-indigo-300"
+                                : isActive(item.href) && !hasSubmenu
+                                  ? "text-indigo-300"
+                                  : "text-gray-400 group-hover:text-white"
+                            }`}
+                          />
+                          {isCollapsed && showBadge && !hasSubmenu && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
+                          )}
+                        </div>
+                        {!isCollapsed && (
+                          <>
+                            <span className="text-sm font-medium flex-1 text-left">
+                              {item.name}
+                            </span>
+                            {hasSubmenu && (
+                              <ChevronRightIcon
+                                size={14}
+                                className={`transition-all duration-300 ${
+                                  isHovered
+                                    ? "translate-x-1 text-indigo-300"
+                                    : "text-gray-400 group-hover:text-white"
+                                }`}
+                              />
+                            )}
+                            {showBadge && !hasSubmenu && (
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
+                                  badgeInfo.isDynamic
+                                    ? "bg-red-500/30 text-red-300 animate-pulse"
+                                    : item.badgeColor ||
+                                      "bg-indigo-500/30 text-indigo-300"
+                                }`}
+                              >
+                                {badgeInfo.text}
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {(isParentActiveFlag ||
+                          (isActive(item.href) && !hasSubmenu)) &&
+                          !isCollapsed && (
+                            <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                          )}
+                      </div>
+
+                      {hasSubmenu && renderDropdownMenu(item.name, subItems)}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </nav>
+
+        {/* Footer */}
+        <div className="sticky bottom-0 p-4 border-t border-white/10 ">
+          <button
+            onClick={logout}
+            className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${
+              isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
             }`}
+            title={isCollapsed ? "Logout" : ""}
           >
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-rose-500/5 rounded-xl" />
+            <div className="absolute inset-0 rounded-xl border border-red-500/20 group-hover:border-red-400/40 transition-all duration-300" />
+
             <div
-              className={`relative transition-all duration-300 ${
-                isCollapsed ? "" : "group-hover:scale-110"
+              className={`relative flex items-center gap-3 transition-all duration-300 ${
+                isCollapsed ? "justify-center" : "justify-center"
               }`}
             >
-              <LogOut
-                size={18}
-                className="text-red-400 group-hover:text-red-500 transition-all duration-300"
-              />
-              {/* Glow behind icon */}
-              <div className="absolute inset-0 rounded-full bg-red-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
+              <div
+                className={`relative transition-all duration-300 ${
+                  isCollapsed ? "" : "group-hover:scale-110"
+                }`}
+              >
+                <LogOut
+                  size={18}
+                  className="text-red-400/60 group-hover:text-red-400 transition-all duration-300"
+                />
+                <div className="absolute inset-0 rounded-full bg-red-500/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 -z-10" />
+              </div>
+
+              {!isCollapsed && (
+                <span className="text-sm font-medium text-red-400/80 group-hover:text-red-400 transition-all duration-300">
+                  Sign Out
+                </span>
+              )}
+
+              {!isCollapsed && (
+                <ArrowRight
+                  size={14}
+                  className="text-red-400/40 group-hover:text-red-400 group-hover:translate-x-1 transition-all duration-300 opacity-0 group-hover:opacity-100"
+                />
+              )}
             </div>
+          </button>
 
-            {!isCollapsed && (
-              <span className="text-sm font-medium text-red-500 group-hover:text-red-600 transition-all duration-300">
-                Sign Out
-              </span>
-            )}
-
-            {!isCollapsed && (
-              <ArrowRight
-                size={14}
-                className="text-red-400 group-hover:text-red-500 group-hover:translate-x-1 transition-all duration-300 opacity-0 group-hover:opacity-100"
-              />
-            )}
-          </div>
-        </button>
-
-        {!isCollapsed && (
-          <div className="mt-4 text-center">
-            <p className="text-[9px] text-gray-400 font-medium tracking-wider">
-              Version 2.0.0
-            </p>
-            <p className="text-[9px] text-gray-400 font-medium mt-0.5">
-              © 2026 Taskify Enterprise Suite
-            </p>
-          </div>
-        )}
+          {!isCollapsed && (
+            <div className="mt-4 text-center">
+              <p className="text-[9px] text-white/30 font-medium tracking-wider">
+                Version 2.0.0
+              </p>
+              <p className="text-[9px] text-white/20 font-medium mt-0.5">
+                © 2026 TaskFlow Enterprise Suite
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </aside>
   );
@@ -659,7 +890,7 @@ export default function Sidebar({
       {isMobileOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
             onClick={onClose}
           />
           <div className="fixed left-0 top-0 h-full z-40 lg:hidden animate-slide-in-right">
@@ -669,6 +900,13 @@ export default function Sidebar({
       )}
 
       <style jsx global>{`
+        .main-sidebar {
+          background-image: url(/images/sidebar-bg.png);
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+        }
+
         @keyframes slide-in-right {
           from {
             transform: translateX(-100%);
@@ -720,7 +958,7 @@ export default function Sidebar({
           width: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(229, 231, 235, 0.5);
+          background: rgba(255, 255, 255, 0.05);
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {

@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",  // Changed from http to https
-        hostname: "taskify-server-5gat.onrender.com",
+        hostname: "TaskFlow-server-5gat.onrender.com",
         // Remove the port - Render uses default HTTPS port
         pathname: "/uploads/**",
       },

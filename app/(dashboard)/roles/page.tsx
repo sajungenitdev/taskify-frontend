@@ -11,7 +11,6 @@ import {
   UserCheck,
   Briefcase,
   ChevronRight,
-  CheckCircle,
   X,
   Plus,
   Trash2,
@@ -19,20 +18,12 @@ import {
   Loader2,
   Eye,
   Lock,
-  UserPlus,
   Search,
   RefreshCw,
   Grid,
   List,
-  Info,
   Edit2,
   UserX,
-  ArrowLeft,
-  Star,
-  Award,
-  Zap,
-  Sparkles,
-  TrendingUp,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -57,6 +48,7 @@ interface User {
   fullName: string;
   email: string;
   role: string;
+  roles?: Role[];
 }
 
 // Predefined permanent roles
@@ -64,8 +56,7 @@ const PERMANENT_ROLES = [
   {
     name: "Super Admin",
     code: "SUPER_ADMIN",
-    description:
-      "Full system access with all permissions. This is a permanent system role.",
+    description: "Full system access with all permissions",
     level: 100,
     isSystemRole: true,
     isPermanent: true,
@@ -73,8 +64,7 @@ const PERMANENT_ROLES = [
   {
     name: "Admin",
     code: "ADMIN",
-    description:
-      "Administrative access with limited system control. This is a permanent system role.",
+    description: "Administrative access with limited system control",
     level: 90,
     isSystemRole: true,
     isPermanent: true,
@@ -82,8 +72,7 @@ const PERMANENT_ROLES = [
   {
     name: "HR Manager",
     code: "HR_MANAGER",
-    description:
-      "Human resources management access. This is a permanent system role.",
+    description: "Human resources management access",
     level: 80,
     isSystemRole: true,
     isPermanent: true,
@@ -91,8 +80,7 @@ const PERMANENT_ROLES = [
   {
     name: "Department Manager",
     code: "DEPT_MANAGER",
-    description:
-      "Department-level management access. This is a permanent system role.",
+    description: "Department-level management access",
     level: 70,
     isSystemRole: true,
     isPermanent: true,
@@ -100,8 +88,7 @@ const PERMANENT_ROLES = [
   {
     name: "Project Manager",
     code: "PROJECT_MANAGER",
-    description:
-      "Project-specific management access. This is a permanent system role.",
+    description: "Project-specific management access",
     level: 65,
     isSystemRole: true,
     isPermanent: true,
@@ -109,7 +96,7 @@ const PERMANENT_ROLES = [
   {
     name: "Line Manager",
     code: "LINE_MANAGER",
-    description: "Team management access. This is a permanent system role.",
+    description: "Team management access",
     level: 60,
     isSystemRole: true,
     isPermanent: true,
@@ -117,7 +104,7 @@ const PERMANENT_ROLES = [
   {
     name: "Employee",
     code: "EMPLOYEE",
-    description: "Basic user access. This is a permanent system role.",
+    description: "Basic user access",
     level: 10,
     isSystemRole: true,
     isPermanent: true,
@@ -131,14 +118,10 @@ export default function RolesPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
-  const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<Role | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
-  const [selectedUser, setSelectedUser] = useState<string>("");
-  const [selectedRoleForUser, setSelectedRoleForUser] = useState<string>("");
-  const [searchTerm, setSearchTerm] = useState("");
   const [searchRoleTerm, setSearchRoleTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [creatingRole, setCreatingRole] = useState(false);
@@ -152,7 +135,7 @@ export default function RolesPage() {
     permissions: [] as string[],
   });
 
-  const canManageRoles = hasRole(["super_admin"]);
+  const canManageRoles = hasRole(["super_admin", "admin"]);
 
   useEffect(() => {
     if (!canManageRoles) {
@@ -294,30 +277,20 @@ export default function RolesPage() {
     }
   };
 
-  const handleAssignRole = async () => {
-    if (!selectedUser || !selectedRoleForUser) {
-      toast.error("Please select both user and role");
-      return;
-    }
-
-    try {
-      const selectedRoleData = roles.find((r) => r._id === selectedRoleForUser);
-      await api.put(`/auth/users/${selectedUser}/role`, {
-        role: selectedRoleData?.code.toLowerCase(),
-      });
-      toast.success("Role assigned successfully");
-      setShowAssignModal(false);
-      setSelectedUser("");
-      setSelectedRoleForUser("");
-      fetchUsers();
-      initializeRoles();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to assign role");
-    }
+  const getUsersByRole = (roleCode: string) => {
+    return users.filter((u) => {
+      if (u.roles) {
+        return u.roles.some((r) => r.code === roleCode);
+      }
+      return u.role === roleCode.toLowerCase();
+    });
   };
 
-  const getUsersByRole = (roleCode: string) => {
-    return users.filter((u) => u.role === roleCode.toLowerCase());
+  const getUserRoleNames = (user: User): string => {
+    if (user.roles && user.roles.length > 0) {
+      return user.roles.map((r) => r.name).join(", ");
+    }
+    return user.role || "No role";
   };
 
   const rolesWithCounts = useMemo(() => {
@@ -335,18 +308,12 @@ export default function RolesPage() {
       role.code.toLowerCase().includes(searchRoleTerm.toLowerCase()),
   );
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
-
   const stats = {
     totalRoles: rolesWithCounts.length,
     permanentRoles: rolesWithCounts.filter((r) => r.isPermanent).length,
     customRoles: rolesWithCounts.filter((r) => !r.isPermanent).length,
     totalUsers: users.length,
-    totalAssignments: users.filter((u) => u.role).length,
+    totalAssignments: users.filter((u) => u.roles && u.roles.length > 0).length,
   };
 
   const getRoleIcon = (roleName: string): React.ReactNode => {
@@ -401,19 +368,6 @@ export default function RolesPage() {
     return colors[roleName] || "border-indigo-200";
   };
 
-  const getRoleBadgeColor = (roleName: string) => {
-    const colors: Record<string, string> = {
-      "Super Admin": "bg-purple-100 text-purple-700 border-purple-200",
-      Admin: "bg-red-100 text-red-700 border-red-200",
-      "HR Manager": "bg-pink-100 text-pink-700 border-pink-200",
-      "Department Manager": "bg-orange-100 text-orange-700 border-orange-200",
-      "Project Manager": "bg-cyan-100 text-cyan-700 border-cyan-200",
-      "Line Manager": "bg-green-100 text-green-700 border-green-200",
-      Employee: "bg-gray-100 text-gray-700 border-gray-200",
-    };
-    return colors[roleName] || "bg-indigo-100 text-indigo-700 border-indigo-200";
-  };
-
   if (!canManageRoles) return null;
 
   if (loading) {
@@ -450,7 +404,7 @@ export default function RolesPage() {
                 </span>
               </div>
               <p className="text-gray-500 text-sm">
-                Manage system roles, permissions, and user assignments
+                Manage system roles and permissions
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -471,13 +425,6 @@ export default function RolesPage() {
                 Create Role
               </button>
               <button
-                onClick={() => setShowAssignModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
-              >
-                <UserPlus size={16} />
-                Assign Role
-              </button>
-              <button
                 onClick={initializeRoles}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
               >
@@ -491,27 +438,31 @@ export default function RolesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 lg:grid-cols-5 gap-4"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-4"
           >
             <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-gray-800">{stats.totalRoles}</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {stats.totalRoles}
+              </p>
               <p className="text-xs text-gray-500 mt-0.5">Total Roles</p>
             </div>
             <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-amber-600">{stats.permanentRoles}</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {stats.permanentRoles}
+              </p>
               <p className="text-xs text-gray-500 mt-0.5">Permanent Roles</p>
             </div>
             <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-emerald-600">{stats.customRoles}</p>
+              <p className="text-2xl font-bold text-emerald-600">
+                {stats.customRoles}
+              </p>
               <p className="text-xs text-gray-500 mt-0.5">Custom Roles</p>
             </div>
             <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-cyan-600">{stats.totalUsers}</p>
+              <p className="text-2xl font-bold text-cyan-600">
+                {stats.totalUsers}
+              </p>
               <p className="text-xs text-gray-500 mt-0.5">Total Users</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-purple-600">{stats.totalAssignments}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Assignments</p>
             </div>
           </motion.div>
 
@@ -683,7 +634,9 @@ export default function RolesPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">
                           {role.description?.substring(0, 60)}
-                          {role.description && role.description.length > 60 && "..."}
+                          {role.description &&
+                            role.description.length > 60 &&
+                            "..."}
                         </td>
                         <td className="px-4 py-3 text-center text-sm text-gray-800 font-medium">
                           {role.level}
@@ -803,29 +756,26 @@ export default function RolesPage() {
                           <p className="text-gray-800 text-sm font-medium">
                             {user.fullName}
                           </p>
-                          <p className="text-gray-400 text-xs">
-                            {user.email}
-                          </p>
+                          <p className="text-gray-400 text-xs">{user.email}</p>
                         </div>
                       </div>
-                      <Eye
-                        size={14}
-                        className="text-gray-400 opacity-0 group-hover:opacity-100 transition"
-                      />
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">
+                          {getUserRoleNames(user)}
+                        </span>
+                        <Eye
+                          size={14}
+                          className="text-gray-400 opacity-0 group-hover:opacity-100 transition"
+                        />
+                      </div>
                     </Link>
                   ))}
                   {getUsersByRole(selectedRoleData.code).length === 0 && (
                     <div className="text-center py-8 bg-gray-50 rounded-lg border border-gray-100">
                       <UserX size={32} className="text-gray-300 mx-auto mb-2" />
                       <p className="text-gray-500 text-sm font-medium">
-                        No users assigned
+                        No users assigned to this role
                       </p>
-                      <button
-                        onClick={() => setShowAssignModal(true)}
-                        className="mt-2 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                      >
-                        Assign a user →
-                      </button>
                     </div>
                   )}
                 </div>
@@ -1154,106 +1104,6 @@ export default function RolesPage() {
                   </button>
                   <button
                     onClick={() => setShowEditModal(false)}
-                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Assign Role Modal */}
-      <AnimatePresence>
-        {showAssignModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-            >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    Assign Role to User
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    Select a user and assign a new role
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowAssignModal(false)}
-                  className="text-gray-400 hover:text-gray-600 transition"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Select User
-                  </label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search users..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition mb-2"
-                    />
-                  </div>
-                  <select
-                    value={selectedUser}
-                    onChange={(e) => setSelectedUser(e.target.value)}
-                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  >
-                    <option value="">Select a user</option>
-                    {filteredUsers.map((u) => (
-                      <option key={u._id} value={u._id}>
-                        {u.fullName} ({u.email})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Select Role
-                  </label>
-                  <select
-                    value={selectedRoleForUser}
-                    onChange={(e) => setSelectedRoleForUser(e.target.value)}
-                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  >
-                    <option value="">Select a role</option>
-                    {rolesWithCounts.map((role) => (
-                      <option key={role._id} value={role._id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-start gap-2">
-                    <Info size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-gray-600">
-                      Role changes take effect immediately. The user will need
-                      to refresh their session.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={handleAssignRole}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm"
-                  >
-                    Assign Role
-                  </button>
-                  <button
-                    onClick={() => setShowAssignModal(false)}
                     className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
                   >
                     Cancel

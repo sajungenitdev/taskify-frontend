@@ -1,4 +1,4 @@
-// lib/axios.ts - Updated version
+// lib/axios.ts
 import axios, {
   AxiosInstance,
   AxiosRequestConfig,
@@ -18,9 +18,7 @@ export interface ApiResponse<T = any> {
 
 // ============ ENVIRONMENT CONFIGURATION ============
 const API_BASE_URL: string =
-  process.env.NEXT_PUBLIC_API_URL ||
-  // "https://taskify-server-5gat.onrender.com/api/v1";
-  "http://localhost:5000/api/v1";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
 // ============ CREATE AXIOS INSTANCE ============
 const api: AxiosInstance = axios.create({
@@ -30,8 +28,31 @@ const api: AxiosInstance = axios.create({
     Accept: "application/json",
   },
   withCredentials: false,
-  timeout: 30000, // 30 seconds default timeout
+  timeout: 30000,
 });
+
+// ============ TOKEN INTERCEPTOR - FIXED ============
+// This runs BEFORE every request and ensures the token is always sent
+api.interceptors.request.use(
+  (config) => {
+    // Get the latest token from localStorage
+    const token = localStorage.getItem("token");
+    
+    // ALWAYS set the token if it exists
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+      // Log for debugging
+      console.log(`🔑 Token attached to request: ${config.url}`);
+    } else {
+      console.log(`⚠️ No token for request: ${config.url}`);
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // ============ RETRY CONFIGURATION ============
 const MAX_RETRIES = 3;
@@ -59,57 +80,47 @@ const processQueue = (error: any, token: string | null = null) => {
 
 // ============ CHECK IF ERROR IS RETRYABLE ============
 const isRetryableError = (error: AxiosError): boolean => {
-  // Network errors
   if (error.code && RETRYABLE_ERRORS.includes(error.code)) {
     return true;
   }
-
-  // HTTP status codes
   if (
     error.response?.status &&
     RETRYABLE_STATUSES.includes(error.response.status)
   ) {
     return true;
   }
-
-  // Timeout errors
   if (
     error.message?.includes("timeout") ||
     error.message?.includes("exceeded")
   ) {
     return true;
   }
-
   return false;
 };
 
-// ============ REQUEST INTERCEPTOR ============
+// ============ REQUEST INTERCEPTOR (with logging) ============
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
-    // Generate request ID for tracing
     const requestId = Math.random().toString(36).substring(2, 10);
     config.headers["X-Request-ID"] = requestId;
 
-    // Get token from localStorage
+    // Double-check token is set
     const token = localStorage.getItem("token");
-
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
     // Increase timeout for specific endpoints
     if (config.url?.includes("/tasks") && config.method === "post") {
-      config.timeout = 120000; // 2 minutes for task creation
+      config.timeout = 120000;
     }
 
     // For multipart/form-data (file uploads)
     if (config.data instanceof FormData) {
       delete config.headers["Content-Type"];
-      // Increase timeout further for large file uploads
-      config.timeout = 180000; // 3 minutes
+      config.timeout = 180000;
     }
 
-    // Log request in development
     if (process.env.NODE_ENV === "development") {
       console.log(
         `📤 [${requestId}] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
@@ -130,7 +141,6 @@ api.interceptors.response.use(
   (response: AxiosResponse): AxiosResponse => {
     const requestId = response.config.headers["X-Request-ID"] || "unknown";
 
-    // Check if response is HTML (for debugging)
     if (
       typeof response.data === "string" &&
       response.data.includes("<!DOCTYPE")
@@ -138,10 +148,8 @@ api.interceptors.response.use(
       console.warn(`⚠️ [${requestId}] Received HTML response instead of JSON`);
     }
 
-    // Reset retry count on success
     retryCount = 0;
 
-    // Log response in development
     if (process.env.NODE_ENV === "development") {
       console.log(
         `📥 [${requestId}] ${response.status} ${response.config.url}`,
@@ -155,11 +163,10 @@ api.interceptors.response.use(
     const requestId =
       (error.config?.headers as any)?.["X-Request-ID"] || "unknown";
 
-    // ============ NETWORK ERRORS ============
+    // Network errors
     if (!error.response) {
       console.error(`🌐 [${requestId}] Network Error:`, error.message);
 
-      // Retry on network errors
       if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
         retryCount++;
         const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
@@ -179,12 +186,11 @@ api.interceptors.response.use(
       });
     }
 
-    // ============ HTTP ERRORS ============
     const { response } = error;
     const status = response.status;
     const data = response.data as any;
 
-    // ============ RETRY ON RETRYABLE STATUS CODES ============
+    // Retry on retryable status codes
     if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
       retryCount++;
       const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
@@ -203,7 +209,7 @@ api.interceptors.response.use(
       method: error.config?.method,
     });
 
-    // ============ HANDLE SPECIFIC STATUS CODES ============
+    // Handle specific status codes
     switch (status) {
       case 400:
         console.error("❌ Bad Request:", data?.message || "Invalid request");
@@ -304,7 +310,6 @@ api.interceptors.response.use(
         );
     }
 
-    // ============ RETURN STANDARDIZED ERROR ============
     return Promise.reject({
       success: false,
       status: status,

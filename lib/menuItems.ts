@@ -1,3 +1,5 @@
+// @/lib/navigation/config.ts
+
 import {
   // Navigation & Layout
   LayoutDashboard,
@@ -22,17 +24,14 @@ import {
   FileText,
   FileCheck,
   FileSpreadsheet,
-
   // Communication
   Bell,
   MessageSquare,
-
   // Analytics & Reports
   TrendingUp,
   BarChart3,
   ChartNoAxesCombined,
   Activity,
-
   // Settings & System
   Settings,
   ShieldCheck,
@@ -43,38 +42,61 @@ import {
   Code2,
   Layers,
   Workflow,
-
   // Financial
   DollarSign,
-
   // Documents & Files
   Download,
   DownloadCloud,
   Upload,
-
   // Support
   HelpCircle,
   LifeBuoy,
   BookOpen,
   GraduationCap,
-
   // Common Actions
   CheckCircle,
   Sparkles,
   Rocket,
-
   // Miscellaneous
   HandHelping,
   Building2,
+  // Additional Icons
+  Clock,
+  CalendarDays,
+  BarChart4,
+  PieChart,
+  LineChart,
+  UsersIcon,
+  UserRound,
+  Settings2,
+  LifeBuoyIcon,
+  MessageCircle,
+  Newspaper,
+  Star,
+  Award,
+  Trophy,
+  Target,
+  Flag,
+  Zap,
+  Heart,
+  Smile,
+  ThumbsUp,
+  Share2,
+  Bookmark,
+  FolderOpen,
+  FolderKanban,
+  GitPullRequest,
+  GitCommit,
+  GitMerge,
+  GitBranch as GitBranchIcon,
 } from "lucide-react";
+
+import type { LucideIcon } from "lucide-react";
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-/**
- * Badge Keys - Defines all available badge types
- */
 export type BadgeKey =
   | "notifications"
   | "pendingLeaves"
@@ -84,1183 +106,1236 @@ export type BadgeKey =
   | "pendingReviews"
   | "upcomingEvents";
 
-/**
- * Navigation Item Interface
- * Represents a main navigation item that can have submenus
- */
+export type UserRole =
+  | "super_admin"
+  | "admin"
+  | "hr_manager"
+  | "dept_manager"
+  | "project_manager"
+  | "line_manager"
+  | "employee"
+  | "all";
+
 export interface NavItem {
-  /** Display name of the navigation item */
+  id: string;
   name: string;
-  /** URL path for the navigation item */
   href: string;
-  /** Icon component from lucide-react */
-  icon: React.ElementType;
-  /** Array of roles that can access this item */
-  roles: string[];
-  /** Section grouping for the sidebar */
-  section?: string;
-  /** Optional static badge text (e.g., "New") */
+  icon: LucideIcon;
+  roles: UserRole[];
+  section?: SectionId;
   badge?: string;
-  /** Dynamic badge key for fetching real-time counts */
   badgeKey?: BadgeKey;
-  /** Optional badge color class */
   badgeColor?: string;
-  /** Optional description for tooltips */
   description?: string;
-  /** Flag to indicate if this is a new feature */
   isNew?: boolean;
+  requiresFeature?: string;
 }
 
-/**
- * Sub Navigation Item Interface
- * Represents a child item under a parent navigation item
- */
-export interface SubNavItem {
-  /** Display name of the submenu item */
-  name: string;
-  /** URL path for the submenu item */
-  href: string;
-  /** Icon component from lucide-react */
-  icon: React.ElementType;
-  /** Parent menu item name this submenu belongs to */
+export interface SubNavItem extends Omit<NavItem, "section"> {
   parent: string;
-  /** Array of roles that can access this item */
-  roles: string[];
-  /** Optional static badge text */
-  badge?: string;
-  /** Dynamic badge key for fetching real-time counts */
-  badgeKey?: BadgeKey;
-  /** Optional badge color class */
-  badgeColor?: string;
-  /** Optional description for tooltips */
-  description?: string;
 }
+
+export interface SectionConfig {
+  id: SectionId;
+  title: string;
+  icon: LucideIcon;
+  priority: number;
+}
+
+export type SectionId =
+  | "main"
+  | "projects"
+  | "tasks"
+  | "team"
+  | "hr"
+  | "reports"
+  | "system"
+  | "support"
+  | "kpi";
 
 // ============================================================================
 // ROLE DEFINITIONS
 // ============================================================================
 
-/**
- * User Roles
- * Defines all available roles in the system
- */
 export const ROLES = {
-  /** Super Admin - Full system access */
   SUPER_ADMIN: "super_admin",
-  /** Admin - Administrative access */
   ADMIN: "admin",
-  /** HR Manager - Human Resources management */
   HR_MANAGER: "hr_manager",
-  /** Department Manager - Department-level management */
   DEPT_MANAGER: "dept_manager",
-  /** Project Manager - Project-level management */
   PROJECT_MANAGER: "project_manager",
-  /** Line Manager - Team/Line management */
   LINE_MANAGER: "line_manager",
-  /** Employee - Basic user access */
   EMPLOYEE: "employee",
+  ALL: "all",
 } as const;
 
-// ============================================================================
-// ACCESS CONTROL UTILITY
-// ============================================================================
-
-/**
- * Check if a user role has access to a menu item
- *
- * @param userRole - The role of the current user
- * @param allowedRoles - Array of roles allowed to access the item
- * @returns boolean indicating if user has access
- *
- * @example
- * ```ts
- * hasAccess('admin', ['admin', 'hr_manager']) // returns true
- * hasAccess('employee', ['admin']) // returns false
- * ```
- */
-export const hasAccess = (
-  userRole: string,
-  allowedRoles: string[],
-): boolean => {
-  // "all" allows any role to access
-  if (allowedRoles.includes("all")) return true;
-
-  // Super Admin has access to everything
-  if (userRole === ROLES.SUPER_ADMIN) return true;
-
-  // Check if user's role is in the allowed roles
-  return allowedRoles.includes(userRole);
+export const ROLE_PRIORITY: Record<UserRole, number> = {
+  super_admin: 100,
+  admin: 80,
+  hr_manager: 70,
+  dept_manager: 60,
+  project_manager: 50,
+  line_manager: 40,
+  employee: 10,
+  all: 0,
 };
 
 // ============================================================================
 // SECTION CONFIGURATION
 // ============================================================================
 
-/**
- * Section Titles
- * Display names for each section in the sidebar
- */
-export const sectionTitles: Record<string, string> = {
-  main: "MAIN",
-  projects: "PROJECTS",
-  tasks: "TASKS",
-  team: "TEAM",
-  hr: "HUMAN RESOURCES",
-  reports: "REPORTS & ANALYTICS",
-  system: "SYSTEM ADMINISTRATION",
-  support: "HELP & SUPPORT",
-  kpi: "KPI Management",
-};
-
-/**
- * Section Icons
- * Icon components for each section header
- */
-export const sectionIcons: Record<string, React.ElementType> = {
-  main: LayoutDashboard,
-  projects: Briefcase,
-  tasks: CheckSquare,
-  team: Users,
-  hr: Users,
-  reports: BarChart3,
-  system: Settings,
-  support: HelpCircle,
-  kpi: BarChart3,
-};
-
-// ============================================================================
-// PERSONAL ITEMS (Always visible, no submenu)
-// ============================================================================
-
-/**
- * Personal Navigation Items
- * These items are always visible to all authenticated users
- * They appear at the top of the sidebar and don't have submenus
- */
-// Singel menus
-export const personalItems: NavItem[] = [
-  {
-    name: "Dashboard",
-    href: "/dashboard",
+export const SECTIONS: Record<SectionId, SectionConfig> = {
+  main: {
+    id: "main",
+    title: "MAIN MENU",
     icon: LayoutDashboard,
-    roles: ["all"],
-    section: "main",
-    description: "Overview of your work and activities",
+    priority: 0,
   },
-];
-
-// ============================================================================
-// MAIN MENU ITEMS (Parent items with submenus)
-// ============================================================================
-
-/**
- * Main Navigation Items
- * These are the primary navigation items that appear in the sidebar
- * Each can have submenu items defined below
- */
-export const menuItems: NavItem[] = [
-  {
-    name: "My Settings",
-    href: "/users",
-    icon: Users,
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    section: "main",
-    description: "Manage all users in the system",
+  kpi: {
+    id: "kpi",
+    title: "PERFORMANCE & KPI",
+    icon: Trophy,
+    priority: 5,
   },
-  // --------------------------------------------------------------------------
-  // USER MANAGEMENT
-  // --------------------------------------------------------------------------
-  {
-    name: "User Management",
-    href: "/users",
-    icon: Users,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    section: "main",
-    description: "Manage all users in the system",
+  projects: {
+    id: "projects",
+    title: "PROJECT MANAGEMENT",
+    icon: FolderKanban,
+    priority: 10,
   },
-
-  // --------------------------------------------------------------------------
-  // ROLE MANAGEMENT
-  // --------------------------------------------------------------------------
-  {
-    name: "Role Management",
-    href: "/roles",
-    icon: UserCog,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    section: "main",
-    description: "Manage roles and permissions",
-  },
-
-  // --------------------------------------------------------------------------
-  // DEPARTMENT MANAGEMENT
-  // --------------------------------------------------------------------------
-  {
-    name: "Department Management",
-    href: "/departments",
-    icon: Building2,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
-    section: "main",
-    description: "Manage departments and organizational structure",
-  },
-  // --------------------------------------------------------------------------
-  // KPI
-  // --------------------------------------------------------------------------
-  {
-    name: "KPI Management",
-    href: "/kpi/management",
-    icon: BarChart3,
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    section: "main",
-    description: "Analytics and reporting",
-  },
-  // --------------------------------------------------------------------------
-  // PROJECTS
-  // --------------------------------------------------------------------------
-  {
-    name: "Projects",
-    href: "/projects",
-    icon: Briefcase,
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    section: "projects",
-    description: "Manage projects and portfolios",
-  },
-
-  // --------------------------------------------------------------------------
-  // TASKS
-  // --------------------------------------------------------------------------
-  {
-    name: "Tasks",
-    href: "/tasks",
-    icon: CheckSquare,
-    roles: ["all"],
-    section: "tasks",
-    description: "Manage all tasks",
-  },
-
-  // --------------------------------------------------------------------------
-  // TEAM
-  // --------------------------------------------------------------------------
-  {
-    name: "Team",
-    href: "/team",
-    icon: Users,
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-    ],
-    section: "team",
-    description: "Team collaboration and management",
-  },
-
-  // --------------------------------------------------------------------------
-  // HUMAN RESOURCES (Employee Self-Service + HR Management)
-  // --------------------------------------------------------------------------
-  {
-    name: "Human Resources",
-    href: "/hr",
-    icon: Users,
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    section: "hr",
-    description: "HR management and employee self-service",
-  },
-
-  // --------------------------------------------------------------------------
-  // REPORTS
-  // --------------------------------------------------------------------------
-  {
-    name: "Reports",
-    href: "/reports",
-    icon: BarChart3,
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    section: "reports",
-    description: "Analytics and reporting",
-  },
-
-  // --------------------------------------------------------------------------
-  // SYSTEM
-  // --------------------------------------------------------------------------
-  {
-    name: "System",
-    href: "/settings",
-    icon: Settings,
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    section: "system",
-    description: "System administration and configuration",
-  },
-
-  // --------------------------------------------------------------------------
-  // SUPPORT
-  // --------------------------------------------------------------------------
-  {
-    name: "Support",
-    href: "/support",
-    icon: HelpCircle,
-    roles: ["all"],
-    section: "support",
-    description: "Get help and support",
-  },
-];
-
-// ============================================================================
-// SUBMENU ITEMS
-// ============================================================================
-
-/**
- * Submenu Navigation Items
- * These items appear as dropdown items under their parent menu items
- * Organized by parent name for easy maintenance
- */
-export const subMenuItems: SubNavItem[] = [
-  {
-    name: "Dashboard",
-    href: "/kpi/dashboard",
-    icon: BarChart3,
-    parent: "KPI Management",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "KPI Management",
-    href: "/kpi/management",
-    icon: BarChart3,
-    parent: "KPI Management",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "Leaderboard",
-    href: "/kpi/leaderboard",
-    icon: BarChart3,
-    parent: "KPI Management",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "Reports",
-    href: "/kpi/reports",
-    icon: BarChart3,
-    parent: "KPI Management",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "Analytics",
-    href: "/kpi/analytics",
-    icon: BarChart3,
-    parent: "KPI Management",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "Trends",
-    href: "/kpi/trends",
-    icon: BarChart3,
-    parent: "KPI Management",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "Update Profile",
-    href: "/profile",
-    icon: User,
-    parent: "My Settings",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage your profile information",
-  },
-  {
-    name: "Onboarding Setup",
-    href: "/onboarding",
+  tasks: {
+    id: "tasks",
+    title: "TASK MANAGEMENT",
     icon: ClipboardList,
-    parent: "My Settings",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Configure onboarding settings",
+    priority: 20,
   },
-  {
-    name: "My Performance",
-    href: "/performance/my",
-    icon: ChartNoAxesCombined,
-    parent: "My Settings",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "View your performance reports",
-  },
-  {
-    name: "All Notifications",
-    href: "/notifications",
-    icon: Bell,
-    roles: ["all"],
-    parent: "My Settings",
-    badgeKey: "notifications", // ✅ Dynamic badge
-    badgeColor: "bg-red-500",
-    description: "View all your notifications",
-  },
-  {
-    name: "AI Assistant",
-    href: "/ai-assistant",
-    icon: Sparkles,
-    roles: ["all"],
-    parent: "My Settings",
-    badge: "New", // Static badge for new feature
-    badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
-    description: "Get help from your AI assistant",
-    // isNew: true,
-  },
-
-  // --------------------------------------------------------------------------
-  // USER MANAGEMENT SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "All Users",
-    href: "/users/all",
-    icon: Users,
-    parent: "User Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "View and manage all users",
-  },
-  {
-    name: "Pending Approvals",
-    href: "/users/pending",
-    icon: UserPlus,
-    parent: "User Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    badgeKey: "pendingApprovals", // ✅ Dynamic badge
-    badgeColor: "bg-amber-500",
-    description: "Review pending user approvals",
-  },
-  {
-    name: "Inactive Users",
-    href: "/users/inactive",
-    icon: UserX,
-    parent: "User Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "View and manage inactive users",
-  },
-  {
-    name: "Bulk Import",
-    href: "/users/import",
-    icon: FileSpreadsheet,
-    parent: "User Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Import users in bulk",
-  },
-  {
-    name: "Bulk Export",
-    href: "/users/export",
-    icon: Download,
-    parent: "User Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Export user data",
-  },
-
-  // --------------------------------------------------------------------------
-  // ROLE MANAGEMENT SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "All Roles",
-    href: "/roles",
-    icon: UserCog,
-    parent: "Role Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "View and manage all roles",
-  },
-
-  // --------------------------------------------------------------------------
-  // DEPARTMENT MANAGEMENT SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "All Departments",
-    href: "/departments/all",
-    icon: Building2,
-    parent: "Department Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
-    description: "View and manage all departments",
-  },
-  {
-    name: "Department Hierarchy",
-    href: "/departments/hierarchy",
-    icon: Network,
-    parent: "Department Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
-    description: "View organizational hierarchy",
-  },
-  {
-    name: "Department Budget",
-    href: "/departments/budget",
-    icon: DollarSign,
-    parent: "Department Management",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
-    description: "Manage department budgets",
-  },
-
-  // --------------------------------------------------------------------------
-  // PROJECTS SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "Projects Dashboard",
-    href: "/projects/active",
-    icon: Activity,
-    parent: "Projects",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    description: "View active projects",
-  },
-  {
-    name: "Completed Projects",
-    href: "/projects/completed",
-    icon: CheckCircle,
-    parent: "Projects",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    description: "View completed projects",
-  },
-  {
-    name: "Project Resources",
-    href: "/projects/resources",
-    icon: Users,
-    parent: "Projects",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
-    description: "Manage project resources",
-  },
-  {
-    name: "Project Templates",
-    href: "/projects/templates",
-    icon: Layers,
-    parent: "Projects",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
-    description: "Manage project templates",
-  },
-
-  // --------------------------------------------------------------------------
-  // TASKS SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "My Tasks",
-    href: "/tasks/my",
-    icon: CheckSquare,
-    parent: "Tasks",
-    roles: ["all"],
-    badgeKey: "myTasks", // ✅ Dynamic badge
-    badgeColor: "bg-blue-500",
-    description: "View your assigned tasks",
-  },
-  {
-    name: "All Employee Tasks",
-    href: "/tasks/tasks-board",
-    icon: Kanban,
-    parent: "Tasks",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    description: "View all tasks",
-  },
-  {
-    name: "Task Kanban Board",
-    href: "/tasks/kanban",
-    icon: Kanban,
-    parent: "Tasks",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "Kanban board view",
-  },
-  {
-    name: "Task Workload",
-    href: "/workload",
-    icon: BarChart3,
-    parent: "Tasks",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View tasks on calendar",
-  },
-  {
-    name: "Task Calendar",
-    href: "/tasks/calendar",
-    icon: ListTodo,
-    parent: "Tasks",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View tasks on calendar",
-  },
-  {
-    name: "Gantt Chart",
-    href: "/tasks/gantt",
-    icon: GanttChart,
-    parent: "Tasks",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
-    description: "Gantt chart view",
-  },
-  {
-    name: "Bulk Upload",
-    href: "/tasks/bulk-upload",
-    icon: Upload,
-    parent: "Tasks",
-    roles: ["all"],
-    description: "Bulk upload tasks",
-  },
-
-  // --------------------------------------------------------------------------
-  // TEAM SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "All Teams",
-    href: "/teams",
+  team: {
+    id: "team",
+    title: "TEAM COLLABORATION",
     icon: UsersRound,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View all teams",
+    priority: 30,
   },
-  {
-    name: "My Teams",
-    href: "/my-teams",
-    icon: UsersRound,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View your teams",
-  },
-  {
-    name: "Team Tasks",
-    href: "/teams/tasks",
-    icon: ListChecks,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View team tasks",
-  },
-  {
-    name: "Team Calendar",
-    href: "/teams/calendar",
-    icon: CalendarRange,
-    parent: "Team",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    description: "View team calendar",
-  },
-
-  // --------------------------------------------------------------------------
-  // HUMAN RESOURCES SUBMENUS
-  // --------------------------------------------------------------------------
-  // Employee Self-Service (accessible to all employees)
-  {
-    name: "All Leaves",
-    href: "/hr/leaves",
-    icon: FileCheck,
-    parent: "Human Resources",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    badgeKey: "pendingLeaves", // ✅ Dynamic badge
-    badgeColor: "bg-indigo-500",
-    description: "Manage all leave requests",
-  },
-  {
-    name: "My Leaves",
-    href: "/hr/leaves/my",
-    icon: FileCheck,
-    parent: "Human Resources",
-    roles: [ROLES.EMPLOYEE, ROLES.DEPT_MANAGER],
-    description: "View and manage your leave requests",
-  },
-  {
-    name: "Leave Hostory",
-    href: "/hr/leaves/history",
-    icon: FileCheck,
-    parent: "Human Resources",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "View and manage your leave requests",
-  },
-  {
-    name: "My Attendance",
-    href: "/hr/attendance/my",
-    icon: Calendar,
-    parent: "Human Resources",
-    roles: [ROLES.EMPLOYEE],
-    description: "View your attendance records",
-  },
-
-  // HR Management (accessible to HR and management)
-  {
-    name: "Employee Directory",
-    href: "/hr/employees",
+  hr: {
+    id: "hr",
+    title: "HUMAN RESOURCES",
     icon: Users2,
-    parent: "Human Resources",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "View all employees",
+    priority: 40,
   },
-  {
-    name: "Attendance Records",
-    href: "/hr/attendance",
-    icon: Calendar,
-    parent: "Human Resources",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Manage attendance records",
+  reports: {
+    id: "reports",
+    title: "REPORTS & ANALYTICS",
+    icon: BarChart4,
+    priority: 50,
   },
-  {
-    name: "Recruitment",
-    href: "/recruitment",
-    icon: UserPlus,
-    parent: "Human Resources",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Manage recruitment",
+  system: {
+    id: "system",
+    title: "SYSTEM ADMINISTRATION",
+    icon: Settings2,
+    priority: 60,
   },
-  {
-    name: "Onboarding",
-    href: "/onboarding",
-    icon: HandHelping,
-    parent: "Human Resources",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Manage employee onboarding",
+  support: {
+    id: "support",
+    title: "HELP & SUPPORT",
+    icon: LifeBuoyIcon,
+    priority: 70,
   },
-  {
-    name: "Offboarding",
-    href: "/offboarding",
-    icon: UserMinus,
-    parent: "Human Resources",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Manage employee offboarding",
-  },
-  {
-    name: "Training",
-    href: "/training",
-    icon: GraduationCap,
-    parent: "Human Resources",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Manage training programs",
-  },
-  {
-    name: "Payroll",
-    href: "/payroll",
-    icon: DollarSign,
-    parent: "Human Resources",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Manage payroll",
-  },
-
-  // --------------------------------------------------------------------------
-  // REPORTS SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "Task Reports",
-    href: "/reports/tasks",
-    icon: CheckSquare,
-    parent: "Reports",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    description: "Task analytics and reports",
-  },
-  {
-    name: "Project Reports",
-    href: "/reports/projects",
-    icon: Briefcase,
-    parent: "Reports",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-    ],
-    description: "Project analytics and reports",
-  },
-  {
-    name: "Performance Reports",
-    href: "/reports/performance",
-    icon: TrendingUp,
-    parent: "Reports",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-    ],
-    description: "Performance analytics",
-  },
-  {
-    name: "Attendance Reports",
-    href: "/reports/attendance",
-    icon: Calendar,
-    parent: "Reports",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    description: "Attendance analytics",
-  },
-  {
-    name: "Leave Reports",
-    href: "/reports/leaves",
-    icon: FileText,
-    parent: "Reports",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-    description: "Leave analytics",
-  },
-  {
-    name: "Financial Reports",
-    href: "/reports/financial",
-    icon: DollarSign,
-    parent: "Reports",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "Financial analytics",
-  },
-  {
-    name: "Export Center",
-    href: "/reports/export",
-    icon: DownloadCloud,
-    parent: "Reports",
-    roles: [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-    ],
-    description: "Export reports and data",
-  },
-
-  // --------------------------------------------------------------------------
-  // SYSTEM SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "General Settings",
-    href: "/settings/general",
-    icon: Settings,
-    parent: "System",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "Configure system settings",
-  },
-  {
-    name: "Profile Settings",
-    href: "/settings/profile",
-    icon: User,
-    parent: "System",
-    roles: ["all"],
-    description: "Manage your profile settings",
-  },
-  {
-    name: "Security Settings",
-    href: "/settings/security",
-    icon: ShieldCheck,
-    parent: "System",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "Configure security settings",
-  },
-  {
-    name: "API Keys",
-    href: "/api-keys",
-    icon: Key,
-    parent: "System",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "Manage API keys",
-  },
-  {
-    name: "Audit Logs",
-    href: "/audit-logs",
-    icon: Activity,
-    parent: "System",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "View system audit logs",
-  },
-  {
-    name: "Workflow Builder",
-    href: "/workflows",
-    icon: Workflow,
-    parent: "System",
-    roles: [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-    description: "Build and manage workflows",
-  },
-  {
-    name: "Backup",
-    href: "/backup",
-    icon: DatabaseBackup,
-    parent: "System",
-    roles: [ROLES.SUPER_ADMIN],
-    description: "Manage system backups",
-  },
-
-  // --------------------------------------------------------------------------
-  // SUPPORT SUBMENUS
-  // --------------------------------------------------------------------------
-  {
-    name: "Help Center",
-    href: "/help",
-    icon: HelpCircle,
-    parent: "Support",
-    roles: ["all"],
-    description: "Browse help articles",
-  },
-  {
-    name: "Documentation",
-    href: "/docs",
-    icon: BookOpen,
-    parent: "Support",
-    roles: ["all"],
-    description: "Read documentation",
-  },
-  {
-    name: "API Documentation",
-    href: "/api-docs",
-    icon: Code2,
-    parent: "Support",
-    roles: ["all"],
-    description: "API reference documentation",
-  },
-  {
-    name: "Support Tickets",
-    href: "/support/tickets",
-    icon: LifeBuoy,
-    parent: "Support",
-    roles: ["all"],
-    description: "View and manage support tickets",
-  },
-  {
-    name: "System Status",
-    href: "/status",
-    icon: Activity,
-    parent: "Support",
-    roles: ["all"],
-    description: "Check system status",
-  },
-  {
-    name: "Feedback",
-    href: "/feedback",
-    icon: MessageSquare,
-    parent: "Support",
-    roles: ["all"],
-    description: "Submit feedback",
-  },
-  {
-    name: "Changelog",
-    href: "/changelog",
-    icon: GitBranch,
-    parent: "Support",
-    roles: ["all"],
-    description: "View system changes",
-  },
-  {
-    name: "Roadmap",
-    href: "/roadmap",
-    icon: Rocket,
-    parent: "Support",
-    roles: ["all"],
-    description: "View product roadmap",
-  },
-];
+};
 
 // ============================================================================
-// HELPER FUNCTIONS
+// NAVIGATION ITEMS BUILDER
+// ============================================================================
+
+const createNavItem = (
+  id: string,
+  name: string,
+  href: string,
+  icon: LucideIcon,
+  roles: UserRole[],
+  options: Partial<
+    Pick<
+      NavItem,
+      | "section"
+      | "badge"
+      | "badgeKey"
+      | "badgeColor"
+      | "description"
+      | "isNew"
+      | "requiresFeature"
+    >
+  > = {},
+): NavItem => ({
+  id,
+  name,
+  href,
+  icon,
+  roles,
+  section: options.section || "main",
+  ...options,
+});
+
+const createSubNavItem = (
+  id: string,
+  name: string,
+  href: string,
+  icon: LucideIcon,
+  parent: string,
+  roles: UserRole[],
+  options: Partial<
+    Pick<
+      SubNavItem,
+      | "badge"
+      | "badgeKey"
+      | "badgeColor"
+      | "description"
+      | "isNew"
+      | "requiresFeature"
+    >
+  > = {},
+): SubNavItem => ({
+  id,
+  name,
+  href,
+  icon,
+  parent,
+  roles,
+  ...options,
+});
+
+// ============================================================================
+// NAVIGATION ITEMS - ALL WITH USER-FRIENDLY NAMES & UPDATED ICONS
+// ============================================================================
+
+// Personal Items (always visible)
+export const PERSONAL_ITEMS = {
+  dashboard: createNavItem(
+    "dashboard",
+    "Dashboard",
+    "/dashboard",
+    LayoutDashboard,
+    [ROLES.ALL],
+    { section: "main", description: "Your personalized work overview" },
+  ),
+} as const;
+
+// Main Navigation Items
+export const MAIN_ITEMS = {
+  // Profile & Settings
+  mySettings: createNavItem(
+    "my-settings",
+    "My Profile",
+    "/settings/profile",
+    UserRound,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { section: "main", description: "Manage your profile and preferences" },
+  ),
+
+  // User Management
+  userManagement: createNavItem(
+    "user-management",
+    "User Management",
+    "/users",
+    Users,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { section: "main", description: "Manage system users and their access" },
+  ),
+
+  // Role Management
+  roleManagement: createNavItem(
+    "role-management",
+    "Roles & Permissions",
+    "/roles",
+    ShieldCheck,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { section: "main", description: "Define and manage user roles and permissions" },
+  ),
+
+  // Department Management
+  departmentManagement: createNavItem(
+    "department-management",
+    "Departments",
+    "/departments",
+    Building2,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
+    {
+      section: "main",
+      description: "Manage departments and organizational structure",
+    },
+  ),
+
+  // KPI Management
+  kpiManagement: createNavItem(
+    "kpi-management",
+    "KPI Dashboard",
+    "/kpi/management",
+    Trophy,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.HR_MANAGER,
+      ROLES.PROJECT_MANAGER,
+    ],
+    { section: "kpi", description: "Define and track Key Performance Indicators" },
+  ),
+
+  // Projects
+  projects: createNavItem(
+    "projects",
+    "Projects",
+    "/projects",
+    FolderKanban,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    { section: "projects", description: "Manage projects, portfolios, and deliverables" },
+  ),
+
+  // Tasks
+  tasks: createNavItem(
+    "tasks",
+    "Tasks",
+    "/tasks",
+    ClipboardList,
+    [ROLES.ALL],
+    {
+      section: "tasks",
+      description: "Manage and track all your tasks",
+    },
+  ),
+
+  // Team
+  team: createNavItem(
+    "team",
+    "Team",
+    "/team",
+    UsersRound,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+    ],
+    { section: "team", description: "Collaborate with your team members" },
+  ),
+
+  // Human Resources
+  humanResources: createNavItem(
+    "human-resources",
+    "HR Management",
+    "/hr",
+    Users2,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { section: "hr", description: "HR management and employee self-service" },
+  ),
+
+  // Reports
+  reports: createNavItem(
+    "reports",
+    "Reports",
+    "/reports",
+    BarChart4,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.HR_MANAGER,
+      ROLES.PROJECT_MANAGER,
+    ],
+    { section: "reports", description: "Analytics, insights, and business reports" },
+  ),
+
+  // System
+  system: createNavItem(
+    "system",
+    "System Settings",
+    "/settings",
+    Settings2,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    {
+      section: "system",
+      description: "System administration and configuration",
+    },
+  ),
+
+  // Support
+  support: createNavItem(
+    "support",
+    "Help & Support",
+    "/support",
+    LifeBuoyIcon,
+    [ROLES.ALL],
+    { section: "support", description: "Get help, documentation, and support" },
+  ),
+} as const;
+
+// ============================================================================
+// SUB-NAVIGATION ITEMS - ALL WITH USER-FRIENDLY NAMES & UPDATED ICONS
+// ============================================================================
+
+export const SUB_ITEMS = {
+  // My Profile Sub-items
+  editProfile: createSubNavItem(
+    "edit-profile",
+    "Edit Profile",
+    "/profile",
+    User,
+    "My Profile",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Update your personal information" },
+  ),
+  accountSettings: createSubNavItem(
+    "account-settings",
+    "Account Settings",
+    "/settings/account",
+    Settings,
+    "My Profile",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Manage your account preferences" },
+  ),
+  securitySettings: createSubNavItem(
+    "security-settings",
+    "Security",
+    "/settings/security",
+    ShieldCheck,
+    "My Profile",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Manage your security settings" },
+  ),
+  notifications: createSubNavItem(
+    "notifications",
+    "Notifications",
+    "/notifications",
+    Bell,
+    "My Profile",
+    [ROLES.ALL],
+    {
+      badgeKey: "notifications",
+      badgeColor: "bg-red-500",
+      description: "View all your notifications and alerts",
+    },
+  ),
+  aiAssistant: createSubNavItem(
+    "ai-assistant",
+    "AI Assistant",
+    "/ai-assistant",
+    Sparkles,
+    "My Profile",
+    [ROLES.ALL],
+    {
+      badge: "New",
+      badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
+      description: "Get intelligent assistance from AI",
+    },
+  ),
+  performance: createSubNavItem(
+    "performance",
+    "My Performance",
+    "/performance/my",
+    TrendingUp,
+    "My Profile",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "View your performance metrics and reviews" },
+  ),
+
+  // KPI Dashboard Sub-items
+  kpiOverview: createSubNavItem(
+    "kpi-overview",
+    "KPI Overview",
+    "/kpi/dashboard",
+    LayoutDashboard,
+    "KPI Dashboard",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "View KPI performance overview" },
+  ),
+  kpiConfiguration: createSubNavItem(
+    "kpi-configuration",
+    "KPI Configuration",
+    "/kpi/management",
+    Settings,
+    "KPI Dashboard",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Configure and manage KPIs" },
+  ),
+  kpiLeaderboard: createSubNavItem(
+    "kpi-leaderboard",
+    "Leaderboard",
+    "/kpi/leaderboard",
+    Award,
+    "KPI Dashboard",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "View performance rankings and achievements" },
+  ),
+  kpiReports: createSubNavItem(
+    "kpi-reports",
+    "KPI Reports",
+    "/kpi/reports",
+    FileText,
+    "KPI Dashboard",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Generate and export KPI reports" },
+  ),
+  kpiAnalytics: createSubNavItem(
+    "kpi-analytics",
+    "KPI Analytics",
+    "/kpi/analytics",
+    BarChart3,
+    "KPI Dashboard",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Advanced analytics for KPIs" },
+  ),
+  kpiTrends: createSubNavItem(
+    "kpi-trends",
+    "KPI Trends",
+    "/kpi/trends",
+    TrendingUp,
+    "KPI Dashboard",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "Track KPI trends over time" },
+  ),
+
+  // User Management Sub-items
+  allUsers: createSubNavItem(
+    "all-users",
+    "All Users",
+    "/users/all",
+    Users,
+    "User Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "View and manage all system users" },
+  ),
+  pendingApprovals: createSubNavItem(
+    "pending-approvals",
+    "Pending Approvals",
+    "/users/pending",
+    UserPlus,
+    "User Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    {
+      badgeKey: "pendingApprovals",
+      badgeColor: "bg-amber-500",
+      description: "Review and approve pending user requests",
+    },
+  ),
+  inactiveUsers: createSubNavItem(
+    "inactive-users",
+    "Inactive Users",
+    "/users/inactive",
+    UserX,
+    "User Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "View and manage inactive user accounts" },
+  ),
+  bulkImport: createSubNavItem(
+    "bulk-import",
+    "Bulk Import",
+    "/users/import",
+    FileSpreadsheet,
+    "User Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Import users in bulk from CSV" },
+  ),
+  bulkExport: createSubNavItem(
+    "bulk-export",
+    "Bulk Export",
+    "/users/export",
+    Download,
+    "User Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Export user data to CSV" },
+  ),
+
+  // Roles & Permissions Sub-items
+  allRoles: createSubNavItem(
+    "all-roles",
+    "All Roles",
+    "/roles",
+    UserCog,
+    "Roles & Permissions",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "View and manage all system roles" },
+  ),
+  permissions: createSubNavItem(
+    "permissions",
+    "Permissions",
+    "/permissions",
+    ShieldCheck,
+    "Roles & Permissions",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Manage permissions for each role" },
+  ),
+
+  // Departments Sub-items
+  allDepartments: createSubNavItem(
+    "all-departments",
+    "All Departments",
+    "/departments/all",
+    Building2,
+    "Departments",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
+    { description: "View and manage all departments" },
+  ),
+  departmentHierarchy: createSubNavItem(
+    "department-hierarchy",
+    "Department Hierarchy",
+    "/departments/hierarchy",
+    Network,
+    "Departments",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
+    { description: "View organizational hierarchy structure" },
+  ),
+  departmentBudgets: createSubNavItem(
+    "department-budgets",
+    "Department Budgets",
+    "/departments/budget",
+    DollarSign,
+    "Departments",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
+    { description: "Manage and track department budgets" },
+  ),
+
+  // Projects Sub-items
+  activeProjects: createSubNavItem(
+    "active-projects",
+    "All Active Projects",
+    "/projects/active",
+    FolderOpen,
+    "Projects",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    { description: "View and manage active projects" },
+  ),
+  completedProjects: createSubNavItem(
+    "completed-projects",
+    "Completed Projects",
+    "/projects/completed",
+    CheckCircle,
+    "Projects",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    { description: "View completed and archived projects" },
+  ),
+  projectResources: createSubNavItem(
+    "project-resources",
+    "Project Resources",
+    "/projects/resources",
+    Users,
+    "Projects",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    { description: "Manage project resources and allocation" },
+  ),
+  projectTemplates: createSubNavItem(
+    "project-templates",
+    "Project Templates",
+    "/projects/templates",
+    Layers,
+    "Projects",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    { description: "Manage and reuse project templates" },
+  ),
+
+  // Tasks Sub-items
+  myTasks: createSubNavItem(
+    "my-tasks",
+    "My Tasks",
+    "/tasks/my",
+    CheckSquare,
+    "Tasks",
+    [ROLES.ALL],
+    {
+      badgeKey: "myTasks",
+      badgeColor: "bg-blue-500",
+      description: "View your assigned tasks",
+    },
+  ),
+  allTasks: createSubNavItem(
+    "all-tasks",
+    "All Tasks",
+    "/tasks/tasks-board",
+    ListTodo,
+    "Tasks",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    { description: "View all tasks across the organization" },
+  ),
+  kanbanBoard: createSubNavItem(
+    "kanban-board",
+    "Kanban Board",
+    "/tasks/kanban",
+    Kanban,
+    "Tasks",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Visual task management with Kanban board" },
+  ),
+  taskWorkload: createSubNavItem(
+    "task-workload",
+    "Task Workload",
+    "/workload",
+    BarChart3,
+    "Tasks",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View task workload distribution" },
+  ),
+  taskCalendar: createSubNavItem(
+    "task-calendar",
+    "Task Calendar",
+    "/tasks/calendar",
+    CalendarDays,
+    "Tasks",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View tasks on a calendar timeline" },
+  ),
+  ganttChart: createSubNavItem(
+    "gantt-chart",
+    "Gantt Chart",
+    "/tasks/gantt",
+    GanttChart,
+    "Tasks",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    { description: "Project timeline visualization with Gantt chart" },
+  ),
+  bulkUpload: createSubNavItem(
+    "bulk-upload",
+    "Bulk Upload",
+    "/tasks/bulk-upload",
+    Upload,
+    "Tasks",
+    [ROLES.ALL],
+    { description: "Upload multiple tasks in bulk" },
+  ),
+
+  // Team Sub-items
+  allTeams: createSubNavItem(
+    "all-teams",
+    "All Teams",
+    "/teams",
+    UsersRound,
+    "Team",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View and manage all teams" },
+  ),
+  myTeams: createSubNavItem(
+    "my-teams",
+    "My Teams",
+    "/my-teams",
+    Users,
+    "Team",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View your teams and team members" },
+  ),
+  teamTasks: createSubNavItem(
+    "team-tasks",
+    "Team Tasks",
+    "/teams/tasks",
+    ListChecks,
+    "Team",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View and manage team tasks" },
+  ),
+  teamCalendar: createSubNavItem(
+    "team-calendar",
+    "Team Calendar",
+    "/teams/calendar",
+    CalendarRange,
+    "Team",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View team calendar and schedules" },
+  ),
+
+  // HR Management Sub-items
+  leaveManagement: createSubNavItem(
+    "leave-management",
+    "Leave Management",
+    "/hr/leaves",
+    FileCheck,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.DEPT_MANAGER],
+    {
+      badgeKey: "pendingLeaves",
+      badgeColor: "bg-indigo-500",
+      description: "Manage all leave requests",
+    },
+  ),
+  myLeaves: createSubNavItem(
+    "my-leaves",
+    "My Leaves",
+    "/hr/leaves/my",
+    Calendar,
+    "HR Management",
+    [ROLES.EMPLOYEE, ROLES.DEPT_MANAGER],
+    { description: "View and manage your leave requests" },
+  ),
+  leaveHistory: createSubNavItem(
+    "leave-history",
+    "Leave History",
+    "/hr/leaves/history",
+    Clock,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.DEPT_MANAGER],
+    { description: "View complete leave history" },
+  ),
+  myAttendance: createSubNavItem(
+    "my-attendance",
+    "My Attendance",
+    "/hr/attendance/my",
+    CalendarRange,
+    "HR Management",
+    [ROLES.EMPLOYEE],
+    { description: "View your attendance records" },
+  ),
+  employeeDirectory: createSubNavItem(
+    "employee-directory",
+    "Employee Directory",
+    "/hr/employees",
+    Users2,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.DEPT_MANAGER],
+    { description: "Browse and search employee directory" },
+  ),
+  attendanceManagement: createSubNavItem(
+    "attendance-management",
+    "Attendance Management",
+    "/hr/attendance",
+    Clock,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.DEPT_MANAGER],
+    { description: "Manage employee attendance records" },
+  ),
+  recruitment: createSubNavItem(
+    "recruitment",
+    "Recruitment",
+    "/recruitment",
+    UserPlus,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Manage recruitment and hiring process" },
+  ),
+  employeeOnboarding: createSubNavItem(
+    "employee-onboarding",
+    "Employee Onboarding",
+    "/onboarding",
+    HandHelping,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Manage new employee onboarding" },
+  ),
+  employeeOffboarding: createSubNavItem(
+    "employee-offboarding",
+    "Employee Offboarding",
+    "/offboarding",
+    UserMinus,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Manage employee offboarding process" },
+  ),
+  trainingPrograms: createSubNavItem(
+    "training-programs",
+    "Training Programs",
+    "/training",
+    GraduationCap,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Manage employee training programs" },
+  ),
+  payrollManagement: createSubNavItem(
+    "payroll-management",
+    "Payroll Management",
+    "/payroll",
+    DollarSign,
+    "HR Management",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Manage payroll and compensation" },
+  ),
+
+  // Reports Sub-items
+  taskReports: createSubNavItem(
+    "task-reports",
+    "Task Reports",
+    "/reports/tasks",
+    CheckSquare,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    { description: "Generate task analytics and reports" },
+  ),
+  projectReports: createSubNavItem(
+    "project-reports",
+    "Project Reports",
+    "/reports/projects",
+    FolderKanban,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    { description: "Generate project analytics and reports" },
+  ),
+  performanceReports: createSubNavItem(
+    "performance-reports",
+    "Performance Reports",
+    "/reports/performance",
+    TrendingUp,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.HR_MANAGER],
+    { description: "Generate performance analytics and reports" },
+  ),
+  attendanceReports: createSubNavItem(
+    "attendance-reports",
+    "Attendance Reports",
+    "/reports/attendance",
+    Calendar,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.DEPT_MANAGER],
+    { description: "Generate attendance analytics and reports" },
+  ),
+  leaveReports: createSubNavItem(
+    "leave-reports",
+    "Leave Reports",
+    "/reports/leaves",
+    FileText,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
+    { description: "Generate leave analytics and reports" },
+  ),
+  financialReports: createSubNavItem(
+    "financial-reports",
+    "Financial Reports",
+    "/reports/financial",
+    DollarSign,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Generate financial analytics and reports" },
+  ),
+  exportCenter: createSubNavItem(
+    "export-center",
+    "Export Center",
+    "/reports/export",
+    DownloadCloud,
+    "Reports",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.HR_MANAGER],
+    { description: "Export reports and data" },
+  ),
+
+  // System Settings Sub-items
+  generalSettings: createSubNavItem(
+    "general-settings",
+    "General Settings",
+    "/settings/general",
+    Settings,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Configure general system settings" },
+  ),
+  emailSettings: createSubNavItem(
+    "email-settings",
+    "Email Settings",
+    "/settings/email",
+    MessageSquare,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Configure email settings and templates" },
+  ),
+  securityConfig: createSubNavItem(
+    "security-config",
+    "Security Settings",
+    "/settings/security",
+    ShieldCheck,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Configure security settings and policies" },
+  ),
+  apiKeys: createSubNavItem(
+    "api-keys",
+    "API Keys",
+    "/api-keys",
+    Key,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Manage API keys and integrations" },
+  ),
+  auditLogs: createSubNavItem(
+    "audit-logs",
+    "Audit Logs",
+    "/audit-logs",
+    Activity,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "View system audit logs and activity" },
+  ),
+  workflowBuilder: createSubNavItem(
+    "workflow-builder",
+    "Workflow Builder",
+    "/workflows",
+    Workflow,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN],
+    { description: "Build and manage custom workflows" },
+  ),
+  backupManagement: createSubNavItem(
+    "backup-management",
+    "Backup Management",
+    "/backup",
+    DatabaseBackup,
+    "System Settings",
+    [ROLES.SUPER_ADMIN],
+    { description: "Manage system backups and restore" },
+  ),
+
+  // Help & Support Sub-items
+  helpCenter: createSubNavItem(
+    "help-center",
+    "Help Center",
+    "/help",
+    HelpCircle,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "Browse help articles and guides" },
+  ),
+  documentation: createSubNavItem(
+    "documentation",
+    "Documentation",
+    "/docs",
+    BookOpen,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "Read full system documentation" },
+  ),
+  apiDocs: createSubNavItem(
+    "api-docs",
+    "API Documentation",
+    "/api-docs",
+    Code2,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "API reference and integration guides" },
+  ),
+  supportTickets: createSubNavItem(
+    "support-tickets",
+    "Support Tickets",
+    "/support/tickets",
+    LifeBuoy,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "View and manage support tickets" },
+  ),
+  systemStatus: createSubNavItem(
+    "system-status",
+    "System Status",
+    "/status",
+    Activity,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "Check system health and status" },
+  ),
+  submitFeedback: createSubNavItem(
+    "submit-feedback",
+    "Submit Feedback",
+    "/feedback",
+    MessageCircle,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "Submit feedback and suggestions" },
+  ),
+  releaseNotes: createSubNavItem(
+    "release-notes",
+    "Release Notes",
+    "/changelog",
+    Newspaper,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "View system changes and updates" },
+  ),
+  productRoadmap: createSubNavItem(
+    "product-roadmap",
+    "Product Roadmap",
+    "/roadmap",
+    Rocket,
+    "Help & Support",
+    [ROLES.ALL],
+    { description: "View product development roadmap" },
+  ),
+} as const;
+
+// ============================================================================
+// UTILITY FUNCTIONS
 // ============================================================================
 
 /**
- * Get all menu items (personal + main) for a specific user role
- *
- * @param userRole - The role of the current user
- * @returns Array of visible navigation items
+ * Check if a user role has access to a menu item
+ */
+export const hasAccess = (
+  userRole: string,
+  allowedRoles: UserRole[],
+): boolean => {
+  if (allowedRoles.includes(ROLES.ALL)) return true;
+  if (userRole === ROLES.SUPER_ADMIN) return true;
+  return allowedRoles.includes(userRole as UserRole);
+};
+
+/**
+ * Get all personal items for a user
+ */
+export const getPersonalItems = (userRole: string): NavItem[] => {
+  return Object.values(PERSONAL_ITEMS).filter((item) =>
+    hasAccess(userRole, item.roles),
+  );
+};
+
+/**
+ * Get all main menu items for a user
+ */
+export const getMainItems = (userRole: string): NavItem[] => {
+  return Object.values(MAIN_ITEMS).filter((item) =>
+    hasAccess(userRole, item.roles),
+  );
+};
+
+/**
+ * Get all menu items for a user (personal + main)
  */
 export const getMenuItemsForRole = (userRole: string): NavItem[] => {
-  const allItems = [...personalItems, ...menuItems];
-  return allItems.filter((item) => hasAccess(userRole, item.roles));
+  return [...getPersonalItems(userRole), ...getMainItems(userRole)];
 };
 
 /**
  * Get submenu items for a specific parent and user role
- *
- * @param parentName - The name of the parent menu item
- * @param userRole - The role of the current user
- * @returns Array of visible submenu items
  */
 export const getSubMenuItems = (
   parentName: string,
   userRole: string,
 ): SubNavItem[] => {
-  return subMenuItems.filter(
+  return Object.values(SUB_ITEMS).filter(
     (item) => item.parent === parentName && hasAccess(userRole, item.roles),
   );
 };
 
 /**
  * Check if a menu item has any visible submenu items for a user
- *
- * @param parentName - The name of the parent menu item
- * @param userRole - The role of the current user
- * @returns boolean indicating if there are visible submenu items
  */
 export const hasSubMenuItems = (
   parentName: string,
   userRole: string,
 ): boolean => {
-  return subMenuItems.some(
+  return Object.values(SUB_ITEMS).some(
     (item) => item.parent === parentName && hasAccess(userRole, item.roles),
   );
 };
 
 /**
- * Get all sections visible to a specific user role
- *
- * @param userRole - The role of the current user
- * @returns Set of visible section names
+ * Get all sections visible to a user
  */
-export const getVisibleSections = (userRole: string): Set<string> => {
-  const sections = new Set<string>();
+export const getVisibleSections = (userRole: string): SectionId[] => {
+  const sections = new Set<SectionId>();
 
-  // Check main menu items
-  menuItems.forEach((item) => {
+  Object.values(MAIN_ITEMS).forEach((item) => {
     if (hasAccess(userRole, item.roles) && item.section) {
       sections.add(item.section);
     }
@@ -1271,25 +1346,22 @@ export const getVisibleSections = (userRole: string): Set<string> => {
     sections.add("hr");
   }
 
-  return sections;
+  return Array.from(sections);
 };
 
 /**
- * Get menu items grouped by section for a specific user role
- *
- * @param userRole - The role of the current user
- * @returns Object with section names as keys and arrays of items as values
+ * Get menu items grouped by section
  */
 export const getMenuItemsGroupedBySection = (
   userRole: string,
-): Record<string, NavItem[]> => {
-  const grouped: Record<string, NavItem[]> = {};
+): Record<SectionId, NavItem[]> => {
+  const grouped: Record<SectionId, NavItem[]> = {} as Record<
+    SectionId,
+    NavItem[]
+  >;
+  const items = getMenuItemsForRole(userRole);
 
-  // Get all items accessible to the user
-  const accessibleItems = getMenuItemsForRole(userRole);
-
-  // Group by section
-  accessibleItems.forEach((item) => {
+  items.forEach((item) => {
     const section = item.section || "main";
     if (!grouped[section]) {
       grouped[section] = [];
@@ -1297,27 +1369,31 @@ export const getMenuItemsGroupedBySection = (
     grouped[section].push(item);
   });
 
-  return grouped;
+  // Sort sections by priority
+  const sorted: Record<SectionId, NavItem[]> = {} as Record<
+    SectionId,
+    NavItem[]
+  >;
+  Object.keys(grouped)
+    .sort(
+      (a, b) =>
+        (SECTIONS[a as SectionId]?.priority || 999) -
+        (SECTIONS[b as SectionId]?.priority || 999),
+    )
+    .forEach((key) => {
+      sorted[key as SectionId] = grouped[key as SectionId];
+    });
+
+  return sorted;
 };
 
 /**
- * Get the appropriate icon for a section
- *
- * @param sectionName - The name of the section
- * @returns Icon component or LayoutDashboard as fallback
+ * Get section configuration
  */
-export const getSectionIcon = (sectionName: string): React.ElementType => {
-  return sectionIcons[sectionName] || LayoutDashboard;
-};
-
-/**
- * Get the display title for a section
- *
- * @param sectionName - The name of the section
- * @returns Display title or capitalized section name as fallback
- */
-export const getSectionTitle = (sectionName: string): string => {
-  return sectionTitles[sectionName] || sectionName.toUpperCase();
+export const getSectionConfig = (
+  sectionId: SectionId,
+): SectionConfig | undefined => {
+  return SECTIONS[sectionId];
 };
 
 /**
@@ -1328,8 +1404,82 @@ export const hasDynamicBadge = (item: NavItem | SubNavItem): boolean => {
 };
 
 /**
- * Check if an item has any badge (static or dynamic)
+ * Check if an item has any badge
  */
 export const hasAnyBadge = (item: NavItem | SubNavItem): boolean => {
   return !!(item.badge || item.badgeKey);
+};
+
+/**
+ * Find a navigation item by ID
+ */
+export const findNavItem = (id: string): NavItem | undefined => {
+  return (
+    MAIN_ITEMS[id as keyof typeof MAIN_ITEMS] ||
+    PERSONAL_ITEMS[id as keyof typeof PERSONAL_ITEMS]
+  );
+};
+
+/**
+ * Find a sub-navigation item by ID
+ */
+export const findSubNavItem = (id: string): SubNavItem | undefined => {
+  return SUB_ITEMS[id as keyof typeof SUB_ITEMS];
+};
+
+/**
+ * Get the parent navigation item for a sub-item
+ */
+export const getParentNavItem = (subItem: SubNavItem): NavItem | undefined => {
+  return Object.values(MAIN_ITEMS).find((item) => item.name === subItem.parent);
+};
+
+/**
+ * Get all sub-items for a parent
+ */
+export const getSubItemsForParent = (parentName: string): SubNavItem[] => {
+  return Object.values(SUB_ITEMS).filter((item) => item.parent === parentName);
+};
+
+/**
+ * Check if a user has any menu items
+ */
+export const hasAnyMenuItems = (userRole: string): boolean => {
+  return getMenuItemsForRole(userRole).length > 0;
+};
+
+/**
+ * Get the count of visible items for a user
+ */
+export const getVisibleItemsCount = (userRole: string): number => {
+  return getMenuItemsForRole(userRole).length;
+};
+
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export default {
+  ROLES,
+  SECTIONS,
+  PERSONAL_ITEMS,
+  MAIN_ITEMS,
+  SUB_ITEMS,
+  hasAccess,
+  getPersonalItems,
+  getMainItems,
+  getMenuItemsForRole,
+  getSubMenuItems,
+  hasSubMenuItems,
+  getVisibleSections,
+  getMenuItemsGroupedBySection,
+  getSectionConfig,
+  hasDynamicBadge,
+  hasAnyBadge,
+  findNavItem,
+  findSubNavItem,
+  getParentNavItem,
+  getSubItemsForParent,
+  hasAnyMenuItems,
+  getVisibleItemsCount,
 };

@@ -1,3 +1,4 @@
+// app/(dashboard)/dashboard/page.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -11,6 +12,15 @@ import QuickActions from "@/components/dashboard/QuickActions";
 import UpcomingDeadlines from "@/components/dashboard/UpcomingDeadlines";
 import TaskStatusChart from "@/components/dashboard/TaskStatusChart";
 import { Loader2 } from "lucide-react";
+import SuperAdminDashboard from "@/components/dashboard/SuperAdminDashboard";
+import AdminDashboard from "@/components/dashboard/AdminDashboard";
+import HRDashboard from "@/components/dashboard/HRDashboard";
+import DepartmentDashboard from "@/components/dashboard/DepartmentDashboard";
+import ProjectDashboard from "@/components/dashboard/ProjectDashboard";
+import LineManagerDashboard from "@/components/dashboard/LineManagerDashboard";
+import EmployeeDashboard from "@/components/dashboard/EmployeeDashboard";
+
+// Import role-based dashboard components
 
 interface Task {
   _id: string;
@@ -83,8 +93,17 @@ export default function DashboardPage() {
   // Memoize the role check to prevent unnecessary re-renders
   const canViewUsers = useMemo(
     () => hasRole(["super_admin", "admin", "hr_manager"]),
-    [hasRole]
+    [hasRole],
   );
+
+  // Check if user has any admin role
+  const isSuperAdmin = hasRole(["super_admin"]);
+  const isAdmin = hasRole(["admin"]);
+  const isHRManager = hasRole(["hr_manager"]);
+  const isDeptManager = hasRole(["dept_manager"]);
+  const isProjectManager = hasRole(["project_manager"]);
+  const isLineManager = hasRole(["line_manager"]);
+  const isEmployee = hasRole(["employee"]);
 
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
@@ -150,7 +169,7 @@ export default function DashboardPage() {
           submitted: 0,
           completed: 0,
           overdue: 0,
-        }
+        },
       );
 
       const { total, pending, inProgress, submitted, completed, overdue } =
@@ -162,7 +181,7 @@ export default function DashboardPage() {
         .filter((t) => t.status !== "completed" && t.status !== "rejected")
         .sort(
           (a, b) =>
-            new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
+            new Date(a.deadline).getTime() - new Date(b.deadline).getTime(),
         )
         .slice(0, 5);
 
@@ -225,16 +244,105 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
+  // ============================================================
+  // ROLE-BASED DASHBOARD RENDERING
+  // ============================================================
+
+  // For Super Admin - Full admin dashboard with all data
+  if (isSuperAdmin) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <SuperAdminDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // For Admin - Admin specific dashboard
+  if (isAdmin) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <AdminDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // For HR Manager - HR specific dashboard
+  if (isHRManager) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <HRDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // For Department Manager - Department specific dashboard
+  if (isDeptManager) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <DepartmentDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // For Project Manager - Project specific dashboard
+  if (isProjectManager) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <ProjectDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // For Line Manager - Team specific dashboard
+  if (isLineManager) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <LineManagerDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // For Employee - Personal dashboard
+  if (isEmployee) {
+    return (
+      <div className="p-4 md:p-6 lg:p-4">
+        <div className="container mx-auto space-y-6">
+          <WelcomeCard user={user} />
+          <EmployeeDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback: Show the original dashboard for any other role
   return (
-    <div className="p-4 md:p-6 lg:p-8 space-y-6 w-full mx-auto">
+    <div className="p-4 md:p-6 lg:p-4 space-y-6 w-full mx-auto">
       <WelcomeCard user={user} />
-      
+
       <DashboardStats
         stats={dashboardData.stats}
         hasRole={hasRole}
         userRole={user.role}
       />
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <RecentTasks tasks={dashboardData.recentTasks} />
