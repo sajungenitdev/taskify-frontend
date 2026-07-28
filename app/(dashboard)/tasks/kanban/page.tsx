@@ -1,4 +1,3 @@
-// app/(dashboard)/tasks/board/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -120,6 +119,15 @@ interface ColumnSettings {
   visible: boolean;
 }
 
+interface Stats {
+  total: number;
+  pending: number;
+  inProgress: number;
+  completed: number;
+  overdue: number;
+  submitted: number;
+}
+
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
@@ -129,8 +137,8 @@ export default function TaskBoardPage() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedPriority, setSelectedPriority] = useState("");
-  const [selectedProject, setSelectedProject] = useState("");
+  const [selectedPriority, setSelectedPriority] = useState<string>("");
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const [projects, setProjects] = useState<any[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -141,7 +149,7 @@ export default function TaskBoardPage() {
     "createdAt",
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     total: 0,
     pending: 0,
     inProgress: 0,
@@ -161,9 +169,7 @@ export default function TaskBoardPage() {
   const [newColumnTitle, setNewColumnTitle] = useState("");
   const [isAddingColumn, setIsAddingColumn] = useState(false);
 
-  // ============================================================
-  // BULK SELECT STATE
-  // ============================================================
+  // Bulk Select State
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
     new Set(),
@@ -171,9 +177,7 @@ export default function TaskBoardPage() {
   const [bulkTargetStatus, setBulkTargetStatus] = useState<string | null>(null);
   const [showBulkMoveModal, setShowBulkMoveModal] = useState(false);
 
-  // ============================================================
-  // QUICK EDIT STATE
-  // ============================================================
+  // Quick Edit State
   const [quickEditTaskId, setQuickEditTaskId] = useState<string | null>(null);
   const [quickEditPriority, setQuickEditPriority] = useState<string>("");
   const [quickEditDeadline, setQuickEditDeadline] = useState<string>("");
@@ -262,14 +266,9 @@ export default function TaskBoardPage() {
 
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
-      // Log the request for debugging
-      console.log(`Moving task ${taskId} to status: ${newStatus}`);
-
       const response = await api.patch(`/tasks/${taskId}/status`, {
         status: newStatus,
       });
-
-      console.log("Response:", response.data);
 
       if (response.data.success) {
         toast.success(`Task moved to ${newStatus.replace("_", " ")}`);
@@ -284,19 +283,16 @@ export default function TaskBoardPage() {
       }
     } catch (error: any) {
       console.error("Status update error:", error);
-      // Show more detailed error
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Failed to update status";
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || "Failed to update status");
       await fetchTasks();
     }
   };
 
-  // ============================================================
-  // BULK MOVE FUNCTIONS
-  // ============================================================
+  const updateStats = () => {
+    // Stats will be updated on next fetch
+  };
+
+  // Bulk Move Functions
   const toggleTaskSelection = (taskId: string) => {
     setSelectedTaskIds((prev) => {
       const newSet = new Set(prev);
@@ -332,19 +328,8 @@ export default function TaskBoardPage() {
     const toastId = toast.loading(`Moving ${selectedTaskIds.size} tasks...`);
 
     try {
-      // Check if target is a custom column
-      const defaultStatuses = [
-        "pending",
-        "in_progress",
-        "submitted",
-        "completed",
-        "overdue",
-      ];
-      const isCustomColumn = !defaultStatuses.includes(bulkTargetStatus);
-      const backendStatus = isCustomColumn ? "in_progress" : bulkTargetStatus;
-
       const promises = Array.from(selectedTaskIds).map((taskId) =>
-        api.patch(`/tasks/${taskId}/status`, { status: backendStatus }),
+        api.patch(`/tasks/${taskId}/status`, { status: bulkTargetStatus }),
       );
 
       await Promise.all(promises);
@@ -354,7 +339,6 @@ export default function TaskBoardPage() {
         `Successfully moved ${selectedTaskIds.size} tasks to ${bulkTargetStatus.replace("_", " ")}`,
       );
 
-      // Update local state with the custom status
       setTasks((prev) =>
         prev.map((task) =>
           selectedTaskIds.has(task._id)
@@ -363,7 +347,6 @@ export default function TaskBoardPage() {
         ),
       );
 
-      // Clear selection
       setSelectedTaskIds(new Set());
       setBulkMode(false);
       setShowBulkMoveModal(false);
@@ -375,23 +358,16 @@ export default function TaskBoardPage() {
       console.error("Bulk move error:", error);
     }
   };
-  const updateStats = () => {
-    // Stats will be updated on next fetch
-  };
 
-  // ============================================================
-  // QUICK EDIT FUNCTIONS
-  // ============================================================
-
+  // Quick Edit Functions
   const toggleStar = (taskId: string) => {
     setTasks((prev) =>
       prev.map((task) =>
         task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
       ),
     );
-    const task = tasks.find((t) => t._id === taskId);
-    toast.success(task?.isStarred ? "Task unstarred" : "Task starred");
   };
+
   const handleQuickEdit = (taskId: string, field: string, value: any) => {
     const task = tasks.find((t) => t._id === taskId);
     if (!task) return;
@@ -435,9 +411,7 @@ export default function TaskBoardPage() {
     }
   };
 
-  // ============================================================
-  // COLUMN MANAGEMENT
-  // ============================================================
+  // Column Management
   const handleRenameColumn = (columnId: string, newTitle: string) => {
     if (!newTitle.trim()) {
       toast.error("Column name cannot be empty");
@@ -511,17 +485,15 @@ export default function TaskBoardPage() {
     }
   };
 
-  // ============================================================
-  // HELPER FUNCTIONS
-  // ============================================================
+  // Helper Functions
   const getPriorityColor = (priority: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       low: "bg-emerald-50 text-emerald-700 border-emerald-200",
       normal: "bg-blue-50 text-blue-700 border-blue-200",
       high: "bg-amber-50 text-amber-700 border-amber-200",
       urgent: "bg-rose-50 text-rose-700 border-rose-200",
     };
-    return colors[priority as keyof typeof colors] || colors.normal;
+    return colors[priority] || colors.normal;
   };
 
   const getPriorityIcon = (priority: string) => {
@@ -538,14 +510,14 @@ export default function TaskBoardPage() {
   };
 
   const getStatusColor = (status: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       pending: "bg-amber-50 text-amber-700 border-amber-200",
       in_progress: "bg-sky-50 text-sky-700 border-sky-200",
       submitted: "bg-purple-50 text-purple-700 border-purple-200",
       completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
       overdue: "bg-rose-50 text-rose-700 border-rose-200",
     };
-    return colors[status as keyof typeof colors] || colors.pending;
+    return colors[status] || colors.pending;
   };
 
   const formatDate = (dateString: string) => {
@@ -593,38 +565,55 @@ export default function TaskBoardPage() {
     toast.success("Tasks exported successfully");
   };
 
+  // 1. Move static lookup tables outside the component (or memo block)
+  const PRIORITY_ORDER: Record<string, number> = {
+    urgent: 4,
+    high: 3,
+    normal: 2,
+    low: 1,
+  };
+
+  // Inside your component:
   const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter((task) => {
+    const searchLower = searchTerm.toLowerCase();
+
+    // 1. Filter tasks cleanly
+    const filtered = tasks.filter((task) => {
       const matchesSearch =
-        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.description.toLowerCase().includes(searchTerm.toLowerCase());
+        !searchLower ||
+        task.title?.toLowerCase().includes(searchLower) ||
+        task.description?.toLowerCase().includes(searchLower);
+
       const matchesPriority =
         !selectedPriority || task.priority === selectedPriority;
+
       const matchesProject =
         !selectedProject || task.projectId?._id === selectedProject;
+
       return matchesSearch && matchesPriority && matchesProject;
     });
 
-    filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
+    // 2. Sort safely without in-place mutation side-effects
+    return [...filtered].sort((a, b) => {
+      let aVal = 0;
+      let bVal = 0;
+
       switch (sortBy) {
         case "deadline":
-          aVal = new Date(a.deadline).getTime();
-          bVal = new Date(b.deadline).getTime();
+          aVal = a.deadline ? new Date(a.deadline).getTime() : 0;
+          bVal = b.deadline ? new Date(b.deadline).getTime() : 0;
           break;
         case "priority":
-          const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
-          aVal = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bVal = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
+          aVal = PRIORITY_ORDER[a.priority] ?? 0;
+          bVal = PRIORITY_ORDER[b.priority] ?? 0;
           break;
         default:
-          aVal = new Date(a.createdAt).getTime();
-          bVal = new Date(b.createdAt).getTime();
+          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       }
+
       return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
     });
-
-    return filtered;
   }, [tasks, searchTerm, selectedPriority, selectedProject, sortBy, sortOrder]);
 
   // Build columns with tasks
@@ -666,9 +655,7 @@ export default function TaskBoardPage() {
 
   const getActiveTask = () => tasks.find((task) => task._id === activeId);
 
-  // ============================================================
-  // DRAG AND DROP
-  // ============================================================
+  // Drag and Drop
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
   };
@@ -717,7 +704,7 @@ export default function TaskBoardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-375 mx-auto">
+        <div className="max-w-[1440px] mx-auto">
           {/* Breadcrumb */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -758,23 +745,20 @@ export default function TaskBoardPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {/* Bulk Mode Toggle */}
               <button
                 onClick={() => {
                   setBulkMode(!bulkMode);
                   if (bulkMode) setSelectedTaskIds(new Set());
                 }}
-                className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${
-                  bulkMode
-                    ? "bg-indigo-600 text-white"
-                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}
+                className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${bulkMode
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                  }`}
               >
                 <CheckSquare size={14} />
                 {bulkMode ? "Exit Bulk" : "Bulk Select"}
               </button>
 
-              {/* Bulk Move Button */}
               {bulkMode && selectedTaskIds.size > 0 && (
                 <button
                   onClick={() => setShowBulkMoveModal(true)}
@@ -802,11 +786,10 @@ export default function TaskBoardPage() {
               </button>
               <button
                 onClick={() => setShowColumnSettings(!showColumnSettings)}
-                className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${
-                  showColumnSettings
-                    ? "bg-indigo-600 text-white"
-                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                }`}
+                className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${showColumnSettings
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                  }`}
               >
                 <Columns size={14} />
                 Columns
@@ -814,22 +797,20 @@ export default function TaskBoardPage() {
               <div className="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
                 <button
                   onClick={() => setView("kanban")}
-                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                    view === "kanban"
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${view === "kanban"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   <LayoutGrid size={14} />
                   <span>Kanban</span>
                 </button>
                 <button
                   onClick={() => setView("list")}
-                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                    view === "list"
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${view === "list"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   <List size={14} />
                   <span>List</span>
@@ -980,11 +961,10 @@ export default function TaskBoardPage() {
                         </button>
                         <button
                           onClick={() => handleToggleColumnVisibility(col.id)}
-                          className={`p-1 rounded ${
-                            col.visible
-                              ? "text-emerald-500 hover:text-emerald-600"
-                              : "text-gray-400 hover:text-gray-600"
-                          }`}
+                          className={`p-1 rounded ${col.visible
+                            ? "text-emerald-500 hover:text-emerald-600"
+                            : "text-gray-400 hover:text-gray-600"
+                            }`}
                         >
                           {col.visible ? (
                             <CheckCircle size={12} />
@@ -999,13 +979,13 @@ export default function TaskBoardPage() {
                           "completed",
                           "overdue",
                         ].includes(col.id) && (
-                          <button
-                            onClick={() => handleDeleteColumn(col.id)}
-                            className="p-1 text-gray-400 hover:text-rose-600 rounded"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
+                            <button
+                              onClick={() => handleDeleteColumn(col.id)}
+                              className="p-1 text-gray-400 hover:text-rose-600 rounded"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                       </div>
                     </div>
                   ))}
@@ -1123,11 +1103,10 @@ export default function TaskBoardPage() {
             </div>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm ${
-                showFilters
-                  ? "bg-indigo-600 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-              }`}
+              className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm ${showFilters
+                ? "bg-indigo-600 text-white"
+                : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                }`}
             >
               <Filter size={14} />
               Filters
@@ -1220,7 +1199,7 @@ export default function TaskBoardPage() {
                       getStatusColor={getStatusColor}
                       formatDate={formatDate}
                       onTaskClick={setSelectedTask}
-                      onStar={toggleStar} // ← Make sure this is here
+                      onStar={toggleStar}
                       onQuickEdit={handleQuickEdit}
                       onSaveQuickEdit={saveQuickEdit}
                       quickEditTaskId={quickEditTaskId}
@@ -1444,7 +1423,6 @@ export default function TaskBoardPage() {
                                 "priority",
                                 e.target.value,
                               );
-                              // Auto-save after selection
                               setTimeout(saveQuickEdit, 100);
                             }}
                             className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${getPriorityColor(task.priority)} focus:outline-none focus:ring-2 focus:ring-indigo-500`}
@@ -1477,12 +1455,11 @@ export default function TaskBoardPage() {
                           onClick={() => setSelectedTask(task)}
                         >
                           <span
-                            className={`text-xs font-medium ${
-                              new Date(task.deadline) < new Date() &&
+                            className={`text-xs font-medium ${new Date(task.deadline) < new Date() &&
                               task.status !== "completed"
-                                ? "text-rose-500"
-                                : "text-gray-500"
-                            }`}
+                              ? "text-rose-500"
+                              : "text-gray-500"
+                              }`}
                           >
                             {new Date(task.deadline).toLocaleDateString()}
                           </span>
@@ -1568,7 +1545,7 @@ export default function TaskBoardPage() {
                     <span className="font-medium text-emerald-600">
                       {bulkTargetStatus
                         ? columnSettings.find((c) => c.id === bulkTargetStatus)
-                            ?.title
+                          ?.title
                         : "..."}
                     </span>
                   </p>
@@ -1598,7 +1575,7 @@ export default function TaskBoardPage() {
         )}
       </AnimatePresence>
 
-      {/* Modals */}
+      {/* Task Details Modal */}
       {selectedTask && (
         <TaskDetailsModal
           task={selectedTask}
@@ -1682,9 +1659,8 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`shrink-0 w-[280px] sm:w-[300px] md:w-[320px] h-full flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-200 ${
-        activeId ? "ring-2 ring-indigo-300" : ""
-      }`}
+      className={`shrink-0 w-[280px] sm:w-[300px] md:w-[320px] h-full flex flex-col bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-200 ${activeId ? "ring-2 ring-indigo-300" : ""
+        }`}
     >
       {/* Column Header */}
       <div
@@ -1814,11 +1790,10 @@ function TaskCard({
           onTaskClick(task);
         }
       }}
-      className={`bg-white rounded-lg p-3 border transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5 group ${
-        isSelected
-          ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50/30"
-          : "border-gray-200 hover:border-indigo-300"
-      }`}
+      className={`bg-white rounded-lg p-3 border transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5 group ${isSelected
+        ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50/30"
+        : "border-gray-200 hover:border-indigo-300"
+        }`}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1894,52 +1869,22 @@ function TaskCard({
           <div className="flex items-center gap-0.5">
             <Calendar size={8} className="text-gray-400" />
             <span
-              className={`text-[8px] font-medium ${
-                formatDate(task.deadline) === "Overdue"
-                  ? "text-rose-500"
-                  : "text-gray-500"
-              }`}
+              className={`text-[8px] font-medium ${formatDate(task.deadline) === "Overdue"
+                ? "text-rose-500"
+                : "text-gray-500"
+                }`}
             >
               {formatDate(task.deadline)}
             </span>
           </div>
         )}
       </div>
-
-      {/* Quick Edit Actions */}
-      <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onQuickEdit(
-              task._id,
-              "priority",
-              task.priority === "urgent" ? "normal" : "urgent",
-            );
-            setTimeout(onSaveQuickEdit, 100);
-          }}
-          className="p-0.5 text-gray-400 hover:text-indigo-600 rounded transition"
-          title="Toggle Priority"
-        >
-          <Flag size={12} />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onTaskClick(task);
-          }}
-          className="p-0.5 text-gray-400 hover:text-indigo-600 rounded transition"
-          title="Quick View"
-        >
-          <Eye size={12} />
-        </button>
-      </div>
     </div>
   );
 }
 
 // ============================================================
-// TASK DETAILS MODAL (Same as before)
+// TASK DETAILS MODAL
 // ============================================================
 function TaskDetailsModal({
   task,
@@ -2001,7 +1946,9 @@ function TaskDetailsModal({
             </span>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-700">Description</h3>
+            <h3 className="text-sm font-semibold text-gray-700">
+              Description
+            </h3>
             <p className="text-gray-600 text-sm mt-1">{task.description}</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -2014,12 +1961,11 @@ function TaskDetailsModal({
             <div>
               <p className="text-xs text-gray-500">Deadline</p>
               <p
-                className={`text-sm font-medium mt-0.5 ${
-                  new Date(task.deadline) < new Date() &&
+                className={`text-sm font-medium mt-0.5 ${new Date(task.deadline) < new Date() &&
                   task.status !== "completed"
-                    ? "text-rose-600"
-                    : "text-gray-800"
-                }`}
+                  ? "text-rose-600"
+                  : "text-gray-800"
+                  }`}
               >
                 {new Date(task.deadline).toLocaleDateString()}
                 {formatDate(task.deadline) !== "Overdue" &&
