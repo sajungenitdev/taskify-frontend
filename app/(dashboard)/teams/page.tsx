@@ -45,6 +45,7 @@ import {
   CheckCheck,
   ArrowLeft,
   ArrowRight,
+  CheckCircle,
 } from "lucide-react";
 import { teamAPI } from "@/lib/team.api";
 import api from "@/lib/axios";
@@ -52,6 +53,7 @@ import toast from "react-hot-toast";
 import { Team, TeamFormData } from "@/types/team.types";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { userAPI } from "@/lib/user.api";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -164,6 +166,7 @@ export default function TeamsPage() {
   const [memberSearch, setMemberSearch] = useState("");
   const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
   const memberDropdownRef = useRef<HTMLDivElement>(null);
+  const isDataFetched = useRef(false);
 
   // Form State
   const [formData, setFormData] = useState<TeamFormData>({
@@ -204,29 +207,48 @@ export default function TeamsPage() {
   }, []);
 
   // ===== DATA FETCHING =====
-  const fetchAllData = useCallback(async () => {
-    try {
-      setLoading(true);
-      await Promise.all([fetchTeams(), fetchDepartments(), fetchUsers()]);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
-  const fetchTeams = useCallback(async () => {
-    try {
-      const response = await teamAPI.getAllTeams();
-      if (response.success) {
-        setTeams(response.data);
-      }
-    } catch (error) {
-      console.error("Error fetching teams:", error);
-      throw error;
+
+const fetchTeams = useCallback(async () => {
+  try {
+    const response = await teamAPI.getAllTeams();
+    if (response.success) {
+      setTeams(response.data);
     }
-  }, []);
+  } catch (error) {
+    console.error("Error fetching teams:", error);
+    throw error;
+  }
+}, []);
+const fetchAllData = async () => {
+  try {
+    setLoading(true);
+    await Promise.all([
+      (async () => {
+        const response = await teamAPI.getAllTeams();
+        if (response.success) setTeams(response.data);
+      })(),
+      (async () => {
+        const response = await api.get("/departments");
+        if (response.data && response.data.success) setDepartments(response.data.data);
+      })(),
+      (async () => {
+        const response = await userAPI.getAllUsers();
+        if (response.success) setUsers(response.data);
+      })(),
+    ]);
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    toast.error("Failed to load data");
+  } finally {
+    setLoading(false);
+  }
+};
+
+// In useEffect
+useEffect(() => {
+  fetchAllData();
+}, []);
 
   const fetchDepartments = useCallback(async () => {
     try {
