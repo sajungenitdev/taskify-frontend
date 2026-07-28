@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -231,7 +231,7 @@ export default function TasksPage() {
 
         // 🔍 LOG: Check for evidence and rejection data
         console.log("📊 Tasks loaded:", tasksWithMeta.length);
-        tasksWithMeta.forEach((task, index) => {
+        tasksWithMeta.forEach((task: Task, index: number) => {
           if (task.evidenceUrls && task.evidenceUrls.length > 0) {
             console.log(
               `📎 Task ${index + 1} "${task.title}" has evidence:`,
@@ -608,8 +608,8 @@ export default function TasksPage() {
       t.priority,
       t.status.replace("_", " "),
       t.assignedTo?.fullName || "Unassigned",
-      new Date(t.deadline).toLocaleDateString(),
-      new Date(t.createdAt).toLocaleDateString(),
+      new Date(t.deadline ?? 0).toLocaleDateString(),
+      new Date(t.createdAt ?? 0).toLocaleDateString(),
     ]);
 
     const csvContent = [headers, ...rows]
@@ -625,37 +625,39 @@ export default function TasksPage() {
     toast.success("Tasks exported successfully");
   };
 
-  const filteredTasks = useMemo(() => {
-    return tasks
-      .filter((task) => {
-        if (filter !== "all" && task.status !== filter) return false;
-        if (
-          searchTerm &&
-          !task.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-          !task.description.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-          return false;
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "deadline") {
-          return sortOrder === "asc"
-            ? new Date(a.deadline).getTime() - new Date(b.deadline).getTime()
-            : new Date(b.deadline).getTime() - new Date(a.deadline).getTime();
-        } else if (sortBy === "priority") {
-          const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
-          return sortOrder === "asc"
-            ? (priorityOrder[a.priority] || 0) -
-                (priorityOrder[b.priority] || 0)
-            : (priorityOrder[b.priority] || 0) -
-                (priorityOrder[a.priority] || 0);
-        } else {
-          return sortOrder === "asc"
-            ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        }
-      });
-  }, [tasks, filter, searchTerm, sortBy, sortOrder]);
+const getFilteredTasks = useCallback(() => {
+  return tasks
+    .filter((task) => {
+      if (filter !== "all" && task.status !== filter) return false;
+      if (
+        searchTerm &&
+        !task.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
+        !task.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+        return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === "deadline") {
+        return sortOrder === "asc"
+          ? new Date(a.deadline ?? 0).getTime() - new Date(b.deadline ?? 0).getTime()
+          : new Date(b.deadline ?? 0).getTime() - new Date(a.deadline ?? 0).getTime();
+      } else if (sortBy === "priority") {
+        const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
+        return sortOrder === "asc"
+          ? (priorityOrder[a.priority] || 0) -
+              (priorityOrder[b.priority] || 0)
+          : (priorityOrder[b.priority] || 0) -
+              (priorityOrder[a.priority] || 0);
+      } else {
+        return sortOrder === "asc"
+          ? new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime()
+          : new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+      }
+    });
+}, [tasks, filter, searchTerm, sortBy, sortOrder]);
+
+const filteredTasks = getFilteredTasks();
 
   const statCards = [
     {
@@ -1249,19 +1251,6 @@ export default function TasksPage() {
               className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* 🔍 LOG: Selected task data */}
-              {console.log("📋 Selected Task Details:", {
-                id: selectedTask._id,
-                title: selectedTask.title,
-                status: selectedTask.status,
-                evidenceUrls: selectedTask.evidenceUrls,
-                evidenceRequired: selectedTask.evidenceRequired,
-                rejectionReason: selectedTask.rejectionReason,
-                approvalNote: selectedTask.approvalNote,
-                evidenceSubmitted: selectedTask.evidenceSubmitted,
-                evidenceSubmittedAt: selectedTask.evidenceSubmittedAt,
-              })}
-
               <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start">
                 <div>
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
