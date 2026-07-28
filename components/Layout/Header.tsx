@@ -107,12 +107,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [imageTimestamp, setImageTimestamp] = useState(Date.now());
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showCopySuccess, setShowCopySuccess] = useState(false);
-  const [onlineStatus, setOnlineStatus] = useState(true);
-  const [typingIndicator, setTypingIndicator] = useState<string | null>(null);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
-  const notificationSoundRef = useRef<HTMLAudioElement | null>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   // Live time update
   useEffect(() => {
@@ -129,26 +124,20 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       setSidebarCollapsed(savedState === "true");
     }
 
-    const handleSidebarToggle = (event: CustomEvent) => {
-      if (event.detail?.collapsed !== undefined) {
-        setSidebarCollapsed(event.detail.collapsed);
+    const handleSidebarToggle = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.collapsed !== undefined) {
+        setSidebarCollapsed(customEvent.detail.collapsed);
       } else {
-        const savedState = localStorage.getItem("sidebarCollapsed");
-        if (savedState !== null) {
-          setSidebarCollapsed(savedState === "true");
+        const saved = localStorage.getItem("sidebarCollapsed");
+        if (saved !== null) {
+          setSidebarCollapsed(saved === "true");
         }
       }
     };
 
-    window.addEventListener(
-      "sidebarToggle",
-      handleSidebarToggle as EventListener,
-    );
-    return () =>
-      window.removeEventListener(
-        "sidebarToggle",
-        handleSidebarToggle as EventListener,
-      );
+    window.addEventListener("sidebarToggle", handleSidebarToggle);
+    return () => window.removeEventListener("sidebarToggle", handleSidebarToggle);
   }, []);
 
   // Refresh image when user profile photo changes
@@ -161,10 +150,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   useEffect(() => {
     if (unreadCount > prevUnreadCount) {
       setIsBellBuzzing(true);
-      // Play notification sound if available
-      if (notificationSoundRef.current) {
-        notificationSoundRef.current.play().catch(() => {});
-      }
       const timer = setTimeout(() => {
         setIsBellBuzzing(false);
       }, 1500);
@@ -229,7 +214,11 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   // Polling for notifications
   useEffect(() => {
-    fetchNotifications();
+    const initializeNotifications = async () => {
+      await fetchNotifications();
+    };
+
+    initializeNotifications();
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
@@ -243,10 +232,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
       console.error("Error marking notification as read:", error);
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)),
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
     }
   };
 
@@ -469,9 +454,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 transition-all duration-500 ease-out ${
-        sidebarCollapsed ? "left-20" : "left-80"
-      }`}
+      className={`fixed top-0 right-0 z-30 transition-all duration-500 ease-out ${sidebarCollapsed ? "left-20" : "left-80"
+        }`}
       style={{ backgroundColor: "#122645" }}
     >
       {/* Animated gradient border */}
@@ -636,17 +620,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
         {/* Right Section - Actions */}
         <div className="flex items-center gap-1">
-          {/* Live Time - Desktop */}
-          {/* <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <ClockIcon size={14} className="text-white/40" />
-            <span className="text-xs text-white/60 font-mono">
-              {formattedTime}
-            </span>
-            <span className="w-px h-4 bg-white/10" />
-            <CalendarDays size={14} className="text-white/40" />
-            <span className="text-[10px] text-white/40">{formattedDate}</span>
-          </div> */}
-
           <button
             onClick={() => setShowSearch(!showSearch)}
             className="md:hidden text-white/60 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all duration-300"
@@ -674,13 +647,12 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               <div className="relative">
                 <Bell
                   size={18}
-                  className={`transition-all duration-300 ${
-                    isBellBuzzing
-                      ? "text-amber-400 animate-bell-buzz"
-                      : unreadCount > 0
-                        ? "text-indigo-400"
-                        : ""
-                  }`}
+                  className={`transition-all duration-300 ${isBellBuzzing
+                    ? "text-amber-400 animate-bell-buzz"
+                    : unreadCount > 0
+                      ? "text-indigo-400"
+                      : ""
+                    }`}
                 />
                 {isBellBuzzing && (
                   <>
@@ -691,9 +663,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </div>
               {unreadCount > 0 && (
                 <span
-                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${
-                    isBellBuzzing ? "animate-bounce" : ""
-                  }`}
+                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${isBellBuzzing ? "animate-bounce" : ""
+                    }`}
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
@@ -761,9 +732,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${
-                              !notification.isRead ? "bg-indigo-500/5" : ""
-                            }`}
+                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${!notification.isRead ? "bg-indigo-500/5" : ""
+                              }`}
                             onClick={() =>
                               handleNotificationClick(notification)
                             }
@@ -876,9 +846,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </div>
               <ChevronDown
                 size={14}
-                className={`hidden lg:block text-white/40 transition-transform duration-300 ${
-                  showProfileDropdown ? "rotate-180" : ""
-                }`}
+                className={`hidden lg:block text-white/40 transition-transform duration-300 ${showProfileDropdown ? "rotate-180" : ""
+                  }`}
               />
             </button>
 
