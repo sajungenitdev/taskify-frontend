@@ -22,6 +22,7 @@ import {
   Users,
   Briefcase,
   AlertTriangle,
+  Archive,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -76,6 +77,7 @@ interface Project {
   progress: number;
   tasksCount: number;
   completedTasks: number;
+  teamMembers?: User[];
 }
 
 export default function EditProjectPage() {
@@ -160,7 +162,13 @@ export default function EditProjectPage() {
       router.push("/projects");
       return;
     }
-    fetchProject();
+    // Avoid calling setState synchronously during effect to prevent
+    // cascading renders. Schedule fetching after paint.
+    const t = setTimeout(() => {
+      fetchProject();
+    }, 0);
+
+    return () => clearTimeout(t);
   }, [canManage, fetchProject, router]);
 
   // Handle form submission
