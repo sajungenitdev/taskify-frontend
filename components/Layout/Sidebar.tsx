@@ -83,46 +83,11 @@ const MandalaPattern = ({ primaryColor = "#0f2444" }) => (
     })}
 
     {/* Concentric circles */}
-    <circle
-      cx="400"
-      cy="400"
-      r="350"
-      stroke={primaryColor}
-      strokeWidth="1.5"
-      opacity="0.2"
-    />
-    <circle
-      cx="400"
-      cy="400"
-      r="300"
-      stroke={primaryColor}
-      strokeWidth="1"
-      opacity="0.15"
-    />
-    <circle
-      cx="400"
-      cy="400"
-      r="220"
-      stroke={primaryColor}
-      strokeWidth="1.5"
-      opacity="0.18"
-    />
-    <circle
-      cx="400"
-      cy="400"
-      r="150"
-      stroke={primaryColor}
-      strokeWidth="1"
-      opacity="0.12"
-    />
-    <circle
-      cx="400"
-      cy="400"
-      r="80"
-      stroke={primaryColor}
-      strokeWidth="1.5"
-      opacity="0.15"
-    />
+    <circle cx="400" cy="400" r="350" stroke={primaryColor} strokeWidth="1.5" opacity="0.2" />
+    <circle cx="400" cy="400" r="300" stroke={primaryColor} strokeWidth="1" opacity="0.15" />
+    <circle cx="400" cy="400" r="220" stroke={primaryColor} strokeWidth="1.5" opacity="0.18" />
+    <circle cx="400" cy="400" r="150" stroke={primaryColor} strokeWidth="1" opacity="0.12" />
+    <circle cx="400" cy="400" r="80" stroke={primaryColor} strokeWidth="1.5" opacity="0.15" />
 
     {/* Inner star */}
     {Array.from({ length: 6 }).map((_, i) => {
@@ -152,14 +117,7 @@ const MandalaPattern = ({ primaryColor = "#0f2444" }) => (
       const x = 400 + Math.cos(angle * (Math.PI / 180)) * 280;
       const y = 400 + Math.sin(angle * (Math.PI / 180)) * 280;
       return (
-        <circle
-          key={`dot-${i}`}
-          cx={x}
-          cy={y}
-          r="3"
-          fill={primaryColor}
-          opacity="0.2"
-        />
+        <circle key={`dot-${i}`} cx={x} cy={y} r="3" fill={primaryColor} opacity="0.2" />
       );
     })}
 
@@ -169,14 +127,7 @@ const MandalaPattern = ({ primaryColor = "#0f2444" }) => (
       const x = 400 + Math.cos(angle * (Math.PI / 180)) * 390;
       const y = 400 + Math.sin(angle * (Math.PI / 180)) * 390;
       return (
-        <circle
-          key={`outer-dot-${i}`}
-          cx={x}
-          cy={y}
-          r="4"
-          fill={primaryColor}
-          opacity="0.15"
-        />
+        <circle key={`outer-dot-${i}`} cx={x} cy={y} r="4" fill={primaryColor} opacity="0.15" />
       );
     })}
 
@@ -440,7 +391,7 @@ export default function Sidebar({
     return (
       <div
         ref={dropdownRef}
-        className="fixed z-50 min-w-70 overflow-hidden bg-[#122645]"
+        className="fixed z-50 min-w-70 overflow-hidden bg-[#122645] rounded-xl shadow-2xl border border-white/10"
         style={{
           top: dropdownPosition.top,
           left: dropdownPosition.left,
@@ -449,9 +400,9 @@ export default function Sidebar({
         onMouseEnter={handleDropdownMouseEnter}
         onMouseLeave={handleDropdownMouseLeave}
       >
-        <div className="relative px-4 py-3  backdrop-blur-sm border-b border-white/10">
+        <div className="relative px-4 py-3 backdrop-blur-sm border-b border-white/10">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg  flex items-center justify-center shadow-md">
+            <div className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center shadow-md">
               {parentItem?.icon && (
                 <parentItem.icon size={14} className="text-white" />
               )}
@@ -487,18 +438,16 @@ export default function Sidebar({
                   setHoveredItem(null);
                   onClose?.();
                 }}
-                className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${
-                  isSubActive
-                    ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-white/10"
-                }`}
+                className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
+                  ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
+                  }`}
               >
                 <div
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                    isSubActive
-                      ? "bg-indigo-500/30"
-                      : "bg-white/10 group-hover:bg-white/20"
-                  }`}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${isSubActive
+                    ? "bg-indigo-500/30"
+                    : "bg-white/10 group-hover:bg-white/20"
+                    }`}
                 >
                   <SubIcon
                     size={14}
@@ -514,12 +463,11 @@ export default function Sidebar({
                 </span>
                 {showBadge && (
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
-                      badgeInfo.isDynamic
-                        ? "bg-red-500/30 text-red-300 animate-pulse"
-                        : subItem.badgeColor ||
-                          "bg-indigo-500/30 text-indigo-300"
-                    }`}
+                    className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                      ? "bg-red-500/30 text-red-300 animate-pulse"
+                      : subItem.badgeColor ||
+                      "bg-indigo-500/30 text-indigo-300"
+                      }`}
                   >
                     {badgeInfo.text}
                   </span>
@@ -547,17 +495,18 @@ export default function Sidebar({
 
   const sidebarContent = (
     <aside
-      className={`relative min-h-screen flex flex-col shadow-2xl transition-all duration-300 overflow-hidden ${
-        isCollapsed ? "w-20" : "w-80"
-      } sidebar-layout`}
+      className={`relative bg-[#0f2444] min-h-screen flex flex-col shadow-2xl transition-all duration-300 overflow-visible ${isCollapsed ? "w-20" : "w-80"
+        } sidebar-layout`}
       style={{
-        borderRight: "1px solid #122645",
+        borderRight: "1px solid rgba(255, 255, 255, 0.05)",
+        height: "100vh",
+        maxHeight: "100vh",
       }}
     >
-      {/* Background Image with Overlay - Now applied to the aside */}
+      {/* Background Image with Overlay */}
       <div className="absolute inset-0 pointer-events-none main-sidebar">
         {/* Dark overlay for readability */}
-        <div className="absolute inset-0  backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-[#0f2444]/80 backdrop-blur-sm" />
         <div className="absolute inset-0 bg-gradient-to-br from-[#0f2444]/60 via-[#0f2444]/40 to-transparent" />
       </div>
 
@@ -580,21 +529,19 @@ export default function Sidebar({
       {/* Animated gradient border */}
       <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-purple-400 via-50% to-transparent animate-shimmer z-10" />
 
-      {/* Content */}
-      <div className="relative z-10 flex flex-col h-full">
-        {/* Header with Toggle Button */}
+      {/* Content - Flex column with proper height management */}
+      <div className="relative z-10 flex flex-col h-full overflow-hidden">
+        {/* Header with Toggle Button - Fixed height */}
         <div
-          className={`px-4 py-[12px] bg-transparent  transition-all duration-300 sticky top-0 z-10 ${
-            scrolled
-              ? "bg-[#0f2444]/90 backdrop-blur-md"
-              : "bg-[#0f2444]/60 backdrop-blur-sm"
-          }`}
+          className={`flex-shrink-0 px-4 py-[12px] bg-transparent transition-all duration-300 sticky top-0 z-10 ${scrolled
+            ? "bg-[#0f2444]/90 backdrop-blur-md"
+            : "bg-[#0f2444]/60 backdrop-blur-sm"
+            }`}
         >
           <div className="flex items-center justify-between">
             <div
-              className={`flex items-center gap-3 ${
-                isCollapsed ? "justify-center w-full" : ""
-              }`}
+              className={`flex items-center gap-3 ${isCollapsed ? "justify-center w-full" : ""
+                }`}
             >
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-300" />
@@ -627,7 +574,9 @@ export default function Sidebar({
         {/* Toggle Button */}
         <button
           onClick={toggleCollapse}
-          className="absolute -right-3 top-20 w-6 h-6 "
+          className="hidden lg:flex fixed top-1/12 -translate-y-1/2 z-[999] w-7 h-7 bg-[#0f2444] 
+          hover:bg-gradient-to-r hover:from-indigo-500 hover:to-purple-500 border-2 border-white/20 
+          hover:border-transparent rounded-full items-center justify-center transition-all duration-300 shadow-xl group"
         >
           {isCollapsed ? (
             <ChevronRight
@@ -642,10 +591,13 @@ export default function Sidebar({
           )}
         </button>
 
-        {/* Navigation - Removed sidebar-layout from here */}
+        {/* Navigation - Scrollable area with flex-1 */}
         <nav
           className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar main-sidebar"
-          style={{ maxHeight: "calc(100vh - 80px)" }}
+          style={{
+            maxHeight: "calc(100vh - 160px)",
+            minHeight: 0,
+          }}
         >
           {/* Personal Items - Dashboard only */}
           {personalItems.length > 0 && (
@@ -661,23 +613,20 @@ export default function Sidebar({
                     key={item.id}
                     href={item.href}
                     onClick={onClose}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
-                      isCollapsed ? "justify-center" : ""
-                    } ${
-                      active
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${isCollapsed ? "justify-center" : ""
+                      } ${active
                         ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
                         : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
-                    }`}
+                      }`}
                     title={isCollapsed ? item.name : ""}
                   >
                     <div className="relative">
                       <Icon
                         size={18}
-                        className={`transition-all duration-200 ${
-                          active
-                            ? "text-indigo-300"
-                            : "text-gray-400 group-hover:text-white"
-                        }`}
+                        className={`transition-all duration-200 ${active
+                          ? "text-indigo-300"
+                          : "text-gray-400 group-hover:text-white"
+                          }`}
                       />
                       {isCollapsed && showBadge && (
                         <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
@@ -690,12 +639,11 @@ export default function Sidebar({
                         </span>
                         {showBadge && (
                           <span
-                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
-                              badgeInfo.isDynamic
-                                ? "bg-red-500/30 text-red-300 animate-pulse"
-                                : item.badgeColor ||
-                                  "bg-indigo-500/30 text-indigo-300"
-                            }`}
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                              ? "bg-red-500/30 text-red-300 animate-pulse"
+                              : item.badgeColor ||
+                              "bg-indigo-500/30 text-indigo-300"
+                              }`}
                           >
                             {badgeInfo.text}
                           </span>
@@ -750,27 +698,24 @@ export default function Sidebar({
                       }}
                     >
                       <div
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${
-                          isCollapsed ? "justify-center" : ""
-                        } ${
-                          isParentActiveFlag || (isHovered && hasSubmenu)
-                            ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm "
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
+                          } ${isParentActiveFlag || (isHovered && hasSubmenu)
+                            ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
                             : isActive(item.href) && !hasSubmenu
-                              ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm "
+                              ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
                               : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
-                        }`}
+                          }`}
                         title={isCollapsed ? item.name : ""}
                       >
                         <div className="relative">
                           <Icon
                             size={18}
-                            className={`transition-all duration-200 ${
-                              isParentActiveFlag || (isHovered && hasSubmenu)
+                            className={`transition-all duration-200 ${isParentActiveFlag || (isHovered && hasSubmenu)
+                              ? "text-indigo-300"
+                              : isActive(item.href) && !hasSubmenu
                                 ? "text-indigo-300"
-                                : isActive(item.href) && !hasSubmenu
-                                  ? "text-indigo-300"
-                                  : "text-gray-400 group-hover:text-white"
-                            }`}
+                                : "text-gray-400 group-hover:text-white"
+                              }`}
                           />
                           {isCollapsed && showBadge && !hasSubmenu && (
                             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
@@ -784,21 +729,19 @@ export default function Sidebar({
                             {hasSubmenu && (
                               <ChevronRightIcon
                                 size={14}
-                                className={`transition-all duration-300 ${
-                                  isHovered
-                                    ? "translate-x-1 text-indigo-300"
-                                    : "text-gray-400 group-hover:text-white"
-                                }`}
+                                className={`transition-all duration-300 ${isHovered
+                                  ? "translate-x-1 text-indigo-300"
+                                  : "text-gray-400 group-hover:text-white"
+                                  }`}
                               />
                             )}
                             {showBadge && !hasSubmenu && (
                               <span
-                                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${
-                                  badgeInfo.isDynamic
-                                    ? "bg-red-500/30 text-red-300 animate-pulse"
-                                    : item.badgeColor ||
-                                      "bg-indigo-500/30 text-indigo-300"
-                                }`}
+                                className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                                  ? "bg-red-500/30 text-red-300 animate-pulse"
+                                  : item.badgeColor ||
+                                  "bg-indigo-500/30 text-indigo-300"
+                                  }`}
                               >
                                 {badgeInfo.text}
                               </span>
@@ -821,13 +764,12 @@ export default function Sidebar({
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 p-4 border-t border-white/10 ">
+        {/* Footer - Fixed at bottom */}
+        <div className="flex-shrink-0 p-4 border-t border-white/10 bg-gradient-to-t from-[#0f2444]/90 via-[#0f2444]/60 to-transparent backdrop-blur-sm">
           <button
             onClick={logout}
-            className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${
-              isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
-            }`}
+            className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
+              }`}
             title={isCollapsed ? "Logout" : ""}
           >
             <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -835,14 +777,12 @@ export default function Sidebar({
             <div className="absolute inset-0 rounded-xl border border-red-500/20 group-hover:border-red-400/40 transition-all duration-300" />
 
             <div
-              className={`relative flex items-center gap-3 transition-all duration-300 ${
-                isCollapsed ? "justify-center" : "justify-center"
-              }`}
+              className={`relative flex items-center gap-3 transition-all duration-300 ${isCollapsed ? "justify-center" : "justify-center"
+                }`}
             >
               <div
-                className={`relative transition-all duration-300 ${
-                  isCollapsed ? "" : "group-hover:scale-110"
-                }`}
+                className={`relative transition-all duration-300 ${isCollapsed ? "" : "group-hover:scale-110"
+                  }`}
               >
                 <LogOut
                   size={18}
@@ -901,7 +841,7 @@ export default function Sidebar({
 
       <style jsx global>{`
         .main-sidebar {
-          background-image: url(/images/sidebar-bg.png);
+          background-image: url(/images/sidebar-bg-1.png);
           background-size: cover;
           background-position: center;
           background-repeat: no-repeat;

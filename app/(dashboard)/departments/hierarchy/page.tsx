@@ -163,28 +163,37 @@ export default function HierarchyPage() {
 
   // Filter tree view departments
   const filteredDepartments = useMemo(() => {
-    if (!searchTerm) return departments;
-    const searchLower = searchTerm.toLowerCase();
+    if (!searchTerm || searchTerm.trim() === '') return departments;
+
+    const searchLower = searchTerm.toLowerCase().trim();
 
     const filterRecursive = (depts: Department[]): Department[] => {
-      return depts
-        .map((dept) => {
-          const matches =
-            dept.name.toLowerCase().includes(searchLower) ||
-            dept.code.toLowerCase().includes(searchLower) ||
-            dept.description?.toLowerCase().includes(searchLower);
+      const result: Department[] = [];
 
-          const filteredChildren = dept.children
-            ? filterRecursive(dept.children)
-            : [];
+      for (const dept of depts) {
+        // Check if current department matches
+        const matches =
+          dept.name.toLowerCase().includes(searchLower) ||
+          dept.code.toLowerCase().includes(searchLower) ||
+          (dept.description && dept.description.toLowerCase().includes(searchLower));
 
-          if (matches || filteredChildren.length > 0) {
-            return { ...dept, children: filteredChildren };
-          }
-          return null;
-        })
-        .filter((dept): dept is Department => dept !== null);
+        // Recursively filter children
+        const filteredChildren = dept.children
+          ? filterRecursive(dept.children)
+          : [];
+
+        // Include department if it matches OR has matching children
+        if (matches || filteredChildren.length > 0) {
+          result.push({
+            ...dept,
+            children: filteredChildren.length > 0 ? filteredChildren : dept.children
+          });
+        }
+      }
+
+      return result;
     };
+
     return filterRecursive(departments);
   }, [departments, searchTerm]);
 
@@ -273,11 +282,10 @@ export default function HierarchyPage() {
         className="relative"
       >
         <div
-          className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:shadow-md group ${
-            level === 0
+          className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:shadow-md group ${level === 0
               ? "bg-gradient-to-r from-indigo-50/80 to-purple-50/80 border-indigo-200 shadow-sm"
               : "bg-white border-gray-200 hover:bg-gray-50"
-          }`}
+            }`}
           style={{ marginLeft: `${level * 20}px` }}
           onClick={() => setSelectedDepartment(dept)}
         >
@@ -286,11 +294,10 @@ export default function HierarchyPage() {
               e.stopPropagation();
               toggleExpand(dept._id);
             }}
-            className={`p-1 rounded transition ${
-              hasChildren
+            className={`p-1 rounded transition ${hasChildren
                 ? "text-gray-500 hover:text-gray-700 hover:bg-gray-200/60"
                 : "text-gray-300 cursor-default"
-            }`}
+              }`}
             aria-label="Toggle node"
           >
             {hasChildren &&
@@ -302,11 +309,10 @@ export default function HierarchyPage() {
           </button>
 
           <div
-            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-              level === 0
+            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${level === 0
                 ? "bg-gradient-to-br from-indigo-500 to-purple-500"
                 : "bg-gray-100 border border-gray-200"
-            }`}
+              }`}
           >
             <Building2
               className={`w-4 h-4 ${level === 0 ? "text-white" : "text-gray-500"}`}
@@ -325,11 +331,10 @@ export default function HierarchyPage() {
               </span>
               {dept.isActive !== undefined && (
                 <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                    dept.isActive
+                  className={`text-[10px] px-2 py-0.5 rounded-full border ${dept.isActive
                       ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                       : "bg-rose-50 text-rose-700 border-rose-200"
-                  }`}
+                    }`}
                 >
                   {dept.isActive ? "Active" : "Inactive"}
                 </span>
@@ -455,33 +460,30 @@ export default function HierarchyPage() {
             <div className="bg-white border border-gray-200 rounded-lg p-1 flex items-center shadow-sm">
               <button
                 onClick={() => setViewMode("tree")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-1.5 ${
-                  viewMode === "tree"
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-1.5 ${viewMode === "tree"
                     ? "bg-indigo-500 text-white shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
+                  }`}
               >
                 <Grid size={14} />
                 Tree
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-1.5 ${
-                  viewMode === "list"
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-1.5 ${viewMode === "list"
                     ? "bg-indigo-500 text-white shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
+                  }`}
               >
                 <List size={14} />
                 List
               </button>
               <button
                 onClick={() => setViewMode("compare")}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-1.5 ${
-                  viewMode === "compare"
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-1.5 ${viewMode === "compare"
                     ? "bg-indigo-500 text-white shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
-                }`}
+                  }`}
               >
                 <GitCompare size={14} />
                 Compare
@@ -802,7 +804,7 @@ export default function HierarchyPage() {
                           Sub-Departments:
                         </span>
                         {selectedDeptA.children &&
-                        selectedDeptA.children.length > 0 ? (
+                          selectedDeptA.children.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {selectedDeptA.children.map((child) => (
                               <span
@@ -894,7 +896,7 @@ export default function HierarchyPage() {
                           Sub-Departments:
                         </span>
                         {selectedDeptB.children &&
-                        selectedDeptB.children.length > 0 ? (
+                          selectedDeptB.children.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {selectedDeptB.children.map((child) => (
                               <span
@@ -999,11 +1001,10 @@ export default function HierarchyPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              dept.level === 0
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dept.level === 0
                                 ? "bg-gradient-to-br from-indigo-500 to-purple-500"
                                 : "bg-gray-100"
-                            }`}
+                              }`}
                           >
                             <Building2
                               className={`w-4 h-4 ${dept.level === 0 ? "text-white" : "text-gray-500"}`}
@@ -1037,11 +1038,10 @@ export default function HierarchyPage() {
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span
-                          className={`px-2 py-1 text-xs font-medium rounded-full border ${
-                            dept.isActive
+                          className={`px-2 py-1 text-xs font-medium rounded-full border ${dept.isActive
                               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                               : "bg-rose-50 text-rose-700 border-rose-200"
-                          }`}
+                            }`}
                         >
                           {dept.isActive ? "Active" : "Inactive"}
                         </span>
