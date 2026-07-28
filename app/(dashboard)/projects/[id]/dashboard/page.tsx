@@ -123,12 +123,12 @@ interface Project {
     joinedAt: string;
   }>;
   status:
-    | "planning"
-    | "active"
-    | "on_hold"
-    | "completed"
-    | "cancelled"
-    | "archived";
+  | "planning"
+  | "active"
+  | "on_hold"
+  | "completed"
+  | "cancelled"
+  | "archived";
   priority: "low" | "normal" | "high" | "critical";
   startDate: string;
   endDate: string;
@@ -604,13 +604,13 @@ export default function ProjectDashboardPage() {
         const avgTime =
           completedWithTime.length > 0
             ? Math.round(
-                completedWithTime.reduce((sum, t) => {
-                  const diff =
-                    new Date(t.completedAt!).getTime() -
-                    new Date(t.createdAt).getTime();
-                  return sum + diff / (1000 * 60 * 60);
-                }, 0) / completedWithTime.length,
-              )
+              completedWithTime.reduce((sum, t) => {
+                const diff =
+                  new Date(t.completedAt!).getTime() -
+                  new Date(t.createdAt).getTime();
+                return sum + diff / (1000 * 60 * 60);
+              }, 0) / completedWithTime.length,
+            )
             : 0;
 
         // Calculate trend
@@ -787,9 +787,8 @@ export default function ProjectDashboardPage() {
             activitiesData.push({
               _id: `task-${index}`,
               action: task.status === "completed" ? "completed" : "created",
-              description: `Task "${task.title}" was ${
-                task.status === "completed" ? "completed" : "created"
-              }`,
+              description: `Task "${task.title}" was ${task.status === "completed" ? "completed" : "created"
+                }`,
               userId: {
                 _id: task.assignedTo?._id || "system",
                 fullName: task.assignedTo?.fullName || "System",
@@ -873,8 +872,8 @@ export default function ProjectDashboardPage() {
       const dueDate = new Date(startDate);
       dueDate.setDate(
         dueDate.getDate() +
-          Math.floor(Math.random() * daysDiff * 0.8) +
-          Math.floor(daysDiff * 0.1),
+        Math.floor(Math.random() * daysDiff * 0.8) +
+        Math.floor(daysDiff * 0.1),
       );
 
       // Completion date (if completed)
@@ -882,7 +881,7 @@ export default function ProjectDashboardPage() {
       if (isCompleted) {
         completedAt = new Date(
           createdAt.getTime() +
-            Math.random() * (dueDate.getTime() - createdAt.getTime()) * 0.9,
+          Math.random() * (dueDate.getTime() - createdAt.getTime()) * 0.9,
         ).toISOString();
       }
 
@@ -897,9 +896,9 @@ export default function ProjectDashboardPage() {
         priority: priorities[Math.floor(Math.random() * priorities.length)],
         assignedTo: member
           ? {
-              _id: member.userId._id,
-              fullName: member.userId.fullName,
-            }
+            _id: member.userId._id,
+            fullName: member.userId.fullName,
+          }
           : undefined,
         dueDate: dueDate.toISOString(),
         completedAt: completedAt,
@@ -918,12 +917,12 @@ export default function ProjectDashboardPage() {
     }
   }, [projectId, fetchProjectData]);
 
-  // Filter tasks based on selected time range
+  // In the getFilteredTasks function
   const getFilteredTasks = useCallback(() => {
     if (!tasks || tasks.length === 0) return tasks;
 
     const now = new Date();
-    let cutoffDate = new Date();
+    const cutoffDate = new Date(); // Changed from let to const
 
     switch (selectedTimeRange) {
       case "week":
@@ -1312,7 +1311,7 @@ export default function ProjectDashboardPage() {
                   className="px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 shadow-sm"
                 >
                   <ArrowLeft size={14} />
-                  Back Project 
+                  Back Project
                 </Link>
               </div>
             </div>
@@ -1326,31 +1325,28 @@ export default function ProjectDashboardPage() {
           >
             <button
               onClick={() => setSelectedTimeRange("week")}
-              className={`px-4 py-1.5 text-sm rounded-lg transition ${
-                selectedTimeRange === "week"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`px-4 py-1.5 text-sm rounded-lg transition ${selectedTimeRange === "week"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+                }`}
             >
               Week
             </button>
             <button
               onClick={() => setSelectedTimeRange("month")}
-              className={`px-4 py-1.5 text-sm rounded-lg transition ${
-                selectedTimeRange === "month"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`px-4 py-1.5 text-sm rounded-lg transition ${selectedTimeRange === "month"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+                }`}
             >
               Month
             </button>
             <button
               onClick={() => setSelectedTimeRange("all")}
-              className={`px-4 py-1.5 text-sm rounded-lg transition ${
-                selectedTimeRange === "all"
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`px-4 py-1.5 text-sm rounded-lg transition ${selectedTimeRange === "all"
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+                }`}
             >
               All Time
             </button>
@@ -1433,11 +1429,10 @@ export default function ProjectDashboardPage() {
             <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
               <button
                 onClick={() => setActiveTab("overview")}
-                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
-                  activeTab === "overview"
-                    ? "text-indigo-600"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${activeTab === "overview"
+                  ? "text-indigo-600"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <BarChart3 size={14} />
@@ -1449,11 +1444,10 @@ export default function ProjectDashboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab("velocity")}
-                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
-                  activeTab === "velocity"
-                    ? "text-indigo-600"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${activeTab === "velocity"
+                  ? "text-indigo-600"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <TrendingUp size={14} />
@@ -1465,11 +1459,10 @@ export default function ProjectDashboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab("contributions")}
-                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
-                  activeTab === "contributions"
-                    ? "text-indigo-600"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${activeTab === "contributions"
+                  ? "text-indigo-600"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <Table size={14} />
@@ -1481,11 +1474,10 @@ export default function ProjectDashboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab("team")}
-                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${
-                  activeTab === "team"
-                    ? "text-indigo-600"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
+                className={`px-4 py-3 text-sm font-medium transition relative whitespace-nowrap ${activeTab === "team"
+                  ? "text-indigo-600"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
               >
                 <span className="flex items-center gap-2">
                   <Users size={14} />
@@ -1575,13 +1567,14 @@ export default function ProjectDashboardPage() {
                                       borderRadius: "8px",
                                       padding: "12px",
                                     }}
-                                    formatter={(value: any, name: string) => {
+                                    formatter={(value, name) => {
                                       const labels: Record<string, string> = {
                                         idealRemaining: "Ideal Remaining",
                                         actualRemaining: "Actual Remaining",
                                         completed: "Completed",
                                       };
-                                      return [value, labels[name] || name];
+                                      const label = name && typeof name === 'string' ? labels[name] || name : '';
+                                      return [`${value}`, label];
                                     }}
                                   />
                                   <Legend />
@@ -1649,15 +1642,14 @@ export default function ProjectDashboardPage() {
                                     </div>
                                     <div className="bg-gray-50 rounded-lg p-3 text-center">
                                       <p
-                                        className={`text-2xl font-bold ${
-                                          burndownAccuracy &&
+                                        className={`text-2xl font-bold ${burndownAccuracy &&
                                           burndownAccuracy.accuracy >= 90
-                                            ? "text-emerald-600"
-                                            : burndownAccuracy &&
-                                                burndownAccuracy.accuracy >= 70
-                                              ? "text-amber-600"
-                                              : "text-rose-600"
-                                        }`}
+                                          ? "text-emerald-600"
+                                          : burndownAccuracy &&
+                                            burndownAccuracy.accuracy >= 70
+                                            ? "text-amber-600"
+                                            : "text-rose-600"
+                                          }`}
                                       >
                                         {burndownAccuracy
                                           ? burndownAccuracy.accuracy.toFixed(1)
@@ -1926,25 +1918,23 @@ export default function ProjectDashboardPage() {
                                   </td>
                                   <td className="text-center py-3 px-3">
                                     <span
-                                      className={`text-sm font-medium ${
-                                        member.completionRate >= 80
-                                          ? "text-emerald-600"
-                                          : member.completionRate >= 50
-                                            ? "text-amber-600"
-                                            : "text-rose-600"
-                                      }`}
+                                      className={`text-sm font-medium ${member.completionRate >= 80
+                                        ? "text-emerald-600"
+                                        : member.completionRate >= 50
+                                          ? "text-amber-600"
+                                          : "text-rose-600"
+                                        }`}
                                     >
                                       {member.completionRate}%
                                     </span>
                                     <div className="w-16 mx-auto mt-1 bg-gray-200 rounded-full h-1.5">
                                       <div
-                                        className={`h-1.5 rounded-full ${
-                                          member.completionRate >= 80
-                                            ? "bg-emerald-500"
-                                            : member.completionRate >= 50
-                                              ? "bg-amber-500"
-                                              : "bg-rose-500"
-                                        }`}
+                                        className={`h-1.5 rounded-full ${member.completionRate >= 80
+                                          ? "bg-emerald-500"
+                                          : member.completionRate >= 50
+                                            ? "bg-amber-500"
+                                            : "bg-rose-500"
+                                          }`}
                                         style={{
                                           width: `${member.completionRate}%`,
                                         }}
@@ -2088,11 +2078,11 @@ export default function ProjectDashboardPage() {
                       <p className="text-2xl font-bold text-amber-700">
                         {memberContributions.length > 0
                           ? Math.round(
-                              memberContributions.reduce(
-                                (sum, c) => sum + c.completionRate,
-                                0,
-                              ) / memberContributions.length,
-                            )
+                            memberContributions.reduce(
+                              (sum, c) => sum + c.completionRate,
+                              0,
+                            ) / memberContributions.length,
+                          )
                           : 0}
                         %
                       </p>
@@ -2129,51 +2119,46 @@ export default function ProjectDashboardPage() {
                       <div className="flex gap-1">
                         <button
                           onClick={() => setContributionSortBy("name")}
-                          className={`px-2 py-1 text-xs rounded-md transition ${
-                            contributionSortBy === "name"
-                              ? "bg-indigo-600 text-white"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded-md transition ${contributionSortBy === "name"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
                         >
                           Name
                         </button>
                         <button
                           onClick={() => setContributionSortBy("tasks")}
-                          className={`px-2 py-1 text-xs rounded-md transition ${
-                            contributionSortBy === "tasks"
-                              ? "bg-indigo-600 text-white"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded-md transition ${contributionSortBy === "tasks"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
                         >
                           Tasks
                         </button>
                         <button
                           onClick={() => setContributionSortBy("rate")}
-                          className={`px-2 py-1 text-xs rounded-md transition ${
-                            contributionSortBy === "rate"
-                              ? "bg-indigo-600 text-white"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded-md transition ${contributionSortBy === "rate"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
                         >
                           Rate
                         </button>
                         <button
                           onClick={() => setContributionSortBy("hours")}
-                          className={`px-2 py-1 text-xs rounded-md transition ${
-                            contributionSortBy === "hours"
-                              ? "bg-indigo-600 text-white"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded-md transition ${contributionSortBy === "hours"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
                         >
                           Hours
                         </button>
                         <button
                           onClick={() => setContributionSortBy("onTime")}
-                          className={`px-2 py-1 text-xs rounded-md transition ${
-                            contributionSortBy === "onTime"
-                              ? "bg-indigo-600 text-white"
-                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                          className={`px-2 py-1 text-xs rounded-md transition ${contributionSortBy === "onTime"
+                            ? "bg-indigo-600 text-white"
+                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            }`}
                         >
                           On-Time
                         </button>
@@ -2274,13 +2259,12 @@ export default function ProjectDashboardPage() {
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   <span
-                                    className={`text-sm font-medium ${
-                                      contrib.completionRate >= 80
-                                        ? "text-emerald-600"
-                                        : contrib.completionRate >= 50
-                                          ? "text-amber-600"
-                                          : "text-rose-600"
-                                    }`}
+                                    className={`text-sm font-medium ${contrib.completionRate >= 80
+                                      ? "text-emerald-600"
+                                      : contrib.completionRate >= 50
+                                        ? "text-amber-600"
+                                        : "text-rose-600"
+                                      }`}
                                   >
                                     {contrib.completionRate}%
                                   </span>
@@ -2301,13 +2285,12 @@ export default function ProjectDashboardPage() {
                                 <td className="px-4 py-3 text-center">
                                   <div>
                                     <span
-                                      className={`text-sm font-medium ${
-                                        contrib.onTimeRate >= 80
-                                          ? "text-emerald-600"
-                                          : contrib.onTimeRate >= 50
-                                            ? "text-amber-600"
-                                            : "text-rose-600"
-                                      }`}
+                                      className={`text-sm font-medium ${contrib.onTimeRate >= 80
+                                        ? "text-emerald-600"
+                                        : contrib.onTimeRate >= 50
+                                          ? "text-amber-600"
+                                          : "text-rose-600"
+                                        }`}
                                     >
                                       {contrib.onTimeRate}%
                                     </span>
@@ -2321,13 +2304,12 @@ export default function ProjectDashboardPage() {
                                   <div className="flex items-center justify-center gap-1">
                                     {getTrendIcon(contrib.trend)}
                                     <span
-                                      className={`text-xs font-medium ${
-                                        contrib.trend === "up"
-                                          ? "text-emerald-600"
-                                          : contrib.trend === "down"
-                                            ? "text-rose-600"
-                                            : "text-amber-600"
-                                      }`}
+                                      className={`text-xs font-medium ${contrib.trend === "up"
+                                        ? "text-emerald-600"
+                                        : contrib.trend === "down"
+                                          ? "text-rose-600"
+                                          : "text-amber-600"
+                                        }`}
                                     >
                                       {contrib.trend === "up"
                                         ? "Improving"
@@ -2390,11 +2372,11 @@ export default function ProjectDashboardPage() {
                       <p className="text-2xl font-bold text-amber-700">
                         {teamPerformance.length > 0
                           ? Math.round(
-                              teamPerformance.reduce(
-                                (sum, m) => sum + m.completionRate,
-                                0,
-                              ) / teamPerformance.length,
-                            )
+                            teamPerformance.reduce(
+                              (sum, m) => sum + m.completionRate,
+                              0,
+                            ) / teamPerformance.length,
+                          )
                           : 0}
                         %
                       </p>
@@ -2457,13 +2439,12 @@ export default function ProjectDashboardPage() {
                                         {perf.tasksAssigned}
                                       </span>
                                       <span
-                                        className={`text-xs font-medium ${
-                                          perf.completionRate >= 80
-                                            ? "text-emerald-600"
-                                            : perf.completionRate >= 50
-                                              ? "text-amber-600"
-                                              : "text-rose-600"
-                                        }`}
+                                        className={`text-xs font-medium ${perf.completionRate >= 80
+                                          ? "text-emerald-600"
+                                          : perf.completionRate >= 50
+                                            ? "text-amber-600"
+                                            : "text-rose-600"
+                                          }`}
                                       >
                                         {perf.completionRate}%
                                       </span>
