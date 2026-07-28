@@ -22,7 +22,6 @@ import {
   Zap,
   X,
   Loader2,
-  Sparkles,
   LayoutDashboard,
   Users,
   CheckSquare,
@@ -31,29 +30,10 @@ import {
   BarChart3,
   Home,
   FolderKanban,
-  Shield,
   Award,
-  Mail,
-  Phone,
-  MapPin,
-  Globe,
-  Link2,
-  Twitter,
-  Github,
-  Linkedin,
-  Activity,
-  Sun,
-  Moon,
-  Monitor,
   ChevronRight,
-  ExternalLink,
   Copy,
   Check,
-  UserPlus,
-  UserCheck,
-  UserX,
-  Clock as ClockIcon,
-  CalendarDays,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -89,12 +69,22 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+
+  // ============================================================
+  // STATE - Initialize with lazy initializers to avoid useEffect warnings
+  // ============================================================
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sidebarCollapsed");
+      return saved === "true";
+    }
+    return false;
+  });
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -102,12 +92,24 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searching, setSearching] = useState(false);
   const [isBellBuzzing, setIsBellBuzzing] = useState(false);
-  const [prevUnreadCount, setPrevUnreadCount] = useState(0);
-  const [imageError, setImageError] = useState(false);
-  const [imageTimestamp, setImageTimestamp] = useState(Date.now());
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [imageErrorMap, setImageErrorMap] = useState<Record<string, boolean>>({});
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const [showCopySuccess, setShowCopySuccess] = useState(false);
+
+  // ============================================================
+  // REFS
+  // ============================================================
+  const prevUnreadCountRef = useRef(0);
   const searchDebounceRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const isNotificationsInitialized = useRef(false);
+
+  const imagePathKey = user?.profilePhoto || "default";
+  const imageError = imageErrorMap[imagePathKey] || false;
+
+  // ============================================================
+  // EFFECTS
+  // ============================================================
+
 
   // Live time update
   useEffect(() => {
@@ -117,13 +119,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Listen for sidebar collapse changes
+  // Listen for sidebar collapse changes from other components
   useEffect(() => {
-    const savedState = localStorage.getItem("sidebarCollapsed");
-    if (savedState !== null) {
-      setSidebarCollapsed(savedState === "true");
-    }
-
     const handleSidebarToggle = (event: Event) => {
       const customEvent = event as CustomEvent;
       if (customEvent.detail?.collapsed !== undefined) {
@@ -140,40 +137,36 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => window.removeEventListener("sidebarToggle", handleSidebarToggle);
   }, []);
 
-  // Refresh image when user profile photo changes
-  useEffect(() => {
-    setImageTimestamp(Date.now());
-    setImageError(false);
-  }, [user?.profilePhoto]);
-
   // Trigger bell animation when new notifications arrive
   useEffect(() => {
-    if (unreadCount > prevUnreadCount) {
+    if (unreadCount > prevUnreadCountRef.current) {
       setIsBellBuzzing(true);
-      const timer = setTimeout(() => {
-        setIsBellBuzzing(false);
-      }, 1500);
+      const timer = setTimeout(() => setIsBellBuzzing(false), 1500);
+      prevUnreadCountRef.current = unreadCount;
       return () => clearTimeout(timer);
     }
-    setPrevUnreadCount(unreadCount);
-  }, [unreadCount, prevUnreadCount]);
+    prevUnreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
-  // Helper function to get image URL
-  const getImageUrl = useCallback(
-    (imagePath: string | undefined): string | null => {
-      if (!imagePath) return null;
-      if (imagePath.startsWith("data:image/")) return imagePath;
-      if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-        return imagePath;
-      }
-      const apiUrl =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
-      const baseUrl = apiUrl.replace("/api/v1", "");
-      const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
-      return `${baseUrl}${path}?t=${imageTimestamp}`;
-    },
-    [imageTimestamp],
-  );
+  // Helper function to get image URL using photoVersion
+// Helper function to get image URL - uses user._id as cache buster
+const getImageUrl = useCallback(
+  (imagePath: string | undefined): string | null => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith("data:image/")) return imagePath;
+    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+      return imagePath;
+    }
+    const apiUrl =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+    const baseUrl = apiUrl.replace("/api/v1", "");
+    const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+    // Use user ID as cache buster
+    const cacheBuster = user?._id || Date.now();
+    return `${baseUrl}${path}?v=${cacheBuster}`;
+  },
+  [user?._id],
+);
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -212,13 +205,12 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     }
   }, [user]);
 
-  // Polling for notifications
+  // Polling for notifications - only fetch once with ref
   useEffect(() => {
-    const initializeNotifications = async () => {
-      await fetchNotifications();
-    };
-
-    initializeNotifications();
+    if (!isNotificationsInitialized.current) {
+      isNotificationsInitialized.current = true;
+      fetchNotifications();
+    }
     const interval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
@@ -454,8 +446,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 transition-all duration-500 ease-out ${sidebarCollapsed ? "left-20" : "left-80"
-        }`}
+      className={`fixed top-0 right-0 z-30 transition-all duration-500 ease-out ${
+        sidebarCollapsed ? "left-20" : "left-80"
+      }`}
       style={{ backgroundColor: "#122645" }}
     >
       {/* Animated gradient border */}
@@ -647,12 +640,13 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               <div className="relative">
                 <Bell
                   size={18}
-                  className={`transition-all duration-300 ${isBellBuzzing
-                    ? "text-amber-400 animate-bell-buzz"
-                    : unreadCount > 0
-                      ? "text-indigo-400"
-                      : ""
-                    }`}
+                  className={`transition-all duration-300 ${
+                    isBellBuzzing
+                      ? "text-amber-400 animate-bell-buzz"
+                      : unreadCount > 0
+                        ? "text-indigo-400"
+                        : ""
+                  }`}
                 />
                 {isBellBuzzing && (
                   <>
@@ -663,8 +657,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </div>
               {unreadCount > 0 && (
                 <span
-                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${isBellBuzzing ? "animate-bounce" : ""
-                    }`}
+                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${
+                    isBellBuzzing ? "animate-bounce" : ""
+                  }`}
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
@@ -732,8 +727,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${!notification.isRead ? "bg-indigo-500/5" : ""
-                              }`}
+                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${
+                              !notification.isRead ? "bg-indigo-500/5" : ""
+                            }`}
                             onClick={() =>
                               handleNotificationClick(notification)
                             }
@@ -822,7 +818,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       alt={user?.fullName || "Profile"}
                       className="w-full h-full object-cover"
                       onError={() => {
-                        setImageError(true);
+                        setImageErrorMap((prev) => ({
+                          ...prev,
+                          [imagePathKey]: true,
+                        }));
                       }}
                     />
                   ) : (
@@ -833,7 +832,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     </span>
                   )}
                 </div>
-                {/* Online status indicator */}
                 <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#122645] animate-pulse" />
               </div>
               <div className="hidden lg:block text-left">
@@ -846,8 +844,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </div>
               <ChevronDown
                 size={14}
-                className={`hidden lg:block text-white/40 transition-transform duration-300 ${showProfileDropdown ? "rotate-180" : ""
-                  }`}
+                className={`hidden lg:block text-white/40 transition-transform duration-300 ${
+                  showProfileDropdown ? "rotate-180" : ""
+                }`}
               />
             </button>
 
@@ -876,7 +875,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                                 alt={user?.fullName || "Profile"}
                                 className="w-full h-full object-cover"
                                 onError={() => {
-                                  setImageError(true);
+                                  setImageErrorMap((prev) => ({
+                                    ...prev,
+                                    [imagePathKey]: true,
+                                  }));
                                 }}
                               />
                             ) : (
