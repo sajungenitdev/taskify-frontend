@@ -5,106 +5,33 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
-  BarChart3,
+  Brain,
   TrendingUp,
   TrendingDown,
   Users,
   Award,
-  Calendar,
-  Search,
-  Loader2,
-  Download,
-  RefreshCw,
-  Eye,
-  ChevronDown,
-  ChevronUp,
-  Target,
-  Activity,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  ArrowUpRight,
-  ArrowDownRight,
-  ChevronRight,
-  X,
-  PieChart,
-  LineChart,
-  User,
-  Building2,
   Crown,
-  Medal,
-  Zap,
-  Sparkles,
-  Settings,
-  Home,
-  Filter,
-  Mail,
-  Star,
-  Flame,
+  Target,
+  AlertCircle,
   Gauge,
-  Shield,
-  Users as UsersIcon,
-  Briefcase,
-  ExternalLink,
-  TrendingUp as TrendingUpIcon,
-  FileText,
-  Calendar as CalendarIcon,
-  Layers,
-  BarChart as BarChartIcon,
-  PieChart as PieChartIcon,
-  MinusCircle,
-  HelpCircle,
-  ChevronLeft,
-  Globe,
-  Award as AwardIcon,
-  Trophy,
-  Medal as MedalIcon,
-  Brain,
   Lightbulb,
-  AlertTriangle,
-  CheckCheck,
-  Zap as ZapIcon,
-  TrendingUp as TrendingUpIcon2,
-  Shield as ShieldIcon,
-  BarChart,
+  Building2,
   Grid,
-  Table,
-  Filter as FilterIcon,
+  Home,
+  ChevronRight,
+  RefreshCw,
+  MinusCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
-import {
-  LineChart as RechartsLineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart as RechartsBarChart,
-  Bar,
-  PieChart as RechartsPieChart,
-  Pie,
-  Cell,
-  Area,
-  ComposedChart,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
-  ScatterChart,
-  Scatter,
-  ZAxis,
-} from "recharts";
 import InsightsTab from "@/components/kpi/InsightsTab";
 import ComparisonsTab from "@/components/kpi/ComparisonsTab";
 import HeatMapTab from "@/components/kpi/HeatMapTab";
 import PredictionsTab from "@/components/kpi/PredictionsTab";
 
+// Types
 interface Insight {
   type: "success" | "warning" | "danger" | "info";
   title: string;
@@ -206,12 +133,6 @@ interface HeatMapData {
 }
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
-const PERFORMANCE_COLORS = {
-  excellent: "#10b981",
-  good: "#3b82f6",
-  average: "#f59e0b",
-  needs_improvement: "#ef4444",
-};
 
 export default function KPIAnalyticsPage() {
   const { user, hasRole } = useAuth();
@@ -230,7 +151,6 @@ export default function KPIAnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"insights" | "comparisons" | "heatmap" | "predictions">(
     "insights"
   );
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const canManage = hasRole([
     "super_admin",
@@ -258,38 +178,33 @@ export default function KPIAnalyticsPage() {
   const currentYear = new Date().getFullYear();
 
   const isFetching = useRef(false);
+  const isInitialized = useRef(false);
+  const isMounted = useRef(true);
 
+  // Cleanup on unmount
   useEffect(() => {
-    if (!selectedMonth) {
-      setSelectedMonth(currentMonth);
-    }
-  }, [currentMonth]);
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
-  useEffect(() => {
-    if (canManage) {
-      fetchDepartments();
-    }
-  }, [canManage]);
-
-  useEffect(() => {
-    if (selectedMonth && selectedYear && !isFetching.current) {
-      fetchAllData();
-    }
-  }, [selectedMonth, selectedYear, selectedDepartment]);
-
-  const fetchDepartments = async () => {
+  // Fetch departments function
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.get("/departments");
-      if (response.data.success) {
+      if (response.data.success && isMounted.current) {
         setDepartments(response.data.data || []);
       }
     } catch (error) {
       console.error("Error fetching departments:", error);
     }
-  };
+  }, []);
 
-  const fetchAllData = async () => {
-    if (isFetching.current) return;
+  // Fetch all data function
+  const fetchAllData = useCallback(async () => {
+    if (isFetching.current || !isMounted.current) return;
+
     try {
       isFetching.current = true;
       setLoading(true);
@@ -319,6 +234,8 @@ export default function KPIAnalyticsPage() {
         }),
       ]);
 
+      if (!isMounted.current) return;
+
       if (analyticsRes.data.success) {
         setAnalyticsData(analyticsRes.data.data);
       }
@@ -332,38 +249,81 @@ export default function KPIAnalyticsPage() {
       }
     } catch (error: any) {
       console.error("Error fetching analytics data:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch analytics data");
+      if (isMounted.current) {
+        toast.error(error.response?.data?.message || "Failed to fetch analytics data");
+      }
     } finally {
-      setLoading(false);
-      isFetching.current = false;
+      if (isMounted.current) {
+        setLoading(false);
+        isFetching.current = false;
+      }
     }
-  };
+  }, [selectedMonth, selectedYear, selectedDepartment, months]);
 
+  // Initialize selected month - using a ref to prevent the warning
+  useEffect(() => {
+    if (!selectedMonth && !isInitialized.current) {
+      isInitialized.current = true;
+      setSelectedMonth(currentMonth);
+    }
+  }, [selectedMonth, currentMonth]);
+
+  // Load departments - using a separate effect with proper cleanup
+  useEffect(() => {
+    let isActive = true;
+
+    if (canManage) {
+      const loadDepartments = async () => {
+        try {
+          const response = await api.get("/departments");
+          if (response.data.success && isActive) {
+            setDepartments(response.data.data || []);
+          }
+        } catch (error) {
+          console.error("Error fetching departments:", error);
+        }
+      };
+      loadDepartments();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [canManage]);
+
+  // Load analytics data when filters change
+  useEffect(() => {
+    if (selectedMonth && !isFetching.current) {
+      fetchAllData();
+    }
+  }, [selectedMonth, selectedYear, selectedDepartment, fetchAllData]);
+
+  // Helper functions
   const getImpactColor = (impact: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       high: "text-rose-600 bg-rose-50 border-rose-200",
       medium: "text-amber-600 bg-amber-50 border-amber-200",
       low: "text-blue-600 bg-blue-50 border-blue-200",
     };
-    return colors[impact as keyof typeof colors] || colors.low;
+    return colors[impact] || colors.low;
   };
 
   const getPriorityColor = (priority: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       high: "text-rose-600 bg-rose-50 border-rose-200",
       medium: "text-amber-600 bg-amber-50 border-amber-200",
       low: "text-blue-600 bg-blue-50 border-blue-200",
     };
-    return colors[priority as keyof typeof colors] || colors.low;
+    return colors[priority] || colors.low;
   };
 
   const getConfidenceColor = (confidence: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       high: "text-emerald-600 bg-emerald-50",
       medium: "text-amber-600 bg-amber-50",
       low: "text-rose-600 bg-rose-50",
     };
-    return colors[confidence as keyof typeof colors] || colors.low;
+    return colors[confidence] || colors.low;
   };
 
   const getTrendIcon = (trend: string) => {
@@ -378,7 +338,7 @@ export default function KPIAnalyticsPage() {
   };
 
   const getPerformanceConfig = (level: string) => {
-    const config = {
+    const config: Record<string, any> = {
       excellent: {
         color: "text-emerald-600",
         bg: "bg-emerald-50",
@@ -399,7 +359,7 @@ export default function KPIAnalyticsPage() {
         color: "text-amber-600",
         bg: "bg-amber-50",
         border: "border-amber-200",
-        icon: Medal,
+        icon: Award,
         label: "Average",
         emoji: "📊",
       },
@@ -412,7 +372,7 @@ export default function KPIAnalyticsPage() {
         emoji: "📈",
       },
     };
-    return config[level as keyof typeof config] || config.average;
+    return config[level] || config.average;
   };
 
   const formatScore = (score: number) => {
@@ -430,7 +390,7 @@ export default function KPIAnalyticsPage() {
           <p className="text-gray-500">You don't have permission to view this page</p>
           <button
             onClick={() => router.push("/dashboard")}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm"
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"
           >
             Go to Dashboard
           </button>
@@ -442,7 +402,7 @@ export default function KPIAnalyticsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-375 mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Breadcrumb */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -515,7 +475,7 @@ export default function KPIAnalyticsPage() {
                 ))}
               </select>
               <button
-                onClick={fetchAllData}
+                onClick={() => fetchAllData()}
                 disabled={loading}
                 className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
               >
@@ -604,11 +564,10 @@ export default function KPIAnalyticsPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${
-                  activeTab === tab.id
+                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${activeTab === tab.id
                     ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-100/80"
-                }`}
+                  }`}
               >
                 <tab.icon size={16} />
                 {tab.label}
@@ -631,40 +590,47 @@ export default function KPIAnalyticsPage() {
                 </p>
               </div>
             </div>
-          ) : activeTab === "insights" ? (
-            <InsightsTab
-              analyticsData={analyticsData}
-              getImpactColor={getImpactColor}
-              getPriorityColor={getPriorityColor}
-              getPerformanceConfig={getPerformanceConfig}
-              formatScore={formatScore}
-              onViewEmployee={(userId: string) => router.push(`/kpi/employee/${userId}`)}
-            />
-          ) : activeTab === "comparisons" ? (
-            <ComparisonsTab
-              departmentComparisons={departmentComparisons}
-              selectedDepartment={selectedDepartment}
-              formatScore={formatScore}
-              getPerformanceConfig={getPerformanceConfig}
-              COLORS={COLORS}
-            />
-          ) : activeTab === "heatmap" ? (
-            <HeatMapTab
-              heatMapData={heatMapData}
-              selectedDepartment={selectedDepartment}
-              departments={departments}
-              formatScore={formatScore}
-              getPerformanceConfig={getPerformanceConfig}
-              onViewEmployee={(userId: string) => router.push(`/kpi/employee/${userId}`)}
-            />
           ) : (
-            <PredictionsTab
-              analyticsData={analyticsData}
-              getTrendIcon={getTrendIcon}
-              getConfidenceColor={getConfidenceColor}
-              formatScore={formatScore}
-              selectedDepartment={selectedDepartment}
-            />
+            <>
+              {activeTab === "insights" && analyticsData && (
+                <InsightsTab
+                  analyticsData={analyticsData}
+                  getImpactColor={getImpactColor}
+                  getPriorityColor={getPriorityColor}
+                  getPerformanceConfig={getPerformanceConfig}
+                  formatScore={formatScore}
+                  onViewEmployee={(userId: string) => router.push(`/kpi/employee/${userId}`)}
+                />
+              )}
+              {activeTab === "comparisons" && (
+                <ComparisonsTab
+                  departmentComparisons={departmentComparisons}
+                  selectedDepartment={selectedDepartment}
+                  formatScore={formatScore}
+                  getPerformanceConfig={getPerformanceConfig}
+                  COLORS={COLORS}
+                />
+              )}
+              {activeTab === "heatmap" && (
+                <HeatMapTab
+                  heatMapData={heatMapData}
+                  selectedDepartment={selectedDepartment}
+                  departments={departments}
+                  formatScore={formatScore}
+                  getPerformanceConfig={getPerformanceConfig}
+                  onViewEmployee={(userId: string) => router.push(`/kpi/employee/${userId}`)}
+                />
+              )}
+              {activeTab === "predictions" && analyticsData && (
+                <PredictionsTab
+                  analyticsData={{ predictions: analyticsData.predictions }}
+                  getTrendIcon={getTrendIcon}
+                  getConfidenceColor={getConfidenceColor}
+                  formatScore={formatScore}
+                  selectedDepartment={selectedDepartment}
+                />
+              )}
+            </>
           )}
         </div>
       </div>
