@@ -640,7 +640,7 @@ export default function EmployeeKPIDetailPage() {
                     name,
                     `${score}%`,
                     `${weight}%`,
-                    `${weighted.toFixed(1)}%`,
+                    `${typeof weighted === 'number' ? weighted.toFixed(1) : Number(weighted).toFixed(1)}%`,
                 ]),
                 theme: "striped",
                 headStyles: { fillColor: [99, 102, 241] },
@@ -908,9 +908,9 @@ export default function EmployeeKPIDetailPage() {
                                 <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
                                     <p className="text-sm text-gray-500">Total Score</p>
                                     <p className={`text-3xl font-bold ${employee.totalScore >= 90 ? "text-emerald-600"
-                                            : employee.totalScore >= 75 ? "text-blue-600"
-                                                : employee.totalScore >= 60 ? "text-amber-600"
-                                                    : "text-red-600"
+                                        : employee.totalScore >= 75 ? "text-blue-600"
+                                            : employee.totalScore >= 60 ? "text-amber-600"
+                                                : "text-red-600"
                                         }`}>
                                         {formatScore(employee.totalScore)}%
                                     </p>
@@ -1117,8 +1117,8 @@ export default function EmployeeKPIDetailPage() {
                                                     </div>
                                                     <div className="bg-gray-50 rounded-xl p-4 border border-rose-200">
                                                         <p className={`text-2xl font-bold ${taskStats.completionRate >= 80 ? "text-emerald-600"
-                                                                : taskStats.completionRate >= 50 ? "text-amber-600"
-                                                                    : "text-rose-600"
+                                                            : taskStats.completionRate >= 50 ? "text-amber-600"
+                                                                : "text-rose-600"
                                                             }`}>
                                                             {taskStats.completionRate}%
                                                         </p>
