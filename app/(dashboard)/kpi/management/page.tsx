@@ -1,4 +1,3 @@
-// app/(dashboard)/kpi/management/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -86,6 +85,26 @@ import {
   ComposedChart,
 } from "recharts";
 
+// ============================================================
+// TYPES
+// ============================================================
+interface Department {
+  _id: string;
+  name: string;
+  code: string;
+  description?: string;
+  isActive?: boolean;
+}
+
+interface KPIWeights {
+  taskCompletion: number;
+  qualityScore: number;
+  efficiency: number;
+  collaboration: number;
+  innovation: number;
+  attendance: number;
+}
+
 interface KPIWeight {
   _id?: string;
   departmentId: {
@@ -93,18 +112,17 @@ interface KPIWeight {
     name: string;
     code: string;
   };
-  weights: {
-    taskCompletion: number;
-    qualityScore: number;
-    efficiency: number;
-    collaboration: number;
-    innovation: number;
-    attendance: number;
-  };
+  weights: KPIWeights;
   totalWeight: number;
   version: number;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ScoreComponent {
+  score: number;
+  weight: number;
+  weightedScore: number;
 }
 
 interface KPIScore {
@@ -125,12 +143,12 @@ interface KPIScore {
   month: string;
   year: number;
   scores: {
-    taskCompletion: { score: number; weight: number; weightedScore: number };
-    qualityScore: { score: number; weight: number; weightedScore: number };
-    efficiency: { score: number; weight: number; weightedScore: number };
-    collaboration: { score: number; weight: number; weightedScore: number };
-    innovation: { score: number; weight: number; weightedScore: number };
-    attendance: { score: number; weight: number; weightedScore: number };
+    taskCompletion: ScoreComponent;
+    qualityScore: ScoreComponent;
+    efficiency: ScoreComponent;
+    collaboration: ScoreComponent;
+    innovation: ScoreComponent;
+    attendance: ScoreComponent;
   };
   totalScore: number;
   performanceLevel: "excellent" | "good" | "average" | "needs_improvement";
@@ -167,14 +185,68 @@ interface MonthlyReport {
   allScores: KPIScore[];
 }
 
+interface WeightLabels {
+  [key: string]: string;
+}
+
+interface WeightDescriptions {
+  [key: string]: string;
+}
+
+interface WeightIcons {
+  [key: string]: any;
+}
+
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444"];
 
+// ============================================================
+// WEIGHT CONFIGURATION CONSTANTS
+// ============================================================
+const DEFAULT_WEIGHTS: KPIWeights = {
+  taskCompletion: 20,
+  qualityScore: 20,
+  efficiency: 20,
+  collaboration: 15,
+  innovation: 15,
+  attendance: 10,
+};
+
+const WEIGHT_LABELS: WeightLabels = {
+  taskCompletion: "Task Completion",
+  qualityScore: "Quality Score",
+  efficiency: "Efficiency",
+  collaboration: "Collaboration",
+  innovation: "Innovation",
+  attendance: "Attendance",
+};
+
+const WEIGHT_DESCRIPTIONS: WeightDescriptions = {
+  taskCompletion: "Percentage of tasks completed on time",
+  qualityScore: "Quality of work based on approval rate",
+  efficiency: "Efficiency based on time management",
+  collaboration: "Team collaboration and communication",
+  innovation: "Innovation and creative contributions",
+  attendance: "Attendance and punctuality",
+};
+
+const WEIGHT_ICONS: WeightIcons = {
+  taskCompletion: CheckCircle,
+  qualityScore: Award,
+  efficiency: Zap,
+  collaboration: Users,
+  innovation: Brain,
+  attendance: Calendar,
+};
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function KPIManagementPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
 
   // State
-  const [departments, setDepartments] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>("");
   const [kpiWeights, setKpiWeights] = useState<KPIWeight | null>(null);
   const [monthlyReport, setMonthlyReport] = useState<MonthlyReport | null>(
@@ -188,23 +260,17 @@ export default function KPIManagementPage() {
     new Date().getFullYear(),
   );
   const [showWeightEditor, setShowWeightEditor] = useState(false);
-  const [editingWeights, setEditingWeights] = useState({
-    taskCompletion: 20,
-    qualityScore: 20,
-    efficiency: 20,
-    collaboration: 15,
-    innovation: 15,
-    attendance: 10,
-  });
+  const [editingWeights, setEditingWeights] = useState<KPIWeights>(DEFAULT_WEIGHTS);
   const [savingWeights, setSavingWeights] = useState(false);
   const [activeTab, setActiveTab] = useState<
-    "weights" | "report" | "employees"
+    "weights" | "report"
   >("weights");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPerformanceLevel, setSelectedPerformanceLevel] =
     useState<string>("all");
   const [sortBy, setSortBy] = useState<"score" | "name">("score");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const isDepartmentsLoaded = useRef(false);
 
   const canManage = hasRole([
     "super_admin",
@@ -233,47 +299,11 @@ export default function KPIManagementPage() {
 
   // Use ref to prevent infinite loops
   const isFetching = useRef(false);
+  const isInitialized = useRef(false);
 
-  useEffect(() => {
-    if (!selectedMonth) {
-      setSelectedMonth(currentMonth);
-    }
-  }, [currentMonth]);
 
-  useEffect(() => {
-    if (canManage) {
-      fetchDepartments();
-    }
-  }, [canManage]);
 
-  useEffect(() => {
-    if (selectedDepartment && !isFetching.current) {
-      fetchKPIWeights(selectedDepartment);
-    }
-  }, [selectedDepartment]);
-
-  useEffect(() => {
-    if (selectedMonth && selectedYear && !isFetching.current) {
-      fetchMonthlyReport();
-    }
-  }, [selectedMonth, selectedYear]);
-
-  const fetchDepartments = async () => {
-    try {
-      const response = await api.get("/departments");
-      if (response.data.success) {
-        setDepartments(response.data.data || []);
-        if (response.data.data.length > 0 && !selectedDepartment) {
-          setSelectedDepartment(response.data.data[0]._id);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching departments:", error);
-      toast.error("Failed to fetch departments");
-    }
-  };
-
-  const fetchKPIWeights = async (departmentId: string) => {
+  const fetchKPIWeights = useCallback(async (departmentId: string) => {
     if (isFetching.current) return;
     try {
       isFetching.current = true;
@@ -287,14 +317,13 @@ export default function KPIManagementPage() {
       }
     } catch (error) {
       console.error("Error fetching KPI weights:", error);
-      // Don't show error if weights don't exist yet
     } finally {
       setLoading(false);
       isFetching.current = false;
     }
-  };
+  }, []);
 
-  const fetchMonthlyReport = async () => {
+  const fetchMonthlyReport = useCallback(async () => {
     if (isFetching.current) return;
     try {
       isFetching.current = true;
@@ -308,10 +337,26 @@ export default function KPIManagementPage() {
       });
       if (response.data.success) {
         setMonthlyReport(response.data.data);
+      } else {
+        setMonthlyReport({
+          month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
+          year: selectedYear,
+          totalEmployees: 0,
+          overallAverage: 0,
+          distribution: {
+            excellent: 0,
+            good: 0,
+            average: 0,
+            needs_improvement: 0,
+          },
+          departmentAverages: [],
+          topPerformers: [],
+          allScores: [],
+        });
       }
     } catch (error) {
       console.error("Error fetching monthly report:", error);
-      // Set empty report instead of showing error
+      const monthIndex = months.indexOf(selectedMonth) + 1;
       setMonthlyReport({
         month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
         year: selectedYear,
@@ -331,11 +376,31 @@ export default function KPIManagementPage() {
       setReportLoading(false);
       isFetching.current = false;
     }
-  };
+  }, [selectedMonth, selectedYear, months]);
 
-  const handleSaveWeights = async () => {
+
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const response = await api.get("/departments");
+      if (response.data.success) {
+        setDepartments(response.data.data || []);
+        if (response.data.data.length > 0 && !selectedDepartment) {
+          setSelectedDepartment(response.data.data[0]._id);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      toast.error("Failed to fetch departments");
+    }
+  }, [selectedDepartment]);
+
+
+  // ============================================================
+  // HANDLERS
+  // ============================================================
+  const handleSaveWeights = useCallback(async () => {
     const total = Object.values(editingWeights).reduce(
-      (sum, val) => sum + val,
+      (sum: number, val: number) => sum + val,
       0,
     );
     if (total !== 100) {
@@ -352,7 +417,6 @@ export default function KPIManagementPage() {
         toast.success("KPI weights saved successfully");
         setKpiWeights(response.data.data);
         setShowWeightEditor(false);
-        // Refresh to show updated weights
         await fetchKPIWeights(selectedDepartment);
       }
     } catch (error: any) {
@@ -362,9 +426,9 @@ export default function KPIManagementPage() {
     } finally {
       setSavingWeights(false);
     }
-  };
+  }, [editingWeights, selectedDepartment, fetchKPIWeights]);
 
-  const handleCalculateKPI = async () => {
+  const handleCalculateKPI = useCallback(async () => {
     if (!selectedDepartment) {
       toast.error("Please select a department");
       return;
@@ -401,62 +465,9 @@ export default function KPIManagementPage() {
     } finally {
       setCalculating(false);
     }
-  };
+  }, [selectedDepartment, selectedMonth, selectedYear, departments, months, fetchMonthlyReport, fetchKPIWeights]);
 
-  const getPerformanceConfig = (level: string) => {
-    const config = {
-      excellent: {
-        color: "text-emerald-600",
-        bg: "bg-emerald-50",
-        border: "border-emerald-200",
-        icon: Crown,
-        label: "Excellent",
-        emoji: "🌟",
-      },
-      good: {
-        color: "text-blue-600",
-        bg: "bg-blue-50",
-        border: "border-blue-200",
-        icon: Award,
-        label: "Good",
-        emoji: "⭐",
-      },
-      average: {
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-        border: "border-amber-200",
-        icon: Medal,
-        label: "Average",
-        emoji: "📊",
-      },
-      needs_improvement: {
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-        icon: AlertCircle,
-        label: "Needs Improvement",
-        emoji: "📈",
-      },
-    };
-    return config[level as keyof typeof config] || config.average;
-  };
-
-  const formatScore = (score: number) => {
-    return score.toFixed(1);
-  };
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const handleExportReport = () => {
+  const handleExportReport = useCallback(() => {
     if (!monthlyReport || monthlyReport.allScores.length === 0) {
       toast.error("No data to export");
       return;
@@ -498,8 +509,111 @@ export default function KPIManagementPage() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Report exported successfully");
-  };
+  }, [monthlyReport, selectedMonth, selectedYear]);
 
+  // ============================================================
+  // HELPERS
+  // ============================================================
+  const getPerformanceConfig = useCallback((level: string) => {
+    const config: Record<string, {
+      color: string;
+      bg: string;
+      border: string;
+      icon: any;
+      label: string;
+      emoji: string;
+    }> = {
+      excellent: {
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        icon: Crown,
+        label: "Excellent",
+        emoji: "🌟",
+      },
+      good: {
+        color: "text-blue-600",
+        bg: "bg-blue-50",
+        border: "border-blue-200",
+        icon: Award,
+        label: "Good",
+        emoji: "⭐",
+      },
+      average: {
+        color: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        icon: Medal,
+        label: "Average",
+        emoji: "📊",
+      },
+      needs_improvement: {
+        color: "text-red-600",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        icon: AlertCircle,
+        label: "Needs Improvement",
+        emoji: "📈",
+      },
+    };
+    return config[level] || config.average;
+  }, []);
+
+  const formatScore = useCallback((score: number): string => {
+    return score?.toFixed(1) || "0.0";
+  }, []);
+
+  const formatDate = useCallback((dateString: string): string => {
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, []);
+
+  // ============================================================
+  // EFFECTS - All effects should be declared after all functions
+  // ============================================================
+
+  // Initialize selected month
+  useEffect(() => {
+    if (!selectedMonth && !isInitialized.current) {
+      isInitialized.current = true;
+      setSelectedMonth(currentMonth);
+    }
+  }, [selectedMonth, currentMonth]);
+
+  useEffect(() => {
+    if (canManage && !isDepartmentsLoaded.current) {
+      isDepartmentsLoaded.current = true;
+      fetchDepartments();
+    }
+  }, [canManage]);
+
+  // Fetch KPI weights when department changes
+  useEffect(() => {
+    if (selectedDepartment && !isFetching.current) {
+      fetchKPIWeights(selectedDepartment);
+    }
+  }, [selectedDepartment, fetchKPIWeights]);
+
+  // Fetch monthly report when month/year changes
+  useEffect(() => {
+    if (selectedMonth && selectedYear && !isFetching.current) {
+      fetchMonthlyReport();
+    }
+  }, [selectedMonth, selectedYear, fetchMonthlyReport]);
+
+  // ============================================================
+  // API CALLS - All functions declared before they're used
+  // ============================================================
+
+  // ============================================================
+  // ACCESS DENIED
+  // ============================================================
   if (!canManage) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -515,7 +629,7 @@ export default function KPIManagementPage() {
           </p>
           <button
             onClick={() => router.push("/dashboard")}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm"
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"
           >
             Go to Dashboard
           </button>
@@ -524,15 +638,18 @@ export default function KPIManagementPage() {
     );
   }
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-375 mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Breadcrumb */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 text-sm mb-6"
+            className="flex items-center gap-2 text-sm"
           >
             <Link
               href="/dashboard"
@@ -549,7 +666,7 @@ export default function KPIManagementPage() {
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6"
+            className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4"
           >
             <div>
               <div className="flex items-center gap-3">
@@ -669,11 +786,10 @@ export default function KPIManagementPage() {
           >
             <button
               onClick={() => setActiveTab("weights")}
-              className={`px-4 py-3 text-sm font-medium transition-all duration-200 relative ${
-                activeTab === "weights"
-                  ? "text-indigo-600"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
+              className={`px-4 py-3 text-sm font-medium transition-all duration-200 relative ${activeTab === "weights"
+                ? "text-indigo-600"
+                : "text-gray-500 hover:text-gray-700"
+                }`}
             >
               <Settings size={16} className="inline mr-2" />
               Weights Configuration
@@ -683,11 +799,10 @@ export default function KPIManagementPage() {
             </button>
             <button
               onClick={() => setActiveTab("report")}
-              className={`px-4 py-3 text-sm font-medium transition-all duration-200 relative ${
-                activeTab === "report"
-                  ? "text-indigo-600"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
+              className={`px-4 py-3 text-sm font-medium transition-all duration-200 relative ${activeTab === "report"
+                ? "text-indigo-600"
+                : "text-gray-500 hover:text-gray-700"
+                }`}
             >
               <BarChart3 size={16} className="inline mr-2" />
               Monthly Report
@@ -714,6 +829,10 @@ export default function KPIManagementPage() {
                 handleSaveWeights={handleSaveWeights}
                 loading={loading}
                 formatDate={formatDate}
+                WEIGHT_LABELS={WEIGHT_LABELS}
+                WEIGHT_DESCRIPTIONS={WEIGHT_DESCRIPTIONS}
+                WEIGHT_ICONS={WEIGHT_ICONS}
+                DEFAULT_WEIGHTS={DEFAULT_WEIGHTS}
               />
             )}
 
@@ -723,7 +842,8 @@ export default function KPIManagementPage() {
                 reportLoading={reportLoading}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
-                selectedDepartment={selectedDepartment} // ✅ PASS SELECTED DEPARTMENT
+                selectedDepartment={selectedDepartment}
+                departments={departments}
                 searchTerm={searchTerm}
                 setSearchTerm={setSearchTerm}
                 selectedPerformanceLevel={selectedPerformanceLevel}
@@ -749,8 +869,25 @@ export default function KPIManagementPage() {
 }
 
 // ============================================================
-// WEIGHTS TAB COMPONENT - Fully Dynamic
+// WEIGHTS TAB COMPONENT
 // ============================================================
+interface WeightsTabProps {
+  departmentName: string;
+  kpiWeights: KPIWeight | null;
+  editingWeights: KPIWeights;
+  setEditingWeights: (weights: KPIWeights) => void;
+  showWeightEditor: boolean;
+  setShowWeightEditor: (show: boolean) => void;
+  savingWeights: boolean;
+  handleSaveWeights: () => void;
+  loading: boolean;
+  formatDate: (date: string) => string;
+  WEIGHT_LABELS: WeightLabels;
+  WEIGHT_DESCRIPTIONS: WeightDescriptions;
+  WEIGHT_ICONS: WeightIcons;
+  DEFAULT_WEIGHTS: KPIWeights;
+}
+
 function WeightsTab({
   departmentName,
   kpiWeights,
@@ -762,39 +899,27 @@ function WeightsTab({
   handleSaveWeights,
   loading,
   formatDate,
-}: any) {
-  const weightLabels = {
-    taskCompletion: "Task Completion",
-    qualityScore: "Quality Score",
-    efficiency: "Efficiency",
-    collaboration: "Collaboration",
-    innovation: "Innovation",
-    attendance: "Attendance",
-  };
-
-  const weightDescriptions = {
-    taskCompletion: "Percentage of tasks completed on time",
-    qualityScore: "Quality of work based on approval rate",
-    efficiency: "Efficiency based on time management",
-    collaboration: "Team collaboration and communication",
-    innovation: "Innovation and creative contributions",
-    attendance: "Attendance and punctuality",
-  };
-
-  const weightIcons = {
-    taskCompletion: CheckCircle,
-    qualityScore: Award,
-    efficiency: Zap,
-    collaboration: Users,
-    innovation: Brain,
-    attendance: Calendar,
-  };
-
+  WEIGHT_LABELS,
+  WEIGHT_DESCRIPTIONS,
+  WEIGHT_ICONS,
+  DEFAULT_WEIGHTS,
+}: WeightsTabProps) {
   const total = Object.values(editingWeights).reduce(
-    (sum, val) => sum + val,
+    (sum: number, val: number) => sum + val,
     0,
   );
   const isValid = total === 100;
+
+  const handleWeightChange = (key: keyof KPIWeights, value: number) => {
+    setEditingWeights({
+      ...editingWeights,
+      [key]: Math.min(100, Math.max(0, value)),
+    });
+  };
+
+  const resetToDefault = () => {
+    setEditingWeights(DEFAULT_WEIGHTS);
+  };
 
   return (
     <div>
@@ -822,8 +947,8 @@ function WeightsTab({
         </div>
       ) : showWeightEditor ? (
         <div className="space-y-4">
-          {Object.keys(editingWeights).map((key) => {
-            const Icon = weightIcons[key as keyof typeof weightIcons];
+          {(Object.keys(editingWeights) as Array<keyof KPIWeights>).map((key) => {
+            const Icon = WEIGHT_ICONS[key];
             return (
               <div
                 key={key}
@@ -836,14 +961,10 @@ function WeightsTab({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">
-                        {weightLabels[key as keyof typeof weightLabels]}
+                        {WEIGHT_LABELS[key]}
                       </label>
                       <p className="text-xs text-gray-400">
-                        {
-                          weightDescriptions[
-                            key as keyof typeof weightDescriptions
-                          ]
-                        }
+                        {WEIGHT_DESCRIPTIONS[key]}
                       </p>
                     </div>
                   </div>
@@ -852,12 +973,9 @@ function WeightsTab({
                       type="range"
                       min="0"
                       max="100"
-                      value={editingWeights[key as keyof typeof editingWeights]}
+                      value={editingWeights[key]}
                       onChange={(e) =>
-                        setEditingWeights({
-                          ...editingWeights,
-                          [key]: parseInt(e.target.value),
-                        })
+                        handleWeightChange(key, parseInt(e.target.value))
                       }
                       className="w-48 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                     />
@@ -865,12 +983,9 @@ function WeightsTab({
                       type="number"
                       min="0"
                       max="100"
-                      value={editingWeights[key as keyof typeof editingWeights]}
+                      value={editingWeights[key]}
                       onChange={(e) =>
-                        setEditingWeights({
-                          ...editingWeights,
-                          [key]: parseInt(e.target.value) || 0,
-                        })
+                        handleWeightChange(key, parseInt(e.target.value) || 0)
                       }
                       className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-center text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                     />
@@ -879,13 +994,12 @@ function WeightsTab({
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                   <div
-                    className={`h-1.5 rounded-full transition-all ${
-                      editingWeights[key as keyof typeof editingWeights] > 0
-                        ? "bg-gradient-to-r from-indigo-500 to-purple-500"
-                        : "bg-gray-300"
-                    }`}
+                    className={`h-1.5 rounded-full transition-all ${editingWeights[key] > 0
+                      ? "bg-gradient-to-r from-indigo-500 to-purple-500"
+                      : "bg-gray-300"
+                      }`}
                     style={{
-                      width: `${editingWeights[key as keyof typeof editingWeights]}%`,
+                      width: `${editingWeights[key]}%`,
                     }}
                   />
                 </div>
@@ -898,9 +1012,8 @@ function WeightsTab({
               <div>
                 <span className="text-sm font-medium text-gray-700">Total</span>
                 <span
-                  className={`ml-2 text-sm font-bold ${
-                    isValid ? "text-emerald-600" : "text-rose-600"
-                  }`}
+                  className={`ml-2 text-sm font-bold ${isValid ? "text-emerald-600" : "text-rose-600"
+                    }`}
                 >
                   {total}%
                 </span>
@@ -912,16 +1025,7 @@ function WeightsTab({
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    setEditingWeights({
-                      taskCompletion: 20,
-                      qualityScore: 20,
-                      efficiency: 20,
-                      collaboration: 15,
-                      innovation: 15,
-                      attendance: 10,
-                    });
-                  }}
+                  onClick={resetToDefault}
                   className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition text-sm"
                 >
                   Reset to Default
@@ -945,8 +1049,9 @@ function WeightsTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {kpiWeights?.weights ? (
-            Object.entries(kpiWeights.weights).map(([key, value]) => {
-              const Icon = weightIcons[key as keyof typeof weightIcons];
+            (Object.keys(kpiWeights.weights) as Array<keyof KPIWeights>).map((key) => {
+              const Icon = WEIGHT_ICONS[key];
+              const value = kpiWeights.weights[key];
               return (
                 <div
                   key={key}
@@ -959,14 +1064,10 @@ function WeightsTab({
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-700">
-                          {weightLabels[key as keyof typeof weightLabels]}
+                          {WEIGHT_LABELS[key]}
                         </p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {
-                            weightDescriptions[
-                              key as keyof typeof weightDescriptions
-                            ]
-                          }
+                          {WEIGHT_DESCRIPTIONS[key]}
                         </p>
                       </div>
                     </div>
@@ -1015,14 +1116,37 @@ function WeightsTab({
 }
 
 // ============================================================
-// REPORT TAB COMPONENT - Fully Dynamic with Department Filter
+// REPORT TAB COMPONENT
 // ============================================================
+interface ReportTabProps {
+  monthlyReport: MonthlyReport | null;
+  reportLoading: boolean;
+  selectedMonth: string;
+  selectedYear: number;
+  selectedDepartment: string;
+  departments: Department[];
+  searchTerm: string;
+  setSearchTerm: (term: string) => void;
+  selectedPerformanceLevel: string;
+  setSelectedPerformanceLevel: (level: string) => void;
+  sortBy: "score" | "name";
+  setSortBy: (sort: "score" | "name") => void;
+  sortOrder: "asc" | "desc";
+  setSortOrder: (order: "asc" | "desc") => void;
+  getPerformanceConfig: (level: string) => any;
+  formatScore: (score: number) => string;
+  formatDate: (date: string) => string;
+  onViewEmployee: (userId: string) => void;
+  COLORS: string[];
+}
+
 function ReportTab({
   monthlyReport,
   reportLoading,
   selectedMonth,
   selectedYear,
   selectedDepartment,
+  departments,
   searchTerm,
   setSearchTerm,
   selectedPerformanceLevel,
@@ -1036,7 +1160,7 @@ function ReportTab({
   formatDate,
   onViewEmployee,
   COLORS,
-}: any) {
+}: ReportTabProps) {
   const performanceLevels = [
     { value: "all", label: "All Levels" },
     { value: "excellent", label: "Excellent" },
@@ -1045,14 +1169,14 @@ function ReportTab({
     { value: "needs_improvement", label: "Needs Improvement" },
   ];
 
-  // Filter and sort scores - NOW INCLUDES DEPARTMENT FILTER
+  // Filter and sort scores - with department filter
   const filteredScores = useMemo(() => {
     if (!monthlyReport) return [];
 
     let scores = [...monthlyReport.allScores];
 
-    // 🔥 FILTER BY SELECTED DEPARTMENT
-    if (selectedDepartment && selectedDepartment !== "all") {
+    // Filter by selected department
+    if (selectedDepartment) {
       scores = scores.filter((s) => s.departmentId._id === selectedDepartment);
     }
 
@@ -1128,13 +1252,12 @@ function ReportTab({
 
   // Get department name for display
   const departmentName =
-    monthlyReport.departmentAverages.find(
-      (d: any) => d.department._id === selectedDepartment,
-    )?.department?.name || "All Departments";
+    departments.find((d) => d._id === selectedDepartment)?.name ||
+    "All Departments";
 
   return (
     <div>
-      {/* Summary Cards - Show filtered counts */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
           {
@@ -1148,7 +1271,7 @@ function ReportTab({
             label: "Average Score",
             value:
               filteredScores.length > 0
-                ? `${formatScore(filteredScores.reduce((sum, s) => sum + s.totalScore, 0) / filteredScores.length)}%`
+                ? `${formatScore(filteredScores.reduce((sum: number, s: KPIScore) => sum + s.totalScore, 0) / filteredScores.length)}%`
                 : "0%",
             icon: Target,
             color: "text-purple-600",
@@ -1211,7 +1334,7 @@ function ReportTab({
         )}
       </div>
 
-      {/* Distribution Chart - Filtered */}
+      {/* Distribution Chart */}
       {filteredScores.length > 0 && (
         <div className="mb-6 p-4 bg-gray-50/80 rounded-xl border border-gray-200">
           <h4 className="text-sm font-medium text-gray-700 mb-3">
@@ -1278,7 +1401,7 @@ function ReportTab({
         </div>
       )}
 
-      {/* Top Performers - Filtered */}
+      {/* Top Performers */}
       {filteredScores.length > 0 && (
         <div className="mb-6 p-4 bg-gradient-to-r from-amber-50/80 to-orange-50/80 rounded-xl border border-amber-200">
           <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
@@ -1317,9 +1440,9 @@ function ReportTab({
         </div>
       )}
 
-      {/* Employee List - Filtered */}
+      {/* Employee List */}
       <div>
-        <h3 className="text-black mb-3">All Departments Rank</h3>
+        <h3 className="text-gray-800 font-medium mb-3">All Employees</h3>
         <div className="flex flex-wrap gap-3 mb-4">
           <div className="flex-1 min-w-[200px] relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1344,7 +1467,7 @@ function ReportTab({
           </select>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => setSortBy(e.target.value as "score" | "name")}
             className="px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
           >
             <option value="score">Sort by Score</option>
@@ -1416,15 +1539,14 @@ function ReportTab({
                         </span>
                         <div className="w-16 bg-gray-200 rounded-full h-1.5">
                           <div
-                            className={`h-1.5 rounded-full ${
-                              score.totalScore >= 90
-                                ? "bg-emerald-500"
-                                : score.totalScore >= 75
-                                  ? "bg-blue-500"
-                                  : score.totalScore >= 60
-                                    ? "bg-amber-500"
-                                    : "bg-red-500"
-                            }`}
+                            className={`h-1.5 rounded-full ${score.totalScore >= 90
+                              ? "bg-emerald-500"
+                              : score.totalScore >= 75
+                                ? "bg-blue-500"
+                                : score.totalScore >= 60
+                                  ? "bg-amber-500"
+                                  : "bg-red-500"
+                              }`}
                             style={{ width: `${score.totalScore}%` }}
                           />
                         </div>
@@ -1458,9 +1580,7 @@ function ReportTab({
           </table>
           {filteredScores.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              {selectedDepartment !== "all"
-                ? `No employees found in ${departmentName} matching your filters`
-                : "No employees found matching your filters"}
+              No employees found matching your filters
             </div>
           )}
         </div>

@@ -199,13 +199,13 @@ export default function KPIDashboardPage() {
       isMounted.current = false;
     };
   }, []);
-  // Combined data - merge users with their KPI scores
+  
   const combinedData = useMemo(() => {
     const kpiMap = new Map<string, KPIScore>();
 
     kpiScores.forEach((kpi) => {
       if (!kpi || !kpi.userId) return;
-      const userId = kpi.userId._id;
+      const userId = typeof kpi.userId === 'object' ? kpi.userId?._id : kpi.userId;
       if (userId) {
         kpiMap.set(userId, kpi);
       }
