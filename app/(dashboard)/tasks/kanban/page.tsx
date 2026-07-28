@@ -66,7 +66,6 @@ import {
   DragOverlay,
   DragStartEvent,
   DragEndEvent,
-  DragOverEvent,
   useSensor,
   useSensors,
   PointerSensor,
@@ -80,7 +79,6 @@ import {
 } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { arrayMove } from "@dnd-kit/sortable";
 
 // ============================================================
 // TYPES
@@ -129,10 +127,30 @@ interface Stats {
 }
 
 // ============================================================
+// CONSTANTS
+// ============================================================
+const PRIORITY_ORDER: Record<string, number> = {
+  urgent: 4,
+  high: 3,
+  normal: 2,
+  low: 1,
+};
+
+const DEFAULT_COLUMN_SETTINGS: ColumnSettings[] = [
+  { id: "pending", title: "To Do", color: "amber", visible: true },
+  { id: "in_progress", title: "In Progress", color: "sky", visible: true },
+  { id: "submitted", title: "Review", color: "purple", visible: true },
+  { id: "completed", title: "Done", color: "emerald", visible: true },
+  { id: "overdue", title: "Overdue", color: "rose", visible: true },
+];
+
+// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function TaskBoardPage() {
   const { user, hasRole } = useAuth();
+
+  // State
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"kanban" | "list">("kanban");
@@ -157,13 +175,19 @@ export default function TaskBoardPage() {
     overdue: 0,
     submitted: 0,
   });
-  const [columnSettings, setColumnSettings] = useState<ColumnSettings[]>([
-    { id: "pending", title: "To Do", color: "amber", visible: true },
-    { id: "in_progress", title: "In Progress", color: "sky", visible: true },
-    { id: "submitted", title: "Review", color: "purple", visible: true },
-    { id: "completed", title: "Done", color: "emerald", visible: true },
-    { id: "overdue", title: "Overdue", color: "rose", visible: true },
-  ]);
+  const [columnSettings, setColumnSettings] = useState<ColumnSettings[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("taskBoardColumns");
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to parse column settings", e);
+        }
+      }
+    }
+    return DEFAULT_COLUMN_SETTINGS;
+  });
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [newColumnTitle, setNewColumnTitle] = useState("");
@@ -181,6 +205,7 @@ export default function TaskBoardPage() {
   const [quickEditTaskId, setQuickEditTaskId] = useState<string | null>(null);
   const [quickEditPriority, setQuickEditPriority] = useState<string>("");
   const [quickEditDeadline, setQuickEditDeadline] = useState<string>("");
+  const isInitialized = useRef(false);
 
   const canManageTasks = hasRole([
     "super_admin",
@@ -200,7 +225,7 @@ export default function TaskBoardPage() {
     useSensor(KeyboardSensor, {
       coordinateGetter: (event) => {
         const { currentTarget } = event;
-        if (!currentTarget) return null;
+        if (!currentTarget) return undefined;
         const rect = (currentTarget as HTMLElement).getBoundingClientRect();
         return {
           x: rect.left + rect.width / 2,
@@ -210,40 +235,25 @@ export default function TaskBoardPage() {
     }),
   );
 
-  // Load column settings from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("taskBoardColumns");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setColumnSettings(parsed);
-      } catch (e) {
-        console.error("Failed to parse column settings", e);
-      }
-    }
-  }, []);
-
   // Save column settings to localStorage
   const saveColumnSettings = useCallback((settings: ColumnSettings[]) => {
     localStorage.setItem("taskBoardColumns", JSON.stringify(settings));
     setColumnSettings(settings);
   }, []);
 
-  useEffect(() => {
-    fetchTasks();
-    fetchProjects();
-  }, []);
-
-  const fetchProjects = async () => {
+  // ============================================================
+  // API FUNCTIONS
+  // ============================================================
+  const fetchProjects = useCallback(async () => {
     try {
       const response = await api.get("/projects");
       if (response.data.success) setProjects(response.data.data);
     } catch (error) {
       console.error(error);
     }
-  };
+  }, []);
 
-  const fetchTasks = async () => {
+  const fetchTasks = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get("/tasks");
@@ -262,8 +272,22 @@ export default function TaskBoardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // ============================================================
+  // EFFECTS
+  // ============================================================
+useEffect(() => {
+  if (!isInitialized.current) {
+    isInitialized.current = true;
+    fetchTasks();
+    fetchProjects();
+  }
+}, []);
+
+  // ============================================================
+  // HANDLERS
+  // ============================================================
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     try {
       const response = await api.patch(`/tasks/${taskId}/status`, {
@@ -279,17 +303,13 @@ export default function TaskBoardPage() {
               : task,
           ),
         );
-        updateStats();
+        fetchTasks();
       }
     } catch (error: any) {
       console.error("Status update error:", error);
       toast.error(error.response?.data?.message || "Failed to update status");
       await fetchTasks();
     }
-  };
-
-  const updateStats = () => {
-    // Stats will be updated on next fetch
   };
 
   // Bulk Move Functions
@@ -351,7 +371,7 @@ export default function TaskBoardPage() {
       setBulkMode(false);
       setShowBulkMoveModal(false);
       setBulkTargetStatus(null);
-      updateStats();
+      fetchTasks();
     } catch (error: any) {
       toast.dismiss(toastId);
       toast.error("Failed to move tasks. Please try again.");
@@ -486,7 +506,7 @@ export default function TaskBoardPage() {
   };
 
   // Helper Functions
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = useCallback((priority: string) => {
     const colors: Record<string, string> = {
       low: "bg-emerald-50 text-emerald-700 border-emerald-200",
       normal: "bg-blue-50 text-blue-700 border-blue-200",
@@ -494,9 +514,9 @@ export default function TaskBoardPage() {
       urgent: "bg-rose-50 text-rose-700 border-rose-200",
     };
     return colors[priority] || colors.normal;
-  };
+  }, []);
 
-  const getPriorityIcon = (priority: string) => {
+  const getPriorityIcon = useCallback((priority: string) => {
     switch (priority) {
       case "urgent":
         return <AlertCircle size={10} className="text-rose-500" />;
@@ -507,9 +527,9 @@ export default function TaskBoardPage() {
       default:
         return <Flag size={10} className="text-emerald-500" />;
     }
-  };
+  }, []);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     const colors: Record<string, string> = {
       pending: "bg-amber-50 text-amber-700 border-amber-200",
       in_progress: "bg-sky-50 text-sky-700 border-sky-200",
@@ -518,9 +538,9 @@ export default function TaskBoardPage() {
       overdue: "bg-rose-50 text-rose-700 border-rose-200",
     };
     return colors[status] || colors.pending;
-  };
+  }, []);
 
-  const formatDate = (dateString: string) => {
+  const formatDate = useCallback((dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffDays = Math.ceil(
@@ -530,9 +550,62 @@ export default function TaskBoardPage() {
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Tomorrow";
     return `${diffDays}d`;
-  };
+  }, []);
 
-  const handleExport = () => {
+  // ============================================================
+  // FILTERED TASKS - DECLARED BEFORE handleExport
+  // ============================================================
+  const getFilteredTasks = useCallback(() => {
+    const searchLower = searchTerm.toLowerCase();
+
+    const filtered = tasks.filter((task) => {
+      const matchesSearch =
+        !searchLower ||
+        task.title?.toLowerCase().includes(searchLower) ||
+        task.description?.toLowerCase().includes(searchLower);
+
+      const matchesPriority =
+        !selectedPriority || task.priority === selectedPriority;
+
+      const matchesProject =
+        !selectedProject || task.projectId?._id === selectedProject;
+
+      return matchesSearch && matchesPriority && matchesProject;
+    });
+
+    return [...filtered].sort((a, b) => {
+      let aVal = 0;
+      let bVal = 0;
+
+      switch (sortBy) {
+        case "deadline":
+          aVal = a.deadline ? new Date(a.deadline).getTime() : 0;
+          bVal = b.deadline ? new Date(b.deadline).getTime() : 0;
+          break;
+        case "priority":
+          aVal = PRIORITY_ORDER[a.priority] ?? 0;
+          bVal = PRIORITY_ORDER[b.priority] ?? 0;
+          break;
+        default:
+          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      }
+
+      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+    });
+  }, [tasks, searchTerm, selectedPriority, selectedProject, sortBy, sortOrder]);
+
+  const filteredTasks = getFilteredTasks();
+
+  // ============================================================
+  // HANDLE EXPORT - DECLARED AFTER filteredTasks
+  // ============================================================
+  const handleExport = useCallback(() => {
+    if (filteredTasks.length === 0) {
+      toast.error("No tasks to export");
+      return;
+    }
+
     const headers = [
       "Title",
       "Priority",
@@ -563,60 +636,11 @@ export default function TaskBoardPage() {
     link.click();
     URL.revokeObjectURL(url);
     toast.success("Tasks exported successfully");
-  };
+  }, [filteredTasks]);
 
-  // 1. Move static lookup tables outside the component (or memo block)
-  const PRIORITY_ORDER: Record<string, number> = {
-    urgent: 4,
-    high: 3,
-    normal: 2,
-    low: 1,
-  };
-
-  // Inside your component:
-  const filteredTasks = useMemo(() => {
-    const searchLower = searchTerm.toLowerCase();
-
-    // 1. Filter tasks cleanly
-    const filtered = tasks.filter((task) => {
-      const matchesSearch =
-        !searchLower ||
-        task.title?.toLowerCase().includes(searchLower) ||
-        task.description?.toLowerCase().includes(searchLower);
-
-      const matchesPriority =
-        !selectedPriority || task.priority === selectedPriority;
-
-      const matchesProject =
-        !selectedProject || task.projectId?._id === selectedProject;
-
-      return matchesSearch && matchesPriority && matchesProject;
-    });
-
-    // 2. Sort safely without in-place mutation side-effects
-    return [...filtered].sort((a, b) => {
-      let aVal = 0;
-      let bVal = 0;
-
-      switch (sortBy) {
-        case "deadline":
-          aVal = a.deadline ? new Date(a.deadline).getTime() : 0;
-          bVal = b.deadline ? new Date(b.deadline).getTime() : 0;
-          break;
-        case "priority":
-          aVal = PRIORITY_ORDER[a.priority] ?? 0;
-          bVal = PRIORITY_ORDER[b.priority] ?? 0;
-          break;
-        default:
-          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      }
-
-      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-    });
-  }, [tasks, searchTerm, selectedPriority, selectedProject, sortBy, sortOrder]);
-
-  // Build columns with tasks
+  // ============================================================
+  // BUILD COLUMNS
+  // ============================================================
   const columns = useMemo(() => {
     const visibleColumns = columnSettings.filter((col) => col.visible);
     return visibleColumns.map((col) => {
@@ -653,14 +677,18 @@ export default function TaskBoardPage() {
     });
   }, [filteredTasks, columnSettings]);
 
-  const getActiveTask = () => tasks.find((task) => task._id === activeId);
+  const getActiveTask = useCallback(() => {
+    return tasks.find((task) => task._id === activeId);
+  }, [tasks, activeId]);
 
-  // Drag and Drop
-  const handleDragStart = (event: DragStartEvent) => {
+  // ============================================================
+  // DRAG AND DROP
+  // ============================================================
+  const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveId(event.active.id as string);
-  };
+  }, []);
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event;
     setActiveId(null);
     if (!over) return;
@@ -688,7 +716,7 @@ export default function TaskBoardPage() {
     if (targetStatus && targetStatus !== activeTask.status) {
       await handleStatusChange(activeTask._id, targetStatus);
     }
-  };
+  }, [tasks, columnSettings, handleStatusChange]);
 
   if (loading) {
     return (
@@ -751,8 +779,8 @@ export default function TaskBoardPage() {
                   if (bulkMode) setSelectedTaskIds(new Set());
                 }}
                 className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${bulkMode
-                  ? "bg-indigo-600 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                   }`}
               >
                 <CheckSquare size={14} />
@@ -787,8 +815,8 @@ export default function TaskBoardPage() {
               <button
                 onClick={() => setShowColumnSettings(!showColumnSettings)}
                 className={`px-3 py-2 rounded-lg transition text-sm flex items-center gap-2 shadow-sm ${showColumnSettings
-                  ? "bg-indigo-600 text-white"
-                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                   }`}
               >
                 <Columns size={14} />
@@ -798,8 +826,8 @@ export default function TaskBoardPage() {
                 <button
                   onClick={() => setView("kanban")}
                   className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${view === "kanban"
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
                     }`}
                 >
                   <LayoutGrid size={14} />
@@ -808,8 +836,8 @@ export default function TaskBoardPage() {
                 <button
                   onClick={() => setView("list")}
                   className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${view === "list"
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
                     }`}
                 >
                   <List size={14} />
@@ -962,8 +990,8 @@ export default function TaskBoardPage() {
                         <button
                           onClick={() => handleToggleColumnVisibility(col.id)}
                           className={`p-1 rounded ${col.visible
-                            ? "text-emerald-500 hover:text-emerald-600"
-                            : "text-gray-400 hover:text-gray-600"
+                              ? "text-emerald-500 hover:text-emerald-600"
+                              : "text-gray-400 hover:text-gray-600"
                             }`}
                         >
                           {col.visible ? (
@@ -1104,8 +1132,8 @@ export default function TaskBoardPage() {
             <button
               onClick={() => setShowFilters(!showFilters)}
               className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm ${showFilters
-                ? "bg-indigo-600 text-white"
-                : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                 }`}
             >
               <Filter size={14} />
@@ -1456,9 +1484,9 @@ export default function TaskBoardPage() {
                         >
                           <span
                             className={`text-xs font-medium ${new Date(task.deadline) < new Date() &&
-                              task.status !== "completed"
-                              ? "text-rose-500"
-                              : "text-gray-500"
+                                task.status !== "completed"
+                                ? "text-rose-500"
+                                : "text-gray-500"
                               }`}
                           >
                             {new Date(task.deadline).toLocaleDateString()}
@@ -1775,8 +1803,6 @@ function TaskCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const isQuickEditing = quickEditTaskId === task._id;
-
   return (
     <div
       ref={setNodeRef}
@@ -1791,8 +1817,8 @@ function TaskCard({
         }
       }}
       className={`bg-white rounded-lg p-3 border transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:-translate-y-0.5 group ${isSelected
-        ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50/30"
-        : "border-gray-200 hover:border-indigo-300"
+          ? "border-indigo-400 ring-2 ring-indigo-200 bg-indigo-50/30"
+          : "border-gray-200 hover:border-indigo-300"
         }`}
     >
       <div className="flex items-center justify-between mb-2">
@@ -1870,8 +1896,8 @@ function TaskCard({
             <Calendar size={8} className="text-gray-400" />
             <span
               className={`text-[8px] font-medium ${formatDate(task.deadline) === "Overdue"
-                ? "text-rose-500"
-                : "text-gray-500"
+                  ? "text-rose-500"
+                  : "text-gray-500"
                 }`}
             >
               {formatDate(task.deadline)}
@@ -1962,9 +1988,9 @@ function TaskDetailsModal({
               <p className="text-xs text-gray-500">Deadline</p>
               <p
                 className={`text-sm font-medium mt-0.5 ${new Date(task.deadline) < new Date() &&
-                  task.status !== "completed"
-                  ? "text-rose-600"
-                  : "text-gray-800"
+                    task.status !== "completed"
+                    ? "text-rose-600"
+                    : "text-gray-800"
                   }`}
               >
                 {new Date(task.deadline).toLocaleDateString()}
