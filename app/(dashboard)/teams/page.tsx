@@ -165,7 +165,7 @@ export default function TeamsPage() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [memberSearch, setMemberSearch] = useState("");
   const [isMemberDropdownOpen, setIsMemberDropdownOpen] = useState(false);
-  const memberDropdownRef = useRef<HTMLDivElement>(null);
+  const memberDropdownRef = useRef<HTMLDivElement | null>(null);
   const isDataFetched = useRef(false);
 
   // Form State
@@ -1336,7 +1336,7 @@ interface TeamFormProps {
   setMemberSearch: (value: string) => void;
   isMemberDropdownOpen: boolean;
   setIsMemberDropdownOpen: (value: boolean) => void;
-  memberDropdownRef: React.RefObject<HTMLDivElement>;
+  memberDropdownRef: React.RefObject<HTMLDivElement | null>;
   selectedMembersList: User[];
   filteredAvailableMembers: User[];
   toggleMember: (userId: string) => void;
