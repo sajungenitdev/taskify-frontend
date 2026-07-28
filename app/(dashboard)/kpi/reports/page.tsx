@@ -395,7 +395,7 @@ export default function KPIReportsPage() {
         attendance: { score: 0, weight: 10, weightedScore: 0 },
       },
       calculatedAt: new Date().toISOString(),
-    }));
+    })) as KPIScore[];
   }, []);
 
   // ============================================================
