@@ -43,6 +43,9 @@ import {
   CartesianGrid,
 } from "recharts";
 
+// ============================================================
+// TYPES
+// ============================================================
 interface KPIScore {
   _id: string;
   userId: {
@@ -57,7 +60,7 @@ interface KPIScore {
     _id: string;
     name: string;
     code: string;
-  };
+  } | null;
   month: string;
   year: number;
   totalScore: number;
@@ -136,10 +139,41 @@ interface ScoreRangeDataItem {
   count: number;
 }
 
+// ============================================================
+// CONSTANTS
+// ============================================================
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const YEARS = [2023, 2024, 2025, 2026];
+
+const PERFORMANCE_COLORS = {
+  excellent: "#10b981",
+  good: "#3b82f6",
+  average: "#f59e0b",
+  needs_improvement: "#ef4444",
+};
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function KPIDashboardPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
 
+  // State
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [kpiScores, setKpiScores] = useState<KPIScore[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -161,7 +195,6 @@ export default function KPIDashboardPage() {
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
   const [userDepartmentId, setUserDepartmentId] = useState<string | null>(null);
-  const userDeptInitialized = useRef(false);
 
   const canManage = hasRole([
     "super_admin",
@@ -170,66 +203,14 @@ export default function KPIDashboardPage() {
     "dept_manager",
   ]);
 
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
+  const currentMonth = MONTHS[new Date().getMonth()];
 
-  const currentMonth = months[new Date().getMonth()];
-
-  // Refs to prevent multiple initialization
+  // Refs
   const isInitialized = useRef(false);
   const isFetching = useRef(false);
-  const isMounted = useRef(true);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-  
-  const combinedData = useMemo(() => {
-    const kpiMap = new Map<string, KPIScore>();
-
-    kpiScores.forEach((kpi) => {
-      if (!kpi || !kpi.userId) return;
-      const userId = typeof kpi.userId === 'object' ? kpi.userId?._id : kpi.userId;
-      if (userId) {
-        kpiMap.set(userId, kpi);
-      }
-    });
-
-    return allUsers.map((user) => ({
-      user,
-      kpi: kpiMap.get(user._id) || null
-    }));
-  }, [allUsers, kpiScores]);
-
-  // Chart data
-  const chartData = useMemo<ChartDataItem[]>(() => {
-    if (!stats) return [];
-    return [
-      { name: "Excellent", value: stats.distribution.excellent },
-      { name: "Good", value: stats.distribution.good },
-      { name: "Average", value: stats.distribution.average },
-      { name: "Needs Improvement", value: stats.distribution.needs_improvement },
-    ];
-  }, [stats]);
 
   // ============================================================
-  // ROLE-BASED FILTERING - Check if user can view all data
+  // ROLE-BASED FILTERING
   // ============================================================
   const canViewAllData = useMemo(() => {
     if (!user) return false;
@@ -258,9 +239,9 @@ export default function KPIDashboardPage() {
   // CALCULATE STATS
   // ============================================================
   const calculateStats = useCallback((scores: KPIScore[], users: User[]) => {
-    // Department extraction (only from filtered users)
+    // Department extraction with null check
     const depts = [
-      ...new Set(users.map((u) => u.departmentId?.name || "Unassigned")),
+      ...new Set(users.map((u) => u.departmentId?.name || "Unassigned"))
     ];
     setDepartments(depts);
 
@@ -281,9 +262,10 @@ export default function KPIDashboardPage() {
       else scoreRanges["81-100"]++;
     });
 
-    // Calculate department averages (only from filtered data)
+    // Calculate department averages with null check
     const deptMap = new Map<string, { total: number; count: number; deptId: string }>();
     scores.forEach((s) => {
+      if (!s.departmentId) return;
       const deptName = s.departmentId.name;
       if (!deptMap.has(deptName)) {
         deptMap.set(deptName, {
@@ -308,21 +290,20 @@ export default function KPIDashboardPage() {
 
     // Distribution
     const distribution = {
-      excellent: scores.filter((s) => s.performanceLevel === "excellent")
-        .length,
+      excellent: scores.filter((s) => s.performanceLevel === "excellent").length,
       good: scores.filter((s) => s.performanceLevel === "good").length,
       average: scores.filter((s) => s.performanceLevel === "average").length,
       needs_improvement: scores.filter(
-        (s) => s.performanceLevel === "needs_improvement",
+        (s) => s.performanceLevel === "needs_improvement"
       ).length,
     };
 
     const totalScore = scores.reduce((sum, s) => sum + s.totalScore, 0);
-    const averageScore =
-      scores.length > 0 ? Math.round(totalScore / scores.length) : 0;
+    const averageScore = scores.length > 0 ? Math.round(totalScore / scores.length) : 0;
 
-    // Get top performers (sorted by score)
+    // Get top performers with null check
     const topPerformers = [...scores]
+      .filter(s => s.departmentId !== null)
       .sort((a, b) => b.totalScore - a.totalScore)
       .slice(0, 5);
 
@@ -340,33 +321,29 @@ export default function KPIDashboardPage() {
   }, []);
 
   // ============================================================
-  // FETCH DATA WITH ROLE-BASED FILTERING
+  // FETCH DATA
   // ============================================================
   const fetchAllData = useCallback(async () => {
-    if (isFetching.current || !isMounted.current) return;
+    if (isFetching.current) return;
 
     try {
       isFetching.current = true;
       setLoading(true);
 
-      // Fetch all users
       const usersResponse = await api.get("/users");
       let usersData = usersResponse.data.success ? usersResponse.data.data : [];
 
-      // Apply role-based filtering
       if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
         usersData = usersData.filter(
-          (u: User) => u.departmentId?._id === userDepartmentId,
+          (u: User) => u.departmentId?._id === userDepartmentId
         );
       } else if (canViewOwnData && user) {
         usersData = usersData.filter((u: User) => u._id === user._id);
       }
 
-      if (!isMounted.current) return;
       setAllUsers(usersData);
 
-      // Fetch KPI scores for the selected month
-      const monthIndex = months.indexOf(selectedMonth) + 1;
+      const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
       try {
         const kpiResponse = await api.get(`/kpi/report/monthly`, {
           params: {
@@ -375,20 +352,17 @@ export default function KPIDashboardPage() {
           },
         });
 
-        if (!isMounted.current) return;
-
         if (kpiResponse.data.success) {
           const data = kpiResponse.data.data;
           let scoresData = data.allScores || [];
 
-          // Apply role-based filtering to scores
           if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
             scoresData = scoresData.filter(
-              (s: KPIScore) => s.departmentId._id === userDepartmentId,
+              (s: KPIScore) => s.departmentId?._id === userDepartmentId
             );
           } else if (canViewOwnData && user) {
             scoresData = scoresData.filter(
-              (s: KPIScore) => s.userId._id === user._id,
+              (s: KPIScore) => s.userId?._id === user._id
             );
           }
 
@@ -397,21 +371,15 @@ export default function KPIDashboardPage() {
         }
       } catch (kpiError) {
         console.log("No KPI data found, showing users only");
-        if (isMounted.current) {
-          setKpiScores([]);
-          calculateStats([], usersData);
-        }
+        setKpiScores([]);
+        calculateStats([], usersData);
       }
     } catch (error: any) {
       console.error("Error fetching data:", error);
-      if (isMounted.current) {
-        toast.error(error.response?.data?.message || "Failed to fetch data");
-      }
+      toast.error(error.response?.data?.message || "Failed to fetch data");
     } finally {
-      if (isMounted.current) {
-        setLoading(false);
-        isFetching.current = false;
-      }
+      setLoading(false);
+      isFetching.current = false;
     }
   }, [
     canViewAllData,
@@ -421,10 +389,12 @@ export default function KPIDashboardPage() {
     userDepartmentId,
     selectedMonth,
     selectedYear,
-    months,
     calculateStats,
   ]);
 
+  // ============================================================
+  // FETCH EMPLOYEE DETAIL
+  // ============================================================
   const fetchEmployeeDetail = useCallback(async (userId: string) => {
     try {
       setEmployeeLoading(true);
@@ -432,9 +402,7 @@ export default function KPIDashboardPage() {
       if (response.data.success) {
         const kpiHistory = response.data.data || [];
         const currentKPI = kpiHistory[0] || null;
-
         const userData = allUsers.find((u) => u._id === userId);
-
         setSelectedEmployee({
           ...userData,
           kpiHistory,
@@ -450,6 +418,29 @@ export default function KPIDashboardPage() {
     }
   }, [allUsers]);
 
+  // ============================================================
+  // MEMOIZED DATA
+  // ============================================================
+  const combinedData = useMemo(() => {
+    const kpiMap = new Map<string, KPIScore>();
+
+    kpiScores.forEach((kpi) => {
+      if (!kpi || !kpi.userId) return;
+      const userId = typeof kpi.userId === 'object' ? kpi.userId._id : kpi.userId;
+      if (userId) {
+        kpiMap.set(userId, kpi);
+      }
+    });
+
+    return allUsers.map((user) => ({
+      user,
+      kpi: kpiMap.get(user._id) || null
+    }));
+  }, [allUsers, kpiScores]);
+
+  // ============================================================
+  // EXPORT DATA
+  // ============================================================
   const handleExport = useCallback(() => {
     if (combinedData.length === 0) {
       toast.error("No data to export");
@@ -493,9 +484,7 @@ export default function KPIDashboardPage() {
       ];
     });
 
-    const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
-      "\n",
-    );
+    const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -510,7 +499,15 @@ export default function KPIDashboardPage() {
   // UI HELPERS
   // ============================================================
   const getPerformanceConfig = useCallback((level: string) => {
-    const config = {
+    const configs: Record<string, {
+      color: string;
+      bg: string;
+      border: string;
+      icon: any;
+      label: string;
+      emoji: string;
+      badge: string;
+    }> = {
       excellent: {
         color: "text-emerald-600",
         bg: "bg-emerald-50",
@@ -548,14 +545,14 @@ export default function KPIDashboardPage() {
         badge: "bg-red-100 text-red-700",
       },
     };
-    return config[level as keyof typeof config] || config.average;
+    return configs[level] || configs.average;
   }, []);
 
-  const formatScore = useCallback((score: number) => {
-    return score.toFixed(1);
+  const formatScore = useCallback((score: number): string => {
+    return score?.toFixed(1) || "0.0";
   }, []);
 
-  const getRoleDisplayName = useCallback((role: string) => {
+  const getRoleDisplayName = useCallback((role: string): string => {
     const roleMap: Record<string, string> = {
       super_admin: "Super Admin",
       admin: "Admin",
@@ -568,26 +565,18 @@ export default function KPIDashboardPage() {
     return roleMap[role] || role.replace(/_/g, " ");
   }, []);
 
-  // Custom hook for combining user and KPI data
-  function useCombinedData(users: User[], kpiScores: KPIScore[]) {
-    return useMemo(() => {
-      const kpiMap = new Map<string, KPIScore>();
-
-      kpiScores.forEach((kpi) => {
-        if (!kpi || !kpi.userId) return;
-        const userId = kpi.userId._id;
-        if (userId) {
-          kpiMap.set(userId, kpi);
-        }
-      });
-
-      return users.map((user) => ({
-        user,
-        kpi: kpiMap.get(user._id) || null
-      }));
-    }, [users, kpiScores]);
-  }
-
+  // ============================================================
+  // CHART DATA
+  // ============================================================
+  const chartData = useMemo<ChartDataItem[]>(() => {
+    if (!stats) return [];
+    return [
+      { name: "Excellent", value: stats.distribution.excellent },
+      { name: "Good", value: stats.distribution.good },
+      { name: "Average", value: stats.distribution.average },
+      { name: "Needs Improvement", value: stats.distribution.needs_improvement },
+    ];
+  }, [stats]);
 
   const scoreRangeData = useMemo<ScoreRangeDataItem[]>(() => {
     if (!stats) return [];
@@ -596,7 +585,9 @@ export default function KPIDashboardPage() {
     );
   }, [stats]);
 
-  // Filter and sort combined data
+  // ============================================================
+  // FILTERED DATA
+  // ============================================================
   const filteredData = useMemo(() => {
     let filtered = [...combinedData];
 
@@ -606,19 +597,19 @@ export default function KPIDashboardPage() {
         (item) =>
           item.user.fullName.toLowerCase().includes(term) ||
           item.user.email.toLowerCase().includes(term) ||
-          item.user.employeeId?.toLowerCase().includes(term),
+          item.user.employeeId?.toLowerCase().includes(term)
       );
     }
 
     if (selectedDepartment !== "all") {
       filtered = filtered.filter(
-        (item) => item.user.departmentId?.name === selectedDepartment,
+        (item) => item.user.departmentId?.name === selectedDepartment
       );
     }
 
     if (selectedLevel !== "all") {
       filtered = filtered.filter(
-        (item) => item.kpi?.performanceLevel === selectedLevel,
+        (item) => item.kpi?.performanceLevel === selectedLevel
       );
     }
 
@@ -641,14 +632,7 @@ export default function KPIDashboardPage() {
     });
 
     return filtered;
-  }, [
-    combinedData,
-    searchTerm,
-    selectedDepartment,
-    selectedLevel,
-    sortBy,
-    sortOrder,
-  ]);
+  }, [combinedData, searchTerm, selectedDepartment, selectedLevel, sortBy, sortOrder]);
 
   // Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -656,7 +640,9 @@ export default function KPIDashboardPage() {
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  // Initialize selected month
+  // ============================================================
+  // EFFECTS
+  // ============================================================
   useEffect(() => {
     if (!selectedMonth && !isInitialized.current) {
       isInitialized.current = true;
@@ -664,18 +650,14 @@ export default function KPIDashboardPage() {
     }
   }, [selectedMonth, currentMonth]);
 
-  // Get user department info
   useEffect(() => {
-    if (user && !userDeptInitialized.current) {
-      userDeptInitialized.current = true;
-      const deptId = user.departmentId?._id || null;
-      setUserDepartmentId(deptId);
+    if (user) {
+      setUserDepartmentId(user.departmentId?._id || null);
     }
   }, [user]);
 
-  // Load data when filters change
   useEffect(() => {
-    if (selectedMonth && canManage && !isFetching.current) {
+    if (selectedMonth && canManage) {
       fetchAllData();
     }
   }, [canManage, selectedMonth, selectedYear, fetchAllData]);
@@ -690,12 +672,8 @@ export default function KPIDashboardPage() {
           <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-10 h-10 text-rose-500" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Access Denied
-          </h2>
-          <p className="text-gray-500">
-            You don't have permission to view this page
-          </p>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-gray-500">You don't have permission to view this page</p>
           <button
             onClick={() => router.push("/dashboard")}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"
@@ -720,10 +698,7 @@ export default function KPIDashboardPage() {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-2 text-sm"
           >
-            <Link
-              href="/dashboard"
-              className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1"
-            >
+            <Link href="/dashboard" className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1">
               <Home size={14} />
               Dashboard
             </Link>
@@ -743,21 +718,14 @@ export default function KPIDashboardPage() {
                   <BarChart3 className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                    KPI Dashboard
-                  </h1>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">KPI Dashboard</h1>
                   <p className="text-gray-500 text-sm mt-0.5">
-                    {selectedMonth} {selectedYear} •{" "}
-                    {stats?.totalEmployees || 0} employees
+                    {selectedMonth} {selectedYear} • {stats?.totalEmployees || 0} employees
                     {!canViewAllData && userDepartmentId && (
-                      <span className="ml-2 text-indigo-600">
-                        • Department View
-                      </span>
+                      <span className="ml-2 text-indigo-600">• Department View</span>
                     )}
                     {canViewOwnData && (
-                      <span className="ml-2 text-indigo-600">
-                        • Personal View
-                      </span>
+                      <span className="ml-2 text-indigo-600">• Personal View</span>
                     )}
                   </p>
                 </div>
@@ -769,10 +737,8 @@ export default function KPIDashboardPage() {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
               >
-                {months.map((month) => (
-                  <option key={month} value={month}>
-                    {month}
-                  </option>
+                {MONTHS.map((month) => (
+                  <option key={month} value={month}>{month}</option>
                 ))}
               </select>
               <select
@@ -780,10 +746,8 @@ export default function KPIDashboardPage() {
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
               >
-                {[2023, 2024, 2025, 2026].map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
+                {YEARS.map((year) => (
+                  <option key={year} value={year}>{year}</option>
                 ))}
               </select>
               <button
@@ -796,10 +760,7 @@ export default function KPIDashboardPage() {
                 onClick={fetchAllData}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
               >
-                <RefreshCw
-                  size={16}
-                  className={loading ? "animate-spin" : ""}
-                />
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               </button>
               <Link
                 href="/kpi/management"
@@ -818,49 +779,25 @@ export default function KPIDashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               className="grid grid-cols-2 md:grid-cols-5 gap-4"
             >
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {stats.totalEmployees}
-                    </p>
-                    <p className="text-xs text-gray-500">Total Employees</p>
+              {[
+                { label: "Total Employees", value: stats.totalEmployees, icon: UsersIcon, color: "text-indigo-600", bg: "bg-indigo-50" },
+                { label: "Active", value: stats.activeEmployees, icon: UsersIcon, color: "text-emerald-600", bg: "bg-emerald-50" },
+                { label: "Inactive", value: stats.inactiveEmployees, icon: UsersIcon, color: "text-rose-600", bg: "bg-rose-50" },
+                { label: "Avg Score", value: `${stats.averageScore}%`, icon: BarChart3, color: "text-indigo-600", bg: "bg-indigo-50" },
+                { label: "Excellent", value: stats.distribution.excellent, icon: Crown, color: "text-emerald-600", bg: "bg-emerald-50" },
+              ].map((stat, index) => (
+                <div key={stat.label} className={`${stat.bg} rounded-xl p-4 border border-gray-200 shadow-sm`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-800">{stat.value}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 font-medium">{stat.label}</p>
+                    </div>
+                    <div className={`w-10 h-10 ${stat.bg} rounded-xl flex items-center justify-center`}>
+                      <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                    </div>
                   </div>
-                  <UsersIcon className="w-8 h-8 text-indigo-400 opacity-50" />
                 </div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <div>
-                  <p className="text-2xl font-bold text-emerald-600">
-                    {stats.activeEmployees}
-                  </p>
-                  <p className="text-xs text-gray-500">Active</p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <div>
-                  <p className="text-2xl font-bold text-rose-600">
-                    {stats.inactiveEmployees}
-                  </p>
-                  <p className="text-xs text-gray-500">Inactive</p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <div>
-                  <p className="text-2xl font-bold text-indigo-600">
-                    {stats.averageScore}%
-                  </p>
-                  <p className="text-xs text-gray-500">Avg Score</p>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm">
-                <div>
-                  <p className="text-2xl font-bold text-emerald-600">
-                    {stats.distribution.excellent}
-                  </p>
-                  <p className="text-xs text-gray-500">Excellent</p>
-                </div>
-              </div>
+              ))}
             </motion.div>
           )}
 
@@ -873,9 +810,7 @@ export default function KPIDashboardPage() {
             >
               {/* Distribution Chart */}
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">
-                  Performance Distribution
-                </h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Performance Distribution</h3>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsPieChart>
@@ -904,9 +839,7 @@ export default function KPIDashboardPage() {
 
               {/* Score Range Distribution */}
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">
-                  Score Distribution
-                </h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Score Distribution</h3>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={scoreRangeData}>
@@ -914,11 +847,7 @@ export default function KPIDashboardPage() {
                       <XAxis dataKey="range" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} />
                       <Tooltip />
-                      <Bar
-                        dataKey="count"
-                        fill="#6366f1"
-                        radius={[4, 4, 0, 0]}
-                      />
+                      <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -926,21 +855,14 @@ export default function KPIDashboardPage() {
 
               {/* Department Averages */}
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">
-                  Department Averages
-                </h3>
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Department Averages</h3>
                 <div className="space-y-2">
                   {stats.departmentAverages
                     .sort((a, b) => b.averageScore - a.averageScore)
                     .slice(0, 5)
                     .map((dept) => (
-                      <div
-                        key={dept.departmentId}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span className="text-gray-600 truncate max-w-[120px]">
-                          {dept.department}
-                        </span>
+                      <div key={dept.departmentId} className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600 truncate max-w-[120px]">{dept.department}</span>
                         <div className="flex items-center gap-2">
                           <div className="w-20 bg-gray-200 rounded-full h-1.5">
                             <div
@@ -948,9 +870,7 @@ export default function KPIDashboardPage() {
                               style={{ width: `${dept.averageScore}%` }}
                             />
                           </div>
-                          <span className="font-medium text-gray-800">
-                            {dept.averageScore}%
-                          </span>
+                          <span className="font-medium text-gray-800">{dept.averageScore}%</span>
                         </div>
                       </div>
                     ))}
@@ -970,20 +890,15 @@ export default function KPIDashboardPage() {
                 <Crown size={16} className="text-amber-500" />
                 Top Performers
                 {!canViewAllData && (
-                  <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                    Filtered View
-                  </span>
+                  <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">Filtered View</span>
                 )}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                 {stats.topPerformers.slice(0, 5).map((performer, index) => {
-                  const perfConfig = getPerformanceConfig(
-                    performer.performanceLevel,
-                  );
-
-                  const userId = performer.userId._id;
-                  const userName = performer.userId.fullName || "No Name";
-                  const deptName = performer.departmentId.name || "No Department";
+                  const perfConfig = getPerformanceConfig(performer.performanceLevel);
+                  const userId = performer.userId?._id || performer.userId;
+                  const userName = performer.userId?.fullName || performer.userId?.name || "No Name";
+                  const deptName = performer.departmentId?.name || "No Department";
 
                   return (
                     <div
@@ -999,16 +914,10 @@ export default function KPIDashboardPage() {
                         {index + 1}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {userName}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {deptName}
-                        </p>
+                        <p className="text-sm font-medium text-gray-800 truncate">{userName}</p>
+                        <p className="text-xs text-gray-400 truncate">{deptName}</p>
                       </div>
-                      <span className="text-sm font-bold text-emerald-600">
-                        {formatScore(performer.totalScore ?? 0)}%
-                      </span>
+                      <span className="text-sm font-bold text-emerald-600">{formatScore(performer.totalScore ?? 0)}%</span>
                     </div>
                   );
                 })}
@@ -1016,7 +925,7 @@ export default function KPIDashboardPage() {
             </motion.div>
           )}
 
-          {/* Role Info Banner for non-admin users */}
+          {/* Role Info Banner */}
           {!canViewAllData && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1025,9 +934,7 @@ export default function KPIDashboardPage() {
             >
               <Shield size={18} className="text-indigo-600" />
               <p className="text-sm text-indigo-700">
-                {canViewDepartmentData && userDepartmentId && (
-                  <>Showing data for your department only</>
-                )}
+                {canViewDepartmentData && userDepartmentId && <>Showing data for your department only</>}
                 {canViewOwnData && <>Showing your personal KPI data only</>}
               </p>
             </motion.div>
@@ -1056,9 +963,7 @@ export default function KPIDashboardPage() {
             >
               <option value="all">All Departments</option>
               {departments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
-                </option>
+                <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
             <select
@@ -1088,9 +993,7 @@ export default function KPIDashboardPage() {
               {sortOrder === "asc" ? "↑" : "↓"}
             </button>
             <button
-              onClick={() =>
-                setViewMode(viewMode === "table" ? "cards" : "table")
-              }
+              onClick={() => setViewMode(viewMode === "table" ? "cards" : "table")}
               className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition flex items-center gap-2"
             >
               {viewMode === "table" ? "Cards" : "Table"}
@@ -1116,12 +1019,9 @@ export default function KPIDashboardPage() {
           ) : combinedData.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
               <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                No Data Available
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">No Data Available</h3>
               <p className="text-gray-500">
-                {canViewDepartmentData &&
-                  "No employees found in your department"}
+                {canViewDepartmentData && "No employees found in your department"}
                 {canViewOwnData && "No personal KPI data found"}
                 {canViewAllData && "No employees found in the system"}
               </p>
@@ -1136,34 +1036,18 @@ export default function KPIDashboardPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Employee
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Department
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Score
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Level
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Components
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Rank
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Action
-                      </th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Level</th>
+                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Components</th>
+                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {currentItems.map((item) => {
-                      const perfConfig = item.kpi
-                        ? getPerformanceConfig(item.kpi.performanceLevel)
-                        : null;
+                      const perfConfig = item.kpi ? getPerformanceConfig(item.kpi.performanceLevel) : null;
                       return (
                         <tr
                           key={item.user._id}
@@ -1176,15 +1060,9 @@ export default function KPIDashboardPage() {
                                 {item.user.fullName.charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-sm font-medium text-gray-800">
-                                  {item.user.fullName}
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  {item.user.email}
-                                </p>
-                                <span className="text-[10px] text-gray-400">
-                                  {getRoleDisplayName(item.user.role)}
-                                </span>
+                                <p className="text-sm font-medium text-gray-800">{item.user.fullName}</p>
+                                <p className="text-xs text-gray-400">{item.user.email}</p>
+                                <span className="text-[10px] text-gray-400">{getRoleDisplayName(item.user.role)}</span>
                               </div>
                             </div>
                           </td>
@@ -1194,17 +1072,12 @@ export default function KPIDashboardPage() {
                           <td className="px-4 py-3">
                             {item.kpi ? (
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-bold text-gray-800">
-                                  {formatScore(item.kpi.totalScore)}%
-                                </span>
+                                <span className="text-sm font-bold text-gray-800">{formatScore(item.kpi.totalScore)}%</span>
                                 <div className="w-16 bg-gray-200 rounded-full h-1.5">
                                   <div
-                                    className={`h-1.5 rounded-full ${item.kpi.totalScore >= 90
-                                      ? "bg-emerald-500"
-                                      : item.kpi.totalScore >= 75
-                                        ? "bg-blue-500"
-                                        : item.kpi.totalScore >= 60
-                                          ? "bg-amber-500"
+                                    className={`h-1.5 rounded-full ${item.kpi.totalScore >= 90 ? "bg-emerald-500"
+                                      : item.kpi.totalScore >= 75 ? "bg-blue-500"
+                                        : item.kpi.totalScore >= 60 ? "bg-amber-500"
                                           : "bg-red-500"
                                       }`}
                                     style={{ width: `${item.kpi.totalScore}%` }}
@@ -1212,16 +1085,12 @@ export default function KPIDashboardPage() {
                                 </div>
                               </div>
                             ) : (
-                              <span className="text-sm text-gray-400">
-                                No Data
-                              </span>
+                              <span className="text-sm text-gray-400">No Data</span>
                             )}
                           </td>
                           <td className="px-4 py-3">
                             {item.kpi && perfConfig ? (
-                              <span
-                                className={`text-xs font-medium px-2.5 py-1 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}
-                              >
+                              <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}>
                                 {perfConfig.emoji} {perfConfig.label}
                               </span>
                             ) : (
@@ -1233,62 +1102,32 @@ export default function KPIDashboardPage() {
                               <div className="flex items-center gap-0.5">
                                 <div
                                   className="w-2 h-2 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      item.kpi.scores.taskCompletion.score >= 70
-                                        ? "#10b981"
-                                        : "#ef4444",
-                                  }}
+                                  style={{ backgroundColor: item.kpi.scores.taskCompletion.score >= 70 ? "#10b981" : "#ef4444" }}
                                   title={`Task Completion: ${item.kpi.scores.taskCompletion.score}%`}
                                 />
                                 <div
                                   className="w-2 h-2 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      item.kpi.scores.qualityScore.score >= 70
-                                        ? "#3b82f6"
-                                        : "#ef4444",
-                                  }}
+                                  style={{ backgroundColor: item.kpi.scores.qualityScore.score >= 70 ? "#3b82f6" : "#ef4444" }}
                                   title={`Quality Score: ${item.kpi.scores.qualityScore.score}%`}
                                 />
                                 <div
                                   className="w-2 h-2 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      item.kpi.scores.efficiency.score >= 70
-                                        ? "#8b5cf6"
-                                        : "#ef4444",
-                                  }}
+                                  style={{ backgroundColor: item.kpi.scores.efficiency.score >= 70 ? "#8b5cf6" : "#ef4444" }}
                                   title={`Efficiency: ${item.kpi.scores.efficiency.score}%`}
                                 />
                                 <div
                                   className="w-2 h-2 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      item.kpi.scores.collaboration.score >= 70
-                                        ? "#f59e0b"
-                                        : "#ef4444",
-                                  }}
+                                  style={{ backgroundColor: item.kpi.scores.collaboration.score >= 70 ? "#f59e0b" : "#ef4444" }}
                                   title={`Collaboration: ${item.kpi.scores.collaboration.score}%`}
                                 />
                                 <div
                                   className="w-2 h-2 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      item.kpi.scores.innovation.score >= 70
-                                        ? "#ec4899"
-                                        : "#ef4444",
-                                  }}
+                                  style={{ backgroundColor: item.kpi.scores.innovation.score >= 70 ? "#ec4899" : "#ef4444" }}
                                   title={`Innovation: ${item.kpi.scores.innovation.score}%`}
                                 />
                                 <div
                                   className="w-2 h-2 rounded-full"
-                                  style={{
-                                    backgroundColor:
-                                      item.kpi.scores.attendance.score >= 70
-                                        ? "#14b8a6"
-                                        : "#ef4444",
-                                  }}
+                                  style={{ backgroundColor: item.kpi.scores.attendance.score >= 70 ? "#14b8a6" : "#ef4444" }}
                                   title={`Attendance: ${item.kpi.scores.attendance.score}%`}
                                 />
                               </div>
@@ -1297,9 +1136,7 @@ export default function KPIDashboardPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-center text-sm text-gray-600">
-                            {item.kpi
-                              ? `#${item.kpi.rank || "N/A"} of ${item.kpi.totalEmployees}`
-                              : "N/A"}
+                            {item.kpi ? `#${item.kpi.rank || "N/A"} of ${item.kpi.totalEmployees}` : "N/A"}
                           </td>
                           <td className="px-4 py-3 text-center">
                             <button
@@ -1323,15 +1160,11 @@ export default function KPIDashboardPage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
                   <p className="text-sm text-gray-500">
-                    Showing {indexOfFirstItem + 1} to{" "}
-                    {Math.min(indexOfLastItem, filteredData.length)} of{" "}
-                    {filteredData.length} employees
+                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredData.length)} of {filteredData.length} employees
                   </p>
                   <div className="flex gap-1">
                     <button
-                      onClick={() =>
-                        setCurrentPage(Math.max(1, currentPage - 1))
-                      }
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
                       className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                     >
@@ -1339,15 +1172,10 @@ export default function KPIDashboardPage() {
                     </button>
                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                       let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
+                      if (totalPages <= 5) pageNum = i + 1;
+                      else if (currentPage <= 3) pageNum = i + 1;
+                      else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                      else pageNum = currentPage - 2 + i;
                       return (
                         <button
                           key={pageNum}
@@ -1362,9 +1190,7 @@ export default function KPIDashboardPage() {
                       );
                     })}
                     <button
-                      onClick={() =>
-                        setCurrentPage(Math.min(totalPages, currentPage + 1))
-                      }
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
                       className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                     >
@@ -1382,9 +1208,7 @@ export default function KPIDashboardPage() {
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             >
               {currentItems.map((item) => {
-                const perfConfig = item.kpi
-                  ? getPerformanceConfig(item.kpi.performanceLevel)
-                  : null;
+                const perfConfig = item.kpi ? getPerformanceConfig(item.kpi.performanceLevel) : null;
                 return (
                   <motion.div
                     key={item.user._id}
@@ -1399,21 +1223,13 @@ export default function KPIDashboardPage() {
                           {item.user.fullName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-800">
-                            {item.user.fullName}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {item.user.departmentId?.name || "Unassigned"}
-                          </p>
-                          <span className="text-[10px] text-gray-400">
-                            {getRoleDisplayName(item.user.role)}
-                          </span>
+                          <p className="text-sm font-medium text-gray-800">{item.user.fullName}</p>
+                          <p className="text-xs text-gray-400">{item.user.departmentId?.name || "Unassigned"}</p>
+                          <span className="text-[10px] text-gray-400">{getRoleDisplayName(item.user.role)}</span>
                         </div>
                       </div>
                       {item.kpi && perfConfig ? (
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}
-                        >
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}>
                           {perfConfig.emoji} {perfConfig.label}
                         </span>
                       ) : (
@@ -1423,19 +1239,12 @@ export default function KPIDashboardPage() {
 
                     <div className="flex items-center justify-between mb-3">
                       {item.kpi ? (
-                        <span className="text-2xl font-bold text-gray-800">
-                          {formatScore(item.kpi.totalScore)}%
-                        </span>
+                        <span className="text-2xl font-bold text-gray-800">{formatScore(item.kpi.totalScore)}%</span>
                       ) : (
-                        <span className="text-lg font-bold text-gray-400">
-                          N/A
-                        </span>
+                        <span className="text-lg font-bold text-gray-400">N/A</span>
                       )}
                       {item.kpi && (
-                        <span className="text-xs text-gray-400">
-                          Rank #{item.kpi.rank || "N/A"} of{" "}
-                          {item.kpi.totalEmployees}
-                        </span>
+                        <span className="text-xs text-gray-400">Rank #{item.kpi.rank || "N/A"} of {item.kpi.totalEmployees}</span>
                       )}
                     </div>
 
@@ -1443,31 +1252,18 @@ export default function KPIDashboardPage() {
                       <>
                         <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                           <div
-                            className={`h-2 rounded-full ${item.kpi.totalScore >= 90
-                              ? "bg-emerald-500"
-                              : item.kpi.totalScore >= 75
-                                ? "bg-blue-500"
-                                : item.kpi.totalScore >= 60
-                                  ? "bg-amber-500"
+                            className={`h-2 rounded-full ${item.kpi.totalScore >= 90 ? "bg-emerald-500"
+                              : item.kpi.totalScore >= 75 ? "bg-blue-500"
+                                : item.kpi.totalScore >= 60 ? "bg-amber-500"
                                   : "bg-red-500"
                               }`}
                             style={{ width: `${item.kpi.totalScore}%` }}
                           />
                         </div>
-
                         <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>
-                            Task:{" "}
-                            {formatScore(item.kpi.scores.taskCompletion.score)}%
-                          </span>
-                          <span>
-                            Quality:{" "}
-                            {formatScore(item.kpi.scores.qualityScore.score)}%
-                          </span>
-                          <span>
-                            Efficiency:{" "}
-                            {formatScore(item.kpi.scores.efficiency.score)}%
-                          </span>
+                          <span>Task: {formatScore(item.kpi.scores.taskCompletion.score)}%</span>
+                          <span>Quality: {formatScore(item.kpi.scores.qualityScore.score)}%</span>
+                          <span>Efficiency: {formatScore(item.kpi.scores.efficiency.score)}%</span>
                         </div>
                       </>
                     )}
@@ -1494,9 +1290,7 @@ export default function KPIDashboardPage() {
           {viewMode === "cards" && totalPages > 1 && (
             <div className="flex items-center justify-between pt-4">
               <p className="text-sm text-gray-500">
-                Showing {indexOfFirstItem + 1} to{" "}
-                {Math.min(indexOfLastItem, filteredData.length)} of{" "}
-                {filteredData.length} employees
+                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredData.length)} of {filteredData.length} employees
               </p>
               <div className="flex gap-1">
                 <button
@@ -1508,15 +1302,10 @@ export default function KPIDashboardPage() {
                 </button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
+                  if (totalPages <= 5) pageNum = i + 1;
+                  else if (currentPage <= 3) pageNum = i + 1;
+                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = currentPage - 2 + i;
                   return (
                     <button
                       key={pageNum}
@@ -1531,9 +1320,7 @@ export default function KPIDashboardPage() {
                   );
                 })}
                 <button
-                  onClick={() =>
-                    setCurrentPage(Math.min(totalPages, currentPage + 1))
-                  }
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                 >
@@ -1561,30 +1348,21 @@ export default function KPIDashboardPage() {
                 </div>
               ) : (
                 <>
-                  {/* Modal Header */}
                   <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg font-bold">
-                        {selectedEmployee.fullName?.charAt(0).toUpperCase() ||
-                          "?"}
+                        {selectedEmployee.fullName?.charAt(0).toUpperCase() || "?"}
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-800">
-                          {selectedEmployee.fullName}
-                        </h2>
+                        <h2 className="text-xl font-bold text-gray-800">{selectedEmployee.fullName}</h2>
                         <div className="flex items-center gap-3 text-sm text-gray-500">
                           <span>{selectedEmployee.email}</span>
                           <span>•</span>
-                          <span>
-                            {selectedEmployee.departmentId?.name ||
-                              "No Department"}
-                          </span>
+                          <span>{selectedEmployee.departmentId?.name || "No Department"}</span>
                           <span>•</span>
                           <span>ID: {selectedEmployee.employeeId}</span>
                           <span>•</span>
-                          <span>
-                            {getRoleDisplayName(selectedEmployee.role)}
-                          </span>
+                          <span>{getRoleDisplayName(selectedEmployee.role)}</span>
                         </div>
                       </div>
                     </div>
@@ -1597,70 +1375,41 @@ export default function KPIDashboardPage() {
                   </div>
 
                   <div className="p-5 space-y-6">
-                    {/* Current KPI Score */}
                     {selectedEmployee.currentKPI && (
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <p className="text-sm text-gray-500">Total Score</p>
-                          <p
-                            className={`text-2xl font-bold ${selectedEmployee.currentKPI.totalScore >= 90
-                              ? "text-emerald-600"
-                              : selectedEmployee.currentKPI.totalScore >= 75
-                                ? "text-blue-600"
-                                : selectedEmployee.currentKPI.totalScore >= 60
-                                  ? "text-amber-600"
-                                  : "text-red-600"
-                              }`}
-                          >
-                            {formatScore(
-                              selectedEmployee.currentKPI.totalScore,
-                            )}
-                            %
+                          <p className={`text-2xl font-bold ${selectedEmployee.currentKPI.totalScore >= 90 ? "text-emerald-600"
+                            : selectedEmployee.currentKPI.totalScore >= 75 ? "text-blue-600"
+                              : selectedEmployee.currentKPI.totalScore >= 60 ? "text-amber-600"
+                                : "text-red-600"
+                            }`}>
+                            {formatScore(selectedEmployee.currentKPI.totalScore)}%
                           </p>
                         </div>
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                          <p className="text-sm text-gray-500">
-                            Performance Level
-                          </p>
+                          <p className="text-sm text-gray-500">Performance Level</p>
                           <p className="text-lg font-semibold">
-                            {
-                              getPerformanceConfig(
-                                selectedEmployee.currentKPI.performanceLevel,
-                              ).emoji
-                            }{" "}
-                            {
-                              getPerformanceConfig(
-                                selectedEmployee.currentKPI.performanceLevel,
-                              ).label
-                            }
+                            {getPerformanceConfig(selectedEmployee.currentKPI.performanceLevel).emoji}{" "}
+                            {getPerformanceConfig(selectedEmployee.currentKPI.performanceLevel).label}
                           </p>
                         </div>
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <p className="text-sm text-gray-500">Rank</p>
-                          <p className="text-2xl font-bold text-gray-800">
-                            #{selectedEmployee.currentKPI.rank} of{" "}
-                            {selectedEmployee.currentKPI.totalEmployees}
-                          </p>
+                          <p className="text-2xl font-bold text-gray-800">#{selectedEmployee.currentKPI.rank} of {selectedEmployee.currentKPI.totalEmployees}</p>
                         </div>
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <p className="text-sm text-gray-500">Percentile</p>
-                          <p className="text-2xl font-bold text-indigo-600">
-                            {selectedEmployee.currentKPI.percentile}%
-                          </p>
+                          <p className="text-2xl font-bold text-indigo-600">{selectedEmployee.currentKPI.percentile}%</p>
                         </div>
                       </div>
                     )}
 
-                    {/* Component Scores */}
                     {selectedEmployee.currentKPI && (
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                        <h3 className="text-sm font-medium text-gray-700 mb-3">
-                          Component Scores
-                        </h3>
+                        <h3 className="text-sm font-medium text-gray-700 mb-3">Component Scores</h3>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {Object.entries(
-                            selectedEmployee.currentKPI.scores,
-                          ).map(([key, value]) => {
+                          {Object.entries(selectedEmployee.currentKPI.scores).map(([key, value]) => {
                             const labels: Record<string, string> = {
                               taskCompletion: "Task Completion",
                               qualityScore: "Quality Score",
@@ -1669,27 +1418,16 @@ export default function KPIDashboardPage() {
                               innovation: "Innovation",
                               attendance: "Attendance",
                             };
+                            const scoreData = value as { score: number; weight: number; weightedScore: number };
                             return (
-                              <div
-                                key={key}
-                                className="bg-white rounded-lg p-3 border border-gray-200"
-                              >
-                                <p className="text-xs text-gray-500">
-                                  {labels[key as keyof typeof labels] || key}
-                                </p>
+                              <div key={key} className="bg-white rounded-lg p-3 border border-gray-200">
+                                <p className="text-xs text-gray-500">{labels[key as keyof typeof labels] || key}</p>
                                 <div className="flex items-center justify-between mt-1">
-                                  <span className="text-lg font-bold text-gray-800">
-                                    {formatScore((value as any).score)}%
-                                  </span>
-                                  <span className="text-xs text-gray-400">
-                                    Weight: {(value as any).weight}%
-                                  </span>
+                                  <span className="text-lg font-bold text-gray-800">{formatScore(scoreData.score)}%</span>
+                                  <span className="text-xs text-gray-400">Weight: {scoreData.weight}%</span>
                                 </div>
                                 <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
-                                  <div
-                                    className="h-1.5 rounded-full"
-                                    style={{ width: `${(value as any).score}%` }}
-                                  />
+                                  <div className="h-1.5 rounded-full" style={{ width: `${scoreData.score}%` }} />
                                 </div>
                               </div>
                             );
@@ -1698,7 +1436,6 @@ export default function KPIDashboardPage() {
                       </div>
                     )}
 
-                    {/* Action Buttons */}
                     <div className="flex gap-3 pt-4 border-t border-gray-200">
                       <Link
                         href={`/kpi/employee/${selectedEmployee._id}`}
