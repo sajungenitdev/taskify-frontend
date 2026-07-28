@@ -159,13 +159,6 @@ const MONTHS = [
 
 const YEARS = [2023, 2024, 2025, 2026];
 
-const PERFORMANCE_COLORS = {
-  excellent: "#10b981",
-  good: "#3b82f6",
-  average: "#f59e0b",
-  needs_improvement: "#ef4444",
-};
-
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
@@ -194,7 +187,10 @@ export default function KPIDashboardPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
-  const [userDepartmentId, setUserDepartmentId] = useState<string | null>(null);
+  // Initialize directly from user
+  const [userDepartmentId, setUserDepartmentId] = useState<string | null>(
+    user?.departmentId?._id || null
+  );
 
   const canManage = hasRole([
     "super_admin",
@@ -643,6 +639,8 @@ export default function KPIDashboardPage() {
   // ============================================================
   // EFFECTS
   // ============================================================
+
+  // Initialize selected month - runs once
   useEffect(() => {
     if (!selectedMonth && !isInitialized.current) {
       isInitialized.current = true;
@@ -650,17 +648,13 @@ export default function KPIDashboardPage() {
     }
   }, [selectedMonth, currentMonth]);
 
+  // Load data when filters change - uses the fetchAllData function
   useEffect(() => {
-    if (user) {
-      setUserDepartmentId(user.departmentId?._id || null);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (selectedMonth && canManage) {
+    if (selectedMonth && canManage && !isFetching.current) {
       fetchAllData();
     }
-  }, [canManage, selectedMonth, selectedYear, fetchAllData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canManage, selectedMonth, selectedYear]);
 
   // ============================================================
   // ACCESS DENIED
@@ -896,8 +890,9 @@ export default function KPIDashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                 {stats.topPerformers.slice(0, 5).map((performer, index) => {
                   const perfConfig = getPerformanceConfig(performer.performanceLevel);
-                  const userId = performer.userId?._id || performer.userId;
-                  const userName = performer.userId?.fullName || performer.userId?.name || "No Name";
+                  // Fix: Use performer.userId._id directly since it's always an object with _id
+                  const userId = performer.userId?._id || "";
+                  const userName = performer.userId?.fullName || "No Name";
                   const deptName = performer.departmentId?.name || "No Department";
 
                   return (
