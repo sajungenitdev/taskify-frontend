@@ -1,4 +1,3 @@
-// app/(dashboard)/kpi/reports/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -85,6 +84,9 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// ============================================================
+// TYPES
+// ============================================================
 interface KPIScore {
   _id: string;
   userId: {
@@ -155,6 +157,9 @@ type Quarter = "Q1" | "Q2" | "Q3" | "Q4";
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444"];
 
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function KPIReportsPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
@@ -173,6 +178,7 @@ export default function KPIReportsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [exportLoading, setExportLoading] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const canManage = hasRole([
     "super_admin",
@@ -211,23 +217,16 @@ export default function KPIReportsPage() {
 
   const currentMonth = months[new Date().getMonth()];
   const currentYear = new Date().getFullYear();
-
-  // Initialize selected month only once
-  useEffect(() => {
-    if (!selectedMonth) {
-      setSelectedMonth(currentMonth);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Use ref to prevent infinite loop
+  // Refs
   const isFetching = useRef(false);
   const initialFetchDone = useRef(false);
+  const isInitialized = useRef(false); // Add this
+
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // ============================================================
-  // HELPER FUNCTIONS - MEMOIZED
+  // HELPERS
   // ============================================================
-
   const generateMonthlyTrend = useCallback(
     (scores: KPIScore[], usersData: any[]) => {
       const monthMap = new Map();
@@ -307,11 +306,102 @@ export default function KPIReportsPage() {
     };
   }, []);
 
+  const getPerformanceConfig = useCallback((level: string) => {
+    const config = {
+      excellent: {
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        icon: Crown,
+        label: "Excellent",
+        emoji: "🌟",
+      },
+      good: {
+        color: "text-blue-600",
+        bg: "bg-blue-50",
+        border: "border-blue-200",
+        icon: Award,
+        label: "Good",
+        emoji: "⭐",
+      },
+      average: {
+        color: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        icon: Medal,
+        label: "Average",
+        emoji: "📊",
+      },
+      needs_improvement: {
+        color: "text-red-600",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        icon: AlertCircle,
+        label: "Needs Improvement",
+        emoji: "📈",
+      },
+    };
+    return config[level as keyof typeof config] || config.average;
+  }, []);
+
+  const formatScore = useCallback((score: number): string => {
+    return score.toFixed(1);
+  }, []);
+
+  const getTrendDirection = useCallback((data: any[]) => {
+    if (data.length < 2) return "stable";
+    const first = data[0]?.averageScore || 0;
+    const last = data[data.length - 1]?.averageScore || 0;
+    if (last > first) return "up";
+    if (last < first) return "down";
+    return "stable";
+  }, []);
+
   // ============================================================
-  // FETCH REPORT DATA - MEMOIZED WITH useCallback
+  // CREATE PLACEHOLDER SCORES
+  // ============================================================
+  const createPlaceholderScores = useCallback((
+    users: any[],
+    month: string,
+    year: number
+  ): KPIScore[] => {
+    return users.map((user, index) => ({
+      _id: `placeholder-${user._id}`,
+      userId: {
+        _id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        employeeId: user.employeeId || `EMP${String(index + 1).padStart(4, "0")}`,
+        role: user.role || "employee",
+      },
+      departmentId: user.departmentId || {
+        _id: "unknown",
+        name: "Unassigned",
+        code: "UNK",
+      },
+      month: month,
+      year: year,
+      totalScore: 0,
+      performanceLevel: "needs_improvement" as const,
+      percentile: 0,
+      rank: index + 1,
+      totalEmployees: users.length,
+      scores: {
+        taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
+        qualityScore: { score: 0, weight: 20, weightedScore: 0 },
+        efficiency: { score: 0, weight: 20, weightedScore: 0 },
+        collaboration: { score: 0, weight: 15, weightedScore: 0 },
+        innovation: { score: 0, weight: 15, weightedScore: 0 },
+        attendance: { score: 0, weight: 10, weightedScore: 0 },
+      },
+      calculatedAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  // ============================================================
+  // FETCH REPORT DATA
   // ============================================================
   const fetchReportData = useCallback(async () => {
-    // Prevent multiple simultaneous calls
     if (isFetching.current) return;
 
     try {
@@ -330,7 +420,7 @@ export default function KPIReportsPage() {
         console.error("Error fetching users:", userError);
       }
 
-      let monthIndex = months.indexOf(selectedMonth) + 1;
+      const monthIndex = months.indexOf(selectedMonth) + 1;
 
       // For quarterly reports
       if (reportType === "quarterly") {
@@ -356,40 +446,9 @@ export default function KPIReportsPage() {
           }
         }
 
-        // If no scores found, use users data for display
         if (allQuarterScores.length === 0 && usersData.length > 0) {
-          const placeholderScores = usersData.map((user, index) => ({
-            _id: `placeholder-${user._id}`,
-            userId: {
-              _id: user._id,
-              fullName: user.fullName,
-              email: user.email,
-              employeeId:
-                user.employeeId || `EMP${String(index + 1).padStart(4, "0")}`,
-              role: user.role || "employee",
-            },
-            departmentId: user.departmentId || {
-              _id: "unknown",
-              name: "Unassigned",
-              code: "UNK",
-            },
-            month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
-            year: selectedYear,
-            totalScore: 0,
-            performanceLevel: "needs_improvement",
-            percentile: 0,
-            rank: index + 1,
-            totalEmployees: usersData.length,
-            scores: {
-              taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
-              qualityScore: { score: 0, weight: 20, weightedScore: 0 },
-              efficiency: { score: 0, weight: 20, weightedScore: 0 },
-              collaboration: { score: 0, weight: 15, weightedScore: 0 },
-              innovation: { score: 0, weight: 15, weightedScore: 0 },
-              attendance: { score: 0, weight: 10, weightedScore: 0 },
-            },
-            calculatedAt: new Date().toISOString(),
-          }));
+          const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, "0")}`;
+          const placeholderScores = createPlaceholderScores(usersData, monthStr, selectedYear);
           allQuarterScores.push(...placeholderScores);
         }
 
@@ -426,9 +485,9 @@ export default function KPIReportsPage() {
         const avgScore =
           allQuarterScores.length > 0
             ? Math.round(
-                allQuarterScores.reduce((sum, s) => sum + s.totalScore, 0) /
-                  allQuarterScores.length,
-              )
+              allQuarterScores.reduce((sum, s) => sum + s.totalScore, 0) /
+              allQuarterScores.length,
+            )
             : 0;
 
         const distribution = {
@@ -486,38 +545,8 @@ export default function KPIReportsPage() {
         }
 
         if (allYearScores.length === 0 && usersData.length > 0) {
-          const placeholderScores = usersData.map((user, index) => ({
-            _id: `placeholder-${user._id}`,
-            userId: {
-              _id: user._id,
-              fullName: user.fullName,
-              email: user.email,
-              employeeId:
-                user.employeeId || `EMP${String(index + 1).padStart(4, "0")}`,
-              role: user.role || "employee",
-            },
-            departmentId: user.departmentId || {
-              _id: "unknown",
-              name: "Unassigned",
-              code: "UNK",
-            },
-            month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
-            year: selectedYear,
-            totalScore: 0,
-            performanceLevel: "needs_improvement",
-            percentile: 0,
-            rank: index + 1,
-            totalEmployees: usersData.length,
-            scores: {
-              taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
-              qualityScore: { score: 0, weight: 20, weightedScore: 0 },
-              efficiency: { score: 0, weight: 20, weightedScore: 0 },
-              collaboration: { score: 0, weight: 15, weightedScore: 0 },
-              innovation: { score: 0, weight: 15, weightedScore: 0 },
-              attendance: { score: 0, weight: 10, weightedScore: 0 },
-            },
-            calculatedAt: new Date().toISOString(),
-          }));
+          const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, "0")}`;
+          const placeholderScores = createPlaceholderScores(usersData, monthStr, selectedYear);
           allYearScores.push(...placeholderScores);
         }
 
@@ -553,9 +582,9 @@ export default function KPIReportsPage() {
         const avgScore =
           allYearScores.length > 0
             ? Math.round(
-                allYearScores.reduce((sum, s) => sum + s.totalScore, 0) /
-                  allYearScores.length,
-              )
+              allYearScores.reduce((sum, s) => sum + s.totalScore, 0) /
+              allYearScores.length,
+            )
             : 0;
 
         const distribution = {
@@ -607,8 +636,8 @@ export default function KPIReportsPage() {
             const allData = response.data.data.allScores || [];
             deptScores = deptFilter
               ? allData.filter(
-                  (s: KPIScore) => s.departmentId?.name === deptFilter,
-                )
+                (s: KPIScore) => s.departmentId?.name === deptFilter,
+              )
               : allData;
           }
         } catch (e) {
@@ -619,39 +648,9 @@ export default function KPIReportsPage() {
           const filteredUsers = deptFilter
             ? usersData.filter((u: any) => u.departmentId?.name === deptFilter)
             : usersData;
-
-          deptScores = filteredUsers.map((user, index) => ({
-            _id: `placeholder-${user._id}`,
-            userId: {
-              _id: user._id,
-              fullName: user.fullName,
-              email: user.email,
-              employeeId:
-                user.employeeId || `EMP${String(index + 1).padStart(4, "0")}`,
-              role: user.role || "employee",
-            },
-            departmentId: user.departmentId || {
-              _id: "unknown",
-              name: deptFilter || "Unassigned",
-              code: "UNK",
-            },
-            month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
-            year: selectedYear,
-            totalScore: 0,
-            performanceLevel: "needs_improvement",
-            percentile: 0,
-            rank: index + 1,
-            totalEmployees: filteredUsers.length,
-            scores: {
-              taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
-              qualityScore: { score: 0, weight: 20, weightedScore: 0 },
-              efficiency: { score: 0, weight: 20, weightedScore: 0 },
-              collaboration: { score: 0, weight: 15, weightedScore: 0 },
-              innovation: { score: 0, weight: 15, weightedScore: 0 },
-              attendance: { score: 0, weight: 10, weightedScore: 0 },
-            },
-            calculatedAt: new Date().toISOString(),
-          }));
+          const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, "0")}`;
+          const placeholderScores = createPlaceholderScores(filteredUsers, monthStr, selectedYear);
+          deptScores.push(...placeholderScores);
         }
 
         if (departments.length === 0 && usersData.length > 0) {
@@ -672,9 +671,9 @@ export default function KPIReportsPage() {
         const avgScore =
           deptScores.length > 0
             ? Math.round(
-                deptScores.reduce((sum, s) => sum + s.totalScore, 0) /
-                  deptScores.length,
-              )
+              deptScores.reduce((sum, s) => sum + s.totalScore, 0) /
+              deptScores.length,
+            )
             : 0;
 
         const distribution = {
@@ -724,38 +723,8 @@ export default function KPIReportsPage() {
           scores = reportDataFromApi.allScores || [];
 
           if (scores.length === 0 && usersData.length > 0) {
-            scores = usersData.map((user, index) => ({
-              _id: `placeholder-${user._id}`,
-              userId: {
-                _id: user._id,
-                fullName: user.fullName,
-                email: user.email,
-                employeeId:
-                  user.employeeId || `EMP${String(index + 1).padStart(4, "0")}`,
-                role: user.role || "employee",
-              },
-              departmentId: user.departmentId || {
-                _id: "unknown",
-                name: "Unassigned",
-                code: "UNK",
-              },
-              month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
-              year: selectedYear,
-              totalScore: 0,
-              performanceLevel: "needs_improvement",
-              percentile: 0,
-              rank: index + 1,
-              totalEmployees: usersData.length,
-              scores: {
-                taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
-                qualityScore: { score: 0, weight: 20, weightedScore: 0 },
-                efficiency: { score: 0, weight: 20, weightedScore: 0 },
-                collaboration: { score: 0, weight: 15, weightedScore: 0 },
-                innovation: { score: 0, weight: 15, weightedScore: 0 },
-                attendance: { score: 0, weight: 10, weightedScore: 0 },
-              },
-              calculatedAt: new Date().toISOString(),
-            }));
+            const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, "0")}`;
+            scores = createPlaceholderScores(usersData, monthStr, selectedYear);
           }
         }
 
@@ -796,9 +765,9 @@ export default function KPIReportsPage() {
         const avgScore =
           scores.length > 0
             ? Math.round(
-                scores.reduce((sum, s) => sum + s.totalScore, 0) /
-                  scores.length,
-              )
+              scores.reduce((sum, s) => sum + s.totalScore, 0) /
+              scores.length,
+            )
             : 0;
 
         const distribution = {
@@ -832,38 +801,8 @@ export default function KPIReportsPage() {
         console.error("Error fetching monthly data:", e);
 
         if (usersData.length > 0) {
-          const scores = usersData.map((user, index) => ({
-            _id: `placeholder-${user._id}`,
-            userId: {
-              _id: user._id,
-              fullName: user.fullName,
-              email: user.email,
-              employeeId:
-                user.employeeId || `EMP${String(index + 1).padStart(4, "0")}`,
-              role: user.role || "employee",
-            },
-            departmentId: user.departmentId || {
-              _id: "unknown",
-              name: "Unassigned",
-              code: "UNK",
-            },
-            month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
-            year: selectedYear,
-            totalScore: 0,
-            performanceLevel: "needs_improvement",
-            percentile: 0,
-            rank: index + 1,
-            totalEmployees: usersData.length,
-            scores: {
-              taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
-              qualityScore: { score: 0, weight: 20, weightedScore: 0 },
-              efficiency: { score: 0, weight: 20, weightedScore: 0 },
-              collaboration: { score: 0, weight: 15, weightedScore: 0 },
-              innovation: { score: 0, weight: 15, weightedScore: 0 },
-              attendance: { score: 0, weight: 10, weightedScore: 0 },
-            },
-            calculatedAt: new Date().toISOString(),
-          }));
+          const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, "0")}`;
+          const scores = createPlaceholderScores(usersData, monthStr, selectedYear);
           setAllScores(scores);
 
           const deptMap = new Map();
@@ -929,29 +868,25 @@ export default function KPIReportsPage() {
     quarters,
     generateMonthlyTrend,
     calculateComponentAverages,
+    createPlaceholderScores,
   ]);
 
   // ============================================================
-  // EFFECT - CONTROLLED WITH FLAGS
+  // EFFECTS
   // ============================================================
+  // Initialize selected month - only once
   useEffect(() => {
-    // Only fetch if:
-    // 1. User has permission
-    // 2. Not currently fetching
-    // 3. Selected month is set
-    // 4. Either first load or explicitly triggered by dependency change
-    if (canManage && !isFetching.current && selectedMonth) {
-      // For first load, only fetch once
-      if (isFirstLoad) {
-        setIsFirstLoad(false);
-        fetchReportData();
-        return;
-      }
+    if (!selectedMonth && !isInitialized.current) {
+      isInitialized.current = true;
+      setSelectedMonth(currentMonth);
+    }
+  }, [selectedMonth, currentMonth]);
 
-      // For subsequent loads, fetch when dependencies change
+  // Fetch data when dependencies change - without setState in effect
+  useEffect(() => {
+    if (canManage && !isFetching.current && selectedMonth) {
       fetchReportData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     canManage,
     reportType,
@@ -959,12 +894,83 @@ export default function KPIReportsPage() {
     selectedYear,
     selectedQuarter,
     selectedDepartment,
+    fetchReportData,
   ]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        exportMenuRef.current &&
+        !exportMenuRef.current.contains(event.target as Node)
+      ) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // ============================================================
-  // PDF EXPORT FUNCTION
+  // EXPORT FUNCTIONS
   // ============================================================
-  const exportToPDF = () => {
+  const handleExportCSV = useCallback(() => {
+    if (!reportData) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const headers = [
+        "Employee",
+        "Department",
+        "Total Score",
+        "Performance Level",
+        "Task Completion",
+        "Quality Score",
+        "Efficiency",
+        "Collaboration",
+        "Innovation",
+        "Attendance",
+        "Rank",
+        "Percentile",
+      ];
+
+      const rows =
+        allScores.length > 0
+          ? allScores.map((score) => [
+            score.userId.fullName,
+            score.departmentId.name,
+            score.totalScore.toFixed(1),
+            score.performanceLevel.replace("_", " "),
+            score.scores.taskCompletion.score.toFixed(1),
+            score.scores.qualityScore.score.toFixed(1),
+            score.scores.efficiency.score.toFixed(1),
+            score.scores.collaboration.score.toFixed(1),
+            score.scores.innovation.score.toFixed(1),
+            score.scores.attendance.score.toFixed(1),
+            score.rank || "N/A",
+            score.percentile || "N/A",
+          ])
+          : [["No data available", "", "", "", "", "", "", "", "", "", "", ""]];
+
+      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
+        "\n",
+      );
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `KPI_Report_${reportData.period.replace(/\s/g, "_")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("CSV exported successfully");
+    } catch (error) {
+      toast.error("Failed to export CSV");
+      console.error("Export error:", error);
+    }
+  }, [reportData, allScores]);
+
+  const exportToPDF = useCallback(() => {
     if (!reportData) {
       toast.error("No data to export");
       return;
@@ -975,24 +981,20 @@ export default function KPIReportsPage() {
     try {
       setExportLoading(true);
 
-      const doc = new jsPDF("l", "mm", "a4"); // Landscape
+      const doc = new jsPDF("l", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 14;
 
-      // Palette Colors
-      const primaryColor: [number, number, number] = [79, 70, 229]; // Indigo 600
-      const primaryDark: [number, number, number] = [55, 48, 163]; // Indigo 800
-      const textDark: [number, number, number] = [30, 41, 59]; // Slate 800
-      const textMuted: [number, number, number] = [100, 116, 139]; // Slate 500
+      const primaryColor: [number, number, number] = [79, 70, 229];
+      const primaryDark: [number, number, number] = [55, 48, 163];
+      const textDark: [number, number, number] = [30, 41, 59];
+      const textMuted: [number, number, number] = [100, 116, 139];
       const cardBg: [number, number, number] = [255, 255, 255];
-      const lightBg: [number, number, number] = [248, 250, 252]; // Slate 50
 
-      // ===== HEADER BANNER =====
+      // Header
       doc.setFillColor(...primaryColor);
       doc.rect(0, 0, pageWidth, 28, "F");
-
-      // Bottom Header Border Accent
       doc.setFillColor(...primaryDark);
       doc.rect(0, 26, pageWidth, 2, "F");
 
@@ -1010,7 +1012,6 @@ export default function KPIReportsPage() {
         21,
       );
 
-      // Right Header Pill Badge
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(pageWidth - margin - 55, 7, 55, 14, 3, 3, "F");
       doc.setTextColor(...primaryColor);
@@ -1020,7 +1021,7 @@ export default function KPIReportsPage() {
         align: "center",
       });
 
-      // ===== KPI SUMMARY CARDS =====
+      // Summary Cards
       let yPos = 36;
       const totalCards = 5;
       const cardGap = 5;
@@ -1029,51 +1030,21 @@ export default function KPIReportsPage() {
       const cardHeight = 20;
 
       const summaryCards = [
-        {
-          label: "Total Employees",
-          val: String(reportData.totalEmployees),
-          color: primaryColor,
-        },
-        {
-          label: "Average Score",
-          val: `${reportData.averageScore}%`,
-          color: [16, 185, 129],
-        }, // Emerald
-        {
-          label: "Excellent",
-          val: String(reportData.distribution?.excellent || 0),
-          color: [5, 150, 105],
-        },
-        {
-          label: "Good",
-          val: String(reportData.distribution?.good || 0),
-          color: [37, 99, 235],
-        },
-        {
-          label: "Needs Work",
-          val: String(reportData.distribution?.needs_improvement || 0),
-          color: [220, 38, 38],
-        },
+        { label: "Total Employees", val: String(reportData.totalEmployees), color: primaryColor },
+        { label: "Average Score", val: `${reportData.averageScore}%`, color: [16, 185, 129] },
+        { label: "Excellent", val: String(reportData.distribution?.excellent || 0), color: [5, 150, 105] },
+        { label: "Good", val: String(reportData.distribution?.good || 0), color: [37, 99, 235] },
+        { label: "Needs Work", val: String(reportData.distribution?.needs_improvement || 0), color: [220, 38, 38] },
       ];
 
       summaryCards.forEach((card, idx) => {
         const x = margin + idx * (cardWidth + cardGap);
 
-        // Card Box Shadow / Border simulation
         doc.setFillColor(226, 232, 240);
         doc.roundedRect(x, yPos, cardWidth, cardHeight, 2, 2, "F");
         doc.setFillColor(...cardBg);
-        doc.roundedRect(
-          x + 0.5,
-          yPos + 0.5,
-          cardWidth - 1,
-          cardHeight - 1,
-          2,
-          2,
-          "F",
-        );
+        doc.roundedRect(x + 0.5, yPos + 0.5, cardWidth - 1, cardHeight - 1, 2, 2, "F");
 
-        // Label
         doc.setFontSize(6.5);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...textMuted);
@@ -1081,7 +1052,6 @@ export default function KPIReportsPage() {
           align: "center",
         });
 
-        // Value
         doc.setFontSize(13);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...(card.color as [number, number, number]));
@@ -1089,13 +1059,11 @@ export default function KPIReportsPage() {
       });
 
       yPos += cardHeight + 10;
-
-      // ===== TWO COLUMN LAYOUT SETUP =====
       const colWidth = (usableWidth - 10) / 2;
       const leftColX = margin;
       const rightColX = margin + colWidth + 10;
 
-      // ----- LEFT COLUMN 1: Component Averages -----
+      // Component Averages
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(...primaryColor);
@@ -1134,13 +1102,10 @@ export default function KPIReportsPage() {
         margin: { left: leftColX },
       });
 
-      let leftY = (doc as any).lastAutoTable.finalY + 8;
+      const leftY = (doc as any).lastAutoTable?.finalY + 8 || yPos + 30;
 
-      // ----- LEFT COLUMN 2: Department Averages -----
-      if (
-        reportData.departmentAverages &&
-        reportData.departmentAverages.length > 0
-      ) {
+      // Department Averages
+      if (reportData.departmentAverages && reportData.departmentAverages.length > 0) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...primaryColor);
@@ -1167,20 +1132,16 @@ export default function KPIReportsPage() {
           bodyStyles: { fontSize: 8, textColor: textDark },
           columnStyles: {
             0: { cellWidth: colWidth * 0.5 },
-            1: {
-              cellWidth: colWidth * 0.25,
-              halign: "center",
-              fontStyle: "bold",
-            },
+            1: { cellWidth: colWidth * 0.25, halign: "center", fontStyle: "bold" },
             2: { cellWidth: colWidth * 0.25, halign: "center" },
           },
           margin: { left: leftColX },
         });
       }
 
-      // ----- RIGHT COLUMN 1: Top Performers -----
       let rightY = yPos;
 
+      // Top Performers
       if (reportData.topPerformers && reportData.topPerformers.length > 0) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
@@ -1210,26 +1171,18 @@ export default function KPIReportsPage() {
           },
           bodyStyles: { fontSize: 8, textColor: textDark },
           columnStyles: {
-            0: {
-              cellWidth: colWidth * 0.15,
-              halign: "center",
-              fontStyle: "bold",
-            },
+            0: { cellWidth: colWidth * 0.15, halign: "center", fontStyle: "bold" },
             1: { cellWidth: colWidth * 0.45 },
             2: { cellWidth: colWidth * 0.25 },
-            3: {
-              cellWidth: colWidth * 0.15,
-              halign: "center",
-              fontStyle: "bold",
-            },
+            3: { cellWidth: colWidth * 0.15, halign: "center", fontStyle: "bold" },
           },
           margin: { left: rightColX },
         });
 
-        rightY = (doc as any).lastAutoTable.finalY + 8;
+        rightY = (doc as any).lastAutoTable?.finalY + 8 || rightY + 30;
       }
 
-      // ----- RIGHT COLUMN 2: Monthly Trend -----
+      // Monthly Trend
       if (reportData.monthlyTrend && reportData.monthlyTrend.length > 0) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
@@ -1257,23 +1210,18 @@ export default function KPIReportsPage() {
           bodyStyles: { fontSize: 8, textColor: textDark },
           columnStyles: {
             0: { cellWidth: colWidth * 0.4 },
-            1: {
-              cellWidth: colWidth * 0.3,
-              halign: "center",
-              fontStyle: "bold",
-            },
+            1: { cellWidth: colWidth * 0.3, halign: "center", fontStyle: "bold" },
             2: { cellWidth: colWidth * 0.3, halign: "center" },
           },
           margin: { left: rightColX },
         });
       }
 
-      // ===== PAGE FOOTERS =====
-      const totalPages = doc.internal.getNumberOfPages();
+      // Footer
+      const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
 
-        // Footer Divider
         doc.setDrawColor(226, 232, 240);
         doc.setLineWidth(0.3);
         doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
@@ -1290,13 +1238,10 @@ export default function KPIReportsPage() {
           `Generated on ${new Date().toLocaleDateString()} | Page ${i} of ${totalPages}`,
           pageWidth - margin,
           pageHeight - 6,
-          {
-            align: "right",
-          },
+          { align: "right" },
         );
       }
 
-      // Save Output
       const cleanPeriod = (reportData.period || "Report").replace(/\s+/g, "_");
       doc.save(`KPI_Executive_Report_${cleanPeriod}.pdf`);
 
@@ -1307,141 +1252,11 @@ export default function KPIReportsPage() {
     } finally {
       setExportLoading(false);
     }
-  };
+  }, [reportData]);
 
   // ============================================================
-  // HANDLE CSV EXPORT
+  // ACCESS DENIED
   // ============================================================
-  const handleExportCSV = () => {
-    if (!reportData) {
-      toast.error("No data to export");
-      return;
-    }
-
-    try {
-      const headers = [
-        "Employee",
-        "Department",
-        "Total Score",
-        "Performance Level",
-        "Task Completion",
-        "Quality Score",
-        "Efficiency",
-        "Collaboration",
-        "Innovation",
-        "Attendance",
-        "Rank",
-        "Percentile",
-      ];
-
-      const rows =
-        allScores.length > 0
-          ? allScores.map((score) => [
-              score.userId.fullName,
-              score.departmentId.name,
-              score.totalScore.toFixed(1),
-              score.performanceLevel.replace("_", " "),
-              score.scores.taskCompletion.score.toFixed(1),
-              score.scores.qualityScore.score.toFixed(1),
-              score.scores.efficiency.score.toFixed(1),
-              score.scores.collaboration.score.toFixed(1),
-              score.scores.innovation.score.toFixed(1),
-              score.scores.attendance.score.toFixed(1),
-              score.rank || "N/A",
-              score.percentile || "N/A",
-            ])
-          : [["No data available", "", "", "", "", "", "", "", "", "", "", ""]];
-
-      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
-        "\n",
-      );
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `KPI_Report_${reportData.period.replace(/\s/g, "_")}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("CSV exported successfully");
-    } catch (error) {
-      toast.error("Failed to export CSV");
-      console.error("Export error:", error);
-    }
-  };
-
-  // ============================================================
-  // HANDLE EXPORT MENU
-  // ============================================================
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        exportMenuRef.current &&
-        !exportMenuRef.current.contains(event.target as Node)
-      ) {
-        setShowExportMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // ============================================================
-  // HELPERS
-  // ============================================================
-  const getPerformanceConfig = (level: string) => {
-    const config = {
-      excellent: {
-        color: "text-emerald-600",
-        bg: "bg-emerald-50",
-        border: "border-emerald-200",
-        icon: Crown,
-        label: "Excellent",
-        emoji: "🌟",
-      },
-      good: {
-        color: "text-blue-600",
-        bg: "bg-blue-50",
-        border: "border-blue-200",
-        icon: Award,
-        label: "Good",
-        emoji: "⭐",
-      },
-      average: {
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-        border: "border-amber-200",
-        icon: Medal,
-        label: "Average",
-        emoji: "📊",
-      },
-      needs_improvement: {
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-        icon: AlertCircle,
-        label: "Needs Improvement",
-        emoji: "📈",
-      },
-    };
-    return config[level as keyof typeof config] || config.average;
-  };
-
-  const formatScore = (score: number) => {
-    return score.toFixed(1);
-  };
-
-  const getTrendDirection = (data: any[]) => {
-    if (data.length < 2) return "stable";
-    const first = data[0]?.averageScore || 0;
-    const last = data[data.length - 1]?.averageScore || 0;
-    if (last > first) return "up";
-    if (last < first) return "down";
-    return "stable";
-  };
-
   if (!canManage) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1472,7 +1287,7 @@ export default function KPIReportsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-375 mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Breadcrumb */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -1513,7 +1328,6 @@ export default function KPIReportsPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {/* Export Dropdown */}
               <div className="relative" ref={exportMenuRef}>
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
@@ -1556,7 +1370,10 @@ export default function KPIReportsPage() {
               </div>
 
               <button
-                onClick={fetchReportData}
+                onClick={() => {
+                  setIsFirstLoad(false);
+                  fetchReportData();
+                }}
                 disabled={loading}
                 className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
               >
@@ -1585,11 +1402,10 @@ export default function KPIReportsPage() {
                 <button
                   key={tab.type}
                   onClick={() => setReportType(tab.type as ReportType)}
-                  className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${
-                    reportType === tab.type
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-100/80"
-                  }`}
+                  className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${reportType === tab.type
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-100/80"
+                    }`}
                 >
                   <tab.icon size={16} />
                   {tab.label}
@@ -1898,7 +1714,7 @@ export default function KPIReportsPage() {
                           outerRadius={80}
                           dataKey="value"
                           label={({ name, percent }) =>
-                            `${name} ${(percent * 100).toFixed(0)}%`
+                            `${name} ${((percent || 0) * 100).toFixed(0)}%`
                           }
                           labelLine={false}
                         >
@@ -1999,32 +1815,32 @@ export default function KPIReportsPage() {
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <div className="w-8 h-8 bg-emerald-50 rounded-xl flex items-center justify-center">
-                          <TrendingUp size={16} className="text-emerald-500" />
+                          <TrendingUpIcon size={16} className="text-emerald-500" />
                         </div>
                         Performance Trend
                       </h3>
                       <div className="flex items-center gap-2">
                         {getTrendDirection(reportData.monthlyTrend) ===
                           "up" && (
-                          <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1">
-                            <TrendingUp size={12} />
-                            Improving
-                          </span>
-                        )}
+                            <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full flex items-center gap-1">
+                              <TrendingUp size={12} />
+                              Improving
+                            </span>
+                          )}
                         {getTrendDirection(reportData.monthlyTrend) ===
                           "down" && (
-                          <span className="text-xs font-medium text-rose-600 bg-rose-50 px-3 py-1 rounded-full flex items-center gap-1">
-                            <TrendingDown size={12} />
-                            Declining
-                          </span>
-                        )}
+                            <span className="text-xs font-medium text-rose-600 bg-rose-50 px-3 py-1 rounded-full flex items-center gap-1">
+                              <TrendingDown size={12} />
+                              Declining
+                            </span>
+                          )}
                         {getTrendDirection(reportData.monthlyTrend) ===
                           "stable" && (
-                          <span className="text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full flex items-center gap-1">
-                            <MinusCircle size={12} />
-                            Stable
-                          </span>
-                        )}
+                            <span className="text-xs font-medium text-amber-600 bg-amber-50 px-3 py-1 rounded-full flex items-center gap-1">
+                              <MinusCircle size={12} />
+                              Stable
+                            </span>
+                          )}
                       </div>
                     </div>
                     <div className="h-56">
