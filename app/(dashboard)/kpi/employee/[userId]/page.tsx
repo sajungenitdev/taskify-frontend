@@ -1249,7 +1249,7 @@ export default function EmployeeKPIDetailPage() {
 
                                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                                             <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                                <LineChart size={16} className="text-indigo-500" />
+                                                <LineChart className="text-indigo-500" />
                                                 Performance Trend
                                             </h3>
                                             {trendLoading ? (
