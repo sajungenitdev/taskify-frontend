@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -9,68 +9,38 @@ import {
   TrendingDown,
   Users,
   Award,
-  Calendar,
   Search,
   Loader2,
   Download,
   RefreshCw,
   Eye,
-  ChevronDown,
-  ChevronUp,
-  Target,
-  Activity,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  ArrowUpRight,
-  ArrowDownRight,
   ChevronRight,
   X,
-  PieChart,
-  LineChart,
-  User,
-  Building2,
   Crown,
   Medal,
-  Zap,
-  Sparkles,
   Settings,
   Home,
-  Filter,
-  Printer,
-  Mail,
-  Star,
-  Flame,
-  Gauge,
   Shield,
   Users as UsersIcon,
-  Briefcase,
   ExternalLink,
-  TrendingUp as TrendingUpIcon,
   ChevronLeft,
-  UserCheck,
-  UserX,
+  AlertCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
-  LineChart as RechartsLineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   BarChart,
   Bar,
   PieChart as RechartsPieChart,
   Pie,
   Cell,
-  Area,
-  ComposedChart,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from "recharts";
 
 interface KPIScore {
@@ -119,7 +89,6 @@ interface User {
     name: string;
     code: string;
   };
-  roles?: Array<{ _id: string; name: string; code: string; level: number }>;
   lastLogin?: string;
   createdAt: string;
 }
@@ -157,6 +126,16 @@ interface CombinedEmployeeData {
   kpi: KPIScore | null;
 }
 
+interface ChartDataItem {
+  name: string;
+  value: number;
+}
+
+interface ScoreRangeDataItem {
+  range: string;
+  count: number;
+}
+
 export default function KPIDashboardPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
@@ -181,9 +160,8 @@ export default function KPIDashboardPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [employeeLoading, setEmployeeLoading] = useState(false);
-  const [userRole, setUserRole] = useState<string>("");
   const [userDepartmentId, setUserDepartmentId] = useState<string | null>(null);
-  const [userRoleCodes, setUserRoleCodes] = useState<string[]>([]);
+  const userDeptInitialized = useRef(false);
 
   const canManage = hasRole([
     "super_admin",
@@ -208,35 +186,47 @@ export default function KPIDashboardPage() {
   ];
 
   const currentMonth = months[new Date().getMonth()];
-  const currentYear = new Date().getFullYear();
 
+  // Refs to prevent multiple initialization
+  const isInitialized = useRef(false);
+  const isFetching = useRef(false);
+  const isMounted = useRef(true);
+
+  // Cleanup on unmount
   useEffect(() => {
-    if (!selectedMonth) {
-      setSelectedMonth(currentMonth);
-    }
-  }, [currentMonth]);
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+  // Combined data - merge users with their KPI scores
+  const combinedData = useMemo(() => {
+    const kpiMap = new Map<string, KPIScore>();
 
-  // Get user role info
-  useEffect(() => {
-    if (user) {
-      setUserRole(user.role || "");
-      setUserDepartmentId(user.departmentId?._id || null);
-
-      // Get all role codes from roles array
-      if (user.roles && user.roles.length > 0) {
-        const codes = user.roles.map((r) => r.code.toLowerCase());
-        setUserRoleCodes(codes);
-      } else if (user.role) {
-        setUserRoleCodes([user.role]);
+    kpiScores.forEach((kpi) => {
+      if (!kpi || !kpi.userId) return;
+      const userId = kpi.userId._id;
+      if (userId) {
+        kpiMap.set(userId, kpi);
       }
-    }
-  }, [user]);
+    });
 
-  useEffect(() => {
-    if (canManage) {
-      fetchAllData();
-    }
-  }, [canManage, selectedMonth, selectedYear]);
+    return allUsers.map((user) => ({
+      user,
+      kpi: kpiMap.get(user._id) || null
+    }));
+  }, [allUsers, kpiScores]);
+
+  // Chart data
+  const chartData = useMemo<ChartDataItem[]>(() => {
+    if (!stats) return [];
+    return [
+      { name: "Excellent", value: stats.distribution.excellent },
+      { name: "Good", value: stats.distribution.good },
+      { name: "Average", value: stats.distribution.average },
+      { name: "Needs Improvement", value: stats.distribution.needs_improvement },
+    ];
+  }, [stats]);
 
   // ============================================================
   // ROLE-BASED FILTERING - Check if user can view all data
@@ -265,73 +255,9 @@ export default function KPIDashboardPage() {
   }, [user]);
 
   // ============================================================
-  // FETCH DATA WITH ROLE-BASED FILTERING
+  // CALCULATE STATS
   // ============================================================
-  const fetchAllData = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch all users
-      const usersResponse = await api.get("/users");
-      let usersData = usersResponse.data.success ? usersResponse.data.data : [];
-
-      // Apply role-based filtering
-      if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
-        // Department managers see only their department
-        usersData = usersData.filter(
-          (u: User) => u.departmentId?._id === userDepartmentId,
-        );
-        console.log(`📊 Filtered to department: ${usersData.length} users`);
-      } else if (canViewOwnData && user) {
-        // Employees see only themselves
-        usersData = usersData.filter((u: User) => u._id === user._id);
-        console.log(`📊 Filtered to self: ${usersData.length} users`);
-      }
-
-      setAllUsers(usersData);
-
-      // Fetch KPI scores for the selected month
-      const monthIndex = months.indexOf(selectedMonth) + 1;
-      try {
-        const kpiResponse = await api.get(`/kpi/report/monthly`, {
-          params: {
-            month: monthIndex,
-            year: selectedYear,
-          },
-        });
-
-        if (kpiResponse.data.success) {
-          const data = kpiResponse.data.data;
-          let scoresData = data.allScores || [];
-
-          // Apply role-based filtering to scores
-          if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
-            scoresData = scoresData.filter(
-              (s: KPIScore) => s.departmentId._id === userDepartmentId,
-            );
-          } else if (canViewOwnData && user) {
-            scoresData = scoresData.filter(
-              (s: KPIScore) => s.userId._id === user._id,
-            );
-          }
-
-          setKpiScores(scoresData);
-          calculateStats(scoresData, usersData);
-        }
-      } catch (kpiError) {
-        console.log("No KPI data found, showing users only");
-        setKpiScores([]);
-        calculateStats([], usersData);
-      }
-    } catch (error: any) {
-      console.error("Error fetching data:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const calculateStats = (scores: KPIScore[], users: User[]) => {
+  const calculateStats = useCallback((scores: KPIScore[], users: User[]) => {
     // Department extraction (only from filtered users)
     const depts = [
       ...new Set(users.map((u) => u.departmentId?.name || "Unassigned")),
@@ -356,7 +282,7 @@ export default function KPIDashboardPage() {
     });
 
     // Calculate department averages (only from filtered data)
-    const deptMap = new Map();
+    const deptMap = new Map<string, { total: number; count: number; deptId: string }>();
     scores.forEach((s) => {
       const deptName = s.departmentId.name;
       if (!deptMap.has(deptName)) {
@@ -366,7 +292,7 @@ export default function KPIDashboardPage() {
           deptId: s.departmentId._id,
         });
       }
-      const data = deptMap.get(deptName);
+      const data = deptMap.get(deptName)!;
       data.total += s.totalScore;
       data.count++;
     });
@@ -395,6 +321,11 @@ export default function KPIDashboardPage() {
     const averageScore =
       scores.length > 0 ? Math.round(totalScore / scores.length) : 0;
 
+    // Get top performers (sorted by score)
+    const topPerformers = [...scores]
+      .sort((a, b) => b.totalScore - a.totalScore)
+      .slice(0, 5);
+
     setStats({
       totalEmployees: users.length,
       activeEmployees: users.filter((u) => u.isActive).length,
@@ -402,12 +333,99 @@ export default function KPIDashboardPage() {
       averageScore,
       distribution,
       departmentAverages,
-      topPerformers: scores.slice(0, 5),
+      topPerformers,
+      serverStatus: "healthy",
       scoreRangeDistribution: scoreRanges,
     });
-  };
+  }, []);
 
-  const fetchEmployeeDetail = async (userId: string) => {
+  // ============================================================
+  // FETCH DATA WITH ROLE-BASED FILTERING
+  // ============================================================
+  const fetchAllData = useCallback(async () => {
+    if (isFetching.current || !isMounted.current) return;
+
+    try {
+      isFetching.current = true;
+      setLoading(true);
+
+      // Fetch all users
+      const usersResponse = await api.get("/users");
+      let usersData = usersResponse.data.success ? usersResponse.data.data : [];
+
+      // Apply role-based filtering
+      if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
+        usersData = usersData.filter(
+          (u: User) => u.departmentId?._id === userDepartmentId,
+        );
+      } else if (canViewOwnData && user) {
+        usersData = usersData.filter((u: User) => u._id === user._id);
+      }
+
+      if (!isMounted.current) return;
+      setAllUsers(usersData);
+
+      // Fetch KPI scores for the selected month
+      const monthIndex = months.indexOf(selectedMonth) + 1;
+      try {
+        const kpiResponse = await api.get(`/kpi/report/monthly`, {
+          params: {
+            month: monthIndex,
+            year: selectedYear,
+          },
+        });
+
+        if (!isMounted.current) return;
+
+        if (kpiResponse.data.success) {
+          const data = kpiResponse.data.data;
+          let scoresData = data.allScores || [];
+
+          // Apply role-based filtering to scores
+          if (!canViewAllData && canViewDepartmentData && userDepartmentId) {
+            scoresData = scoresData.filter(
+              (s: KPIScore) => s.departmentId._id === userDepartmentId,
+            );
+          } else if (canViewOwnData && user) {
+            scoresData = scoresData.filter(
+              (s: KPIScore) => s.userId._id === user._id,
+            );
+          }
+
+          setKpiScores(scoresData);
+          calculateStats(scoresData, usersData);
+        }
+      } catch (kpiError) {
+        console.log("No KPI data found, showing users only");
+        if (isMounted.current) {
+          setKpiScores([]);
+          calculateStats([], usersData);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching data:", error);
+      if (isMounted.current) {
+        toast.error(error.response?.data?.message || "Failed to fetch data");
+      }
+    } finally {
+      if (isMounted.current) {
+        setLoading(false);
+        isFetching.current = false;
+      }
+    }
+  }, [
+    canViewAllData,
+    canViewDepartmentData,
+    canViewOwnData,
+    user,
+    userDepartmentId,
+    selectedMonth,
+    selectedYear,
+    months,
+    calculateStats,
+  ]);
+
+  const fetchEmployeeDetail = useCallback(async (userId: string) => {
     try {
       setEmployeeLoading(true);
       const response = await api.get(`/kpi/employee/${userId}`);
@@ -430,9 +448,9 @@ export default function KPIDashboardPage() {
     } finally {
       setEmployeeLoading(false);
     }
-  };
+  }, [allUsers]);
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     if (combinedData.length === 0) {
       toast.error("No data to export");
       return;
@@ -486,9 +504,12 @@ export default function KPIDashboardPage() {
     a.click();
     URL.revokeObjectURL(url);
     toast.success("Data exported successfully");
-  };
+  }, [combinedData, selectedMonth, selectedYear]);
 
-  const getPerformanceConfig = (level: string) => {
+  // ============================================================
+  // UI HELPERS
+  // ============================================================
+  const getPerformanceConfig = useCallback((level: string) => {
     const config = {
       excellent: {
         color: "text-emerald-600",
@@ -528,31 +549,52 @@ export default function KPIDashboardPage() {
       },
     };
     return config[level as keyof typeof config] || config.average;
-  };
+  }, []);
 
-  const formatScore = (score: number) => {
+  const formatScore = useCallback((score: number) => {
     return score.toFixed(1);
-  };
+  }, []);
 
-  // Combined data - merge users with their KPI scores
-  const combinedData = useMemo(() => {
-    const combined: CombinedEmployeeData[] = allUsers.map((user) => {
-      const kpi =
-        kpiScores.find((k) => {
-          if (!k || !k.userId) return false;
-          if (typeof k.userId === "object" && k.userId._id) {
-            return k.userId._id === user._id;
-          }
-          if (typeof k.userId === "string") {
-            return k.userId === user._id;
-          }
-          return false;
-        }) || null;
+  const getRoleDisplayName = useCallback((role: string) => {
+    const roleMap: Record<string, string> = {
+      super_admin: "Super Admin",
+      admin: "Admin",
+      hr_manager: "HR Manager",
+      dept_manager: "Department Manager",
+      project_manager: "Project Manager",
+      line_manager: "Line Manager",
+      employee: "Employee",
+    };
+    return roleMap[role] || role.replace(/_/g, " ");
+  }, []);
 
-      return { user, kpi };
-    });
-    return combined;
-  }, [allUsers, kpiScores]);
+  // Custom hook for combining user and KPI data
+  function useCombinedData(users: User[], kpiScores: KPIScore[]) {
+    return useMemo(() => {
+      const kpiMap = new Map<string, KPIScore>();
+
+      kpiScores.forEach((kpi) => {
+        if (!kpi || !kpi.userId) return;
+        const userId = kpi.userId._id;
+        if (userId) {
+          kpiMap.set(userId, kpi);
+        }
+      });
+
+      return users.map((user) => ({
+        user,
+        kpi: kpiMap.get(user._id) || null
+      }));
+    }, [users, kpiScores]);
+  }
+
+
+  const scoreRangeData = useMemo<ScoreRangeDataItem[]>(() => {
+    if (!stats) return [];
+    return Object.entries(stats.scoreRangeDistribution).map(
+      ([range, count]) => ({ range, count })
+    );
+  }, [stats]);
 
   // Filter and sort combined data
   const filteredData = useMemo(() => {
@@ -580,7 +622,6 @@ export default function KPIDashboardPage() {
       );
     }
 
-    // Sort
     filtered.sort((a, b) => {
       let comparison = 0;
       switch (sortBy) {
@@ -615,37 +656,33 @@ export default function KPIDashboardPage() {
   const currentItems = filteredData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  // Get role display name
-  const getRoleDisplayName = (role: string) => {
-    const roleMap: Record<string, string> = {
-      super_admin: "Super Admin",
-      admin: "Admin",
-      hr_manager: "HR Manager",
-      dept_manager: "Department Manager",
-      project_manager: "Project Manager",
-      line_manager: "Line Manager",
-      employee: "Employee",
-    };
-    return roleMap[role] || role.replace(/_/g, " ");
-  };
-
-  // Check if user has any of the required roles
-  const hasRequiredRole = (requiredRoles: string[]) => {
-    if (!user) return false;
-
-    // Check legacy role
-    if (requiredRoles.includes(user.role)) return true;
-
-    // Check roles array
-    if (user.roles && user.roles.length > 0) {
-      return user.roles.some((r) =>
-        requiredRoles.includes(r.code.toLowerCase()),
-      );
+  // Initialize selected month
+  useEffect(() => {
+    if (!selectedMonth && !isInitialized.current) {
+      isInitialized.current = true;
+      setSelectedMonth(currentMonth);
     }
+  }, [selectedMonth, currentMonth]);
 
-    return false;
-  };
+  // Get user department info
+  useEffect(() => {
+    if (user && !userDeptInitialized.current) {
+      userDeptInitialized.current = true;
+      const deptId = user.departmentId?._id || null;
+      setUserDepartmentId(deptId);
+    }
+  }, [user]);
 
+  // Load data when filters change
+  useEffect(() => {
+    if (selectedMonth && canManage && !isFetching.current) {
+      fetchAllData();
+    }
+  }, [canManage, selectedMonth, selectedYear, fetchAllData]);
+
+  // ============================================================
+  // ACCESS DENIED
+  // ============================================================
   if (!canManage) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -661,7 +698,7 @@ export default function KPIDashboardPage() {
           </p>
           <button
             onClick={() => router.push("/dashboard")}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm"
+            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"
           >
             Go to Dashboard
           </button>
@@ -670,10 +707,13 @@ export default function KPIDashboardPage() {
     );
   }
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
-        <div className="max-w-375 mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {/* Breadcrumb */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -840,28 +880,14 @@ export default function KPIDashboardPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <RechartsPieChart>
                       <Pie
-                        data={[
-                          {
-                            name: "Excellent",
-                            value: stats.distribution.excellent,
-                          },
-                          { name: "Good", value: stats.distribution.good },
-                          {
-                            name: "Average",
-                            value: stats.distribution.average,
-                          },
-                          {
-                            name: "Needs Improvement",
-                            value: stats.distribution.needs_improvement,
-                          },
-                        ]}
+                        data={chartData}
                         cx="50%"
                         cy="50%"
                         innerRadius={40}
                         outerRadius={70}
                         dataKey="value"
                         label={({ name, percent }) =>
-                          `${name} ${(percent * 100).toFixed(0)}%`
+                          `${name} ${((percent || 0) * 100).toFixed(0)}%`
                         }
                         labelLine={false}
                       >
@@ -883,11 +909,7 @@ export default function KPIDashboardPage() {
                 </h3>
                 <div className="h-48">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={Object.entries(stats.scoreRangeDistribution).map(
-                        ([range, count]) => ({ range, count }),
-                      )}
-                    >
+                    <BarChart data={scoreRangeData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="range" tick={{ fontSize: 10 }} />
                       <YAxis tick={{ fontSize: 10 }} />
@@ -954,69 +976,42 @@ export default function KPIDashboardPage() {
                 )}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                {stats.topPerformers
-                  .filter((performer) => {
-                    if (!performer?.userId) return false;
-                    if (typeof performer.userId === "string") return true;
-                    if (typeof performer.userId === "object") {
-                      return (
-                        performer.userId._id ||
-                        performer.userId.id ||
-                        performer.userId.fullName
-                      );
-                    }
-                    return false;
-                  })
-                  .slice(0, 5)
-                  .map((performer, index) => {
-                    const perfConfig = getPerformanceConfig(
-                      performer.performanceLevel,
-                    );
+                {stats.topPerformers.slice(0, 5).map((performer, index) => {
+                  const perfConfig = getPerformanceConfig(
+                    performer.performanceLevel,
+                  );
 
-                    const userId =
-                      typeof performer.userId === "object"
-                        ? performer.userId._id || performer.userId.id
-                        : performer.userId;
+                  const userId = performer.userId._id;
+                  const userName = performer.userId.fullName || "No Name";
+                  const deptName = performer.departmentId.name || "No Department";
 
-                    const userName =
-                      typeof performer.userId === "object"
-                        ? performer.userId.fullName ||
-                          performer.userId.name ||
-                          "No Name"
-                        : "No Name";
-
-                    const deptName =
-                      typeof performer.departmentId === "object"
-                        ? performer.departmentId.name || "No Department"
-                        : "No Department";
-
-                    return (
-                      <div
-                        key={performer._id || index}
-                        className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:shadow-md transition"
-                        onClick={() => {
-                          if (userId) {
-                            fetchEmployeeDetail(userId);
-                          }
-                        }}
-                      >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {userName}
-                          </p>
-                          <p className="text-xs text-gray-400 truncate">
-                            {deptName}
-                          </p>
-                        </div>
-                        <span className="text-sm font-bold text-emerald-600">
-                          {formatScore(performer.totalScore ?? 0)}%
-                        </span>
+                  return (
+                    <div
+                      key={performer._id || index}
+                      className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100 cursor-pointer hover:shadow-md transition"
+                      onClick={() => {
+                        if (userId) {
+                          fetchEmployeeDetail(userId);
+                        }
+                      }}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm">
+                        {index + 1}
                       </div>
-                    );
-                  })}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {userName}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {deptName}
+                        </p>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-600">
+                        {formatScore(performer.totalScore ?? 0)}%
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </motion.div>
           )}
@@ -1204,15 +1199,14 @@ export default function KPIDashboardPage() {
                                 </span>
                                 <div className="w-16 bg-gray-200 rounded-full h-1.5">
                                   <div
-                                    className={`h-1.5 rounded-full ${
-                                      item.kpi.totalScore >= 90
-                                        ? "bg-emerald-500"
-                                        : item.kpi.totalScore >= 75
-                                          ? "bg-blue-500"
-                                          : item.kpi.totalScore >= 60
-                                            ? "bg-amber-500"
-                                            : "bg-red-500"
-                                    }`}
+                                    className={`h-1.5 rounded-full ${item.kpi.totalScore >= 90
+                                      ? "bg-emerald-500"
+                                      : item.kpi.totalScore >= 75
+                                        ? "bg-blue-500"
+                                        : item.kpi.totalScore >= 60
+                                          ? "bg-amber-500"
+                                          : "bg-red-500"
+                                      }`}
                                     style={{ width: `${item.kpi.totalScore}%` }}
                                   />
                                 </div>
@@ -1358,11 +1352,10 @@ export default function KPIDashboardPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm transition ${
-                            currentPage === pageNum
-                              ? "bg-indigo-600 text-white shadow-sm"
-                              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                          }`}
+                          className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -1450,15 +1443,14 @@ export default function KPIDashboardPage() {
                       <>
                         <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                           <div
-                            className={`h-2 rounded-full ${
-                              item.kpi.totalScore >= 90
-                                ? "bg-emerald-500"
-                                : item.kpi.totalScore >= 75
-                                  ? "bg-blue-500"
-                                  : item.kpi.totalScore >= 60
-                                    ? "bg-amber-500"
-                                    : "bg-red-500"
-                            }`}
+                            className={`h-2 rounded-full ${item.kpi.totalScore >= 90
+                              ? "bg-emerald-500"
+                              : item.kpi.totalScore >= 75
+                                ? "bg-blue-500"
+                                : item.kpi.totalScore >= 60
+                                  ? "bg-amber-500"
+                                  : "bg-red-500"
+                              }`}
                             style={{ width: `${item.kpi.totalScore}%` }}
                           />
                         </div>
@@ -1529,11 +1521,10 @@ export default function KPIDashboardPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg text-sm transition ${
-                        currentPage === pageNum
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -1612,15 +1603,14 @@ export default function KPIDashboardPage() {
                         <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
                           <p className="text-sm text-gray-500">Total Score</p>
                           <p
-                            className={`text-2xl font-bold ${
-                              selectedEmployee.currentKPI.totalScore >= 90
-                                ? "text-emerald-600"
-                                : selectedEmployee.currentKPI.totalScore >= 75
-                                  ? "text-blue-600"
-                                  : selectedEmployee.currentKPI.totalScore >= 60
-                                    ? "text-amber-600"
-                                    : "text-red-600"
-                            }`}
+                            className={`text-2xl font-bold ${selectedEmployee.currentKPI.totalScore >= 90
+                              ? "text-emerald-600"
+                              : selectedEmployee.currentKPI.totalScore >= 75
+                                ? "text-blue-600"
+                                : selectedEmployee.currentKPI.totalScore >= 60
+                                  ? "text-amber-600"
+                                  : "text-red-600"
+                              }`}
                           >
                             {formatScore(
                               selectedEmployee.currentKPI.totalScore,
@@ -1632,7 +1622,7 @@ export default function KPIDashboardPage() {
                           <p className="text-sm text-gray-500">
                             Performance Level
                           </p>
-                          <p className="text-lg text-amber-300 font-semibold">
+                          <p className="text-lg font-semibold">
                             {
                               getPerformanceConfig(
                                 selectedEmployee.currentKPI.performanceLevel,
@@ -1689,16 +1679,16 @@ export default function KPIDashboardPage() {
                                 </p>
                                 <div className="flex items-center justify-between mt-1">
                                   <span className="text-lg font-bold text-gray-800">
-                                    {formatScore(value.score)}%
+                                    {formatScore((value as any).score)}%
                                   </span>
                                   <span className="text-xs text-gray-400">
-                                    Weight: {value.weight}%
+                                    Weight: {(value as any).weight}%
                                   </span>
                                 </div>
                                 <div className="mt-1 w-full bg-gray-200 rounded-full h-1.5">
                                   <div
                                     className="h-1.5 rounded-full"
-                                    style={{ width: `${value.score}%` }}
+                                    style={{ width: `${(value as any).score}%` }}
                                   />
                                 </div>
                               </div>
