@@ -1,7 +1,7 @@
 import { Grid } from "lucide-react";
 
 // ============ TYPE DEFINITIONS ============
-interface HeatMapData {
+export interface HeatMapData {
   employeeId: string;
   employeeName: string;
   department: string;
@@ -13,7 +13,8 @@ interface HeatMapData {
   attendance: number;
   totalScore: number;
   performanceLevel: string;
-  [key: string]: number | string; // For dynamic access
+  // Remove the index signature to match page.tsx
+  // [key: string]: number | string;
 }
 
 interface HeatMapTabProps {
@@ -138,8 +139,9 @@ function HeatMapTab({
                       </div>
                     </td>
                     {components.map((comp) => {
-                      // Safe value extraction with type checking
-                      const value = Number(employee[comp.key]) || 0;
+                      // Safe value extraction using keyof
+                      const value =
+                        Number(employee[comp.key as keyof HeatMapData]) || 0;
                       return (
                         <td key={comp.key} className="px-4 py-3 text-center">
                           <div className="inline-block">

@@ -132,7 +132,14 @@ interface HeatMapData {
   performanceLevel: string;
 }
 
-const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+const COLORS = [
+  "#10b981",
+  "#3b82f6",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 export default function KPIAnalyticsPage() {
   const { user, hasRole } = useAuth();
@@ -144,13 +151,17 @@ export default function KPIAnalyticsPage() {
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear(),
   );
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
-  const [departmentComparisons, setDepartmentComparisons] = useState<DepartmentComparison[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(
+    null,
+  );
+  const [departmentComparisons, setDepartmentComparisons] = useState<
+    DepartmentComparison[]
+  >([]);
   const [heatMapData, setHeatMapData] = useState<HeatMapData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"insights" | "comparisons" | "heatmap" | "predictions">(
-    "insights"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "insights" | "comparisons" | "heatmap" | "predictions"
+  >("insights");
 
   const canManage = hasRole([
     "super_admin",
@@ -250,7 +261,9 @@ export default function KPIAnalyticsPage() {
     } catch (error: any) {
       console.error("Error fetching analytics data:", error);
       if (isMounted.current) {
-        toast.error(error.response?.data?.message || "Failed to fetch analytics data");
+        toast.error(
+          error.response?.data?.message || "Failed to fetch analytics data",
+        );
       }
     } finally {
       if (isMounted.current) {
@@ -386,8 +399,12 @@ export default function KPIAnalyticsPage() {
           <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Brain className="w-10 h-10 text-rose-500" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">Access Denied</h2>
-          <p className="text-gray-500">You don't have permission to view this page</p>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+            Access Denied
+          </h2>
+          <p className="text-gray-500">
+            You don't have permission to view this page
+          </p>
           <button
             onClick={() => router.push("/dashboard")}
             className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"
@@ -409,7 +426,10 @@ export default function KPIAnalyticsPage() {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-2 text-sm"
           >
-            <Link href="/dashboard" className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1">
+            <Link
+              href="/dashboard"
+              className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1"
+            >
               <Home size={14} />
               Dashboard
             </Link>
@@ -479,7 +499,10 @@ export default function KPIAnalyticsPage() {
                 disabled={loading}
                 className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
               >
-                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                <RefreshCw
+                  size={16}
+                  className={loading ? "animate-spin" : ""}
+                />
               </button>
             </div>
           </motion.div>
@@ -537,10 +560,16 @@ export default function KPIAnalyticsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-2xl font-bold text-gray-800">{stat.value}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 font-medium">{stat.label}</p>
+                      <p className="text-2xl font-bold text-gray-800">
+                        {stat.value}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                        {stat.label}
+                      </p>
                     </div>
-                    <div className={`w-10 h-10 ${stat.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                    <div
+                      className={`w-10 h-10 ${stat.bg} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}
+                    >
                       <stat.icon className={`w-5 h-5 ${stat.color}`} />
                     </div>
                   </div>
@@ -557,17 +586,22 @@ export default function KPIAnalyticsPage() {
           >
             {[
               { id: "insights", icon: Lightbulb, label: "AI Insights" },
-              { id: "comparisons", icon: Building2, label: "Department Comparisons" },
+              {
+                id: "comparisons",
+                icon: Building2,
+                label: "Department Comparisons",
+              },
               { id: "heatmap", icon: Grid, label: "Heat Map" },
               { id: "predictions", icon: TrendingUp, label: "Predictions" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${activeTab === tab.id
+                className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${
+                  activeTab === tab.id
                     ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-100/80"
-                  }`}
+                }`}
               >
                 <tab.icon size={16} />
                 {tab.label}
@@ -599,7 +633,9 @@ export default function KPIAnalyticsPage() {
                   getPriorityColor={getPriorityColor}
                   getPerformanceConfig={getPerformanceConfig}
                   formatScore={formatScore}
-                  onViewEmployee={(userId: string) => router.push(`/kpi/employee/${userId}`)}
+                  onViewEmployee={(userId: string) =>
+                    router.push(`/kpi/employee/${userId}`)
+                  }
                 />
               )}
               {activeTab === "comparisons" && (
@@ -618,7 +654,9 @@ export default function KPIAnalyticsPage() {
                   departments={departments}
                   formatScore={formatScore}
                   getPerformanceConfig={getPerformanceConfig}
-                  onViewEmployee={(userId: string) => router.push(`/kpi/employee/${userId}`)}
+                  onViewEmployee={(userId: string) =>
+                    router.push(`/kpi/employee/${userId}`)
+                  }
                 />
               )}
               {activeTab === "predictions" && analyticsData && (
