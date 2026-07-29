@@ -21,7 +21,6 @@ import {
   Briefcase,
   User,
   Building2,
-  Award,
 } from "lucide-react";
 import { Button } from "@/components/UI/Button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,7 +30,7 @@ import Link from "next/link";
 
 interface ActiveUser {
   _id: string;
-  id?: string; // Make id optional since backend returns _id
+  id?: string;
   fullName: string;
   email: string;
   role: string;
@@ -39,7 +38,6 @@ interface ActiveUser {
   badge: string;
 }
 
-// Allowed roles to display
 const ALLOWED_ROLES = [
   "super_admin",
   "admin",
@@ -49,7 +47,6 @@ const ALLOWED_ROLES = [
   "employee",
 ];
 
-// Floating Particles Component - Client-side only
 const FloatingParticles = () => {
   const [particles, setParticles] = useState<
     Array<{
@@ -113,7 +110,6 @@ const FloatingParticles = () => {
   );
 };
 
-// Glowing Orbs Component - Client-side only
 const GlowingOrbs = () => {
   const [mounted, setMounted] = useState(false);
 
@@ -155,7 +151,6 @@ const GlowingOrbs = () => {
   );
 };
 
-// Grid Pattern - Static, no hydration issues
 const GridPattern = () => {
   return (
     <div
@@ -168,7 +163,6 @@ const GridPattern = () => {
   );
 };
 
-// Quick Access User Button Component
 const UserButton = memo(
   ({
     user,
@@ -294,7 +288,7 @@ export default function LoginPage() {
       const response = await api.get("/auth/active-users");
 
       if (response.data?.success) {
-        const users = response.data.data || [];
+        const users: ActiveUser[] = response.data.data || [];
         const filteredUsers = users.filter((user: ActiveUser) =>
           ALLOWED_ROLES.includes(user.role),
         );
@@ -354,19 +348,17 @@ export default function LoginPage() {
     try {
       console.log("🚀 Calling login with:", formData.email);
 
-      // Call the login function from AuthContext
+      // Now this will be properly typed as User
       const userData = await login(formData.email, formData.password);
 
       console.log("✅ Login successful for:", userData?.email);
       console.log("👤 User data:", userData);
 
-      // Check if token was saved
       const token = localStorage.getItem("token");
       console.log("🔑 Token after login:", token ? "YES" : "NO");
 
       if (token) {
         toast.success(`Welcome back, ${userData?.fullName || "User"}!`);
-        // Redirect to dashboard
         router.push("/dashboard");
       } else {
         console.error("❌ No token found after login!");
@@ -377,18 +369,24 @@ export default function LoginPage() {
           "Login succeeded but no token was stored. Please try again.",
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ Login error in component:", error);
 
-      // Extract error message
       let errorMessage = "Login failed. Please try again.";
 
       if (typeof error === "string") {
         errorMessage = error;
-      } else if (error.message) {
+      } else if (error instanceof Error) {
         errorMessage = error.message;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      } else if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error
+      ) {
+        const err = error as { response?: { data?: { message?: string } } };
+        if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        }
       }
 
       setLoginError(errorMessage);
@@ -399,7 +397,6 @@ export default function LoginPage() {
     }
   };
 
-  // Prevent hydration mismatch by not rendering animated elements on server
   if (!mounted) {
     return (
       <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
@@ -441,12 +438,10 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
-      {/* Background Effects */}
       <FloatingParticles />
       <GlowingOrbs />
       <GridPattern />
 
-      {/* Main Login Card - Two Columns */}
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -454,14 +449,12 @@ export default function LoginPage() {
         className="relative z-10 w-full max-w-5xl"
       >
         <div className="relative bg-white/80 backdrop-blur-xl border border-white shadow-2xl rounded-2xl overflow-hidden">
-          {/* Card Glow */}
           <div className="absolute -top-32 -right-32 w-64 h-64 bg-indigo-100/30 rounded-full blur-3xl" />
           <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-purple-100/30 rounded-full blur-3xl" />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
             {/* Left Column - Login Form */}
             <div className="p-8 lg:p-10">
-              {/* Header */}
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -511,7 +504,6 @@ export default function LoginPage() {
                 </p>
               </motion.div>
 
-              {/* Error Message */}
               <AnimatePresence>
                 {loginError && (
                   <motion.div
@@ -526,7 +518,6 @@ export default function LoginPage() {
                 )}
               </AnimatePresence>
 
-              {/* Login Form */}
               <motion.form
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -651,7 +642,6 @@ export default function LoginPage() {
                 </motion.div>
               </motion.form>
 
-              {/* Security Badges */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -705,7 +695,6 @@ export default function LoginPage() {
                   </div>
                 </motion.div>
 
-                {/* Loading State */}
                 <AnimatePresence>
                   {loadingUsers && (
                     <motion.div
@@ -724,7 +713,6 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                {/* User List */}
                 <AnimatePresence>
                   {!loadingUsers && activeUsers.length > 0 && (
                     <motion.div
@@ -743,7 +731,6 @@ export default function LoginPage() {
                         />
                       ))}
 
-                      {/* Demo Credentials Notice */}
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -764,7 +751,6 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                {/* No Users State */}
                 <AnimatePresence>
                   {!loadingUsers && activeUsers.length === 0 && (
                     <motion.div
@@ -789,7 +775,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Footer */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -34,7 +34,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>; // ← Change from Promise<void> to Promise<User>
   logout: () => void;
   hasRole: (roles: string | string[]) => boolean;
   updateUser: (userData: Partial<User>) => void;
@@ -75,53 +75,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ============ LOGIN FUNCTION ============
-  const login = async (email: string, password: string) => {
+  // contexts/AuthContext.tsx - Update the login function
+
+  const login = async (email: string, password: string): Promise<User> => {
     try {
-      console.log("🔐 Login attempt with axios:", { email });
+      console.log("========================================");
+      console.log("🔐 LOGIN ATTEMPT");
+      console.log("📧 Email:", email);
+      console.log("🔑 Password length:", password?.length);
+      console.log("========================================");
+
+      if (!email || !password) {
+        toast.error("Email and password are required");
+        throw new Error("Email and password are required");
+      }
 
       const response = await api.post("/auth/login", { email, password });
-      console.log("📡 Login response:", response.data);
+
+      console.log("📡 Response received:", response.status);
+      console.log("📡 Response data:", response.data);
 
       if (response.data.success) {
         const { token, user: userData } = response.data.data;
 
-        console.log("🔑 Token received:", token ? "YES" : "NO");
-        console.log("🔑 Token:", token?.substring(0, 40) + "...");
-
         if (!token) {
-          console.error("❌ No token in response!");
           throw new Error("No token received from server");
         }
 
-        // Save to localStorage
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(userData));
 
-        // Verify save
-        const savedToken = localStorage.getItem("token");
-        console.log("✅ Token saved to localStorage:", savedToken ? "YES" : "NO");
-        console.log("✅ Token value:", savedToken?.substring(0, 40) + "...");
-
-        // Set axios header
         api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-        console.log("✅ Axios header set");
 
-        // Update state
         setUser(userData);
 
         console.log("✅ Login successful for:", userData.email);
+        console.log("========================================");
+
         toast.success(`Welcome back, ${userData.fullName}!`);
 
-        // Return the user data for the caller
-        return userData;
+        // ← Return the user data
+        return userData; // ← Add this return
       } else {
         throw new Error(response.data.message || "Login failed");
       }
     } catch (error: any) {
       console.error("❌ Login error:", error);
-      console.error("❌ Error response:", error.response?.data);
-      toast.error(error.response?.data?.message || "Login failed");
-      throw error;
+
+      let errorMessage = "Login failed. Please try again.";
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
