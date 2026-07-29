@@ -31,7 +31,7 @@ import Link from "next/link";
 
 interface ActiveUser {
   _id: string;
-  id: string;
+  id?: string; // Make id optional since backend returns _id
   fullName: string;
   email: string;
   role: string;
