@@ -244,21 +244,21 @@ const UserButton = memo(
             {icon}
           </div>
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-semibold text-red-900 group-hover:text-white transition-colors truncate">
+            <p className="text-sm font-semibold text-slate-900 group-hover:text-white transition-colors truncate">
               {user.fullName}
             </p>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[10px] font-medium text-red-900">
+              <span className="text-[10px] font-medium text-slate-600 group-hover:text-white/80 transition-colors">
                 {displayRole}
               </span>
-              <span className="w-1 h-1 rounded-full bg-white/20" />
-              <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-red-900">
+              <span className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-white/30" />
+              <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-slate-100/50 border border-slate-200 group-hover:bg-white/10 group-hover:border-white/20 text-slate-600 group-hover:text-white/80 transition-colors">
                 {user.badge}
               </span>
             </div>
           </div>
           <ArrowRight
-            className={`w-4 h-4 text-red-900 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${
+            className={`w-4 h-4 text-slate-400 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${
               isActive ? "text-indigo-400" : ""
             }`}
           />
@@ -288,15 +288,10 @@ export default function LoginPage() {
     fetchActiveUsers();
   }, []);
 
-  // In LoginPage.tsx - Update fetchActiveUsers
-  // In LoginPage.tsx - Update fetchActiveUsers
   const fetchActiveUsers = async () => {
     try {
       setLoadingUsers(true);
-
-      // ✅ CORRECT: Use the public endpoint (no /auth prefix, just /active-users)
       const response = await api.get("/auth/active-users");
-      // ❌ WRONG: This was /users/active which requires authentication
 
       if (response.data?.success) {
         const users = response.data.data || [];
@@ -339,7 +334,6 @@ export default function LoginPage() {
     setTimeout(() => setActiveUser(null), 400);
   }, []);
 
-  // In LoginPage.tsx - Updated handleSubmit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -361,21 +355,19 @@ export default function LoginPage() {
       console.log("🚀 Calling login with:", formData.email);
 
       // Call the login function from AuthContext
-      await login(formData.email, formData.password);
+      const userData = await login(formData.email, formData.password);
 
-      console.log("✅ Login function completed successfully");
+      console.log("✅ Login successful for:", userData?.email);
+      console.log("👤 User data:", userData);
 
       // Check if token was saved
       const token = localStorage.getItem("token");
       console.log("🔑 Token after login:", token ? "YES" : "NO");
-      console.log("🔑 Token value:", token?.substring(0, 40) + "...");
 
       if (token) {
-        toast.success("Login successful! Redirecting...");
-        // Small delay to ensure state updates
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 100);
+        toast.success(`Welcome back, ${userData?.fullName || "User"}!`);
+        // Redirect to dashboard
+        router.push("/dashboard");
       } else {
         console.error("❌ No token found after login!");
         setLoginError(
@@ -386,11 +378,19 @@ export default function LoginPage() {
         );
       }
     } catch (error: any) {
-      console.error("Login error:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Login failed. Please try again.";
+      console.error("❌ Login error in component:", error);
+
+      // Extract error message
+      let errorMessage = "Login failed. Please try again.";
+
+      if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+
       setLoginError(errorMessage);
       toast.error(errorMessage);
       setFormData((prev) => ({ ...prev, password: "" }));
@@ -398,6 +398,7 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
+
   // Prevent hydration mismatch by not rendering animated elements on server
   if (!mounted) {
     return (
