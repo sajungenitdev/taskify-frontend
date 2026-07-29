@@ -18,8 +18,8 @@ export interface ApiResponse<T = any> {
 
 // ============ ENVIRONMENT CONFIGURATION ============
 const API_BASE_URL: string =
- "http://localhost:5000/api/v1";
-//   process.env.NEXT_PUBLIC_API_URL || ;
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+// "http://localhost:5000/api/v1";
 
 // ============ CREATE AXIOS INSTANCE ============
 const api: AxiosInstance = axios.create({
@@ -38,7 +38,7 @@ api.interceptors.request.use(
   (config) => {
     // Get the latest token from localStorage
     const token = localStorage.getItem("token");
-    
+
     // ALWAYS set the token if it exists
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -47,12 +47,12 @@ api.interceptors.request.use(
     } else {
       console.log(`⚠️ No token for request: ${config.url}`);
     }
-    
+
     return config;
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // ============ RETRY CONFIGURATION ============
