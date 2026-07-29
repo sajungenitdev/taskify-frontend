@@ -1,5 +1,40 @@
-import { AlertCircle, AlertTriangle, CheckCircle, Eye, Info, Lightbulb, Target } from "lucide-react";
-import {motion} from "framer-motion"
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Eye,
+  Info,
+  Lightbulb,
+  Target,
+} from "lucide-react";
+import { motion } from "framer-motion";
+
+// ============ TYPE DEFINITIONS ============
+export interface Insight {
+  type: "success" | "warning" | "danger" | "info";
+  title: string;
+  description: string;
+  impact: "high" | "medium" | "low";
+}
+
+export interface Recommendation {
+  area: string;
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+  impact: "high" | "medium" | "low";
+}
+
+export interface Anomaly {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  score: number;
+  expectedScore: number;
+  deviation: number;
+  type: "high_performer" | "low_performer";
+  severity: "critical" | "high" | "medium" | "low";
+}
 
 // components/kpi/InsightsTab.tsx (or inline in the page)
 function InsightsTab({
@@ -232,6 +267,5 @@ function InsightsTab({
     </div>
   );
 }
-
 
 export default InsightsTab;
