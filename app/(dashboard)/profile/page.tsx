@@ -147,7 +147,27 @@ export default function ProfilePage() {
     confirmPassword: "",
   });
 
-  const [formData, setFormData] = useState<FormData>({});
+  // When initializing formData, ensure socialLinks is an object
+  const [formData, setFormData] = useState<FormData>({
+    socialLinks: {
+      linkedin: '',
+      github: '',
+      twitter: '',
+      facebook: '',
+      instagram: '',
+    },
+    skills: [],
+    languages: [],
+    achievements: [],
+    notificationPreferences: {
+      email: true,
+      push: true,
+      desktop: false,
+      taskReminder: true,
+      deadlineAlert: true,
+      teamUpdate: true,
+    },
+  });
 
   // ============================================================
   // ROLE HELPERS
@@ -325,17 +345,14 @@ export default function ProfilePage() {
   );
 
   // ============================================================
-  // HANDLE SAVE PROFILE
-  // ============================================================
-  // ============================================================
-  // HANDLE SAVE PROFILE - FIXED
+  // HANDLE SAVE PROFILE - COMPLETELY FIXED
   // ============================================================
   const handleSave = useCallback(async () => {
     if (!formData) return;
 
     setIsSaving(true);
     try {
-      // Create a clean copy of form data
+      // ✅ Create a clean copy of form data
       const updateData: any = { ...formData };
 
       // ✅ Handle department - convert to string ID if it's an object
@@ -356,19 +373,93 @@ export default function ProfilePage() {
       ];
       fieldsToRemove.forEach(field => delete updateData[field]);
 
-      // ✅ Ensure arrays are properly formatted
-      if (updateData.skills && !Array.isArray(updateData.skills)) {
+      // ✅ FIX: Ensure arrays are properly formatted
+      // Skills - make sure it's an array of strings
+      if (updateData.skills) {
+        if (Array.isArray(updateData.skills)) {
+          updateData.skills = updateData.skills.filter(s => typeof s === 'string' && s.trim());
+        } else {
+          // If it's not an array, convert it or set to empty array
+          console.warn("⚠️ Skills is not an array:", updateData.skills);
+          updateData.skills = [];
+        }
+      } else {
         updateData.skills = [];
       }
-      if (updateData.languages && !Array.isArray(updateData.languages)) {
+
+      // Languages - make sure it's an array of strings
+      if (updateData.languages) {
+        if (Array.isArray(updateData.languages)) {
+          updateData.languages = updateData.languages.filter(l => typeof l === 'string' && l.trim());
+        } else {
+          console.warn("⚠️ Languages is not an array:", updateData.languages);
+          updateData.languages = [];
+        }
+      } else {
         updateData.languages = [];
       }
-      if (updateData.achievements && !Array.isArray(updateData.achievements)) {
+
+      // Achievements - make sure it's an array of objects
+      if (updateData.achievements) {
+        if (Array.isArray(updateData.achievements)) {
+          updateData.achievements = updateData.achievements.filter(a =>
+            typeof a === 'object' && a.title && a.description
+          );
+        } else {
+          console.warn("⚠️ Achievements is not an array:", updateData.achievements);
+          updateData.achievements = [];
+        }
+      } else {
         updateData.achievements = [];
+      }
+
+      // ✅ FIX: Social Links - make sure it's an object
+      if (updateData.socialLinks) {
+        if (typeof updateData.socialLinks !== 'object' || Array.isArray(updateData.socialLinks)) {
+          console.warn("⚠️ SocialLinks is not an object:", updateData.socialLinks);
+          // If it's an array, convert to object
+          if (Array.isArray(updateData.socialLinks)) {
+            const socialObj: any = {};
+            const platforms = ['linkedin', 'github', 'twitter', 'facebook', 'instagram'];
+            // @ts-ignore - we're handling the array case
+            updateData.socialLinks.forEach((key: string) => {
+              if (platforms.includes(key)) {
+                socialObj[key] = '';
+              }
+            });
+            updateData.socialLinks = socialObj;
+          } else {
+            updateData.socialLinks = {};
+          }
+        }
+      } else {
+        updateData.socialLinks = {
+          linkedin: '',
+          github: '',
+          twitter: '',
+          facebook: '',
+          instagram: ''
+        };
+      }
+
+      // ✅ Notification Preferences - ensure all fields exist
+      if (updateData.notificationPreferences) {
+        updateData.notificationPreferences = {
+          email: updateData.notificationPreferences.email ?? true,
+          push: updateData.notificationPreferences.push ?? true,
+          desktop: updateData.notificationPreferences.desktop ?? false,
+          taskReminder: updateData.notificationPreferences.taskReminder ?? true,
+          deadlineAlert: updateData.notificationPreferences.deadlineAlert ?? true,
+          teamUpdate: updateData.notificationPreferences.teamUpdate ?? true,
+        };
       }
 
       console.log("📤 Sending update data:", {
         ...updateData,
+        skills: updateData.skills,
+        languages: updateData.languages,
+        achievements: updateData.achievements,
+        socialLinks: updateData.socialLinks,
         profilePhoto: updateData.profilePhoto ? 'BASE64_IMAGE' : undefined
       });
 
@@ -377,15 +468,17 @@ export default function ProfilePage() {
       if (response.data.success) {
         const updatedData = response.data.data;
 
-        // ✅ Merge the updated data with current form data to preserve all fields
+        // ✅ Merge the updated data with current form data
         const mergedData = {
           ...formData,
           ...updatedData,
-          // Preserve arrays from formData if server didn't return them
-          skills: updatedData.skills || formData.skills || [],
-          languages: updatedData.languages || formData.languages || [],
-          achievements: updatedData.achievements || formData.achievements || [],
-          socialLinks: updatedData.socialLinks || formData.socialLinks || {},
+          // Ensure arrays are properly set from response
+          skills: Array.isArray(updatedData.skills) ? updatedData.skills : formData.skills || [],
+          languages: Array.isArray(updatedData.languages) ? updatedData.languages : formData.languages || [],
+          achievements: Array.isArray(updatedData.achievements) ? updatedData.achievements : formData.achievements || [],
+          socialLinks: typeof updatedData.socialLinks === 'object' && !Array.isArray(updatedData.socialLinks)
+            ? updatedData.socialLinks
+            : formData.socialLinks || {},
           notificationPreferences: updatedData.notificationPreferences || formData.notificationPreferences || {
             email: true,
             push: true,
@@ -416,7 +509,6 @@ export default function ProfilePage() {
       setIsSaving(false);
     }
   }, [formData, updateProfilePhoto, refreshUser, refreshImage]);
-
   // ============================================================
   // HANDLE PASSWORD CHANGE
   // ============================================================
@@ -557,9 +649,8 @@ export default function ProfilePage() {
   );
 
   // ============================================================
-  // LOAD PROFILE
+  // LOAD PROFILE - FIXED
   // ============================================================
-  // In the loadProfile useEffect
   useEffect(() => {
     let isMounted = true;
     const loadProfile = async () => {
@@ -568,24 +659,38 @@ export default function ProfilePage() {
         if (isMounted && response.data.success) {
           const data = response.data.data;
 
-          // ✅ Ensure all fields exist with proper defaults
+          // ✅ Ensure all fields exist with proper defaults and correct types
           const normalizedData: UserProfile = {
             ...data,
             phoneNumber: data.phoneNumber || '',
             bio: data.bio || '',
             position: data.position || '',
             location: data.location || '',
-            skills: data.skills || [],
-            languages: data.languages || [],
-            achievements: data.achievements || [],
-            socialLinks: data.socialLinks || {
-              linkedin: '',
-              github: '',
-              twitter: '',
-              facebook: '',
-              instagram: '',
-            },
-            notificationPreferences: data.notificationPreferences || {
+            // ✅ Ensure skills is always an array
+            skills: Array.isArray(data.skills) ? data.skills : [],
+            // ✅ Ensure languages is always an array
+            languages: Array.isArray(data.languages) ? data.languages : [],
+            // ✅ Ensure achievements is always an array
+            achievements: Array.isArray(data.achievements) ? data.achievements : [],
+            // ✅ Ensure socialLinks is always an object
+            socialLinks: data.socialLinks && typeof data.socialLinks === 'object' && !Array.isArray(data.socialLinks)
+              ? data.socialLinks
+              : {
+                linkedin: '',
+                github: '',
+                twitter: '',
+                facebook: '',
+                instagram: '',
+              },
+            // ✅ Ensure notificationPreferences has all fields
+            notificationPreferences: data.notificationPreferences ? {
+              email: data.notificationPreferences.email ?? true,
+              push: data.notificationPreferences.push ?? true,
+              desktop: data.notificationPreferences.desktop ?? false,
+              taskReminder: data.notificationPreferences.taskReminder ?? true,
+              deadlineAlert: data.notificationPreferences.deadlineAlert ?? true,
+              teamUpdate: data.notificationPreferences.teamUpdate ?? true,
+            } : {
               email: true,
               push: true,
               desktop: false,
@@ -594,6 +699,13 @@ export default function ProfilePage() {
               teamUpdate: true,
             },
           };
+
+          console.log("📥 Profile loaded:", {
+            skills: normalizedData.skills,
+            languages: normalizedData.languages,
+            achievements: normalizedData.achievements,
+            socialLinks: normalizedData.socialLinks,
+          });
 
           setProfile(normalizedData);
           setFormData(normalizedData);
@@ -615,7 +727,6 @@ export default function ProfilePage() {
       isMounted = false;
     };
   }, []);
-
   // ============================================================
   // RENDER
   // ============================================================
@@ -978,13 +1089,13 @@ export default function ProfilePage() {
                       />
                     ) : (
                       <a
-                        href={profile.socialLinks?.[social.key as keyof typeof profile.socialLinks] || "#"}
+                        href={(profile.socialLinks as any)?.[social.key] || "#"}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`text-gray-600 hover:text-indigo-600 text-sm truncate transition ${!profile.socialLinks?.[social.key as keyof typeof profile.socialLinks] ? "text-gray-400" : ""
+                        className={`text-gray-600 hover:text-indigo-600 text-sm truncate transition ${!(profile.socialLinks as any)?.[social.key] ? "text-gray-400" : ""
                           }`}
                       >
-                        {profile.socialLinks?.[social.key as keyof typeof profile.socialLinks] || "Not added"}
+                        {(profile.socialLinks as any)?.[social.key] || "Not added"}
                       </a>
                     )}
                   </div>
@@ -1235,7 +1346,17 @@ export default function ProfilePage() {
                   <button
                     onClick={() => {
                       setIsEditing(false);
-                      setFormData(profile);
+                      // ✅ Reset to original profile data with proper types
+                      const resetData: any = {
+                        ...profile,
+                        skills: Array.isArray(profile.skills) ? profile.skills : [],
+                        languages: Array.isArray(profile.languages) ? profile.languages : [],
+                        achievements: Array.isArray(profile.achievements) ? profile.achievements : [],
+                        socialLinks: profile.socialLinks && typeof profile.socialLinks === 'object' && !Array.isArray(profile.socialLinks)
+                          ? profile.socialLinks
+                          : { linkedin: '', github: '', twitter: '', facebook: '', instagram: '' },
+                      };
+                      setFormData(resetData);
                       setProfileImagePreview(null);
                     }}
                     className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-3 rounded-xl transition"
