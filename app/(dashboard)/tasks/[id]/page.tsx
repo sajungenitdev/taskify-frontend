@@ -21,7 +21,6 @@ import {
   Paperclip,
   Edit2,
   Trash2,
-  Eye,
   AlertCircle,
   Zap,
   Clock as ClockIcon,
@@ -69,12 +68,12 @@ interface Task {
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   status:
-    | "pending"
-    | "in_progress"
-    | "submitted"
-    | "completed"
-    | "overdue"
-    | "rejected";
+  | "pending"
+  | "in_progress"
+  | "submitted"
+  | "completed"
+  | "overdue"
+  | "rejected";
   deadline: string;
   estimatedHours: number;
   actualMinutes?: number;
@@ -172,23 +171,17 @@ function RejectionReasonModal({
             </div>
             <div>
               <h3 className="text-xl font-bold text-gray-800">Task Rejected</h3>
-              <p className="text-xs text-gray-500">
-                Feedback from the reviewer
-              </p>
+              <p className="text-xs text-gray-500">Feedback from the reviewer</p>
             </div>
           </div>
 
           <div className="bg-rose-50 rounded-xl p-4 border border-rose-200 mb-4">
-            <p className="text-sm text-rose-700 leading-relaxed">
-              {rejectionReason}
-            </p>
+            <p className="text-sm text-rose-700 leading-relaxed">{rejectionReason}</p>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded-lg mb-4">
             <Info className="w-4 h-4 text-gray-400" />
-            <span>
-              Please review the feedback and resubmit with improvements.
-            </span>
+            <span>Please review the feedback and resubmit with improvements.</span>
           </div>
 
           <div className="flex gap-3">
@@ -276,11 +269,8 @@ export default function TaskDetailPage() {
   // Approval/Rejection note state
   const [approvalNote, setApprovalNote] = useState("");
   const [showApprovalNoteModal, setShowApprovalNoteModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    "approve" | "reject" | null
-  >(null);
-  const [showRejectionReasonModal, setShowRejectionReasonModal] =
-    useState(false);
+  const [pendingAction, setPendingAction] = useState<"approve" | "reject" | null>(null);
+  const [showRejectionReasonModal, setShowRejectionReasonModal] = useState(false);
 
   // Evidence submission state
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
@@ -295,9 +285,7 @@ export default function TaskDetailPage() {
     reason: "",
   });
   const [submittingExtension, setSubmittingExtension] = useState(false);
-  const [extensionRequests, setExtensionRequests] = useState<
-    ExtensionRequest[]
-  >([]);
+  const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
 
   const userRole = user?.role;
   const isSuperAdmin = userRole === "super_admin";
@@ -322,8 +310,7 @@ export default function TaskDetailPage() {
     if (mimeType === "application/pdf") return <FileText size={20} />;
     if (mimeType?.startsWith("video/")) return <Video size={20} />;
     if (mimeType?.startsWith("audio/")) return <Music size={20} />;
-    if (mimeType === "application/zip" || mimeType?.includes("zip"))
-      return <File size={20} />;
+    if (mimeType === "application/zip" || mimeType?.includes("zip")) return <File size={20} />;
     return <File size={20} />;
   };
 
@@ -378,17 +365,13 @@ export default function TaskDetailPage() {
     }
   }, [isAuthenticated, id]);
 
-  // Fetch Task - With comprehensive console logging
+  // Fetch Task
   const fetchTask = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log("🔍 Fetching task with ID:", id);
-
       const response = await api.get(`/tasks/${id}`);
-
-      console.log("📦 Raw API response:", response.data);
 
       let taskData;
       if (response.data.success) {
@@ -398,11 +381,6 @@ export default function TaskDetailPage() {
       } else {
         taskData = response.data;
       }
-
-      console.log("📋 Task data received:", taskData);
-      console.log("📎 Evidence URLs in response:", taskData?.evidenceUrls);
-      console.log("🔒 Evidence Required:", taskData?.evidenceRequired);
-      console.log("✅ Evidence Submitted:", taskData?.evidenceSubmitted);
 
       if (taskData && taskData._id) {
         const formattedTask = {
@@ -432,29 +410,17 @@ export default function TaskDetailPage() {
           evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
         };
 
-        console.log("✅ Formatted task with evidence:", {
-          evidenceUrls: formattedTask.evidenceUrls,
-          evidenceRequired: formattedTask.evidenceRequired,
-          evidenceSubmitted: formattedTask.evidenceSubmitted,
-          evidenceSubmittedAt: formattedTask.evidenceSubmittedAt,
-        });
-
         setTask(formattedTask);
 
-        // Check if evidence has been submitted
         if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
-          console.log("📎 Evidence found in task:", taskData.evidenceUrls);
           setHasSubmittedEvidence(true);
-        } else {
-          console.log("❌ No evidence found in task");
         }
       } else {
         throw new Error("Invalid task data received");
       }
     } catch (error: any) {
-      console.error("❌ Error fetching task:", error);
-      const errorMessage =
-        error.response?.data?.message || "Failed to fetch task";
+      console.error("Error fetching task:", error);
+      const errorMessage = error.response?.data?.message || "Failed to fetch task";
       setError(errorMessage);
       toast.error(errorMessage);
 
@@ -541,9 +507,7 @@ export default function TaskDetailPage() {
 
   const handleLikeComment = async (commentId: string) => {
     try {
-      const response = await api.post(
-        `/tasks/${id}/comments/${commentId}/like`,
-      );
+      const response = await api.post(`/tasks/${id}/comments/${commentId}/like`);
       if (response.data.success) {
         fetchComments();
       }
@@ -580,9 +544,7 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
 
@@ -614,12 +576,9 @@ export default function TaskDetailPage() {
 
   const handleDownloadAttachment = async (attachment: Attachment) => {
     try {
-      const response = await api.get(
-        `/tasks/${id}/attachments/${attachment._id}/download`,
-        {
-          responseType: "blob",
-        },
-      );
+      const response = await api.get(`/tasks/${id}/attachments/${attachment._id}/download`, {
+        responseType: "blob",
+      });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
@@ -641,18 +600,14 @@ export default function TaskDetailPage() {
     if (!confirm("Are you sure you want to delete this attachment?")) return;
 
     try {
-      const response = await api.delete(
-        `/tasks/${id}/attachments/${attachmentId}`,
-      );
+      const response = await api.delete(`/tasks/${id}/attachments/${attachmentId}`);
       if (response.data.success) {
         toast.success("Attachment deleted successfully");
         fetchAttachments();
         fetchTask();
       }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to delete attachment",
-      );
+      toast.error(error.response?.data?.message || "Failed to delete attachment");
     }
   };
 
@@ -717,24 +672,12 @@ export default function TaskDetailPage() {
 
   // Task Status Updates
   const updateTaskStatus = async (newStatus: string, data?: any) => {
-    console.log(`🔄 Updating task status to: ${newStatus}`);
-    console.log("📦 Additional data:", data);
-
     setUpdating(true);
     try {
       const payload = { status: newStatus, ...data };
-      console.log("📤 Sending payload:", payload);
-
       const response = await api.patch(`/tasks/${id}/status`, payload);
-      console.log("📦 Status update response:", response.data);
 
       if (response.data.success) {
-        console.log("✅ Task status updated successfully!");
-        console.log(
-          "📎 Updated evidence URLs:",
-          response.data.data?.evidenceUrls,
-        );
-
         const statusMessages: Record<string, string> = {
           in_progress: "🚀 Task started! Moving to In Progress",
           submitted: "📤 Task submitted for review!",
@@ -746,22 +689,14 @@ export default function TaskDetailPage() {
         fetchTask();
       }
     } catch (error: any) {
-      console.error("❌ Error updating status:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
-      toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to update status",
-      );
+      console.error("Error updating status:", error);
+      toast.error(error.response?.data?.message || "Failed to update status");
     } finally {
       setUpdating(false);
     }
   };
-  // ============ MARK COMPLETE ============
+
+  // Mark Complete
   const handleMarkComplete = async () => {
     if (!task) return;
 
@@ -773,20 +708,17 @@ export default function TaskDetailPage() {
       }
     }
 
-    // Check if evidence is required and provided
     if (task.evidenceRequired && !hasEvidence()) {
       toast.error("Please upload evidence before marking as complete");
       return;
     }
 
-    // Show confirmation dialog
     if (!confirm("Are you sure you want to mark this task as complete?")) {
       return;
     }
 
     setUpdating(true);
     try {
-      // Get current timer time if available
       let actualMinutes = task.actualMinutes || 0;
       if (isTimerActiveForTask(task._id)) {
         const timerResult = await stopTimer(task._id);
@@ -802,22 +734,18 @@ export default function TaskDetailPage() {
       });
 
       if (response.data.success) {
-        toast.success(
-          `✅ Task marked as complete! ${actualMinutes > 0 ? `Time tracked: ${formatTimeShort(actualMinutes * 60)}` : ""}`,
-        );
+        toast.success(`✅ Task marked as complete!`);
         fetchTask();
       }
     } catch (error: any) {
       console.error("Error marking task complete:", error);
-      toast.error(
-        error.response?.data?.message || "Failed to mark task as complete",
-      );
+      toast.error(error.response?.data?.message || "Failed to mark task as complete");
     } finally {
       setUpdating(false);
     }
   };
 
-  // ============ TIME EXTENSION ============
+  // Time Extension
   const handleRequestExtension = async () => {
     if (!extensionData.requestedDate) {
       toast.error("Please select a new deadline");
@@ -848,28 +776,20 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error requesting extension:", error);
-      toast.error(
-        error.response?.data?.message || "Failed to request extension",
-      );
+      toast.error(error.response?.data?.message || "Failed to request extension");
     } finally {
       setSubmittingExtension(false);
     }
   };
 
-  // ============ APPROVE EXTENSION ============
-  const handleApproveExtension = async (
-    extensionId: string,
-    newDeadline: string,
-  ) => {
+  // Approve Extension
+  const handleApproveExtension = async (extensionId: string, newDeadline: string) => {
     if (!confirm("Approve this extension request?")) return;
 
     try {
-      const response = await api.post(
-        `/tasks/${id}/approve-extension/${extensionId}`,
-        {
-          newDeadline: newDeadline,
-        },
-      );
+      const response = await api.post(`/tasks/${id}/approve-extension/${extensionId}`, {
+        newDeadline: newDeadline,
+      });
 
       if (response.data.success) {
         toast.success("Extension approved successfully!");
@@ -878,15 +798,12 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error approving extension:", error);
-      toast.error(
-        error.response?.data?.message || "Failed to approve extension",
-      );
+      toast.error(error.response?.data?.message || "Failed to approve extension");
     }
   };
 
-  // ============ SUBMIT FOR REVIEW ============
+  // Submit for Review
   const handleSubmitForReview = () => {
-    // Check if evidence is required and provided
     if (task?.evidenceRequired && !hasEvidence()) {
       toast.error("Please upload evidence before submitting for review");
       return;
@@ -895,9 +812,6 @@ export default function TaskDetailPage() {
   };
 
   const handleSubmitWithEvidence = async () => {
-    console.log("📤 Submitting evidence for task:", id);
-    console.log("📝 Evidence text:", evidenceText);
-
     if (!evidenceText.trim()) {
       toast.error("Please provide evidence details");
       return;
@@ -910,33 +824,18 @@ export default function TaskDetailPage() {
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
 
-      console.log("📎 Parsed evidence URLs:", evidenceUrls);
-
       if (evidenceUrls.length === 0) {
         toast.error("Please provide at least one evidence item");
         setSubmittingEvidence(false);
         return;
       }
 
-      console.log("🚀 Sending evidence to API:", {
-        taskId: id,
-        evidenceUrls: evidenceUrls,
-      });
-
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "submitted",
         evidenceUrls: evidenceUrls,
       });
 
-      console.log("📦 Evidence submission response:", response.data);
-
       if (response.data.success) {
-        console.log("✅ Evidence submitted successfully!");
-        console.log(
-          "📎 Evidence URLs saved:",
-          response.data.data?.evidenceUrls,
-        );
-
         toast.success("✅ Task submitted with evidence!");
         setShowEvidenceModal(false);
         setEvidenceText("");
@@ -944,23 +843,17 @@ export default function TaskDetailPage() {
         fetchTask();
         fetchAttachments();
       } else {
-        console.error("❌ Failed to submit evidence:", response.data);
         throw new Error("Failed to submit task");
       }
     } catch (error: any) {
-      console.error("❌ Error submitting evidence:", error);
-      console.error("Error details:", {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-      });
+      console.error("Error submitting evidence:", error);
       toast.error(error.response?.data?.message || "Failed to submit evidence");
     } finally {
       setSubmittingEvidence(false);
     }
   };
 
-  // ============ APPROVAL/REJECTION ============
+  // Approval/Rejection
   const openApprovalNoteModal = (action: "approve" | "reject") => {
     setPendingAction(action);
     setApprovalNote("");
@@ -989,11 +882,7 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error approving task:", error);
-      toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to approve task",
-      );
+      toast.error(error.response?.data?.message || "Failed to approve task");
     } finally {
       setUpdating(false);
     }
@@ -1020,11 +909,7 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error rejecting task:", error);
-      toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to reject task",
-      );
+      toast.error(error.response?.data?.message || "Failed to reject task");
     } finally {
       setRejecting(false);
     }
@@ -1039,54 +924,128 @@ export default function TaskDetailPage() {
       }
     } catch (error: any) {
       console.error("Error deleting task:", error);
-      toast.error(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to delete task",
-      );
+      toast.error(error.response?.data?.message || "Failed to delete task");
     }
   };
 
-  // Timer Functions
-  const handleStartTimer = () => {
-    if (!task) return;
+  const handleStartTimer = async () => {
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
 
+    console.log("🔍 Starting timer - Task:", task._id);
+    console.log("👤 User ID:", user?._id);
+    console.log("📋 Assigned To:", task.assignedTo?._id);
+    console.log("📋 isAssignee:", isAssignee);
+
+    // Check if user is the assignee
+    if (!isAssignee && !canManage) {
+      toast.error("You don't have permission to start timer for this task");
+      return;
+    }
+
+    // If there's an active timer on another task, stop it first
     if (activeTimerTaskId && activeTimerTaskId !== task._id) {
-      stopTimer(activeTimerTaskId);
+      try {
+        await stopTimer(activeTimerTaskId);
+      } catch (error) {
+        console.error("Error stopping other timer:", error);
+      }
     }
 
     const baselineSeconds = (task.actualMinutes || 0) * 60;
-    startTimer(task._id, baselineSeconds);
-    toast.success(`⏱️ Timer started for "${task.title}"`);
+
+    try {
+      // Start the timer
+      startTimer(task._id, baselineSeconds);
+
+      // Show success message immediately
+      toast.success(`⏱️ Timer started for "${task.title}"`);
+
+      // Refresh task after a short delay
+      setTimeout(() => {
+        fetchTask();
+      }, 500);
+
+    } catch (error: any) {
+      console.error("Error starting timer:", error);
+      toast.error(error?.message || "Failed to start timer");
+    }
   };
 
   const handlePauseTimer = () => {
-    pauseTimer();
-    toast.success("⏸️ Timer paused");
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
+
+    if (!isAssignee && !canManage) {
+      toast.error("You don't have permission to pause timer for this task");
+      return;
+    }
+
+    try {
+      pauseTimer();
+      toast.success("⏸️ Timer paused");
+      setTimeout(() => fetchTask(), 300);
+    } catch (error: any) {
+      console.error("Error pausing timer:", error);
+      toast.error(error?.message || "Failed to pause timer");
+    }
   };
 
   const handleResumeTimer = () => {
-    resumeTimer();
-    toast.success("▶️ Timer resumed");
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
+
+    if (!isAssignee && !canManage) {
+      toast.error("You don't have permission to resume timer for this task");
+      return;
+    }
+
+    try {
+      resumeTimer();
+      toast.success("▶️ Timer resumed");
+    } catch (error: any) {
+      console.error("Error resuming timer:", error);
+      toast.error(error?.message || "Failed to resume timer");
+    }
   };
 
   const handleStopTimer = async () => {
-    if (!task) return;
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
+
+    if (!isAssignee && !canManage) {
+      toast.error("You don't have permission to stop timer for this task");
+      return;
+    }
 
     if (activeTimerTaskId !== task._id) {
       toast.error("Timer is not active for this task");
       return;
     }
 
-    const result = await stopTimer(task._id);
-    if (result.success && result.minutes > 0) {
-      toast.success(`⏱️ Time tracked: ${result.displayTime}`);
-      fetchTask();
-    } else if (!result.success) {
-      toast.error("Failed to save time");
+    try {
+      const result = await stopTimer(task._id);
+
+      if (result.success) {
+        toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+        await fetchTask();
+      } else {
+        toast.error(result.error || "Failed to stop timer");
+      }
+    } catch (error: any) {
+      console.error("Error stopping timer:", error);
+      toast.error(error?.message || "Failed to stop timer");
     }
-    return result;
   };
+
 
   const handleCopyLink = () => {
     const url = window.location.href;
@@ -1108,7 +1067,7 @@ export default function TaskDetailPage() {
           text: `Check out this task: ${task?.title}`,
           url: window.location.href,
         })
-        .catch(() => {});
+        .catch(() => { });
     } else {
       handleCopyLink();
     }
@@ -1116,62 +1075,22 @@ export default function TaskDetailPage() {
 
   const getPriorityConfig = (priority: string) => {
     const config = {
-      low: {
-        color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        icon: "🟢",
-        label: "Low",
-      },
-      normal: {
-        color: "bg-blue-50 text-blue-700 border-blue-200",
-        icon: "🔵",
-        label: "Normal",
-      },
-      high: {
-        color: "bg-amber-50 text-amber-700 border-amber-200",
-        icon: "🟠",
-        label: "High",
-      },
-      urgent: {
-        color: "bg-rose-50 text-rose-700 border-rose-200",
-        icon: "🔴",
-        label: "Urgent",
-      },
+      low: { color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "🟢", label: "Low" },
+      normal: { color: "bg-blue-50 text-blue-700 border-blue-200", icon: "🔵", label: "Normal" },
+      high: { color: "bg-amber-50 text-amber-700 border-amber-200", icon: "🟠", label: "High" },
+      urgent: { color: "bg-rose-50 text-rose-700 border-rose-200", icon: "🔴", label: "Urgent" },
     };
     return config[priority as keyof typeof config] || config.normal;
   };
 
   const getStatusConfig = (status: string) => {
     const config = {
-      pending: {
-        color: "bg-amber-50 text-amber-700 border-amber-200",
-        icon: "⏳",
-        label: "Pending",
-      },
-      in_progress: {
-        color: "bg-sky-50 text-sky-700 border-sky-200",
-        icon: "🔄",
-        label: "In Progress",
-      },
-      submitted: {
-        color: "bg-purple-50 text-purple-700 border-purple-200",
-        icon: "📬",
-        label: "Submitted",
-      },
-      completed: {
-        color: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        icon: "✅",
-        label: "Completed",
-      },
-      overdue: {
-        color: "bg-rose-50 text-rose-700 border-rose-200",
-        icon: "⚠️",
-        label: "Overdue",
-      },
-      rejected: {
-        color: "bg-red-50 text-red-700 border-red-200",
-        icon: "❌",
-        label: "Rejected",
-      },
+      pending: { color: "bg-amber-50 text-amber-700 border-amber-200", icon: "⏳", label: "Pending" },
+      in_progress: { color: "bg-sky-50 text-sky-700 border-sky-200", icon: "🔄", label: "In Progress" },
+      submitted: { color: "bg-purple-50 text-purple-700 border-purple-200", icon: "📬", label: "Submitted" },
+      completed: { color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: "✅", label: "Completed" },
+      overdue: { color: "bg-rose-50 text-rose-700 border-rose-200", icon: "⚠️", label: "Overdue" },
+      rejected: { color: "bg-red-50 text-red-700 border-red-200", icon: "❌", label: "Rejected" },
     };
     return config[status as keyof typeof config] || config.pending;
   };
@@ -1225,14 +1144,10 @@ export default function TaskDetailPage() {
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-rose-800">
-                Rejection Reason
-              </p>
+              <p className="text-sm font-medium text-rose-800">Rejection Reason</p>
               <span className="text-xs text-rose-500">Click to view</span>
             </div>
-            <p className="text-sm text-rose-700 mt-1 line-clamp-2">
-              {task.rejectionReason}
-            </p>
+            <p className="text-sm text-rose-700 mt-1 line-clamp-2">{task.rejectionReason}</p>
           </div>
         </div>
       </motion.div>
@@ -1254,9 +1169,7 @@ export default function TaskDetailPage() {
             <ThumbsUp className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-emerald-800">
-              Approval Note
-            </p>
+            <p className="text-sm font-medium text-emerald-800">Approval Note</p>
             <p className="text-sm text-emerald-700 mt-1">{task.approvalNote}</p>
           </div>
         </div>
@@ -1272,40 +1185,30 @@ export default function TaskDetailPage() {
       <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
         <div className="flex items-center gap-2 mb-3">
           <CalendarClock className="w-4 h-4 text-blue-600" />
-          <p className="text-sm font-medium text-blue-800">
-            Extension Requests
-          </p>
+          <p className="text-sm font-medium text-blue-800">Extension Requests</p>
         </div>
         <div className="space-y-2">
           {extensionRequests.map((req) => (
-            <div
-              key={req._id}
-              className="bg-white rounded-lg p-3 border border-blue-100"
-            >
+            <div key={req._id} className="bg-white rounded-lg p-3 border border-blue-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-500">
-                    Requested: {formatDate(req.requestedDate)}
-                  </p>
+                  <p className="text-xs text-gray-500">Requested: {formatDate(req.requestedDate)}</p>
                   <p className="text-sm text-gray-700 mt-1">{req.reason}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      req.status === "approved"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : req.status === "rejected"
-                          ? "bg-rose-100 text-rose-700"
-                          : "bg-amber-100 text-amber-700"
-                    }`}
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : req.status === "rejected"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-amber-100 text-amber-700"
+                      }`}
                   >
                     {req.status.toUpperCase()}
                   </span>
                   {canApprove && req.status === "pending" && (
                     <button
-                      onClick={() =>
-                        handleApproveExtension(req._id, req.requestedDate)
-                      }
+                      onClick={() => handleApproveExtension(req._id, req.requestedDate)}
                       className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded transition"
                     >
                       Approve
@@ -1331,11 +1234,10 @@ export default function TaskDetailPage() {
 
     return (
       <span
-        className={`text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${
-          hasEvidence
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : "bg-amber-50 text-amber-700 border-amber-200"
-        }`}
+        className={`text-xs font-medium px-2.5 py-1 rounded-full border flex items-center gap-1 ${hasEvidence
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          : "bg-amber-50 text-amber-700 border-amber-200"
+          }`}
       >
         <Paperclip size={12} />
         {hasEvidence ? "Evidence Submitted" : "Evidence Required"}
@@ -1370,12 +1272,9 @@ export default function TaskDetailPage() {
               <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertCircle className="w-10 h-10 text-rose-500" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                Task Not Found
-              </h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Task Not Found</h2>
               <p className="text-gray-500 mb-6">
-                {error ||
-                  "The task you're looking for doesn't exist or has been deleted."}
+                {error || "The task you're looking for doesn't exist or has been deleted."}
               </p>
               <Link
                 href="/tasks/my"
@@ -1425,11 +1324,7 @@ export default function TaskDetailPage() {
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
                 title="Copy link"
               >
-                {copied ? (
-                  <Check size={18} className="text-emerald-500" />
-                ) : (
-                  <Link2 size={18} />
-                )}
+                {copied ? <Check size={18} className="text-emerald-500" /> : <Link2 size={18} />}
               </button>
               <button
                 onClick={handleShare}
@@ -1481,8 +1376,7 @@ export default function TaskDetailPage() {
                       <span
                         className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color}`}
                       >
-                        {getPriorityConfig(task.priority).icon}{" "}
-                        {task.priority.toUpperCase()}
+                        {getPriorityConfig(task.priority).icon} {task.priority.toUpperCase()}
                       </span>
                       <span
                         className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
@@ -1497,39 +1391,36 @@ export default function TaskDetailPage() {
                       )}
                       {task.averageRating && task.averageRating > 0 && (
                         <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                          <Star
-                            size={12}
-                            className="fill-amber-500 text-amber-500"
-                          />
+                          <Star size={12} className="fill-amber-500 text-amber-500" />
                           {task.averageRating.toFixed(1)}
                         </span>
                       )}
                       {renderEvidenceBadge()}
                       {isTimerActive && (
                         <div
-                          className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full ${isTimerRunningForTask ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}
+                          className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full ${isTimerRunningForTask
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
                         >
                           <TimerIcon size={12} />
                           <span>{formatTimeShort(timerDisplay)}</span>
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${isTimerRunningForTask ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
+                            className={`w-1.5 h-1.5 rounded-full ${isTimerRunningForTask ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                              }`}
                           />
                         </div>
                       )}
-                      {task.actualMinutes &&
-                        task.actualMinutes > 0 &&
-                        !isTimerActive && (
-                          <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                            <History size={12} />
-                            <span>{task.actualMinutes}m tracked</span>
-                          </div>
-                        )}
+                      {task.actualMinutes && task.actualMinutes > 0 && !isTimerActive && (
+                        <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                          <History size={12} />
+                          <span>{task.actualMinutes}m tracked</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-3">
-                    {task.title}
-                  </h1>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-3">{task.title}</h1>
                   <p className="text-gray-600 leading-relaxed">
                     {task.description || "No description provided."}
                   </p>
@@ -1568,89 +1459,79 @@ export default function TaskDetailPage() {
                   </div>
 
                   {/* Timer Controls */}
-                  {task.status !== "completed" &&
-                    task.status !== "submitted" && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <TimerIcon size={16} className="text-indigo-500" />
-                            <span className="text-sm font-medium text-gray-700">
-                              Time Tracking
-                            </span>
-                          </div>
-                          <div className="flex-1">
-                            {isTimerActive ? (
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-mono font-semibold text-indigo-700 tabular-nums">
-                                  {formatTime(timerDisplay)}
-                                </span>
-                                <span
-                                  className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"}`}
-                                >
-                                  {isTimerRunningForTask
-                                    ? "● Running"
-                                    : "● Paused"}
-                                </span>
-                                {task.actualMinutes &&
-                                  task.actualMinutes > 0 && (
-                                    <span className="text-[10px] text-gray-400 ml-2">
-                                      (Saved: {task.actualMinutes}m)
-                                    </span>
-                                  )}
-                              </div>
-                            ) : (
-                              <span className="text-sm text-gray-400">
-                                {task.actualMinutes
-                                  ? `${task.actualMinutes}m logged`
-                                  : "No time tracked"}
+                  {task.status !== "completed" && task.status !== "submitted" && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <TimerIcon size={16} className="text-indigo-500" />
+                          <span className="text-sm font-medium text-gray-700">Time Tracking</span>
+                        </div>
+                        <div className="flex-1">
+                          {isTimerActive ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-mono font-semibold text-indigo-700 tabular-nums">
+                                {formatTime(timerDisplay)}
                               </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {isTimerActive ? (
-                              <>
-                                {isTimerRunningForTask ? (
-                                  <button
-                                    onClick={handlePauseTimer}
-                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                  >
-                                    <Pause size={14} />
-                                    Pause
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={handleResumeTimer}
-                                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                  >
-                                    <Play size={14} />
-                                    Resume
-                                  </button>
-                                )}
-                                <button
-                                  onClick={handleStopTimer}
-                                  className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                >
-                                  <Square size={14} />
-                                  Stop
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={handleStartTimer}
-                                className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                disabled={
-                                  activeTimerTaskId !== null &&
-                                  activeTimerTaskId !== task._id
-                                }
+                              <span
+                                className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"
+                                  }`}
                               >
-                                <Play size={14} />
-                                Start Timer
+                                {isTimerRunningForTask ? "● Running" : "● Paused"}
+                              </span>
+                              {task.actualMinutes && task.actualMinutes > 0 && (
+                                <span className="text-[10px] text-gray-400 ml-2">
+                                  (Saved: {task.actualMinutes}m)
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">
+                              {task.actualMinutes ? `${task.actualMinutes}m logged` : "No time tracked"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isTimerActive ? (
+                            <>
+                              {isTimerRunningForTask ? (
+                                <button
+                                  onClick={handlePauseTimer}
+                                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                >
+                                  <Pause size={14} />
+                                  Pause
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={handleResumeTimer}
+                                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                >
+                                  <Play size={14} />
+                                  Resume
+                                </button>
+                              )}
+                              <button
+                                onClick={handleStopTimer}
+                                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                              >
+                                <Square size={14} />
+                                Stop
                               </button>
-                            )}
-                          </div>
+                            </>
+                          ) : (
+                            <button
+                              onClick={handleStartTimer}
+                              className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                              disabled={activeTimerTaskId !== null && activeTimerTaskId !== task._id}
+                            >
+                              <Play size={14} />
+                              Start Timer
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
+                    </div>
+                  )}
                 </div>
               </motion.div>
 
@@ -1670,23 +1551,17 @@ export default function TaskDetailPage() {
                     <div className="flex items-start gap-3">
                       <User size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-gray-500 mb-0.5">
-                          Assigned To
-                        </p>
+                        <p className="text-xs text-gray-500 mb-0.5">Assigned To</p>
                         <p className="text-gray-800 font-medium">
                           {task.assignedTo?.fullName || "Unassigned"}
                         </p>
-                        <p className="text-gray-400 text-sm">
-                          {task.assignedTo?.email || ""}
-                        </p>
+                        <p className="text-gray-400 text-sm">{task.assignedTo?.email || ""}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
                       <User size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-gray-500 mb-0.5">
-                          Assigned By
-                        </p>
+                        <p className="text-xs text-gray-500 mb-0.5">Assigned By</p>
                         <p className="text-gray-800 font-medium">
                           {task.assignedBy?.fullName || "Unknown"}
                         </p>
@@ -1698,9 +1573,7 @@ export default function TaskDetailPage() {
                       <Calendar size={18} className="text-gray-400 mt-0.5" />
                       <div>
                         <p className="text-xs text-gray-500 mb-0.5">Deadline</p>
-                        <p
-                          className={`font-medium ${isOverdue ? "text-rose-600" : "text-gray-800"}`}
-                        >
+                        <p className={`font-medium ${isOverdue ? "text-rose-600" : "text-gray-800"}`}>
                           {formatDate(task.deadline)}
                         </p>
                       </div>
@@ -1708,28 +1581,18 @@ export default function TaskDetailPage() {
                     <div className="flex items-start gap-3">
                       <ClockIcon size={18} className="text-gray-400 mt-0.5" />
                       <div>
-                        <p className="text-xs text-gray-500 mb-0.5">
-                          Estimated Hours
-                        </p>
-                        <p className="text-gray-800 font-medium">
-                          {task.estimatedHours} hours
-                        </p>
+                        <p className="text-xs text-gray-500 mb-0.5">Estimated Hours</p>
+                        <p className="text-gray-800 font-medium">{task.estimatedHours} hours</p>
                       </div>
                     </div>
                     {task.projectId && task.projectId.name && (
                       <div className="flex items-start gap-3">
                         <Briefcase size={18} className="text-gray-400 mt-0.5" />
                         <div>
-                          <p className="text-xs text-gray-500 mb-0.5">
-                            Project
-                          </p>
-                          <p className="text-gray-800 font-medium">
-                            {task.projectId.name}
-                          </p>
+                          <p className="text-xs text-gray-500 mb-0.5">Project</p>
+                          <p className="text-gray-800 font-medium">{task.projectId.name}</p>
                           {task.projectId.code && (
-                            <p className="text-gray-400 text-sm">
-                              Code: {task.projectId.code}
-                            </p>
+                            <p className="text-gray-400 text-sm">Code: {task.projectId.code}</p>
                           )}
                         </div>
                       </div>
@@ -1751,15 +1614,9 @@ export default function TaskDetailPage() {
                 >
                   <div className="flex items-center gap-3">
                     <MessageSquare className="w-5 h-5 text-indigo-500" />
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      Comments ({comments.length})
-                    </h3>
+                    <h3 className="text-lg font-semibold text-gray-800">Comments ({comments.length})</h3>
                   </div>
-                  {showComments ? (
-                    <ChevronUp size={20} className="text-gray-400" />
-                  ) : (
-                    <ChevronDown size={20} className="text-gray-400" />
-                  )}
+                  {showComments ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                 </button>
 
                 {showComments && (
@@ -1784,11 +1641,7 @@ export default function TaskDetailPage() {
                             disabled={submittingComment || !newComment.trim()}
                             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
                           >
-                            {submittingComment ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <Send size={16} />
-                            )}
+                            {submittingComment ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                             Post Comment
                           </button>
                         </div>
@@ -1797,9 +1650,7 @@ export default function TaskDetailPage() {
 
                     <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
                       {comments.length === 0 ? (
-                        <div className="text-center py-8 text-gray-500">
-                          No comments yet. Be the first to comment!
-                        </div>
+                        <div className="text-center py-8 text-gray-500">No comments yet. Be the first to comment!</div>
                       ) : (
                         comments.map((comment) => (
                           <CommentItem
@@ -1833,38 +1684,29 @@ export default function TaskDetailPage() {
                     <Paperclip className="w-5 h-5 text-indigo-500" />
                     <h3 className="text-lg font-semibold text-gray-800">
                       Attachments ({attachments.length})
-                      {task?.evidenceRequired &&
-                        task?.status === "in_progress" && (
-                          <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full ml-2">
-                            Evidence Required
-                          </span>
-                        )}
+                      {task?.evidenceRequired && task?.status === "in_progress" && (
+                        <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full ml-2">
+                          Evidence Required
+                        </span>
+                      )}
                     </h3>
                   </div>
-                  {showAttachments ? (
-                    <ChevronUp size={20} className="text-gray-400" />
-                  ) : (
-                    <ChevronDown size={20} className="text-gray-400" />
-                  )}
+                  {showAttachments ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                 </button>
 
                 {showAttachments && (
                   <div className="p-5 pt-0">
-                    {task?.evidenceRequired &&
-                      task?.status === "in_progress" && (
-                        <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-amber-800">
-                              Evidence Required
-                            </p>
-                            <p className="text-xs text-amber-700">
-                              Please upload evidence before submitting this task
-                              for review or marking as complete.
-                            </p>
-                          </div>
+                    {task?.evidenceRequired && task?.status === "in_progress" && (
+                      <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800">Evidence Required</p>
+                          <p className="text-xs text-amber-700">
+                            Please upload evidence before submitting this task for review or marking as complete.
+                          </p>
                         </div>
-                      )}
+                      </div>
+                    )}
 
                     <div className="mb-4">
                       <input
@@ -1880,17 +1722,12 @@ export default function TaskDetailPage() {
                         className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition bg-gray-50"
                       >
                         {uploadingFiles ? (
-                          <Loader2
-                            size={20}
-                            className="animate-spin text-indigo-500"
-                          />
+                          <Loader2 size={20} className="animate-spin text-indigo-500" />
                         ) : (
                           <>
                             <Upload size={20} className="text-gray-400" />
                             <span className="text-gray-500">
-                              {task?.evidenceRequired
-                                ? "Upload evidence (Required)"
-                                : "Upload files"}
+                              {task?.evidenceRequired ? "Upload evidence (Required)" : "Upload files"}
                             </span>
                           </>
                         )}
@@ -1899,9 +1736,7 @@ export default function TaskDetailPage() {
 
                     {attachments.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
-                        {task?.evidenceRequired
-                          ? "No evidence uploaded yet."
-                          : "No attachments yet."}
+                        {task?.evidenceRequired ? "No evidence uploaded yet." : "No attachments yet."}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1916,16 +1751,9 @@ export default function TaskDetailPage() {
                                 onClick={() => setSelectedImage(attachment.url)}
                               >
                                 {attachment.thumbnailUrl ? (
-                                  <img
-                                    src={attachment.thumbnailUrl}
-                                    alt={attachment.originalName}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <img src={attachment.thumbnailUrl} alt={attachment.originalName} className="w-full h-full object-cover" />
                                 ) : (
-                                  <ImageIcon
-                                    size={20}
-                                    className="text-gray-400"
-                                  />
+                                  <ImageIcon size={20} className="text-gray-400" />
                                 )}
                               </div>
                             ) : (
@@ -1934,29 +1762,20 @@ export default function TaskDetailPage() {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <p className="text-gray-800 text-sm font-medium truncate">
-                                {attachment.originalName}
-                              </p>
-                              <p className="text-gray-400 text-xs">
-                                {formatFileSize(attachment.size)}
-                              </p>
+                              <p className="text-gray-800 text-sm font-medium truncate">{attachment.originalName}</p>
+                              <p className="text-gray-400 text-xs">{formatFileSize(attachment.size)}</p>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                               <button
-                                onClick={() =>
-                                  handleDownloadAttachment(attachment)
-                                }
+                                onClick={() => handleDownloadAttachment(attachment)}
                                 className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                                 title="Download"
                               >
                                 <Download size={14} />
                               </button>
-                              {(canManage ||
-                                attachment.uploadedBy?._id === user?._id) && (
+                              {(canManage || attachment.uploadedBy?._id === user?._id) && (
                                 <button
-                                  onClick={() =>
-                                    handleDeleteAttachment(attachment._id)
-                                  }
+                                  onClick={() => handleDeleteAttachment(attachment._id)}
                                   className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                   title="Delete"
                                 >
@@ -1986,35 +1805,23 @@ export default function TaskDetailPage() {
                   >
                     <div className="flex items-center gap-3">
                       <Award className="w-5 h-5 text-indigo-500" />
-                      <h3 className="text-lg font-semibold text-gray-800">
-                        Reviews ({reviews.length})
-                      </h3>
+                      <h3 className="text-lg font-semibold text-gray-800">Reviews ({reviews.length})</h3>
                       {reviewStats.averageRating > 0 && (
                         <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg">
-                          <Star
-                            size={14}
-                            className="fill-amber-500 text-amber-500"
-                          />
+                          <Star size={14} className="fill-amber-500 text-amber-500" />
                           <span className="text-gray-800 text-sm font-medium">
                             {reviewStats.averageRating.toFixed(1)}
                           </span>
                         </div>
                       )}
                     </div>
-                    {showReviews ? (
-                      <ChevronUp size={20} className="text-gray-400" />
-                    ) : (
-                      <ChevronDown size={20} className="text-gray-400" />
-                    )}
+                    {showReviews ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                   </button>
 
                   {showReviews && (
                     <div className="p-5 pt-0 space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                       {reviews.map((review) => (
-                        <div
-                          key={review._id}
-                          className="bg-gray-50 rounded-lg p-4 border border-gray-100"
-                        >
+                        <div key={review._id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
@@ -2023,12 +1830,8 @@ export default function TaskDetailPage() {
                                 </span>
                               </div>
                               <div>
-                                <p className="text-gray-800 font-medium">
-                                  {review.reviewer?.fullName}
-                                </p>
-                                <p className="text-gray-400 text-xs">
-                                  {formatDateTime(review.createdAt)}
-                                </p>
+                                <p className="text-gray-800 font-medium">{review.reviewer?.fullName}</p>
+                                <p className="text-gray-400 text-xs">{formatDateTime(review.createdAt)}</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -2037,16 +1840,11 @@ export default function TaskDetailPage() {
                                   <Star
                                     key={i}
                                     size={16}
-                                    className={
-                                      i < review.rating
-                                        ? "fill-amber-400 text-amber-400"
-                                        : "text-gray-300"
-                                    }
+                                    className={i < review.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"}
                                   />
                                 ))}
                               </div>
-                              {(canManage ||
-                                review.reviewer?._id === user?._id) && (
+                              {(canManage || review.reviewer?._id === user?._id) && (
                                 <button
                                   onClick={() => handleDeleteReview(review._id)}
                                   className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
@@ -2056,18 +1854,13 @@ export default function TaskDetailPage() {
                               )}
                             </div>
                           </div>
-                          <p className="text-gray-700 text-sm">
-                            {review.comment}
-                          </p>
+                          <p className="text-gray-700 text-sm">{review.comment}</p>
                           {review.response && (
                             <div className="mt-3 pl-4 border-l-2 border-indigo-400">
                               <p className="text-indigo-600 text-xs font-medium">
-                                Response from{" "}
-                                {review.response.respondedBy?.fullName}
+                                Response from {review.response.respondedBy?.fullName}
                               </p>
-                              <p className="text-gray-600 text-sm mt-1">
-                                {review.response.content}
-                              </p>
+                              <p className="text-gray-600 text-sm mt-1">{review.response.content}</p>
                             </div>
                           )}
                         </div>
@@ -2097,11 +1890,7 @@ export default function TaskDetailPage() {
                       disabled={updating}
                       className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                     >
-                      {updating ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Play size={16} />
-                      )}
+                      {updating ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
                       Start Task
                     </button>
                   )}
@@ -2113,11 +1902,7 @@ export default function TaskDetailPage() {
                         disabled={updating}
                         className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                       >
-                        {updating ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <CheckCircle size={16} />
-                        )}
+                        {updating ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
                         Mark Complete
                       </button>
                       <button
@@ -2131,9 +1916,9 @@ export default function TaskDetailPage() {
                           <Send size={16} />
                         )}
                         Submit for Review
-                        <span className="text-xs bg-purple-400/30 px-2 py-0.5 rounded-full">
-                          Evidence Required
-                        </span>
+                        {task?.evidenceRequired && (
+                          <span className="text-xs bg-purple-400/30 px-2 py-0.5 rounded-full">Evidence Required</span>
+                        )}
                       </button>
                     </>
                   )}
@@ -2155,11 +1940,7 @@ export default function TaskDetailPage() {
                         disabled={updating}
                         className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                       >
-                        {updating ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <ThumbsUp size={16} />
-                        )}
+                        {updating ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={16} />}
                         Approve & Complete
                       </button>
                       <button
@@ -2178,28 +1959,18 @@ export default function TaskDetailPage() {
                         className="text-center py-3 bg-rose-50 rounded-xl border border-rose-200 cursor-pointer hover:bg-rose-100 transition"
                         onClick={() => setShowRejectionReasonModal(true)}
                       >
-                        <p className="text-rose-600 text-sm font-medium">
-                          ❌ Task Rejected
-                        </p>
+                        <p className="text-rose-600 text-sm font-medium">❌ Task Rejected</p>
                         {task.rejectionReason && (
-                          <p className="text-rose-500 text-xs mt-1 line-clamp-2 px-2">
-                            {task.rejectionReason}
-                          </p>
+                          <p className="text-rose-500 text-xs mt-1 line-clamp-2 px-2">{task.rejectionReason}</p>
                         )}
-                        <p className="text-xs text-rose-400 mt-1">
-                          Click to view full reason
-                        </p>
+                        <p className="text-xs text-rose-400 mt-1">Click to view full reason</p>
                       </div>
                       <button
                         onClick={() => updateTaskStatus("pending")}
                         disabled={updating}
                         className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                       >
-                        {updating ? (
-                          <Loader2 size={16} className="animate-spin" />
-                        ) : (
-                          <RefreshCw size={16} />
-                        )}
+                        {updating ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                         Send for Rework
                       </button>
                     </>
@@ -2207,36 +1978,28 @@ export default function TaskDetailPage() {
 
                   {task.status === "submitted" && !canApprove && (
                     <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <p className="text-gray-500 text-sm">
-                        Waiting for approval from manager
-                      </p>
+                      <p className="text-gray-500 text-sm">Waiting for approval from manager</p>
                     </div>
                   )}
 
                   {task.status === "completed" && (
                     <div className="text-center py-3 bg-emerald-50 rounded-xl border border-emerald-200">
-                      <p className="text-emerald-600 text-sm font-medium">
-                        ✅ Task Completed
-                      </p>
+                      <p className="text-emerald-600 text-sm font-medium">✅ Task Completed</p>
                       {task.approvalNote && (
-                        <p className="text-emerald-500 text-xs mt-1 line-clamp-2 px-2">
-                          Note: {task.approvalNote}
-                        </p>
+                        <p className="text-emerald-500 text-xs mt-1 line-clamp-2 px-2">Note: {task.approvalNote}</p>
                       )}
                     </div>
                   )}
 
-                  {canReview &&
-                    !reviews.some((r) => r.reviewer?._id === user?._id) &&
-                    task.status === "completed" && (
-                      <button
-                        onClick={() => setShowReviewModal(true)}
-                        className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                      >
-                        <Star size={16} />
-                        Leave a Review
-                      </button>
-                    )}
+                  {canReview && !reviews.some((r) => r.reviewer?._id === user?._id) && task.status === "completed" && (
+                    <button
+                      onClick={() => setShowReviewModal(true)}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Star size={16} />
+                      Leave a Review
+                    </button>
+                  )}
                 </div>
               </motion.div>
 
@@ -2247,54 +2010,37 @@ export default function TaskDetailPage() {
                 transition={{ delay: 0.1 }}
                 className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6"
               >
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">
-                  Quick Stats
-                </h3>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Stats</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Created</span>
-                    <span className="text-gray-800 text-sm">
-                      {formatDateTime(task.createdAt)}
-                    </span>
+                    <span className="text-gray-800 text-sm">{formatDateTime(task.createdAt)}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Last Updated</span>
-                    <span className="text-gray-800 text-sm">
-                      {formatDateTime(task.updatedAt)}
-                    </span>
+                    <span className="text-gray-800 text-sm">{formatDateTime(task.updatedAt)}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Time Tracked</span>
-                    <span className="text-gray-800 text-sm font-medium">
-                      {totalTime.display}
-                    </span>
+                    <span className="text-gray-800 text-sm font-medium">{totalTime.display}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Comments</span>
-                    <span className="text-gray-800 text-sm font-medium">
-                      {comments.length}
-                    </span>
+                    <span className="text-gray-800 text-sm font-medium">{comments.length}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Attachments</span>
-                    <span className="text-gray-800 text-sm font-medium">
-                      {attachments.length}
-                    </span>
+                    <span className="text-gray-800 text-sm font-medium">{attachments.length}</span>
                   </div>
                   <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
                     <span className="text-gray-500 text-sm">Reviews</span>
-                    <span className="text-gray-800 text-sm font-medium">
-                      {reviews.length}
-                    </span>
+                    <span className="text-gray-800 text-sm font-medium">{reviews.length}</span>
                   </div>
                   {reviewStats.averageRating > 0 && (
                     <div className="flex justify-between items-center py-1.5">
                       <span className="text-gray-500 text-sm">Avg Rating</span>
                       <div className="flex items-center gap-1">
-                        <Star
-                          size={14}
-                          className="fill-amber-500 text-amber-500"
-                        />
+                        <Star size={14} className="fill-amber-500 text-amber-500" />
                         <span className="text-gray-800 text-sm font-medium">
                           {reviewStats.averageRating.toFixed(1)}
                         </span>
@@ -2309,11 +2055,8 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className={`bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${
-                  isTimerRunningForTask
-                    ? "border-indigo-300"
-                    : "border-gray-200"
-                }`}
+                className={`bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${isTimerRunningForTask ? "border-indigo-300" : "border-gray-200"
+                  }`}
               >
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -2322,7 +2065,8 @@ export default function TaskDetailPage() {
                   </h3>
                   {isTimerActive && (
                     <span
-                      className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"}`}
+                      className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"
+                        }`}
                     >
                       {isTimerRunningForTask ? "● Running" : "● Paused"}
                     </span>
@@ -2335,38 +2079,28 @@ export default function TaskDetailPage() {
                         {formatTime(timerDisplay)}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {isTimerRunningForTask
-                          ? "Timer is running"
-                          : "Timer is paused"}
+                        {isTimerRunningForTask ? "Timer is running" : "Timer is paused"}
                         {task.actualMinutes && task.actualMinutes > 0 && (
-                          <span className="text-[10px] text-gray-400 ml-2">
-                            (Saved: {task.actualMinutes}m)
-                          </span>
+                          <span className="text-[10px] text-gray-400 ml-2">(Saved: {task.actualMinutes}m)</span>
                         )}
                       </p>
                     </>
                   ) : (
                     <>
                       <div className="text-3xl font-mono font-bold text-gray-400">
-                        {task.actualMinutes
-                          ? formatTime(task.actualMinutes * 60)
-                          : "--:--:--"}
+                        {task.actualMinutes ? formatTime(task.actualMinutes * 60) : "--:--:--"}
                       </div>
                       <p className="text-xs text-gray-400 mt-1">
-                        {task.actualMinutes
-                          ? `${task.actualMinutes}m tracked`
-                          : "No timer active"}
+                        {task.actualMinutes ? `${task.actualMinutes}m tracked` : "No timer active"}
                       </p>
                     </>
                   )}
                 </div>
-                {task.actualMinutes &&
-                  task.actualMinutes > 0 &&
-                  !isTimerActive && (
-                    <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-3 mt-2">
-                      Total tracked: {task.actualMinutes} minutes
-                    </div>
-                  )}
+                {task.actualMinutes && task.actualMinutes > 0 && !isTimerActive && (
+                  <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-3 mt-2">
+                    Total tracked: {task.actualMinutes} minutes
+                  </div>
+                )}
               </motion.div>
             </div>
           </div>
@@ -2388,14 +2122,11 @@ export default function TaskDetailPage() {
                   <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
                     <CalendarClock className="w-5 h-5 text-amber-600" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-800">
-                    Request Deadline Extension
-                  </h3>
+                  <h3 className="text-xl font-bold text-gray-800">Request Deadline Extension</h3>
                 </div>
 
                 <p className="text-gray-500 text-sm mb-4">
-                  Request a new deadline for this task. Your manager will review
-                  the request.
+                  Request a new deadline for this task. Your manager will review the request.
                 </p>
 
                 <div className="mb-4">
@@ -2412,13 +2143,9 @@ export default function TaskDetailPage() {
                       })
                     }
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                    min={
-                      task.deadline || new Date().toISOString().split("T")[0]
-                    }
+                    min={task.deadline || new Date().toISOString().split("T")[0]}
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Current deadline: {formatDate(task.deadline)}
-                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Current deadline: {formatDate(task.deadline)}</p>
                 </div>
 
                 <div className="mb-4">
@@ -2445,20 +2172,13 @@ export default function TaskDetailPage() {
                     disabled={submittingExtension}
                     className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                   >
-                    {submittingExtension ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <CalendarClock size={14} />
-                    )}
+                    {submittingExtension ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock size={14} />}
                     Submit Request
                   </button>
                   <button
                     onClick={() => {
                       setShowExtensionModal(false);
-                      setExtensionData({
-                        requestedDate: "",
-                        reason: "",
-                      });
+                      setExtensionData({ requestedDate: "", reason: "" });
                     }}
                     className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
                   >
@@ -2478,11 +2198,7 @@ export default function TaskDetailPage() {
           onClick={() => setSelectedImage(null)}
         >
           <div className="relative max-w-4xl max-h-[90vh]">
-            <img
-              src={selectedImage}
-              alt="Preview"
-              className="max-w-full max-h-[90vh] object-contain"
-            />
+            <img src={selectedImage} alt="Preview" className="max-w-full max-h-[90vh] object-contain" />
             <button
               onClick={() => setSelectedImage(null)}
               className="absolute top-4 right-4 p-2 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition border border-white/20"
@@ -2509,9 +2225,7 @@ export default function TaskDetailPage() {
                     <Text className="w-5 h-5 text-indigo-500" />
                     Submit Evidence
                   </h2>
-                  <p className="text-xs text-gray-500">
-                    Evidence is required to submit this task
-                  </p>
+                  <p className="text-xs text-gray-500">Evidence is required to submit this task</p>
                 </div>
                 <button
                   onClick={() => {
@@ -2528,12 +2242,9 @@ export default function TaskDetailPage() {
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
                   <AlertTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">
-                      Evidence Required
-                    </p>
+                    <p className="text-sm font-medium text-amber-800">Evidence Required</p>
                     <p className="text-xs text-amber-700">
-                      Please provide evidence details below. You can add URLs or
-                      describe the evidence.
+                      Please provide evidence details below. You can add URLs or describe the evidence.
                     </p>
                   </div>
                 </div>
@@ -2551,8 +2262,7 @@ export default function TaskDetailPage() {
                   />
                   <p className="text-xs text-gray-400 mt-1.5">
                     Enter one URL or detail per line.{" "}
-                    {evidenceText.split("\n").filter((l) => l.trim()).length}{" "}
-                    items added
+                    {evidenceText.split("\n").filter((l) => l.trim()).length} items added
                   </p>
                 </div>
 
@@ -2584,12 +2294,6 @@ export default function TaskDetailPage() {
                     Cancel
                   </button>
                 </div>
-
-                {!evidenceText.trim() && (
-                  <p className="text-xs text-amber-600 text-center">
-                    * Please provide evidence details to submit the task
-                  </p>
-                )}
               </div>
             </motion.div>
           </div>
@@ -2610,12 +2314,9 @@ export default function TaskDetailPage() {
                 <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Trash2 className="w-8 h-8 text-rose-500" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">
-                  Delete Task
-                </h3>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Delete Task</h3>
                 <p className="text-gray-500 mb-6">
-                  Are you sure you want to delete this task? This action cannot
-                  be undone.
+                  Are you sure you want to delete this task? This action cannot be undone.
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -2650,11 +2351,8 @@ export default function TaskDetailPage() {
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      pendingAction === "approve"
-                        ? "bg-emerald-50"
-                        : "bg-rose-50"
-                    }`}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${pendingAction === "approve" ? "bg-emerald-50" : "bg-rose-50"
+                      }`}
                   >
                     {pendingAction === "approve" ? (
                       <ThumbsUp className="w-5 h-5 text-emerald-500" />
@@ -2675,9 +2373,7 @@ export default function TaskDetailPage() {
 
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {pendingAction === "approve"
-                      ? "Approval Note"
-                      : "Rejection Reason"}{" "}
+                    {pendingAction === "approve" ? "Approval Note" : "Rejection Reason"}{" "}
                     <span className="text-rose-500">*</span>
                   </label>
                   <textarea
@@ -2685,40 +2381,21 @@ export default function TaskDetailPage() {
                     value={approvalNote}
                     onChange={(e) => setApprovalNote(e.target.value)}
                     placeholder={
-                      pendingAction === "approve"
-                        ? "Enter approval feedback..."
-                        : "Enter rejection reason..."
+                      pendingAction === "approve" ? "Enter approval feedback..." : "Enter rejection reason..."
                     }
                     className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    {approvalNote.length}/500 characters
-                  </p>
                 </div>
 
                 <div className="flex gap-3">
                   <button
-                    onClick={
-                      pendingAction === "approve"
-                        ? handleApproveWithNote
-                        : handleRejectWithNote
-                    }
+                    onClick={pendingAction === "approve" ? handleApproveWithNote : handleRejectWithNote}
                     disabled={!approvalNote.trim() || updating || rejecting}
-                    className={`flex-1 px-4 py-2.5 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
-                      pendingAction === "approve"
-                        ? "bg-emerald-600 hover:bg-emerald-700"
-                        : "bg-rose-600 hover:bg-rose-700"
-                    }`}
+                    className={`flex-1 px-4 py-2.5 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${pendingAction === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+                      }`}
                   >
-                    {updating || rejecting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : pendingAction === "approve" ? (
-                      <ThumbsUp size={14} />
-                    ) : (
-                      <ThumbsDown size={14} />
-                    )}
-                    Confirm{" "}
-                    {pendingAction === "approve" ? "Approval" : "Rejection"}
+                    {updating || rejecting ? <Loader2 className="w-4 h-4 animate-spin" /> : pendingAction === "approve" ? <ThumbsUp size={14} /> : <ThumbsDown size={14} />}
+                    Confirm {pendingAction === "approve" ? "Approval" : "Rejection"}
                   </button>
                   <button
                     onClick={() => {
@@ -2763,15 +2440,11 @@ export default function TaskDetailPage() {
                   <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
                     <Star className="w-5 h-5 text-amber-500" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-800">
-                    Leave a Review
-                  </h3>
+                  <h3 className="text-xl font-bold text-gray-800">Leave a Review</h3>
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Rating
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Rating</label>
                   <div className="flex gap-2">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
@@ -2781,11 +2454,7 @@ export default function TaskDetailPage() {
                       >
                         <Star
                           size={32}
-                          className={
-                            star <= reviewRating
-                              ? "fill-amber-400 text-amber-400"
-                              : "text-gray-300"
-                          }
+                          className={star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"}
                         />
                       </button>
                     ))}
@@ -2793,9 +2462,7 @@ export default function TaskDetailPage() {
                 </div>
 
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Comment
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Comment</label>
                   <textarea
                     rows={4}
                     value={reviewComment}
@@ -2811,11 +2478,7 @@ export default function TaskDetailPage() {
                     disabled={submittingReview}
                     className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
                   >
-                    {submittingReview ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Star size={14} />
-                    )}
+                    {submittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : <Star size={14} />}
                     Submit Review
                   </button>
                   <button
@@ -2874,9 +2537,7 @@ function CommentItem({
 
   const handleLikeComment = async (commentId: string) => {
     try {
-      const response = await api.post(
-        `/tasks/${id}/comments/${commentId}/like`,
-      );
+      const response = await api.post(`/tasks/${id}/comments/${commentId}/like`);
       if (response.data.success) {
         onCommentUpdate();
       }
@@ -2942,32 +2603,21 @@ function CommentItem({
     return name?.charAt(0)?.toUpperCase() || "?";
   };
 
-  const canManage =
-    user?.role === "admin" ||
-    user?.role === "super_admin" ||
-    user?.role === "hr_manager";
+  const canManage = user?.role === "admin" || user?.role === "super_admin" || user?.role === "hr_manager";
 
   return (
     <div className={`${depth > 0 ? "ml-8 mt-3" : "mb-4"}`}>
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <span className="text-white text-xs font-bold">
-              {getInitials(comment.author?.fullName)}
-            </span>
+            <span className="text-white text-xs font-bold">{getInitials(comment.author?.fullName)}</span>
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between flex-wrap gap-1 mb-1">
               <div>
-                <span className="text-gray-800 text-sm font-medium">
-                  {comment.author?.fullName}
-                </span>
-                <span className="text-gray-400 text-xs ml-2">
-                  {formatDateTime(comment.createdAt)}
-                </span>
-                {comment.isEdited && (
-                  <span className="text-gray-400 text-xs ml-2">(edited)</span>
-                )}
+                <span className="text-gray-800 text-sm font-medium">{comment.author?.fullName}</span>
+                <span className="text-gray-400 text-xs ml-2">{formatDateTime(comment.createdAt)}</span>
+                {comment.isEdited && <span className="text-gray-400 text-xs ml-2">(edited)</span>}
               </div>
               {(comment.author?._id === user?._id || canManage) && (
                 <div className="flex items-center gap-1">
@@ -3025,11 +2675,8 @@ function CommentItem({
             <div className="flex items-center gap-4 mt-2">
               <button
                 onClick={() => handleLikeComment(comment._id)}
-                className={`flex items-center gap-1 text-xs transition ${
-                  isLiked
-                    ? "text-indigo-600"
-                    : "text-gray-400 hover:text-indigo-600"
-                }`}
+                className={`flex items-center gap-1 text-xs transition ${isLiked ? "text-indigo-600" : "text-gray-400 hover:text-indigo-600"
+                  }`}
               >
                 <ThumbsUp size={12} />
                 {comment.likes?.length || 0} Likes
@@ -3071,9 +2718,7 @@ function CommentItem({
                     onCommentUpdate();
                   }
                 } catch (error: any) {
-                  toast.error(
-                    error.response?.data?.message || "Failed to add reply",
-                  );
+                  toast.error(error.response?.data?.message || "Failed to add reply");
                 }
               }}
               className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"

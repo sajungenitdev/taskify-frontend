@@ -501,6 +501,7 @@ const getImageUrl = useCallback(
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-indigo-400 transition-colors duration-300" />
               <input
                 type="text"
+                disabled
                 placeholder="Search tasks, projects, users..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

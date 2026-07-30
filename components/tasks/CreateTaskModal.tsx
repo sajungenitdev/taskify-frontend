@@ -35,28 +35,28 @@ interface User {
   email: string;
   role: string;
   department?:
-    | {
-        _id: string;
-        name: string;
-        code: string;
-      }
-    | string
-    | null;
+  | {
+    _id: string;
+    name: string;
+    code: string;
+  }
+  | string
+  | null;
   departmentId?:
-    | {
-        _id: string;
-        name: string;
-        code: string;
-      }
-    | string
-    | null;
+  | {
+    _id: string;
+    name: string;
+    code: string;
+  }
+  | string
+  | null;
   managerId?:
-    | {
-        _id: string;
-        fullName: string;
-        email: string;
-      }
-    | string;
+  | {
+    _id: string;
+    fullName: string;
+    email: string;
+  }
+  | string;
   profilePhoto?: string;
   avatar?: string;
 }
@@ -109,8 +109,9 @@ const isManagerObject = (
 };
 
 // ============ HELPER FUNCTIONS ============
-const getDepartmentId = (user: User): string | null => {
-  // Check department field first (populated object)
+const getDepartmentId = (user: User | null | undefined): string | null => {
+  if (!user) return null;
+
   if (user.department) {
     if (isDepartmentObject(user.department)) {
       return user.department._id;
@@ -120,7 +121,6 @@ const getDepartmentId = (user: User): string | null => {
     }
   }
 
-  // Fallback to departmentId
   if (user.departmentId) {
     if (isDepartmentObject(user.departmentId)) {
       return user.departmentId._id;
@@ -133,12 +133,153 @@ const getDepartmentId = (user: User): string | null => {
   return null;
 };
 
-const getManagerId = (user: User): string | null => {
+const getManagerId = (user: User | null | undefined): string | null => {
+  if (!user) return null;
   if (!user.managerId) return null;
   if (isManagerObject(user.managerId)) {
     return user.managerId._id;
   }
   return user.managerId;
+};
+
+// ============ TOGGLE SWITCH COMPONENT ============
+const ToggleSwitch = ({
+  enabled,
+  onToggle,
+  size = "md",
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+  size?: "sm" | "md" | "lg";
+}) => {
+  const sizes = {
+    sm: { container: "w-8 h-4", dot: "w-3 h-3", translate: "translate-x-4" },
+    md: { container: "w-11 h-6", dot: "w-5 h-5", translate: "translate-x-5" },
+    lg: { container: "w-14 h-7", dot: "w-6 h-6", translate: "translate-x-7" },
+  };
+
+  const sizeConfig = sizes[size] || sizes.md;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`
+        relative inline-flex items-center rounded-full transition-colors duration-200 ease-in-out
+        ${sizeConfig.container}
+        ${enabled ? "bg-indigo-600" : "bg-gray-300"}
+        focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
+      `}
+    >
+      <span
+        className={`
+          inline-block transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out
+          ${sizeConfig.dot}
+          ${enabled ? sizeConfig.translate : "translate-x-0.5"}
+        `}
+      />
+    </button>
+  );
+};
+
+// ============ WORKLOAD BADGE COMPONENT ============
+const WorkloadBadge = ({
+  user,
+  workloadData
+}: {
+  user: User | null;
+  workloadData: Record<string, WorkloadInfo>;
+}) => {
+  if (!user) return null;
+
+  const getWorkloadStatus = (userId: string) => {
+    const workload = workloadData[userId];
+    if (!workload) return null;
+
+    const statusConfig = {
+      green: {
+        label: "Good Capacity",
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        icon: <CheckSquare className="w-4 h-4 text-emerald-500" />,
+      },
+      amber: {
+        label: "Near Full",
+        color: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      },
+      red: {
+        label: "Over Capacity",
+        color: "text-red-600",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        icon: <AlertCircle className="w-4 h-4 text-red-500" />,
+      },
+    };
+
+    return {
+      ...workload,
+      status: statusConfig[workload.statusColor],
+    };
+  };
+
+  const workload = getWorkloadStatus(user._id);
+  if (!workload) {
+    return (
+      <div className="mt-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+        <p className="text-xs text-gray-500">Workload data not available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`mt-1.5 p-2 rounded-lg border ${workload.status.bg} ${workload.status.border}`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {workload.status.icon}
+          <span className={`text-xs font-medium ${workload.status.color}`}>
+            {workload.status.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-500">
+            {workload.activeHours}h / {workload.monthlyCapacity}h
+          </span>
+          <span className={`text-xs font-bold ${workload.status.color}`}>
+            {workload.capacityPercentage}%
+          </span>
+        </div>
+      </div>
+      <div className="mt-1.5 w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${workload.statusColor === "red"
+              ? "bg-red-500"
+              : workload.statusColor === "amber"
+                ? "bg-amber-500"
+                : "bg-emerald-500"
+            }`}
+          style={{ width: `${Math.min(workload.capacityPercentage, 100)}%` }}
+        />
+      </div>
+      {workload.statusColor === "red" && (
+        <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
+          <AlertCircle className="w-3 h-3" />
+          Overloaded! Assigning more tasks may cause burnout.
+        </p>
+      )}
+      {workload.statusColor === "amber" && (
+        <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+          <AlertTriangle className="w-3 h-3" />
+          Near capacity. Consider workload distribution.
+        </p>
+      )}
+    </div>
+  );
 };
 
 // ============ MAIN COMPONENT ============
@@ -164,10 +305,6 @@ export default function CreateTaskModal({
   const [workloadData, setWorkloadData] = useState<
     Record<string, WorkloadInfo>
   >({});
-  const [selectedUserWorkload, setSelectedUserWorkload] =
-    useState<WorkloadInfo | null>(null);
-  const [showWorkloadWarning, setShowWorkloadWarning] = useState(false);
-  const [selectedAssignee, setSelectedAssignee] = useState<User | null>(null);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -200,9 +337,16 @@ export default function CreateTaskModal({
     isProjectManager ||
     isLineManager;
 
+  const canViewWorkload = useMemo(() => {
+    return isSuperAdmin || isAdmin || isHrManager || isDeptManager || isLineManager;
+  }, [isSuperAdmin, isAdmin, isHrManager, isDeptManager, isLineManager]);
+
   // ============ FETCH WORKLOAD DATA ============
   const fetchWorkloadData = useCallback(async (usersList: User[]) => {
-    if (!usersList || usersList.length === 0) return;
+    if (!canViewWorkload || !usersList || usersList.length === 0) {
+      setWorkloadData({});
+      return;
+    }
 
     try {
       const response = await api.get("/workload/capacity");
@@ -220,10 +364,13 @@ export default function CreateTaskModal({
         });
         setWorkloadData(workloadMap);
       }
-    } catch (error) {
-      console.error("Error fetching workload data:", error);
+    } catch (error: any) {
+      if (error?.response?.status !== 403) {
+        console.error("Error fetching workload data:", error);
+      }
+      setWorkloadData({});
     }
-  }, []);
+  }, [canViewWorkload]);
 
   // ============ API CALLS ============
   const fetchDepartments = useCallback(async () => {
@@ -255,13 +402,10 @@ export default function CreateTaskModal({
 
       if (response.data.success) {
         const usersData = response.data.data || [];
-
-        console.log("📡 Raw users data:", usersData);
-
         let filtered: User[] = usersData;
 
         if (isDeptManager) {
-          const managerDeptId = getDepartmentId(user as User);
+          const managerDeptId = getDepartmentId(user);
           filtered = usersData.filter((u: User) => {
             if (u.role === "super_admin") return false;
             const userDeptId = getDepartmentId(u);
@@ -277,12 +421,14 @@ export default function CreateTaskModal({
           filtered = usersData.filter((u: User) => u._id === user?._id);
         }
 
-        console.log("✅ Filtered users:", filtered);
         setUsers(filtered);
         setFilteredUsers(filtered);
 
-        // Fetch workload data for these users
-        await fetchWorkloadData(filtered);
+        if (canViewWorkload) {
+          await fetchWorkloadData(filtered);
+        } else {
+          setWorkloadData({});
+        }
       }
     } catch (error: any) {
       console.error("Error fetching users:", error);
@@ -290,7 +436,7 @@ export default function CreateTaskModal({
     } finally {
       setLoadingUsers(false);
     }
-  }, [user, isDeptManager, isLineManager, isEmployee, fetchWorkloadData]);
+  }, [user, isDeptManager, isLineManager, isEmployee, canViewWorkload, fetchWorkloadData]);
 
   // ============ EFFECTS ============
   useEffect(() => {
@@ -309,80 +455,89 @@ export default function CreateTaskModal({
     if (!isOpen) {
       setIsDataLoaded(false);
       resetForm();
-      setSelectedUserWorkload(null);
-      setShowWorkloadWarning(false);
-      setSelectedAssignee(null);
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
   // Filter users by selected department
-  useEffect(() => {
+  const filteredUsersByDepartment = useMemo(() => {
     if (selectedDepartment && users.length > 0) {
-      const filtered = users.filter((u) => {
+      return users.filter((u) => {
         const userDeptId = getDepartmentId(u);
         return userDeptId === selectedDepartment;
       });
-      console.log(
-        `📊 Filtered users by department ${selectedDepartment}:`,
-        filtered,
-      );
-      setFilteredUsers(filtered);
-    } else {
-      setFilteredUsers(users);
     }
+    return users;
   }, [selectedDepartment, users]);
 
-  // Reset assignee when department changes
   useEffect(() => {
+    setFilteredUsers(filteredUsersByDepartment);
+  }, [filteredUsersByDepartment]);
+
+  // Handle department change
+  const handleDepartmentChange = (deptId: string) => {
+    setSelectedDepartment(deptId);
     setFormData((prev) => ({ ...prev, assignedTo: "" }));
-    setSelectedUserWorkload(null);
-    setShowWorkloadWarning(false);
-    setSelectedAssignee(null);
-  }, [selectedDepartment]);
+  };
 
-  // Update workload when assignee changes
-  useEffect(() => {
+  // Update workload when assignee changes - using useMemo
+  const selectedUser = useMemo(() => {
     if (formData.assignedTo) {
-      // Find the selected user object
-      const selectedUser = users.find((u) => u._id === formData.assignedTo);
-      setSelectedAssignee(selectedUser || null);
-
-      // Check workload
-      if (workloadData[formData.assignedTo]) {
-        const workload = workloadData[formData.assignedTo];
-        setSelectedUserWorkload(workload);
-        setShowWorkloadWarning(
-          workload.statusColor === "red" || workload.statusColor === "amber",
-        );
-      } else {
-        setSelectedUserWorkload(null);
-        setShowWorkloadWarning(false);
-      }
-    } else {
-      setSelectedAssignee(null);
-      setSelectedUserWorkload(null);
-      setShowWorkloadWarning(false);
+      return users.find((u) => u._id === formData.assignedTo) || null;
     }
-  }, [formData.assignedTo, workloadData, users]);
+    return null;
+  }, [formData.assignedTo, users]);
+
+  const userWorkload = useMemo(() => {
+    if (formData.assignedTo && workloadData[formData.assignedTo]) {
+      return workloadData[formData.assignedTo];
+    }
+    return null;
+  }, [formData.assignedTo, workloadData]);
+
+  // ============ COMPUTED VALUES (inline, no state) ============
+  const selectedAssignee = selectedUser;
+  const selectedUserWorkload = userWorkload;
+  const showWorkloadWarning = Boolean(
+    userWorkload && (userWorkload.statusColor === "red" || userWorkload.statusColor === "amber")
+  );
 
   // Handle quick task toggle
   useEffect(() => {
     if (isQuickTask && user) {
-      setFormData((prev) => ({ ...prev, assignedTo: user._id }));
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setFormData((prev) => ({
         ...prev,
+        assignedTo: user._id || "",
         deadline: tomorrow.toISOString().split("T")[0],
       }));
-    } else {
+    } else if (!isEmployee) {
       setFormData((prev) => ({
         ...prev,
         assignedTo: "",
         deadline: "",
       }));
     }
-  }, [isQuickTask, user]);
+  }, [isQuickTask, user, isEmployee]);
+
+  // Employee auto-assignment
+  useEffect(() => {
+    if (isEmployee && user?._id) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      setFormData((prev) => ({
+        ...prev,
+        assignedTo: user._id || "",
+        deadline: prev.deadline || tomorrow.toISOString().split("T")[0],
+      }));
+
+      const userDeptId = getDepartmentId(user);
+      if (userDeptId && !selectedDepartment) {
+        setSelectedDepartment(userDeptId);
+      }
+    }
+  }, [isEmployee, user]);
 
   // ============ HANDLERS ============
   const handleAddEvidenceUrl = () => {
@@ -440,7 +595,7 @@ export default function CreateTaskModal({
     let finalDeadline = formData.deadline;
     let finalProjectId = selectedProject;
 
-    if (isQuickTask) {
+    if (isEmployee) {
       if (!user?._id) {
         toast.error("User not found");
         return;
@@ -448,7 +603,31 @@ export default function CreateTaskModal({
       finalAssignedTo = user._id;
 
       if (!selectedDepartment) {
-        const userDeptId = getDepartmentId(user as User);
+        const userDeptId = getDepartmentId(user);
+        if (userDeptId) {
+          finalDepartment = userDeptId;
+        } else if (departments.length > 0) {
+          finalDepartment = departments[0]._id;
+        } else {
+          toast.error("No department available");
+          return;
+        }
+      }
+
+      if (!finalDeadline) {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        finalDeadline = tomorrow.toISOString().split("T")[0];
+      }
+    } else if (isQuickTask) {
+      if (!user?._id) {
+        toast.error("User not found");
+        return;
+      }
+      finalAssignedTo = user._id;
+
+      if (!selectedDepartment) {
+        const userDeptId = getDepartmentId(user);
         if (userDeptId) {
           finalDepartment = userDeptId;
         } else if (departments.length > 0) {
@@ -478,7 +657,6 @@ export default function CreateTaskModal({
         return;
       }
 
-      // Check workload before assigning
       if (selectedUserWorkload && selectedUserWorkload.statusColor === "red") {
         if (
           !confirm(
@@ -498,7 +676,7 @@ export default function CreateTaskModal({
         const assignedUser = users.find((u) => u._id === formData.assignedTo);
         if (assignedUser) {
           const assignedUserDept = getDepartmentId(assignedUser);
-          const managerDept = getDepartmentId(user as User);
+          const managerDept = getDepartmentId(user);
           if (assignedUserDept !== managerDept) {
             toast.error(
               "You can only assign tasks to users in your department",
@@ -520,7 +698,6 @@ export default function CreateTaskModal({
       }
     }
 
-    // Always ensure we have a projectId
     if (!finalProjectId) {
       const deptProject = projects.find(
         (p) =>
@@ -610,19 +787,16 @@ export default function CreateTaskModal({
     setEvidenceUrls([]);
     setNewUrl("");
     setIsQuickTask(false);
-    setSelectedUserWorkload(null);
-    setShowWorkloadWarning(false);
-    setSelectedAssignee(null);
   };
 
   // ============ GET AVAILABLE USERS ============
-  const getAvailableUsers = () => {
+  const getAvailableUsers = useCallback(() => {
     if (isSuperAdmin || isAdmin || isHrManager) {
       return filteredUsers;
     }
 
     if (isDeptManager) {
-      const managerDeptId = getDepartmentId(user as User);
+      const managerDeptId = getDepartmentId(user);
       return filteredUsers.filter((u) => {
         if (u.role === "super_admin") return false;
         if (!canAssignToOthers && u._id === user?._id) return false;
@@ -648,144 +822,9 @@ export default function CreateTaskModal({
     }
 
     return filteredUsers;
-  };
+  }, [isSuperAdmin, isAdmin, isHrManager, isDeptManager, isProjectManager, isLineManager, isEmployee, filteredUsers, user, canAssignToOthers]);
 
   const availableUsers = getAvailableUsers();
-
-  // ============ GET WORKLOAD STATUS ============
-  const getWorkloadStatus = (userId: string) => {
-    const workload = workloadData[userId];
-    if (!workload) return null;
-
-    const statusConfig = {
-      green: {
-        label: "Good Capacity",
-        color: "text-emerald-600",
-        bg: "bg-emerald-50",
-        border: "border-emerald-200",
-        icon: <CheckSquare className="w-4 h-4 text-emerald-500" />,
-      },
-      amber: {
-        label: "Near Full",
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-        border: "border-amber-200",
-        icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
-      },
-      red: {
-        label: "Over Capacity",
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-        icon: <AlertCircle className="w-4 h-4 text-red-500" />,
-      },
-    };
-
-    return {
-      ...workload,
-      status: statusConfig[workload.statusColor],
-    };
-  };
-
-  // ============ TOGGLE SWITCH COMPONENT ============
-  const ToggleSwitch = ({
-    enabled,
-    onToggle,
-    size = "md",
-  }: {
-    enabled: boolean;
-    onToggle: () => void;
-    size?: "sm" | "md" | "lg";
-  }) => {
-    const sizes = {
-      sm: { container: "w-8 h-4", dot: "w-3 h-3", translate: "translate-x-4" },
-      md: { container: "w-11 h-6", dot: "w-5 h-5", translate: "translate-x-5" },
-      lg: { container: "w-14 h-7", dot: "w-6 h-6", translate: "translate-x-7" },
-    };
-
-    const sizeConfig = sizes[size] || sizes.md;
-
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        className={`
-          relative inline-flex items-center rounded-full transition-colors duration-200 ease-in-out
-          ${sizeConfig.container}
-          ${enabled ? "bg-indigo-600" : "bg-gray-300"}
-          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
-        `}
-      >
-        <span
-          className={`
-            inline-block transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out
-            ${sizeConfig.dot}
-            ${enabled ? sizeConfig.translate : "translate-x-0.5"}
-          `}
-        />
-      </button>
-    );
-  };
-
-  // ============ WORKLOAD BADGE COMPONENT ============
-  const WorkloadBadge = ({ user: userProp }: { user: User | null }) => {
-    if (!userProp) return null;
-
-    const workload = getWorkloadStatus(userProp._id);
-    if (!workload)
-      return (
-        <div className="mt-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
-          <p className="text-xs text-gray-500">Loading workload data...</p>
-        </div>
-      );
-
-    return (
-      <div
-        className={`mt-1.5 p-2 rounded-lg border ${workload.status.bg} ${workload.status.border}`}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {workload.status.icon}
-            <span className={`text-xs font-medium ${workload.status.color}`}>
-              {workload.status.label}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500">
-              {workload.activeHours}h / {workload.monthlyCapacity}h
-            </span>
-            <span className={`text-xs font-bold ${workload.status.color}`}>
-              {workload.capacityPercentage}%
-            </span>
-          </div>
-        </div>
-        <div className="mt-1.5 w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full transition-all ${
-              workload.statusColor === "red"
-                ? "bg-red-500"
-                : workload.statusColor === "amber"
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
-            }`}
-            style={{ width: `${Math.min(workload.capacityPercentage, 100)}%` }}
-          />
-        </div>
-        {workload.statusColor === "red" && (
-          <p className="text-[10px] text-red-600 mt-1 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3" />
-            Overloaded! Assigning more tasks may cause burnout.
-          </p>
-        )}
-        {workload.statusColor === "amber" && (
-          <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
-            Near capacity. Consider workload distribution.
-          </p>
-        )}
-      </div>
-    );
-  };
 
   if (!isOpen) return null;
 
@@ -810,7 +849,9 @@ export default function CreateTaskModal({
                 Create New Task
               </h2>
               <p className="text-xs text-gray-500">
-                Fill all details to assign a new task
+                {isEmployee
+                  ? "Create a task for yourself"
+                  : "Fill all details to assign a new task"}
               </p>
             </div>
           </div>
@@ -824,8 +865,23 @@ export default function CreateTaskModal({
 
         {/* Modal Body */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+          {/* Employee Banner */}
+          {isEmployee && (
+            <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-200">
+              <UserIcon className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-sm font-medium text-green-800">
+                  Employee Mode
+                </p>
+                <p className="text-xs text-green-700">
+                  Tasks will be automatically assigned to you. You can only create tasks for yourself.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Quick Task Toggle */}
-          {(isSuperAdmin || isAdmin || isEmployee) && (
+          {(isSuperAdmin || isAdmin) && !isEmployee && (
             <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -857,7 +913,7 @@ export default function CreateTaskModal({
           )}
 
           {/* Role Info Banners */}
-          {isDeptManager && (
+          {isDeptManager && !isEmployee && (
             <div className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
               <Users className="w-4 h-4 text-blue-600" />
               <p className="text-xs text-blue-700">
@@ -866,7 +922,7 @@ export default function CreateTaskModal({
             </div>
           )}
 
-          {isLineManager && (
+          {isLineManager && !isEmployee && (
             <div className="flex items-center gap-2 p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
               <Users className="w-4 h-4 text-emerald-600" />
               <p className="text-xs text-emerald-700">
@@ -875,11 +931,11 @@ export default function CreateTaskModal({
             </div>
           )}
 
-          {isEmployee && (
-            <div className="flex items-center gap-2 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
-              <UserIcon className="w-4 h-4 text-amber-600" />
-              <p className="text-xs text-amber-700">
-                You can only create tasks for yourself.
+          {isProjectManager && !isEmployee && (
+            <div className="flex items-center gap-2 p-2.5 bg-purple-50 rounded-lg border border-purple-200">
+              <Users className="w-4 h-4 text-purple-600" />
+              <p className="text-xs text-purple-700">
+                You can assign tasks to team members.
               </p>
             </div>
           )}
@@ -951,135 +1007,162 @@ export default function CreateTaskModal({
               />
             </div>
 
-            {/* Department & Assign To Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Department{" "}
-                  {!isQuickTask && <span className="text-rose-500">*</span>}
-                  {isQuickTask && (
-                    <span className="text-gray-400 text-xs">
-                      {" "}
-                      (Auto-assigned)
-                    </span>
-                  )}
-                </label>
-                <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <select
-                    value={selectedDepartment}
-                    onChange={(e) => setSelectedDepartment(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                    required={!isQuickTask}
-                    disabled={isQuickTask}
-                  >
-                    <option value="">Select Department</option>
-                    {departments.map((dept) => (
-                      <option key={dept._id} value={dept._id}>
-                        {dept.name} ({dept.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Assign To{" "}
-                  {!isQuickTask && <span className="text-rose-500">*</span>}
-                  {isQuickTask && (
-                    <span className="text-gray-400 text-xs"> (You)</span>
-                  )}
-                </label>
-                <div className="relative">
-                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <select
-                    value={formData.assignedTo}
-                    onChange={(e) =>
-                      setFormData({ ...formData, assignedTo: e.target.value })
-                    }
-                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                    required={!isQuickTask}
-                    disabled={
-                      isQuickTask || (!canAssignToOthers && !isQuickTask)
-                    }
-                  >
-                    <option value="">
-                      {!selectedDepartment && !isQuickTask
-                        ? "Select department first"
-                        : loadingUsers
-                          ? "Loading users..."
-                          : availableUsers.length === 0
-                            ? isDeptManager
-                              ? "No users in your department"
-                              : isLineManager
-                                ? "No direct reports found"
-                                : "No users available"
-                            : "Select team member"}
-                    </option>
-                    {availableUsers.map((u) => {
-                      // Get department name for display
-                      let deptName = "";
-                      if (
-                        u.department &&
-                        typeof u.department === "object" &&
-                        "name" in u.department
-                      ) {
-                        deptName = ` (${u.department.name})`;
-                      } else if (
-                        u.departmentId &&
-                        typeof u.departmentId === "object" &&
-                        "name" in u.departmentId
-                      ) {
-                        deptName = ` (${u.departmentId.name})`;
-                      }
-
-                      return (
-                        <option key={u._id} value={u._id}>
-                          {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
-                          {deptName}
-                          {u._id === user?._id && " (You)"}
+            {/* Department & Assign To Row - Hide for employees */}
+            {!isEmployee && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Department{" "}
+                    {!isQuickTask && <span className="text-rose-500">*</span>}
+                    {isQuickTask && (
+                      <span className="text-gray-400 text-xs">
+                        {" "}
+                        (Auto-assigned)
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select
+                      value={selectedDepartment}
+                      onChange={(e) => handleDepartmentChange(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                      required={!isQuickTask}
+                      disabled={isQuickTask}
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map((dept) => (
+                        <option key={dept._id} value={dept._id}>
+                          {dept.name} ({dept.code})
                         </option>
-                      );
-                    })}
-                  </select>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                {/* Workload Badge - Shows when a user is selected */}
-                {formData.assignedTo && !isQuickTask && (
-                  <WorkloadBadge user={selectedAssignee} />
-                )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                    Assign To{" "}
+                    {!isQuickTask && <span className="text-rose-500">*</span>}
+                    {isQuickTask && (
+                      <span className="text-gray-400 text-xs"> (You)</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select
+                      value={formData.assignedTo}
+                      onChange={(e) =>
+                        setFormData({ ...formData, assignedTo: e.target.value })
+                      }
+                      className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                      required={!isQuickTask}
+                      disabled={
+                        isQuickTask || (!canAssignToOthers && !isQuickTask)
+                      }
+                    >
+                      <option value="">
+                        {!selectedDepartment && !isQuickTask
+                          ? "Select department first"
+                          : loadingUsers
+                            ? "Loading users..."
+                            : availableUsers.length === 0
+                              ? isDeptManager
+                                ? "No users in your department"
+                                : isLineManager
+                                  ? "No direct reports found"
+                                  : "No users available"
+                              : "Select team member"}
+                      </option>
+                      {availableUsers.map((u) => {
+                        let deptName = "";
+                        if (
+                          u.department &&
+                          typeof u.department === "object" &&
+                          "name" in u.department
+                        ) {
+                          deptName = ` (${u.department.name})`;
+                        } else if (
+                          u.departmentId &&
+                          typeof u.departmentId === "object" &&
+                          "name" in u.departmentId
+                        ) {
+                          deptName = ` (${u.departmentId.name})`;
+                        }
 
-                {/* Role-based info messages */}
-                {!isQuickTask && !canAssignToOthers && (
-                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                    <UserIcon className="w-3 h-3" />
-                    You can only assign tasks to yourself
-                  </p>
-                )}
+                        const isCurrentUser = u._id === user?._id;
 
-                {!isQuickTask && isDeptManager && (
-                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    You can assign tasks to users in your department
-                  </p>
-                )}
+                        return (
+                          <option key={u._id} value={u._id}>
+                            {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
+                            {deptName}
+                            {isCurrentUser && " (You)"}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
 
-                {!isQuickTask && isLineManager && (
-                  <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    You can assign tasks to your direct reports
-                  </p>
-                )}
+                  {/* Workload Badge */}
+                  {formData.assignedTo && !isQuickTask && (
+                    <WorkloadBadge user={selectedAssignee} workloadData={workloadData} />
+                  )}
 
-                {!isQuickTask && (isSuperAdmin || isAdmin || isHrManager) && (
-                  <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    You can assign tasks to anyone in the system
-                  </p>
-                )}
+                  {/* Role-based info messages */}
+                  {!isQuickTask && !canAssignToOthers && (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <UserIcon className="w-3 h-3" />
+                      You can only assign tasks to yourself
+                    </p>
+                  )}
+
+                  {!isQuickTask && isDeptManager && (
+                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      You can assign tasks to users in your department
+                    </p>
+                  )}
+
+                  {!isQuickTask && isLineManager && (
+                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      You can assign tasks to your direct reports
+                    </p>
+                  )}
+
+                  {!isQuickTask && (isSuperAdmin || isAdmin || isHrManager) && (
+                    <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      You can assign tasks to anyone in the system
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Employee info */}
+            {isEmployee && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div>
+                  <label className="block text-xs font-medium text-green-700 mb-1.5">
+                    Department
+                  </label>
+                  <div className="flex items-center gap-2 text-sm text-green-800">
+                    <Building2 className="w-4 h-4" />
+                    {departments.find(d => d._id === selectedDepartment)?.name || "Auto-selected"}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-green-700 mb-1.5">
+                    Assigned To
+                  </label>
+                  <div className="flex items-center gap-2 text-sm text-green-800">
+                    <UserIcon className="w-4 h-4" />
+                    {user?.fullName} (You)
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Priority, Estimated Hours, Actual Minutes */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1200,8 +1283,8 @@ export default function CreateTaskModal({
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Deadline{" "}
-                  {!isQuickTask && <span className="text-rose-500">*</span>}
-                  {isQuickTask && (
+                  {!isQuickTask && !isEmployee && <span className="text-rose-500">*</span>}
+                  {(isQuickTask || isEmployee) && (
                     <span className="text-gray-400 text-xs"> (Auto-set)</span>
                   )}
                 </label>
@@ -1214,11 +1297,17 @@ export default function CreateTaskModal({
                       setFormData({ ...formData, deadline: e.target.value })
                     }
                     className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                    required={!isQuickTask}
+                    required={!isQuickTask && !isEmployee}
                     min={new Date().toISOString().split("T")[0]}
-                    disabled={isQuickTask}
+                    disabled={isQuickTask || isEmployee}
                   />
                 </div>
+                {isEmployee && (
+                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    Auto-set to tomorrow
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1375,7 +1464,7 @@ export default function CreateTaskModal({
                 ) : (
                   <>
                     <Sparkles size={16} />
-                    Create Task
+                    {isEmployee ? "Create Task for Yourself" : "Create Task"}
                   </>
                 )}
               </button>
