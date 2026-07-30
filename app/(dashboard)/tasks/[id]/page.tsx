@@ -1038,7 +1038,8 @@ export default function TaskDetailPage() {
         toast.success(`⏱️ Time tracked: ${result.displayTime}`);
         await fetchTask();
       } else {
-        toast.error(result.error || "Failed to stop timer");
+        // The result doesn't have an error property, so just show a generic message
+        toast.error("Failed to stop timer. Please try again.");
       }
     } catch (error: any) {
       console.error("Error stopping timer:", error);
