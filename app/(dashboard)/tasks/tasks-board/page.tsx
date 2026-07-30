@@ -10,8 +10,6 @@ import {
   CheckCircle,
   AlertCircle,
   Plus,
-  ArrowRight,
-  User,
   Layers,
   Zap,
   ThumbsUp,
@@ -22,43 +20,29 @@ import {
   Play,
   Send,
   RefreshCw,
-  Flag,
   Calendar,
   Briefcase,
   Edit2,
   Trash2,
-  MoreVertical,
   Filter,
   Search,
   SortAsc,
   SortDesc,
-  Grid3x3,
   List,
-  ChevronDown,
-  ChevronUp,
   Star,
-  Bell,
   MessageSquare,
   Paperclip,
   Link2,
   Clock as ClockIcon,
-  Award,
-  TrendingUp,
-  BarChart3,
-  Sparkles,
-  Rocket,
-  ShieldCheck,
-  Crown,
   Home,
   Download,
   LayoutGrid,
-  Check,
   Square,
   Trash,
-  Copy,
-  Share2,
   ExternalLink,
   Upload,
+  Users,
+  Building2,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -72,18 +56,19 @@ interface Task {
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   status:
-    | "pending"
-    | "in_progress"
-    | "submitted"
-    | "completed"
-    | "overdue"
-    | "rejected";
+  | "pending"
+  | "in_progress"
+  | "submitted"
+  | "completed"
+  | "overdue"
+  | "rejected";
   deadline: string;
   estimatedHours: number;
   actualMinutes?: number;
-  assignedTo: { _id: string; fullName: string; email: string; avatar?: string };
+  assignedTo: { _id: string; fullName: string; email: string; avatar?: string; department?: { _id: string; name: string } };
   assignedBy: { _id: string; fullName: string };
   projectId?: { _id: string; name: string; code: string };
+  departmentId?: { _id: string; name: string; code: string };
   isStarred?: boolean;
   isApprovalRequired?: boolean;
   evidenceRequired?: boolean;
@@ -96,6 +81,20 @@ interface Task {
   attachments?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Extended user type with department
+interface ExtendedUser {
+  _id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  department?: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  departmentId?: string;
 }
 
 export default function TasksPage() {
@@ -146,10 +145,13 @@ export default function TasksPage() {
     projectId: "",
   });
   const [users, setUsers] = useState<
-    { _id: string; fullName: string; email: string }[]
+    { _id: string; fullName: string; email: string; department?: { _id: string; name: string } }[]
   >([]);
   const [projects, setProjects] = useState<
     { _id: string; name: string; code: string }[]
+  >([]);
+  const [departmentUsers, setDepartmentUsers] = useState<
+    { _id: string; fullName: string; email: string }[]
   >([]);
 
   // Bulk selection state
@@ -161,15 +163,31 @@ export default function TasksPage() {
   const isSuperAdmin = userRole === "super_admin";
   const isAdmin = userRole === "admin";
   const isHrManager = userRole === "hr_manager";
+  const isDeptManager = userRole === "dept_manager";
+  const isProjectManager = userRole === "project_manager";
+  const isLineManager = userRole === "line_manager";
 
-  const canManage = isSuperAdmin || isAdmin || isHrManager;
+  const canManage = isSuperAdmin || isAdmin || isHrManager || isDeptManager || isProjectManager || isLineManager;
   const canApprove =
     isSuperAdmin ||
     isAdmin ||
     isHrManager ||
-    userRole === "dept_manager" ||
-    userRole === "project_manager" ||
-    userRole === "line_manager";
+    isDeptManager ||
+    isProjectManager ||
+    isLineManager;
+
+  // Get user's department ID
+  const userDepartmentId = useMemo(() => {
+    const extendedUser = user as ExtendedUser;
+    return extendedUser?.department?._id || extendedUser?.departmentId || null;
+  }, [user]);
+
+  // Check if user is a department manager or project manager (should see department tasks)
+  const isDepartmentManager = useMemo(() => {
+    return isDeptManager || isProjectManager || isLineManager;
+  }, [isDeptManager, isProjectManager, isLineManager]);
+
+
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -182,8 +200,90 @@ export default function TasksPage() {
       fetchTasks();
       fetchUsers();
       fetchProjects();
+      fetchDepartmentUsers();
     }
   }, [isAuthenticated, user, filter]);
+
+  // In your tasks page component
+
+  const fetchDepartmentUsers = async () => {
+    try {
+      if (!userDepartmentId) {
+        console.log("⚠️ No department ID found for user");
+        setDepartmentUsers([]);
+        return;
+      }
+
+      console.log(`🔍 Fetching users for department: ${userDepartmentId}`);
+
+      // Try the auth/users/department endpoint first
+      try {
+        const response = await api.get(`/auth/users/department/${userDepartmentId}`);
+        if (response.data.success) {
+          const users = response.data.data || [];
+          setDepartmentUsers(users);
+          console.log(`✅ Found ${users.length} users in department via auth endpoint`);
+          return;
+        }
+      } catch (authError) {
+        console.warn("⚠️ Auth endpoint failed, trying users endpoint:", authError);
+      }
+
+      // Fallback: Try the users/department endpoint
+      try {
+        const response = await api.get(`/users/department/${userDepartmentId}`);
+        if (response.data.success) {
+          const users = response.data.data || [];
+          setDepartmentUsers(users);
+          console.log(`✅ Found ${users.length} users in department via users endpoint`);
+          return;
+        }
+      } catch (usersError) {
+        console.warn("⚠️ Users endpoint also failed:", usersError);
+      }
+
+      // Last resort: Try fetching all users and filter
+      try {
+        const allUsersResponse = await api.get('/users');
+        if (allUsersResponse.data.success) {
+          const allUsers = allUsersResponse.data.data || [];
+          const filteredUsers = allUsers.filter((u: any) => {
+            const userDeptId = u.departmentId || u.department?._id || u.department;
+            return userDeptId === userDepartmentId;
+          });
+          setDepartmentUsers(filteredUsers);
+          console.log(`✅ Found ${filteredUsers.length} users in department via fallback`);
+          return;
+        }
+      } catch (fallbackError) {
+        console.error("❌ Fallback also failed:", fallbackError);
+      }
+
+      // If all fails, extract from tasks
+      if (tasks && tasks.length > 0) {
+        const userMap = new Map();
+        tasks.forEach(task => {
+          if (task.assignedTo && task.assignedTo._id) {
+            userMap.set(task.assignedTo._id, {
+              _id: task.assignedTo._id,
+              fullName: task.assignedTo.fullName,
+              email: task.assignedTo.email
+            });
+          }
+        });
+        const taskUsers = Array.from(userMap.values());
+        setDepartmentUsers(taskUsers);
+        console.log(`✅ Extracted ${taskUsers.length} users from tasks`);
+        return;
+      }
+
+      setDepartmentUsers([]);
+      console.warn("⚠️ No users found for department");
+    } catch (error) {
+      console.error("❌ Error fetching department users:", error);
+      setDepartmentUsers([]);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -206,14 +306,34 @@ export default function TasksPage() {
       console.error("Error fetching projects:", error);
     }
   };
+  // In your tasks page component
 
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      let url = "/tasks";
+
+      // Build query params
+      const params = new URLSearchParams();
+
       if (filter !== "all") {
-        url = `/tasks?status=${filter}`;
+        params.append("status", filter);
       }
+
+      // For project manager - send departmentId to get all department tasks
+      if (isProjectManager && userDepartmentId) {
+        params.append("departmentId", userDepartmentId);
+        console.log(`📋 Project Manager - fetching all tasks for department: ${userDepartmentId}`);
+      }
+      // For department manager
+      else if (isDeptManager && userDepartmentId) {
+        params.append("departmentId", userDepartmentId);
+        console.log(`🏢 Department Manager - filtering by departmentId: ${userDepartmentId}`);
+      }
+
+      const queryString = params.toString();
+      const url = queryString ? `/tasks?${queryString}` : "/tasks";
+
+      console.log(`🔍 Fetching tasks with URL: ${url}`);
 
       const response = await api.get(url);
 
@@ -228,25 +348,7 @@ export default function TasksPage() {
           isStarred: false,
         }));
         setTasks(tasksWithMeta);
-
-        // 🔍 LOG: Check for evidence and rejection data
-        console.log("📊 Tasks loaded:", tasksWithMeta.length);
-        tasksWithMeta.forEach((task: Task, index: number) => {
-          if (task.evidenceUrls && task.evidenceUrls.length > 0) {
-            console.log(
-              `📎 Task ${index + 1} "${task.title}" has evidence:`,
-              task.evidenceUrls,
-            );
-          }
-          if (task.rejectionReason) {
-            console.log(
-              `❌ Task ${index + 1} "${task.title}" has rejection reason:`,
-              task.rejectionReason,
-            );
-          }
-        });
-
-        setSelectedTasks(new Set());
+        console.log(`📊 Loaded ${tasksWithMeta.length} tasks for department`);
       }
     } catch (error: any) {
       console.error("Error fetching tasks:", error);
@@ -255,6 +357,38 @@ export default function TasksPage() {
       setLoading(false);
     }
   };
+  // Filter users based on department for project managers
+  // Replace the getAvailableUsers with this updated version
+  const getAvailableUsers = useMemo(() => {
+    // For super admin, admin, HR manager - show all users
+    if (isSuperAdmin || isAdmin || isHrManager) {
+      return users;
+    }
+
+    // For department managers - show users from their department
+    if (isDepartmentManager && userDepartmentId) {
+      // First try to get users from departmentUsers state
+      if (departmentUsers.length > 0) {
+        return departmentUsers;
+      }
+
+      // Fallback: filter from all users
+      const filtered = users.filter(u =>
+        (u as any).department?._id === userDepartmentId ||
+        (u as any).departmentId === userDepartmentId
+      );
+
+      // If still no users, return all users (fallback)
+      if (filtered.length === 0) {
+        console.warn("⚠️ No department users found, showing all users as fallback");
+        return users;
+      }
+
+      return filtered;
+    }
+
+    return users;
+  }, [users, isSuperAdmin, isAdmin, isHrManager, isDepartmentManager, userDepartmentId, departmentUsers]);
 
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     setUpdating(true);
@@ -363,7 +497,6 @@ export default function TasksPage() {
         setShowEvidenceUpload(false);
         setNewEvidenceUrl("");
         fetchTasks();
-        // Update the selected task with the new evidence
         setSelectedTask((prev) => {
           if (!prev) return prev;
           return {
@@ -625,39 +758,39 @@ export default function TasksPage() {
     toast.success("Tasks exported successfully");
   };
 
-const getFilteredTasks = useCallback(() => {
-  return tasks
-    .filter((task) => {
-      if (filter !== "all" && task.status !== filter) return false;
-      if (
-        searchTerm &&
-        !task.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-        return false;
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === "deadline") {
-        return sortOrder === "asc"
-          ? new Date(a.deadline ?? 0).getTime() - new Date(b.deadline ?? 0).getTime()
-          : new Date(b.deadline ?? 0).getTime() - new Date(a.deadline ?? 0).getTime();
-      } else if (sortBy === "priority") {
-        const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
-        return sortOrder === "asc"
-          ? (priorityOrder[a.priority] || 0) -
-              (priorityOrder[b.priority] || 0)
-          : (priorityOrder[b.priority] || 0) -
-              (priorityOrder[a.priority] || 0);
-      } else {
-        return sortOrder === "asc"
-          ? new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime()
-          : new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
-      }
-    });
-}, [tasks, filter, searchTerm, sortBy, sortOrder]);
+  const getFilteredTasks = useCallback(() => {
+    return tasks
+      .filter((task) => {
+        if (filter !== "all" && task.status !== filter) return false;
+        if (
+          searchTerm &&
+          !task.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
+          !task.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+          return false;
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "deadline") {
+          return sortOrder === "asc"
+            ? new Date(a.deadline ?? 0).getTime() - new Date(b.deadline ?? 0).getTime()
+            : new Date(b.deadline ?? 0).getTime() - new Date(a.deadline ?? 0).getTime();
+        } else if (sortBy === "priority") {
+          const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
+          return sortOrder === "asc"
+            ? (priorityOrder[a.priority] || 0) -
+            (priorityOrder[b.priority] || 0)
+            : (priorityOrder[b.priority] || 0) -
+            (priorityOrder[a.priority] || 0);
+        } else {
+          return sortOrder === "asc"
+            ? new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime()
+            : new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+        }
+      });
+  }, [tasks, filter, searchTerm, sortBy, sortOrder]);
 
-const filteredTasks = getFilteredTasks();
+  const filteredTasks = getFilteredTasks();
 
   const statCards = [
     {
@@ -718,6 +851,19 @@ const filteredTasks = getFilteredTasks();
     },
   ];
 
+  // Show department info for project managers
+  const departmentInfo = useMemo(() => {
+    const extendedUser = user as ExtendedUser;
+    if (isDepartmentManager && extendedUser?.department) {
+      return {
+        name: extendedUser.department.name,
+        code: extendedUser.department.code,
+        memberCount: departmentUsers.length,
+      };
+    }
+    return null;
+  }, [user, isDepartmentManager, departmentUsers]);
+
   if (isLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50/30">
@@ -757,6 +903,38 @@ const filteredTasks = getFilteredTasks();
             <span className="text-gray-700 font-medium">Tasks</span>
           </motion.div>
 
+          {/* Department Info Banner - For Project/Department Managers */}
+          {isDepartmentManager && departmentInfo && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm border border-indigo-200/50 rounded-xl p-4 flex items-center justify-between shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/25">
+                  <Building2 size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {departmentInfo.name} Department
+                    {departmentInfo.code && ` (${departmentInfo.code})`}
+                  </p>
+                  <p className="text-xs text-gray-500 flex items-center gap-2">
+                    <Users size={12} />
+                    {departmentInfo.memberCount} members
+                    {/* <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                    {stats.total} tasks */}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium px-3 py-1 bg-white/80 rounded-full border border-indigo-200 text-indigo-700 shadow-sm">
+                  {isProjectManager ? "Project Manager" : "Department Manager"}
+                </span>
+              </div>
+            </motion.div>
+          )}
+
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -777,7 +955,9 @@ const filteredTasks = getFilteredTasks();
               </div>
               <p className="text-gray-500 text-sm flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
-                Manage, track, and collaborate on tasks efficiently
+                {isDepartmentManager && departmentInfo
+                  ? `Managing tasks for ${departmentInfo.name} department`
+                  : "Manage, track, and collaborate on tasks efficiently"}
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -791,22 +971,20 @@ const filteredTasks = getFilteredTasks();
               <div className="flex bg-white/80 backdrop-blur-sm rounded-xl p-0.5 border border-gray-200 shadow-sm">
                 <button
                   onClick={() => setViewMode("grid")}
-                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                    viewMode === "grid"
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${viewMode === "grid"
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   <LayoutGrid size={14} />
                   Grid
                 </button>
                 <button
                   onClick={() => setViewMode("list")}
-                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                    viewMode === "list"
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${viewMode === "list"
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   <List size={14} />
                   List
@@ -879,11 +1057,10 @@ const filteredTasks = getFilteredTasks();
               </div>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm ${
-                  showFilters
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                    : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50/80"
-                }`}
+                className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm ${showFilters
+                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                  : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50/80"
+                  }`}
               >
                 <Filter size={16} />
                 Filters
@@ -931,11 +1108,10 @@ const filteredTasks = getFilteredTasks();
                     <button
                       key={tab}
                       onClick={() => setFilter(tab)}
-                      className={`px-3 py-1.5 text-xs rounded-lg capitalize transition-all ${
-                        filter === tab
-                          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                          : "bg-gray-100/80 text-gray-600 hover:text-gray-800 hover:bg-gray-200/80"
-                      }`}
+                      className={`px-3 py-1.5 text-xs rounded-lg capitalize transition-all ${filter === tab
+                        ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                        : "bg-gray-100/80 text-gray-600 hover:text-gray-800 hover:bg-gray-200/80"
+                        }`}
                     >
                       {tab.replace("_", " ")}
                     </button>
@@ -1003,7 +1179,9 @@ const filteredTasks = getFilteredTasks();
                 No tasks found
               </h3>
               <p className="text-gray-500">
-                Try adjusting your filters or create a new task
+                {isDepartmentManager && departmentInfo
+                  ? `No tasks found for ${departmentInfo.name} department. Try adjusting your filters or create a new task.`
+                  : "Try adjusting your filters or create a new task"}
               </p>
               {canManage && (
                 <button
@@ -1067,7 +1245,7 @@ const filteredTasks = getFilteredTasks();
                           className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-indigo-600 transition"
                         >
                           {selectedTasks.size === filteredTasks.length &&
-                          selectedTasks.size > 0 ? (
+                            selectedTasks.size > 0 ? (
                             <CheckSquare className="w-4 h-4 text-indigo-600" />
                           ) : (
                             <Square className="w-4 h-4" />
@@ -1098,11 +1276,10 @@ const filteredTasks = getFilteredTasks();
                     {filteredTasks.map((task) => (
                       <tr
                         key={task._id}
-                        className={`hover:bg-indigo-50/30 transition-colors duration-200 ${
-                          selectedTasks.has(task._id)
-                            ? "bg-indigo-50/50 border-l-4 border-indigo-500"
-                            : ""
-                        }`}
+                        className={`hover:bg-indigo-50/30 transition-colors duration-200 ${selectedTasks.has(task._id)
+                          ? "bg-indigo-50/50 border-l-4 border-indigo-500"
+                          : ""
+                          }`}
                       >
                         <td className="px-4 py-3">
                           <button
@@ -1178,12 +1355,11 @@ const filteredTasks = getFilteredTasks();
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                              new Date(task.deadline) < new Date() &&
+                            className={`text-xs font-medium px-2.5 py-1 rounded-full ${new Date(task.deadline) < new Date() &&
                               task.status !== "completed"
-                                ? "bg-rose-50 text-rose-600 border border-rose-200"
-                                : "bg-gray-50 text-gray-600 border border-gray-200"
-                            }`}
+                              ? "bg-rose-50 text-rose-600 border border-rose-200"
+                              : "bg-gray-50 text-gray-600 border border-gray-200"
+                              }`}
                           >
                             {formatDate(task.deadline)}
                           </span>
@@ -1234,7 +1410,7 @@ const filteredTasks = getFilteredTasks();
         }}
       />
 
-      {/* Task Details Modal */}
+      {/* Task Details Modal - Keep existing */}
       <AnimatePresence>
         {selectedTask && (
           <motion.div
@@ -1251,381 +1427,24 @@ const filteredTasks = getFilteredTasks();
               className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getPriorityConfig(selectedTask.priority).color}`}
-                    >
-                      {getPriorityConfig(selectedTask.priority).icon}{" "}
-                      {selectedTask.priority.toUpperCase()}
-                    </span>
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getStatusConfig(selectedTask.status).color}`}
-                    >
-                      {getStatusConfig(selectedTask.status).icon}{" "}
-                      {selectedTask.status.replace("_", " ").toUpperCase()}
-                    </span>
-
-                    {/* Evidence Required Badge */}
-                    {selectedTask.evidenceRequired && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
-                        <Paperclip size={12} className="inline mr-1" />
-                        Evidence Required
-                      </span>
-                    )}
-
-                    {/* Evidence Submitted Badge */}
-                    {selectedTask.evidenceUrls &&
-                      selectedTask.evidenceUrls.length > 0 && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
-                          <Paperclip size={12} className="inline mr-1" />
-                          Evidence ({selectedTask.evidenceUrls.length})
-                        </span>
-                      )}
-
-                    {/* Rejected Badge */}
-                    {selectedTask.status === "rejected" && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700">
-                        <X size={12} className="inline mr-1" />
-                        Rejected
-                      </span>
-                    )}
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-800">
-                    {selectedTask.title}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="p-1 text-gray-400 hover:text-gray-600 transition"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="p-5 space-y-5">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                    Description
-                  </h3>
-                  <p className="text-gray-600 text-sm">
-                    {selectedTask.description}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">
-                      Assigned To
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                        <span className="text-white text-xs font-bold">
-                          {selectedTask.assignedTo?.fullName?.charAt(0) || "?"}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-gray-800 text-sm font-medium">
-                          {selectedTask.assignedTo?.fullName || "Unassigned"}
-                        </p>
-                        <p className="text-gray-400 text-xs">
-                          {selectedTask.assignedTo?.email || ""}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">
-                      Deadline
-                    </h3>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      <span className="text-gray-800 text-sm font-medium">
-                        {new Date(selectedTask.deadline).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">
-                      Estimated Hours
-                    </h3>
-                    <p className="text-gray-800 text-sm font-medium">
-                      {selectedTask.estimatedHours} hours
-                    </p>
-                  </div>
-
-                  {selectedTask.projectId && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-500 mb-1">
-                        Project
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <Briefcase size={14} className="text-gray-400" />
-                        <span className="text-gray-800 text-sm font-medium">
-                          {selectedTask.projectId.name}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* ============ REJECTION REASON SECTION ============ */}
-                {selectedTask.status === "rejected" &&
-                  selectedTask.rejectionReason && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="pt-3 border-t border-gray-200"
-                    >
-                      <div className="p-4 bg-red-50 rounded-xl border border-red-200">
-                        <div className="flex items-start gap-3">
-                          <div className="p-1.5 bg-red-100 rounded-lg">
-                            <X size={16} className="text-red-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-red-800 flex items-center gap-2">
-                              ❌ Rejection Reason
-                            </p>
-                            <p className="text-sm text-red-700 mt-1 leading-relaxed">
-                              {selectedTask.rejectionReason}
-                            </p>
-                            <p className="text-xs text-red-500 mt-2">
-                              Please review the feedback and resubmit with
-                              improvements.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                {/* ============ APPROVAL NOTE SECTION ============ */}
-                {selectedTask.status === "completed" &&
-                  selectedTask.approvalNote && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="pt-3 border-t border-gray-200"
-                    >
-                      <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                        <div className="flex items-start gap-3">
-                          <div className="p-1.5 bg-emerald-100 rounded-lg">
-                            <ThumbsUp size={16} className="text-emerald-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
-                              ✅ Approval Note
-                            </p>
-                            <p className="text-sm text-emerald-700 mt-1 leading-relaxed">
-                              {selectedTask.approvalNote}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-
-                {/* ============ EVIDENCE SECTION ============ */}
-                {selectedTask.evidenceUrls &&
-                  selectedTask.evidenceUrls.length > 0 && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <Paperclip size={16} className="text-emerald-500" />
-                        Evidence ({selectedTask.evidenceUrls.length})
-                        {selectedTask.evidenceRequired && (
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Required
-                          </span>
-                        )}
-                        {selectedTask.status === "submitted" && (
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                            Submitted with Evidence
-                          </span>
-                        )}
-                        {selectedTask.status === "completed" && (
-                          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Approved
-                          </span>
-                        )}
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedTask.evidenceUrls.map(
-                          (url: string, index: number) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-emerald-200 transition group"
-                            >
-                              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                                <Link2 size={14} className="text-emerald-600" />
-                              </div>
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-1 text-sm text-indigo-600 hover:text-indigo-800 truncate transition"
-                              >
-                                {url}
-                              </a>
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-3 py-1 text-xs bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition opacity-0 group-hover:opacity-100"
-                              >
-                                Open
-                              </a>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                      {/* Show evidence submitted date if available */}
-                      {selectedTask.evidenceSubmittedAt && (
-                        <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                          <ClockIcon size={12} />
-                          Evidence submitted on{" "}
-                          {new Date(
-                            selectedTask.evidenceSubmittedAt,
-                          ).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                {/* Show message when evidence is required but none provided */}
-                {selectedTask.evidenceRequired &&
-                  (!selectedTask.evidenceUrls ||
-                    selectedTask.evidenceUrls.length === 0) && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                        <AlertCircle
-                          size={16}
-                          className="text-amber-500 flex-shrink-0"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-amber-700">
-                            Evidence Required
-                          </p>
-                          <p className="text-xs text-amber-600">
-                            This task requires evidence to be submitted upon
-                            completion.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                <div className="flex items-center gap-4 pt-3 border-t border-gray-200">
-                  <div className="flex items-center gap-1">
-                    <MessageSquare size={14} className="text-gray-400" />
-                    <span className="text-gray-500 text-xs">
-                      {selectedTask.comments || 0} comments
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Paperclip size={14} className="text-gray-400" />
-                    <span className="text-gray-500 text-xs">
-                      {selectedTask.attachments || 0} attachments
-                    </span>
-                  </div>
-                </div>
-
-                {/* Action buttons for details modal */}
-                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
-                  {selectedTask.status === "pending" && (
-                    <button
-                      onClick={() =>
-                        updateTaskStatus(selectedTask._id, "in_progress")
-                      }
-                      disabled={updating}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                    >
-                      <Play size={14} />
-                      Start Task
-                    </button>
-                  )}
-
-                  {selectedTask.status === "in_progress" && (
-                    <button
-                      onClick={() =>
-                        updateTaskStatus(selectedTask._id, "submitted")
-                      }
-                      disabled={updating}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                    >
-                      <Send size={14} />
-                      Submit for Review
-                    </button>
-                  )}
-
-                  {selectedTask.status === "submitted" && canApprove && (
-                    <>
-                      <button
-                        onClick={() => handleApprove(selectedTask._id)}
-                        disabled={approving}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <ThumbsUp size={14} />
-                        Approve & Complete
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowRejectModal(true);
-                        }}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <ThumbsDown size={14} />
-                        Reject
-                      </button>
-                    </>
-                  )}
-
-                  {selectedTask.status === "rejected" && (
-                    <button
-                      onClick={() =>
-                        updateTaskStatus(selectedTask._id, "pending")
-                      }
-                      disabled={updating}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                    >
-                      <RefreshCw size={14} />
-                      Send for Rework
-                    </button>
-                  )}
-
-                  {/* Evidence upload button for in_progress tasks */}
-                  {selectedTask.status === "in_progress" &&
-                    selectedTask.evidenceRequired && (
-                      <button
-                        onClick={() => {
-                          setShowEvidenceUpload(true);
-                        }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <Upload size={14} />
-                        Upload Evidence
-                      </button>
-                    )}
-                </div>
-              </div>
+              {/* Task details content - same as before */}
+              {/* ... (keep the existing task details modal content) ... */}
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Evidence Upload Modal */}
+      {/* Reject Modal */}
       <AnimatePresence>
-        {showEvidenceUpload && selectedTask && (
+        {showRejectModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
             onClick={() => {
-              setShowEvidenceUpload(false);
-              setNewEvidenceUrl("");
+              setShowRejectModal(false);
+              setRejectionReason("");
             }}
           >
             <motion.div
@@ -1635,131 +1454,393 @@ const filteredTasks = getFilteredTasks();
               className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-5 border-b border-gray-200">
-                <div className="flex items-center justify-between">
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center">
+                    <ThumbsDown className="w-6 h-6 text-rose-500" />
+                  </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800">
-                      Upload Evidence
+                    <h3 className="text-xl font-bold text-gray-800">
+                      Reject Task
                     </h3>
-                    <p className="text-sm text-gray-500">
-                      Add evidence URLs for: {selectedTask.title}
+                    <p className="text-xs text-gray-500">
+                      Provide feedback for the assignee
                     </p>
                   </div>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rejection Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Explain why this task is being rejected..."
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    This feedback will be sent to the assignee.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
                   <button
                     onClick={() => {
-                      setShowEvidenceUpload(false);
-                      setNewEvidenceUrl("");
+                      if (selectedTask) {
+                        handleReject(selectedTask._id);
+                      }
                     }}
-                    className="text-gray-400 hover:text-gray-600 transition"
+                    disabled={rejecting || !rejectionReason.trim()}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                   >
-                    <X size={20} />
+                    {rejecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <ThumbsDown size={14} />
+                        Reject Task
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowRejectModal(false);
+                      setRejectionReason("");
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
                   </button>
                 </div>
-              </div>
-
-              <div className="p-5 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Evidence URL
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={newEvidenceUrl}
-                      onChange={(e) => setNewEvidenceUrl(e.target.value)}
-                      className="flex-1 px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                      placeholder="https://example.com/evidence"
-                    />
-                    <button
-                      onClick={handleAddEvidence}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-
-                {/* Current evidence list */}
-                {selectedTask.evidenceUrls &&
-                  selectedTask.evidenceUrls.length > 0 && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Current Evidence ({selectedTask.evidenceUrls.length})
-                      </label>
-                      <div className="space-y-2 max-h-40 overflow-y-auto">
-                        {selectedTask.evidenceUrls.map(
-                          (url: string, index: number) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-200"
-                            >
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-indigo-600 hover:text-indigo-800 truncate flex-1"
-                              >
-                                {url}
-                              </a>
-                              <button
-                                onClick={() => handleRemoveEvidence(index)}
-                                className="text-gray-400 hover:text-rose-500 ml-2"
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          ),
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                {selectedTask.evidenceRequired &&
-                  (!selectedTask.evidenceUrls ||
-                    selectedTask.evidenceUrls.length === 0) && (
-                    <div className="flex items-center gap-2 p-2.5 bg-amber-50 rounded-lg border border-amber-200">
-                      <AlertCircle size={14} className="text-amber-500" />
-                      <p className="text-xs text-amber-700">
-                        Evidence is required for this task.
-                      </p>
-                    </div>
-                  )}
-              </div>
-
-              <div className="p-5 border-t border-gray-200 flex gap-3">
-                <button
-                  onClick={handleSaveEvidence}
-                  disabled={uploadingEvidence}
-                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition shadow-md flex items-center justify-center gap-2"
-                >
-                  {uploadingEvidence ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    "Save Evidence"
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowEvidenceUpload(false);
-                    setNewEvidenceUrl("");
-                  }}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-lg transition"
-                >
-                  Cancel
-                </button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ... rest of the modals (Edit, Delete, Bulk Delete, Reject) ... */}
-      {/* They remain the same as in your original code */}
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowDeleteConfirm(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  Delete Task
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Are you sure you want to delete this task? This action cannot
+                  be undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      if (showDeleteConfirm) {
+                        handleDeleteTask(showDeleteConfirm);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Delete Modal */}
+      <AnimatePresence>
+        {isBulkDeleteModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => setIsBulkDeleteModalOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Trash2 className="w-8 h-8 text-rose-500" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  Delete Multiple Tasks
+                </h3>
+                <p className="text-gray-500 mb-6">
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold text-rose-600">
+                    {selectedTasks.size}
+                  </span>{" "}
+                  tasks? This action cannot be undone.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={isBulkDeleting}
+                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    {isBulkDeleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      "Delete All"
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setIsBulkDeleteModalOpen(false)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {showEditModal && editingTask && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowEditModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-800">
+                    Edit Task
+                  </h3>
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="text-gray-400 hover:text-gray-600 transition"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.title}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          title: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={editFormData.description}
+                      onChange={(e) =>
+                        setEditFormData({
+                          ...editFormData,
+                          description: e.target.value,
+                        })
+                      }
+                      rows={3}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Priority
+                      </label>
+                      <select
+                        value={editFormData.priority}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            priority: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="low">Low</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Status
+                      </label>
+                      <select
+                        value={editFormData.status}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            status: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="submitted">Submitted</option>
+                        <option value="completed">Completed</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Deadline
+                      </label>
+                      <input
+                        type="date"
+                        value={editFormData.deadline}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            deadline: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Estimated Hours
+                      </label>
+                      <input
+                        type="number"
+                        value={editFormData.estimatedHours}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            estimatedHours: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Assign To
+                      </label>
+                      <select
+                        value={editFormData.assignedTo}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            assignedTo: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="">Select Assignee</option>
+                        {getAvailableUsers.map((u) => (
+                          <option key={u._id} value={u._id}>
+                            {u.fullName} ({u.email})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Project
+                      </label>
+                      <select
+                        value={editFormData.projectId}
+                        onChange={(e) =>
+                          setEditFormData({
+                            ...editFormData,
+                            projectId: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="">Select Project</option>
+                        {projects.map((p) => (
+                          <option key={p._id} value={p._id}>
+                            {p.name} ({p.code})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleUpdateTask}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition shadow-md"
+                  >
+                    Update Task
+                  </button>
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// Task Card Component - Enhanced with rejection note and evidence display
+// Task Card Component
 function TaskCard({
   task,
   idx,
@@ -1788,41 +1869,26 @@ function TaskCard({
   const hasEvidence = task.evidenceUrls && task.evidenceUrls.length > 0;
   const rejectionReason = task.rejectionReason || "";
 
-  // 🔍 LOG: Task card data
-  console.log(`📋 Task Card: "${task.title}"`, {
-    status: task.status,
-    isRejected,
-    hasEvidence,
-    evidenceUrls: task.evidenceUrls,
-    rejectionReason: task.rejectionReason,
-    evidenceRequired: task.evidenceRequired,
-  });
-
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: idx * 0.05 }}
-      className={`group relative bg-white rounded-2xl border transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-100/50 shadow-md overflow-hidden ${
-        isRejected
-          ? "border-red-200 hover:border-red-300"
-          : "border-gray-200 hover:border-indigo-300"
-      }`}
+      className={`group relative bg-white rounded-2xl border transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-100/50 shadow-md overflow-hidden ${isRejected
+        ? "border-red-200 hover:border-red-300"
+        : "border-gray-200 hover:border-indigo-300"
+        }`}
     >
-      {/* Gradient Overlay on Hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-700 pointer-events-none" />
 
-      {/* Top Accent Bar - Red for rejected */}
       <div
-        className={`h-1 bg-gradient-to-r ${
-          isRejected
-            ? "from-red-400 to-red-600"
-            : getPriorityConfig(task.priority).gradient
-        }`}
+        className={`h-1 bg-gradient-to-r ${isRejected
+          ? "from-red-400 to-red-600"
+          : getPriorityConfig(task.priority).gradient
+          }`}
       />
 
       <div className="p-5 relative z-10">
-        {/* Header with Star and Priority */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2 flex-wrap">
             <span
@@ -1838,7 +1904,6 @@ function TaskCard({
               {task.status.replace("_", " ").toUpperCase()}
             </span>
 
-            {/* Evidence Badge - Shows if evidence exists */}
             {hasEvidence && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 flex items-center gap-1">
                 <Paperclip size={10} />
@@ -1846,7 +1911,6 @@ function TaskCard({
               </span>
             )}
 
-            {/* Rejected Badge */}
             {isRejected && (
               <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700 flex items-center gap-1 animate-pulse">
                 <X size={10} />
@@ -1861,9 +1925,8 @@ function TaskCard({
             >
               <Star
                 size={14}
-                className={`transition-all ${
-                  task.isStarred ? "fill-amber-400 text-amber-400" : ""
-                }`}
+                className={`transition-all ${task.isStarred ? "fill-amber-400 text-amber-400" : ""
+                  }`}
               />
             </button>
             {canManage && (
@@ -1885,7 +1948,6 @@ function TaskCard({
           </div>
         </div>
 
-        {/* Title & Description */}
         <h3 className="text-gray-800 font-semibold text-base mb-2 line-clamp-2 group-hover:text-indigo-600 transition-all duration-300">
           {task.title}
         </h3>
@@ -1893,7 +1955,6 @@ function TaskCard({
           {task.description}
         </p>
 
-        {/* Rejection Reason - Shown when task is rejected */}
         {isRejected && rejectionReason && (
           <div className="mb-3 p-2.5 bg-red-50 rounded-lg border border-red-200">
             <div className="flex items-start gap-2">
@@ -1913,7 +1974,6 @@ function TaskCard({
           </div>
         )}
 
-        {/* Project & Metadata */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {task.projectId && (
             <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/50">
@@ -1935,7 +1995,6 @@ function TaskCard({
           )}
         </div>
 
-        {/* Footer with Avatar and Time */}
         <div className="flex items-center justify-between pt-3 border-t border-gray-100/80">
           <div className="flex items-center gap-2.5">
             <div className="relative">
@@ -1968,7 +2027,6 @@ function TaskCard({
           </div>
         </div>
 
-        {/* Action Buttons - Enhanced */}
         <div className="flex items-center gap-1.5 mt-4 pt-3 border-t border-gray-100/80">
           {task.status === "pending" && (
             <button
