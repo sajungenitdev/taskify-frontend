@@ -1743,7 +1743,7 @@ export default function TasksPage() {
                         {selectedTask.priority.toUpperCase()}
                       </span>
                       <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold text-black px-2.5 py-1 rounded-full border-2 ${getStatusConfig(selectedTask.status).bg} ${getStatusConfig(selectedTask.status).border}`}
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(selectedTask.status).color}`}
                       >
                         {selectedTask.status.replace("_", " ").toUpperCase()}
                       </span>
