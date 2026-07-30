@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { useRouter } from "next/navigation";
-import { ChevronRight, HistoryIcon, Pause, TimerIcon } from "lucide-react";
+import { Check, ChevronRight, HistoryIcon, Pause, TimerIcon } from "lucide-react";
 import {
   CheckSquare,
   Clock,

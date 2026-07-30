@@ -8,7 +8,6 @@ import {
   Briefcase,
   Users,
   CheckSquare,
-  BarChart3,
   Loader2,
   RefreshCw,
   ArrowRight,
@@ -18,34 +17,25 @@ import {
   User,
   UserCheck,
   UserX,
-  Calendar,
-  PieChart,
-  TrendingUp,
-  TrendingDown,
   Award,
-  Star,
-  MessageSquare,
-  Paperclip,
   Eye,
-  Edit2,
-  Trash2,
   Plus,
   Search,
-  Filter,
-  ChevronDown,
-  ChevronUp,
-  MoreVertical,
   Send,
+  Activity,
+  Building2,
+  Zap,
+  Layers,
+  Calendar,
+  TrendingUp,
+  TrendingDown,
   CheckCircle,
   XCircle,
   Clock as ClockIcon,
   UserPlus,
-  UserMinus,
-  Building2,
-  Activity,
-  Zap,
-  Layers,
   FileText,
+  PieChart,
+  Star,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -110,20 +100,34 @@ export default function ProjectDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [departmentUsers, setDepartmentUsers] = useState<UserType[]>([]);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [showAllUsers, setShowAllUsers] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "team" | "projects">("overview");
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [taskFilter, setTaskFilter] = useState<"all" | "pending" | "in_progress" | "submitted" | "completed" | "overdue" | "rejected">("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [departmentName, setDepartmentName] = useState("");
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
+  // Get user's department ID from multiple possible sources
   const userDepartmentId = useMemo(() => {
     const extendedUser = user as any;
-    return extendedUser?.department?._id || extendedUser?.departmentId || null;
+    // Try multiple possible locations for department ID
+    return extendedUser?.department?._id ||
+      extendedUser?.departmentId ||
+      extendedUser?.department ||
+      null;
+  }, [user]);
+
+  // Get user's department name
+  const userDepartmentName = useMemo(() => {
+    const extendedUser = user as any;
+    return extendedUser?.department?.name ||
+      extendedUser?.departmentName ||
+      "Your Department";
   }, [user]);
 
   const isProjectManager = user?.role === "project_manager";
@@ -132,6 +136,12 @@ export default function ProjectDashboard() {
     try {
       setLoading(true);
 
+      console.log("🔍 Fetching dashboard data...");
+      console.log("👤 Current User:", user);
+      console.log("🏢 User Department ID:", userDepartmentId);
+      console.log("📛 User Department Name:", userDepartmentName);
+
+      // Fetch all data in parallel
       const [projectsRes, tasksRes, usersRes] = await Promise.all([
         api.get("/projects"),
         api.get("/tasks"),
@@ -139,57 +149,205 @@ export default function ProjectDashboard() {
       ]);
 
       const allProjects = projectsRes.data.data || [];
-      const allTasks = tasksRes.data.data || [];
+      const allTasksData = tasksRes.data.data || [];
       const allUsers = usersRes.data.data || [];
 
-      // Get projects managed by this user
-      const managedProjects = allProjects.filter((p: any) =>
-        p.projectManager?._id === user?._id || p.projectManager === user?._id
-      );
-      const projectIds = managedProjects.map((p: any) => p._id);
+      console.log("📊 All Projects:", allProjects.length);
+      console.log("📊 All Tasks:", allTasksData.length);
+      console.log("👥 All Users:", allUsers.length);
 
-      // Get tasks for these projects
-      const projectTasks = allTasks.filter((t: any) =>
-        projectIds.includes(t.projectId?._id) || projectIds.includes(t.projectId)
-      );
-
-      const completedTasks = projectTasks.filter((t: any) => t.status === "completed").length;
-      const overdueTasks = projectTasks.filter((t: any) => t.status === "overdue").length;
-      const inProgressTasks = projectTasks.filter((t: any) => t.status === "in_progress").length;
-      const submittedTasks = projectTasks.filter((t: any) => t.status === "submitted").length;
-      const pendingTasks = projectTasks.filter((t: any) => t.status === "pending").length;
-      const rejectedTasks = projectTasks.filter((t: any) => t.status === "rejected").length;
-
-      // Get department users
-      let deptUsers = [];
-      if (userDepartmentId) {
-        deptUsers = allUsers.filter((u: any) =>
-          u.departmentId === userDepartmentId || u.department?._id === userDepartmentId
-        );
+      // Log sample data to see structure
+      if (allUsers.length > 0) {
+        console.log("👤 Sample User:", allUsers[0]);
+        console.log("👤 User Department ID field:", allUsers[0].departmentId);
+        console.log("👤 User Department object:", allUsers[0].department);
+      }
+      if (allTasksData.length > 0) {
+        console.log("📋 Sample Task:", allTasksData[0]);
+      }
+      if (allProjects.length > 0) {
+        console.log("📁 Sample Project:", allProjects[0]);
       }
 
+      // ============================================================
+      // 1. FILTER DEPARTMENT USERS
+      // ============================================================
+      let deptUsers = [];
+
+      if (userDepartmentId) {
+        // Try multiple ways to match department
+        deptUsers = allUsers.filter((u: any) => {
+          const userDeptId = u.departmentId || u.department?._id || u.department;
+          // Convert both to string for comparison
+          const match = String(userDeptId) === String(userDepartmentId);
+          if (match) {
+            console.log(`✅ Found user ${u.fullName} in department`);
+          }
+          return match;
+        });
+        console.log("👥 Department Users (filtered):", deptUsers.length);
+      } else {
+        // If no department ID, try to get users by department name
+        const deptName = userDepartmentName;
+        deptUsers = allUsers.filter((u: any) => {
+          const userDeptName = u.department?.name || u.departmentName || "";
+          return userDeptName.toLowerCase() === deptName.toLowerCase();
+        });
+        console.log("👥 Department Users (by name):", deptUsers.length);
+      }
+
+      // If still no users found, check if current user is in the list
+      if (deptUsers.length === 0 && user) {
+        const currentUser = allUsers.find((u: any) => u._id === user._id);
+        if (currentUser) {
+          console.log("👤 Current user found in users list:", currentUser);
+          // Try to get department from current user
+          const userDeptId = currentUser.departmentId || currentUser.department?._id || currentUser.department;
+          if (userDeptId) {
+            deptUsers = allUsers.filter((u: any) => {
+              const uDeptId = u.departmentId || u.department?._id || u.department;
+              return String(uDeptId) === String(userDeptId);
+            });
+            console.log("👥 Department Users (from current user):", deptUsers.length);
+          }
+        }
+      }
+
+      // Get department user IDs
+      const deptUserIds = deptUsers.map((u: any) => u._id);
+      console.log("👥 Department User IDs:", deptUserIds);
+
+      // ============================================================
+      // 2. GET DEPARTMENT TASKS
+      // ============================================================
+      // Get tasks assigned to department users
+      let deptTasks = [];
+      if (deptUserIds.length > 0) {
+        deptTasks = allTasksData.filter((t: any) => {
+          const taskAssigneeId = t.assignedTo?._id || t.assignedTo;
+          return deptUserIds.includes(taskAssigneeId);
+        });
+        console.log("📋 Department Tasks:", deptTasks.length);
+      }
+
+      // Also get tasks that have departmentId matching
+      let deptTasksByDeptId = [];
+      if (userDepartmentId) {
+        deptTasksByDeptId = allTasksData.filter((t: any) => {
+          const taskDeptId = t.departmentId?._id || t.departmentId || t.department;
+          return String(taskDeptId) === String(userDepartmentId);
+        });
+        console.log("📋 Department Tasks (by deptId):", deptTasksByDeptId.length);
+      }
+
+      // Combine and remove duplicates
+      const taskMap = new Map();
+      [...deptTasks, ...deptTasksByDeptId].forEach((task: any) => {
+        taskMap.set(task._id, task);
+      });
+      const combinedTasks = Array.from(taskMap.values());
+      console.log("📋 Combined Tasks:", combinedTasks.length);
+
+      // ============================================================
+      // 3. GET PROJECTS
+      // ============================================================
+      // Projects managed by this user
+      const managedProjects = allProjects.filter((p: any) => {
+        const pmId = p.projectManager?._id || p.projectManager || p.projectManagerId;
+        return String(pmId) === String(user?._id);
+      });
+      console.log("📁 Managed Projects:", managedProjects.length);
+
+      // Projects in the department
+      let deptProjects = [];
+      if (userDepartmentId) {
+        deptProjects = allProjects.filter((p: any) => {
+          const deptId = p.departmentId?._id || p.departmentId || p.department;
+          return String(deptId) === String(userDepartmentId);
+        });
+        console.log("📁 Department Projects:", deptProjects.length);
+      }
+
+      // Also get projects where department users are team members
+      const deptProjectIds = new Set();
+      if (deptUserIds.length > 0) {
+        allProjects.forEach((p: any) => {
+          const teamMembers = p.teamMembers || [];
+          const hasDeptUser = teamMembers.some((member: any) => {
+            const userId = member.userId?._id || member.userId;
+            return deptUserIds.includes(userId);
+          });
+          if (hasDeptUser) {
+            deptProjectIds.add(p._id);
+          }
+        });
+        console.log("📁 Projects with department team members:", deptProjectIds.size);
+      }
+
+      // Combine all projects
+      const projectMap = new Map();
+      [...managedProjects, ...deptProjects].forEach((p: any) => {
+        projectMap.set(p._id, p);
+      });
+      // Add projects with department team members
+      deptProjectIds.forEach((id) => {
+        const project = allProjects.find((p: any) => p._id === id);
+        if (project) {
+          projectMap.set(id, project);
+        }
+      });
+      const combinedProjects = Array.from(projectMap.values());
+      console.log("📁 Combined Projects:", combinedProjects.length);
+
+      // ============================================================
+      // 4. CALCULATE STATS
+      // ============================================================
+      const totalTasks = combinedTasks.length;
+      const completedTasks = combinedTasks.filter((t: any) => t.status === "completed").length;
+      const overdueTasks = combinedTasks.filter((t: any) => t.status === "overdue").length;
+      const inProgressTasks = combinedTasks.filter((t: any) => t.status === "in_progress").length;
+      const submittedTasks = combinedTasks.filter((t: any) => t.status === "submitted").length;
+      const pendingTasks = combinedTasks.filter((t: any) => t.status === "pending").length;
+      const rejectedTasks = combinedTasks.filter((t: any) => t.status === "rejected").length;
+
       // Sort tasks by createdAt and get recent ones
-      const sortedTasks = [...projectTasks].sort((a: any, b: any) =>
+      const sortedTasks = [...combinedTasks].sort((a: any, b: any) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ).slice(0, 5);
 
+      // Get department name
+      const deptName = deptUsers.length > 0
+        ? (deptUsers[0].department?.name || userDepartmentName || "Department")
+        : (userDepartmentName || "Department");
+
+      setDepartmentName(deptName);
+
       setStats({
-        totalProjects: managedProjects.length,
-        totalTasks: projectTasks.length,
+        totalProjects: combinedProjects.length,
+        totalTasks: totalTasks,
         completedTasks,
         overdueTasks,
         inProgressTasks,
         submittedTasks,
         pendingTasks,
         rejectedTasks,
-        completionRate: projectTasks.length > 0 ? Math.round((completedTasks / projectTasks.length) * 100) : 0,
+        completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
         totalTeamMembers: deptUsers.length,
-        activeProjects: managedProjects.filter((p: any) => p.status === "active").length,
+        activeProjects: combinedProjects.filter((p: any) => p.status === "active").length,
+        totalDepartments: 1,
       });
 
       setDepartmentUsers(deptUsers);
       setRecentTasks(sortedTasks);
-      setProjects(managedProjects);
+      setAllTasks(combinedTasks);
+      setProjects(combinedProjects);
+
+      console.log("✅ Dashboard Stats:", {
+        totalTasks,
+        totalProjects: combinedProjects.length,
+        totalTeamMembers: deptUsers.length,
+        completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      });
 
     } catch (error: any) {
       console.error("Error fetching dashboard data:", error);
@@ -255,7 +413,7 @@ export default function ProjectDashboard() {
   };
 
   const filteredTasks = useMemo(() => {
-    let filtered = recentTasks;
+    let filtered = allTasks;
     if (taskFilter !== "all") {
       filtered = filtered.filter(task => task.status === taskFilter);
     }
@@ -265,8 +423,8 @@ export default function ProjectDashboard() {
         task.assignedTo?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    return filtered;
-  }, [recentTasks, taskFilter, searchTerm]);
+    return filtered.slice(0, 10);
+  }, [allTasks, taskFilter, searchTerm]);
 
   if (loading) {
     return (
@@ -290,13 +448,13 @@ export default function ProjectDashboard() {
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-xl flex items-center justify-center shadow-md">
-            <Briefcase className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+            <Building2 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">Project Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-800">Project Manager Dashboard</h1>
             <p className="text-sm text-gray-500">
-              {isProjectManager ? "Manage your projects, team, and tasks" : "Department Overview"}
+              {departmentName || userDepartmentName} Department • {stats.totalTeamMembers} Team Members
             </p>
           </div>
         </div>
@@ -310,21 +468,43 @@ export default function ProjectDashboard() {
         </button>
       </motion.div>
 
+      {/* Department Info Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 border border-indigo-200/50 rounded-xl p-4 flex items-center justify-between shadow-sm"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/25">
+            <Building2 size={18} className="text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-800">
+              {departmentName || userDepartmentName} Department
+            </p>
+            <p className="text-xs text-gray-500 flex items-center gap-2">
+              <Users size={12} />
+              {stats.totalTeamMembers} members
+              <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+              {stats.totalProjects} projects
+              <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+              {stats.totalTasks} tasks
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium px-3 py-1 bg-white/80 rounded-full border border-indigo-200 text-indigo-700 shadow-sm">
+            {isProjectManager ? "Project Manager" : "Department Overview"}
+          </span>
+        </div>
+      </motion.div>
+
       {/* Stats Cards */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="grid grid-cols-2 md:grid-cols-4 gap-4"
       >
-        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
-          <div className="flex items-center justify-between">
-            <p className="text-2xl font-bold text-gray-800">{stats.totalProjects}</p>
-            <Briefcase className="w-5 h-5 text-cyan-500" />
-          </div>
-          <p className="text-xs text-gray-500 mt-0.5">Total Projects</p>
-          <p className="text-xs text-green-600 mt-1">{stats.activeProjects} active</p>
-        </div>
-
         <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
           <div className="flex items-center justify-between">
             <p className="text-2xl font-bold text-gray-800">{stats.totalTasks}</p>
@@ -335,6 +515,15 @@ export default function ProjectDashboard() {
             <span className="text-xs text-emerald-600">{stats.completedTasks} done</span>
             <span className="text-xs text-amber-600">{stats.inProgressTasks} in progress</span>
           </div>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
+          <div className="flex items-center justify-between">
+            <p className="text-2xl font-bold text-gray-800">{stats.totalProjects}</p>
+            <Briefcase className="w-5 h-5 text-cyan-500" />
+          </div>
+          <p className="text-xs text-gray-500 mt-0.5">Total Projects</p>
+          <p className="text-xs text-green-600 mt-1">{stats.activeProjects} active</p>
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-emerald-200 shadow-sm hover:shadow-md transition">
@@ -357,16 +546,16 @@ export default function ProjectDashboard() {
             <Users className="w-5 h-5 text-purple-500" />
           </div>
           <p className="text-xs text-gray-500 mt-0.5">Team Members</p>
-          <p className="text-xs text-purple-600 mt-1">Department team</p>
+          <p className="text-xs text-purple-600 mt-1">{departmentName || userDepartmentName} team</p>
         </div>
       </motion.div>
 
-      {/* Quick Stats - Extended */}
+      {/* Quick Stats - Task Breakdown */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="grid grid-cols-2 md:grid-cols-4 gap-4"
+        className="grid grid-cols-2 md:grid-cols-6 gap-3"
       >
         <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
           <div className="flex items-center gap-2">
@@ -399,6 +588,67 @@ export default function ProjectDashboard() {
           </div>
           <p className="text-xl font-bold text-rose-800">{stats.overdueTasks || 0}</p>
         </div>
+
+        <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600" />
+            <p className="text-sm font-medium text-emerald-700">Completed</p>
+          </div>
+          <p className="text-xl font-bold text-emerald-800">{stats.completedTasks || 0}</p>
+        </div>
+
+        <div className="bg-red-50 rounded-xl p-3 border border-red-200">
+          <div className="flex items-center gap-2">
+            <XCircle className="w-4 h-4 text-red-600" />
+            <p className="text-sm font-medium text-red-700">Rejected</p>
+          </div>
+          <p className="text-xl font-bold text-red-800">{stats.rejectedTasks || 0}</p>
+        </div>
+      </motion.div>
+
+      {/* Quick Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      >
+        <Link href="/projects/create" className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+          <div className="flex items-center gap-2">
+            <Plus className="w-5 h-5" />
+            <div>
+              <p className="font-semibold text-sm">Create Project</p>
+              <p className="text-xs opacity-80">Start a new project</p>
+            </div>
+          </div>
+        </Link>
+        <Link href="/tasks/create" className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="w-5 h-5" />
+            <div>
+              <p className="font-semibold text-sm">Create Task</p>
+              <p className="text-xs opacity-80">Assign a new task</p>
+            </div>
+          </div>
+        </Link>
+        <Link href="/tasks/tasks-board" className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+          <div className="flex items-center gap-2">
+            <Eye className="w-5 h-5" />
+            <div>
+              <p className="font-semibold text-sm">Task Board</p>
+              <p className="text-xs opacity-80">View all tasks</p>
+            </div>
+          </div>
+        </Link>
+        <Link href="/users" className="bg-gradient-to-r from-pink-500 to-rose-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            <div>
+              <p className="font-semibold text-sm">Team</p>
+              <p className="text-xs opacity-80">Manage your team</p>
+            </div>
+          </div>
+        </Link>
       </motion.div>
 
       {/* Tabs */}
@@ -412,7 +662,9 @@ export default function ProjectDashboard() {
                 : "text-gray-600 hover:bg-gray-100"
               }`}
           >
-            {tab}
+            {tab === "overview" ? "📊 Overview" :
+              tab === "tasks" ? "📋 Tasks" :
+                tab === "team" ? "👥 Team" : "📁 Projects"}
           </button>
         ))}
       </div>
@@ -427,37 +679,16 @@ export default function ProjectDashboard() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link href="/projects/create" className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition">
-                <Plus className="w-6 h-6 mb-2" />
-                <p className="font-semibold">Create Project</p>
-                <p className="text-xs opacity-80">Start a new project</p>
-              </Link>
-              <Link href="/tasks/create" className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition">
-                <CheckSquare className="w-6 h-6 mb-2" />
-                <p className="font-semibold">Create Task</p>
-                <p className="text-xs opacity-80">Assign a new task</p>
-              </Link>
-              <Link href="/tasks/tasks-board" className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition">
-                <Eye className="w-6 h-6 mb-2" />
-                <p className="font-semibold">Task Board</p>
-                <p className="text-xs opacity-80">View all tasks</p>
-              </Link>
-              <Link href="/users" className="bg-gradient-to-r from-pink-500 to-rose-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition">
-                <Users className="w-6 h-6 mb-2" />
-                <p className="font-semibold">Team Management</p>
-                <p className="text-xs opacity-80">Manage your team</p>
-              </Link>
-            </div>
-
-            {/* Recent Tasks Preview */}
+            {/* Recent Tasks */}
             {recentTasks.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-500" />
                     <h3 className="font-semibold text-gray-800">Recent Tasks</h3>
+                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      {recentTasks.length}
+                    </span>
                   </div>
                   <button
                     onClick={() => setActiveTab("tasks")}
@@ -466,22 +697,67 @@ export default function ProjectDashboard() {
                     View All →
                   </button>
                 </div>
-                <div className="divide-y divide-gray-100">
-                  {recentTasks.slice(0, 3).map((task) => (
+                <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto">
+                  {recentTasks.slice(0, 5).map((task) => (
                     <div key={task._id} className="p-3 hover:bg-gray-50 transition flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{task.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-gray-500">{task.assignedTo?.fullName || "Unassigned"}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${getStatusColor(task.status)}`}>
                             {task.status.replace("_", " ")}
                           </span>
-                          <span className="text-xs text-gray-400">{getPriorityIcon(task.priority)} {task.priority}</span>
+                          <span className="text-xs text-gray-500">{getPriorityIcon(task.priority)}</span>
+                          <span className="text-xs text-gray-400 truncate max-w-[150px]">
+                            {task.assignedTo?.fullName || "Unassigned"}
+                          </span>
                         </div>
+                        <p className="text-sm font-medium text-gray-800 mt-0.5">{task.title}</p>
                       </div>
-                      <Link href={`/tasks/${task._id}`} className="text-indigo-600 hover:text-indigo-800">
-                        <Eye size={16} />
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        {task.deadline && (
+                          <span className={`text-xs ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-400"}`}>
+                            📅 {formatDate(task.deadline)}
+                          </span>
+                        )}
+                        <Link href={`/tasks/${task._id}`} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                          <Eye size={16} />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Team Members Preview */}
+            {departmentUsers.length > 0 && (
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-purple-500" />
+                    <h3 className="font-semibold text-gray-800">Team Members</h3>
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                      {departmentUsers.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab("team")}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                  >
+                    View All →
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3">
+                  {departmentUsers.slice(0, 6).map((member) => (
+                    <div key={member._id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold">
+                          {getInitials(member.fullName)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{member.fullName}</p>
+                        <p className="text-xs text-gray-400 truncate">{member.role?.replace("_", " ") || "Employee"}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -500,12 +776,12 @@ export default function ProjectDashboard() {
           >
             {/* Task Filters */}
             <div className="p-4 border-b border-gray-200 flex flex-wrap gap-2 items-center justify-between">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1">
                 {["all", "pending", "in_progress", "submitted", "completed", "overdue", "rejected"].map((filter) => (
                   <button
                     key={filter}
                     onClick={() => setTaskFilter(filter as any)}
-                    className={`px-3 py-1 text-xs rounded-full transition capitalize ${taskFilter === filter
+                    className={`px-2.5 py-1 text-[10px] rounded-full transition capitalize ${taskFilter === filter
                         ? "bg-indigo-600 text-white"
                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
@@ -515,14 +791,17 @@ export default function ProjectDashboard() {
                 ))}
               </div>
               <div className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-gray-400 absolute ml-2" />
-                <input
-                  type="text"
-                  placeholder="Search tasks..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                />
+                <div className="relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search tasks..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition w-40"
+                  />
+                </div>
+                <span className="text-xs text-gray-400">{filteredTasks.length} tasks</span>
               </div>
             </div>
 
@@ -533,27 +812,27 @@ export default function ProjectDashboard() {
                 <p>No tasks found</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto">
                 {filteredTasks.map((task) => (
-                  <div key={task._id} className="p-4 hover:bg-gray-50 transition flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(task.status)}`}>
+                  <div key={task._id} className="p-3 hover:bg-gray-50 transition flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${getStatusColor(task.status)}`}>
                           {task.status.replace("_", " ")}
                         </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${getPriorityConfig(task.priority).color}`}>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${getPriorityConfig(task.priority).color}`}>
                           {getPriorityIcon(task.priority)} {task.priority}
                         </span>
                         {task.deadline && (
-                          <span className={`text-xs ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-500"}`}>
+                          <span className={`text-[10px] ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-400"}`}>
                             📅 {formatDate(task.deadline)}
                           </span>
                         )}
                       </div>
-                      <p className="text-sm font-medium text-gray-800 mt-1">{task.title}</p>
-                      <div className="flex items-center gap-4 mt-1">
-                        <span className="text-xs text-gray-500">
-                          Assigned to: {task.assignedTo?.fullName || "Unassigned"}
+                      <p className="text-sm font-medium text-gray-800 mt-0.5 truncate">{task.title}</p>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-xs text-gray-400">
+                          👤 {task.assignedTo?.fullName || "Unassigned"}
                         </span>
                         {task.projectId && (
                           <span className="text-xs text-gray-400">
@@ -562,9 +841,9 @@ export default function ProjectDashboard() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Link href={`/tasks/${task._id}`} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
-                        <Eye size={16} />
+                    <div className="flex items-center gap-2 ml-2">
+                      <Link href={`/tasks/${task._id}`} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+                        <Eye size={14} />
                       </Link>
                     </div>
                   </div>
@@ -599,7 +878,7 @@ export default function ProjectDashboard() {
                 </button>
               </div>
               <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
-                {(showAllUsers ? departmentUsers : departmentUsers.slice(0, 5)).map((member) => (
+                {(showAllUsers ? departmentUsers : departmentUsers.slice(0, 8)).map((member) => (
                   <div key={member._id} className="p-3 hover:bg-gray-50 transition flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
@@ -613,10 +892,10 @@ export default function ProjectDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${member.isActive !== false ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${member.isActive !== false ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                         {member.isActive !== false ? "Active" : "Inactive"}
                       </span>
-                      <span className="text-xs text-gray-400 capitalize">{member.role?.replace("_", " ") || "Employee"}</span>
+                      <span className="text-[10px] text-gray-400 capitalize">{member.role?.replace("_", " ") || "Employee"}</span>
                     </div>
                   </div>
                 ))}
@@ -680,7 +959,7 @@ export default function ProjectDashboard() {
                         <h4 className="font-semibold text-gray-800">{project.name}</h4>
                         <p className="text-xs text-gray-500">{project.code}</p>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${project.status === "active" ? "bg-emerald-100 text-emerald-700" :
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${project.status === "active" ? "bg-emerald-100 text-emerald-700" :
                           project.status === "planning" ? "bg-amber-100 text-amber-700" :
                             project.status === "on_hold" ? "bg-rose-100 text-rose-700" :
                               project.status === "completed" ? "bg-blue-100 text-blue-700" :
