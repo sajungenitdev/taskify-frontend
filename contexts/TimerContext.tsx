@@ -21,6 +21,7 @@ interface TimerState {
   elapsedSeconds: number;
   lastSavedTime: number;
   lastSyncedMinutes: number;
+  userId: string | null;
 }
 
 interface TimerContextType {
@@ -46,6 +47,8 @@ interface TimerContextType {
     minutes: number;
     displayTime: string;
   }>;
+  isTimerValidForUser: (userId: string) => boolean;
+  getTimerOwner: () => string | null;
 }
 
 // ============ CONSTANTS ============
@@ -54,12 +57,41 @@ const SYNC_INTERVAL = 30000;
 
 const TimerContext = createContext<TimerContextType | undefined>(undefined);
 
+// ============ HELPER FUNCTIONS ============
+const getTimerKey = (userId: string) => `taskTimer_${userId}`;
+const getCurrentUserId = (): string | null => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      return user._id || user.id || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 // ============ PROVIDER ============
 export function TimerProvider({ children }: { children: ReactNode }) {
   // ============ STATE ============
   const [timerState, setTimerState] = useState<TimerState>(() => {
     try {
-      const saved = localStorage.getItem(TIMER_KEY);
+      const userId = getCurrentUserId();
+      if (!userId) {
+        return {
+          taskId: null,
+          isRunning: false,
+          seconds: 0,
+          elapsedSeconds: 0,
+          lastSavedTime: Date.now(),
+          lastSyncedMinutes: 0,
+          userId: null,
+        };
+      }
+
+      const key = getTimerKey(userId);
+      const saved = localStorage.getItem(key);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.taskId) {
@@ -77,6 +109,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
               parsed.elapsedSeconds + (parsed.isRunning ? elapsedSinceSave : 0),
             lastSavedTime: now,
             lastSyncedMinutes: parsed.lastSyncedMinutes || 0,
+            userId: userId,
           };
         }
       }
@@ -90,6 +123,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       elapsedSeconds: 0,
       lastSavedTime: Date.now(),
       lastSyncedMinutes: 0,
+      userId: null,
     };
   });
 
@@ -109,8 +143,12 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   // ============ LOCAL STORAGE HELPERS ============
   const saveTimerToStorage = useCallback((state: TimerState) => {
     try {
+      const userId = state.userId || getCurrentUserId();
+      if (!userId) return;
+
+      const key = getTimerKey(userId);
       localStorage.setItem(
-        TIMER_KEY,
+        key,
         JSON.stringify({
           taskId: state.taskId,
           isRunning: state.isRunning,
@@ -140,6 +178,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
     // Clear storage
     try {
+      const userId = getCurrentUserId();
+      if (userId) {
+        localStorage.removeItem(getTimerKey(userId));
+      }
       localStorage.removeItem(TIMER_KEY);
     } catch {
       // Silent fail
@@ -153,6 +195,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       elapsedSeconds: 0,
       lastSavedTime: Date.now(),
       lastSyncedMinutes: 0,
+      userId: getCurrentUserId(),
     };
 
     setTimerState(resetState);
@@ -213,6 +256,12 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     (taskId: string, initialSeconds: number = 0) => {
       console.log("🔄 startTimer called with:", { taskId, initialSeconds });
 
+      const userId = getCurrentUserId();
+      if (!userId) {
+        console.error("❌ No user found, cannot start timer");
+        return;
+      }
+
       // Reset stopping flag
       isStoppingRef.current = false;
 
@@ -232,7 +281,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       if (timerStateRef.current.taskId && timerStateRef.current.taskId !== taskId) {
         console.log(`⚠️ Clearing previous timer for task: ${timerStateRef.current.taskId}`);
         try {
-          localStorage.removeItem(TIMER_KEY);
+          localStorage.removeItem(getTimerKey(userId));
         } catch {
           // Silent fail
         }
@@ -248,6 +297,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         elapsedSeconds: initialSeconds,
         lastSavedTime: now,
         lastSyncedMinutes: minutes,
+        userId: userId,
       };
 
       // Update state
@@ -372,6 +422,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       // Clear storage
       try {
+        const userId = getCurrentUserId();
+        if (userId) {
+          localStorage.removeItem(getTimerKey(userId));
+        }
         localStorage.removeItem(TIMER_KEY);
       } catch {
         // Silent fail
@@ -401,6 +455,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         elapsedSeconds: 0,
         lastSavedTime: Date.now(),
         lastSyncedMinutes: 0,
+        userId: getCurrentUserId(),
       };
 
       setTimerState(resetState);
@@ -444,6 +499,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       // Clear storage
       try {
+        const userId = getCurrentUserId();
+        if (userId) {
+          localStorage.removeItem(getTimerKey(userId));
+        }
         localStorage.removeItem(TIMER_KEY);
       } catch {
         // Silent fail
@@ -473,6 +532,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         elapsedSeconds: 0,
         lastSavedTime: Date.now(),
         lastSyncedMinutes: 0,
+        userId: getCurrentUserId(),
       };
 
       setTimerState(resetState);
@@ -505,6 +565,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const isActive = timerStateRef.current.taskId === taskId;
     console.log(`🔍 isTimerActiveForTask: ${taskId} -> ${isActive}`);
     return isActive;
+  }, []);
+
+  // ============ USER VALIDATION ============
+  const isTimerValidForUser = useCallback((userId: string): boolean => {
+    if (!userId) return false;
+    return timerStateRef.current.userId === userId;
+  }, []);
+
+  const getTimerOwner = useCallback((): string | null => {
+    return timerStateRef.current.userId;
   }, []);
 
   // ============ COMPUTED VALUES ============
@@ -602,6 +672,8 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       activeTimerTaskId,
       syncTimerWithBackend,
       resetTimer,
+      isTimerValidForUser,
+      getTimerOwner,
     }),
     [
       timerState,
@@ -618,6 +690,8 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       activeTimerTaskId,
       syncTimerWithBackend,
       resetTimer,
+      isTimerValidForUser,
+      getTimerOwner,
     ],
   );
 

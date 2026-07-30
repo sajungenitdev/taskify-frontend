@@ -249,6 +249,8 @@ export default function MyTasksPage() {
     activeTimerTaskId,
     syncTimerWithBackend,
     resetTimer,
+    isTimerValidForUser,
+    getTimerOwner,
   } = useTimer();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -272,6 +274,44 @@ export default function MyTasksPage() {
 
   const itemsPerPage = 9;
 
+  // ============ CHECK IF USER IS TASK ASSIGNEE ============
+  const isTaskAssignee = useCallback((task: Task): boolean => {
+    if (!user || !task) return false;
+
+    // Check if assignedTo is an object with _id
+    if (task.assignedTo && typeof task.assignedTo === 'object') {
+      const assigneeId = task.assignedTo._id || (task.assignedTo as any).id;
+      const userId = user._id || (user as any).id;
+      return assigneeId === userId;
+    }
+
+    // Check if assignedTo is a string ID
+    if (typeof task.assignedTo === 'string') {
+      return task.assignedTo === (user._id || (user as any).id);
+    }
+
+    return false;
+  }, [user]);
+
+  // ============ CHECK IF TIMER BELONGS TO CURRENT USER ============
+  const isTimerValidForCurrentUser = useCallback((): boolean => {
+    if (!user) return false;
+    const userId = user._id || (user as any).id || '';
+    return isTimerValidForUser(userId);
+  }, [user, isTimerValidForUser]);
+
+  // ============ CHECK IF USER HAS ANY TASKS ============
+  const hasAssignedTasks = tasks.some(task => isTaskAssignee(task));
+
+  // ============ CHECK IF ACTIVE TIMER BELONGS TO USER'S TASK ============
+  const hasValidActiveTimer = useCallback((): boolean => {
+    if (!activeTimerTaskId) return false;
+    const task = tasks.find(t => t._id === activeTimerTaskId);
+    if (!task) return false;
+    return isTaskAssignee(task) && isTimerValidForCurrentUser();
+  }, [activeTimerTaskId, tasks, isTaskAssignee, isTimerValidForCurrentUser]);
+
+  // ============ EFFECTS ============
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/login");
@@ -280,6 +320,7 @@ export default function MyTasksPage() {
     fetchMyTasks();
   }, [isAuthenticated, router]);
 
+  // ============ FETCH TASKS ============
   const fetchMyTasks = async () => {
     try {
       setLoading(true);
@@ -418,6 +459,7 @@ export default function MyTasksPage() {
     }
   };
 
+  // ============ STATUS CHANGE ============
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     if (updatingStatus === taskId) return;
 
@@ -467,15 +509,26 @@ export default function MyTasksPage() {
       return;
     }
 
+    // Check if user is the assignee
+    if (!isTaskAssignee(task)) {
+      toast.error("You don't have permission to start timer for this task");
+      return;
+    }
+
     // Check if another task's timer is running
     if (activeTimerTaskId && activeTimerTaskId !== taskId) {
-      const currentTask = tasks.find((t) => t._id === activeTimerTaskId);
-      toast.error(
-        `⚠️ A timer is already running for "${currentTask?.title || 'another task'}". 
-         Please stop that timer first before starting a new one.`,
-        { duration: 4000 }
-      );
-      return;
+      // Only show error if the active timer belongs to the current user
+      if (isTimerValidForCurrentUser()) {
+        const currentTask = tasks.find((t) => t._id === activeTimerTaskId);
+        toast.error(
+          `⚠️ A timer is already running for "${currentTask?.title || 'another task'}". Please stop that timer first before starting a new one.`,
+          { duration: 4000 }
+        );
+        return;
+      } else {
+        // Reset the timer if it belongs to another user (ghost timer)
+        resetTimer();
+      }
     }
 
     // If there's a ghost timer state (paused but no active task), reset it
@@ -489,16 +542,19 @@ export default function MyTasksPage() {
     toast.success(`⏱️ Timer started for "${task.title}"`);
   };
 
+  // ============ PAUSE TIMER ============
   const handlePauseTimer = () => {
     pauseTimer();
     toast.success("⏸️ Timer paused");
   };
 
+  // ============ RESUME TIMER ============
   const handleResumeTimer = () => {
     resumeTimer();
     toast.success("▶️ Timer resumed");
   };
 
+  // ============ STOP TIMER ============
   const handleStopTimer = useCallback(
     async (taskId: string) => {
       try {
@@ -525,6 +581,7 @@ export default function MyTasksPage() {
     [stopTimer, fetchMyTasks],
   );
 
+  // ============ TOGGLE STAR ============
   const toggleStar = (taskId: string) => {
     setTasks((prev) =>
       prev.map((task) =>
@@ -535,7 +592,13 @@ export default function MyTasksPage() {
     toast.success(task?.isStarred ? "Unstarred" : "Starred ⭐");
   };
 
-  // Filter and sort tasks
+  // ============ RESET TIMER ============
+  const handleResetTimer = () => {
+    resetTimer();
+    toast.success("Timer state reset successfully");
+  };
+
+  // ============ FILTER AND SORT TASKS ============
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter((task) => {
       const matchesSearch =
@@ -584,6 +647,7 @@ export default function MyTasksPage() {
     currentPage * itemsPerPage,
   );
 
+  // ============ HELPERS ============
   const getPriorityIcon = (priority: string) => {
     const config = getPriorityConfig(priority);
     const Icon = config.icon || Flag;
@@ -619,6 +683,7 @@ export default function MyTasksPage() {
   const totalHours = Math.floor(totalTimeTracked / 60);
   const totalMinutes = totalTimeTracked % 60;
 
+  // ============ EXPORT ============
   const handleExport = () => {
     const headers = [
       "Title",
@@ -653,7 +718,7 @@ export default function MyTasksPage() {
     toast.success("Tasks exported successfully");
   };
 
-  // Helper to get total time for a task including current timer session
+  // ============ GET TOTAL TIME ============
   const getTotalTimeForTask = useCallback((task: Task) => {
     if (!task) return { minutes: 0, display: "0m" };
 
@@ -671,22 +736,7 @@ export default function MyTasksPage() {
     };
   }, [timerState, isTimerActiveForTask, formatTimeShort]);
 
-  // ============ RESET TIMER ============
-  const handleResetTimer = () => {
-    resetTimer();
-    toast.success("Timer state reset successfully");
-  };
-
-  // Check if timer can be started for a task
-  const canStartTimer = (taskId: string) => {
-    // If no active timer, can start
-    if (!activeTimerTaskId) return true;
-    // If active timer is for this task, can start (but it's already running)
-    if (activeTimerTaskId === taskId) return true;
-    // Otherwise, can't start
-    return false;
-  };
-
+  // ============ LOADING STATE ============
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
@@ -703,6 +753,7 @@ export default function MyTasksPage() {
     );
   }
 
+  // ============ RENDER ============
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/20 to-purple-50/20">
       <div className="container mx-auto px-4 py-6 md:py-8 w-full">
@@ -867,12 +918,14 @@ export default function MyTasksPage() {
           <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
             <p className="text-sm text-gray-500">Active Timer</p>
             <p className="text-2xl font-bold text-indigo-600">
-              {isTimerRunning ? (
+              {!hasAssignedTasks ? (
+                "No tasks assigned"
+              ) : hasValidActiveTimer() && isTimerRunning ? (
                 <span className="flex items-center gap-2">
                   {formatTimeShort(timerState.elapsedSeconds)}
                   <span className="text-sm font-normal text-emerald-500">● Running</span>
                 </span>
-              ) : activeTimerTaskId ? (
+              ) : hasValidActiveTimer() && activeTimerTaskId ? (
                 <span className="flex items-center gap-2 text-amber-500">
                   {formatTimeShort(timerState.elapsedSeconds)}
                   <span className="text-sm font-normal">● Paused</span>
@@ -988,8 +1041,8 @@ export default function MyTasksPage() {
           )}
         </AnimatePresence>
 
-        {/* Active Timer Warning Banner */}
-        {activeTimerTaskId && (
+        {/* Active Timer Warning Banner - Only for current user's timer */}
+        {hasValidActiveTimer() && activeTimerTaskId && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1067,6 +1120,12 @@ export default function MyTasksPage() {
                   const totalTime = getTotalTimeForTask(task);
                   const isRejected = task.status === "rejected";
                   const isTaskTimerActive = activeTimerTaskId === task._id;
+                  const isAssignee = isTaskAssignee(task);
+                  const canShowTimerControls = isAssignee &&
+                    task.status !== "completed" &&
+                    task.status !== "submitted" &&
+                    task.status !== "rejected";
+                  const isTaskTimerValid = isAssignee && isTimerValidForCurrentUser();
 
                   return (
                     <motion.div
@@ -1082,7 +1141,7 @@ export default function MyTasksPage() {
                       whileHover={{ y: -4, scale: 1.01 }}
                       className={`group relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl ${isRejected
                         ? "border-red-200 hover:border-red-300 hover:shadow-red-500/10"
-                        : isTaskTimerActive
+                        : isTaskTimerActive && isTaskTimerValid
                           ? "border-indigo-400 shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-400/50"
                           : "border-gray-200/50 hover:border-indigo-300/50 hover:shadow-indigo-500/10"
                         }`}
@@ -1113,7 +1172,7 @@ export default function MyTasksPage() {
                                 Evidence Required
                               </span>
                             )}
-                            {isTimerActive && (
+                            {isTimerActive && isTaskTimerValid && (
                               <span
                                 className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${isRunning ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-amber-50 border-amber-200 text-amber-700"}`}
                               >
@@ -1130,7 +1189,7 @@ export default function MyTasksPage() {
                                 {totalTime.display}
                               </span>
                             )}
-                            {isTaskTimerActive && (
+                            {isTaskTimerActive && isTaskTimerValid && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
                                 <TimerIcon className="w-3 h-3" />
                                 Active
@@ -1200,136 +1259,149 @@ export default function MyTasksPage() {
                           </div>
                         </div>
 
-                        {task.status !== "completed" &&
-                          task.status !== "submitted" &&
-                          task.status !== "rejected" && (
-                            <div className="mt-3 pt-3 border-t border-gray-100">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {isTimerActive ? (
-                                  <>
-                                    <div className="flex-1 min-w-[100px]">
-                                      <div className="flex items-center gap-2">
-                                        <ClockIcon className="w-3.5 h-3.5 text-indigo-500" />
-                                        <span className="text-xs font-mono font-semibold text-gray-700 tabular-nums">
-                                          {formatTime(
-                                            timerState.elapsedSeconds,
-                                          )}
-                                        </span>
-                                        <span
-                                          className={`text-[10px] font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
-                                        >
-                                          {isRunning ? "●" : "⏸"}
-                                        </span>
-                                      </div>
+                        {canShowTimerControls ? (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isTimerActive && isTaskTimerValid ? (
+                                <>
+                                  <div className="flex-1 min-w-[100px]">
+                                    <div className="flex items-center gap-2">
+                                      <ClockIcon className="w-3.5 h-3.5 text-indigo-500" />
+                                      <span className="text-xs font-mono font-semibold text-gray-700 tabular-nums">
+                                        {formatTime(
+                                          timerState.elapsedSeconds,
+                                        )}
+                                      </span>
+                                      <span
+                                        className={`text-[10px] font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
+                                      >
+                                        {isRunning ? "●" : "⏸"}
+                                      </span>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                      {isRunning ? (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handlePauseTimer();
-                                          }}
-                                          className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                                          title="Pause Timer"
-                                        >
-                                          <Pause className="w-3 h-3" />
-                                        </button>
-                                      ) : (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleResumeTimer();
-                                          }}
-                                          className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                                          title="Resume Timer"
-                                        >
-                                          <Play className="w-3 h-3" />
-                                        </button>
-                                      )}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {isRunning ? (
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleStopTimer(task._id);
+                                          handlePauseTimer();
                                         }}
-                                        className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                                        title="Stop Timer"
+                                        className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
+                                        title="Pause Timer"
                                       >
-                                        <Square className="w-3 h-3" />
+                                        <Pause className="w-3 h-3" />
                                       </button>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="flex-1 min-w-[80px]">
-                                      <span className="text-xs text-gray-400">
-                                        {task.actualMinutes
-                                          ? `${task.actualMinutes}m logged`
-                                          : "No time tracked"}
-                                      </span>
-                                    </div>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleResumeTimer();
+                                        }}
+                                        className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
+                                        title="Resume Timer"
+                                      >
+                                        <Play className="w-3 h-3" />
+                                      </button>
+                                    )}
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleStartTimer(task._id);
+                                        handleStopTimer(task._id);
                                       }}
-                                      className={`px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== task._id
-                                          ? "from-gray-400 to-gray-500 cursor-not-allowed"
-                                          : "from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-                                        }`}
-                                      disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
-                                      title={
-                                        activeTimerTaskId && activeTimerTaskId !== task._id
-                                          ? "Another task timer is running"
-                                          : "Start Timer"
-                                      }
+                                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
+                                      title="Stop Timer"
                                     >
-                                      <Play className="w-3 h-3 me-2" />
-                                      Start
+                                      <Square className="w-3 h-3" />
                                     </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSubmitForReview(task._id);
-                                  }}
-                                  disabled={isSubmitting === task._id}
-                                  className="px-2.5 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
-                                  title="Submit for Review"
-                                >
-                                  {isSubmitting === task._id ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <Send className="w-3 h-3" />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMarkComplete(task._id);
-                                  }}
-                                  disabled={isCompleting === task._id}
-                                  className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
-                                  title="Mark Complete"
-                                >
-                                  {isCompleting === task._id ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <Check className="w-3 h-3" />
-                                  )}
-                                </button>
-                                <Link
-                                  href={`/tasks/${task._id}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <button className="px-2.5 py-1 cursor-pointer flex items-center bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
-                                    <EyeIcon className="w-3 h-3 me-2" />
-                                    View
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="flex-1 min-w-[80px]">
+                                    <span className="text-xs text-gray-400">
+                                      {task.actualMinutes
+                                        ? `${task.actualMinutes}m logged`
+                                        : "No time tracked"}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartTimer(task._id);
+                                    }}
+                                    className={`px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== task._id
+                                      ? "from-gray-400 to-gray-500 cursor-not-allowed"
+                                      : "from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                                      }`}
+                                    disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
+                                    title={
+                                      activeTimerTaskId && activeTimerTaskId !== task._id
+                                        ? "Another task timer is running"
+                                        : "Start Timer"
+                                    }
+                                  >
+                                    <Play className="w-3 h-3 me-2" />
+                                    Start
                                   </button>
-                                </Link>
-                              </div>
+                                </>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSubmitForReview(task._id);
+                                }}
+                                disabled={isSubmitting === task._id}
+                                className="px-2.5 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
+                                title="Submit for Review"
+                              >
+                                {isSubmitting === task._id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Send className="w-3 h-3" />
+                                )}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMarkComplete(task._id);
+                                }}
+                                disabled={isCompleting === task._id}
+                                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
+                                title="Mark Complete"
+                              >
+                                {isCompleting === task._id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Check className="w-3 h-3" />
+                                )}
+                              </button>
+                              <Link
+                                href={`/tasks/${task._id}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button className="px-2.5 py-1 cursor-pointer flex items-center bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
+                                  <EyeIcon className="w-3 h-3 me-2" />
+                                  View
+                                </button>
+                              </Link>
                             </div>
-                          )}
+                          </div>
+                        ) : (
+                          // Show only time display for non-assignees or completed/submitted tasks
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-gray-400">
+                                {task.actualMinutes ? `${task.actualMinutes}m logged` : "No time tracked"}
+                              </span>
+                              {task.actualMinutes > 0 && (
+                                <span className="text-xs text-gray-400">
+                                  <History className="w-3 h-3 inline mr-1" />
+                                  {task.actualMinutes}m
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   );
@@ -1447,6 +1519,8 @@ export default function MyTasksPage() {
                       );
                       const totalTime = getTotalTimeForTask(task);
                       const isRejected = task.status === "rejected";
+                      const isAssignee = isTaskAssignee(task);
+                      const isTaskTimerValid = isAssignee && isTimerValidForCurrentUser();
 
                       return (
                         <motion.tr
@@ -1508,7 +1582,7 @@ export default function MyTasksPage() {
                           </td>
                           <td className="px-4 py-3 text-center">
                             <div className="flex items-center justify-center gap-2">
-                              {isTimerActive ? (
+                              {isTimerActive && isTaskTimerValid ? (
                                 <>
                                   <span
                                     className={`text-xs font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
@@ -1546,11 +1620,11 @@ export default function MyTasksPage() {
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              {task.status !== "completed" &&
+                              {isAssignee && task.status !== "completed" &&
                                 task.status !== "submitted" &&
                                 task.status !== "rejected" && (
                                   <>
-                                    {isTimerActive ? (
+                                    {isTimerActive && isTaskTimerValid ? (
                                       <>
                                         <button
                                           onClick={(e) => {
@@ -1586,8 +1660,8 @@ export default function MyTasksPage() {
                                           handleStartTimer(task._id);
                                         }}
                                         className={`p-1.5 rounded-lg transition disabled:opacity-40 ${activeTimerTaskId && activeTimerTaskId !== task._id
-                                            ? "text-gray-400 cursor-not-allowed"
-                                            : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                          ? "text-gray-400 cursor-not-allowed"
+                                          : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
                                           }`}
                                         disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
                                         title={
@@ -1631,7 +1705,7 @@ export default function MyTasksPage() {
                                     </button>
                                   </>
                                 )}
-                              {task.status === "rejected" && (
+                              {task.status === "rejected" && isAssignee && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1789,7 +1863,7 @@ export default function MyTasksPage() {
                 </div>
 
                 {/* Timer Controls in Modal */}
-                {selectedTask.status !== "completed" &&
+                {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
                   selectedTask.status !== "submitted" &&
                   selectedTask.status !== "rejected" && (
                     <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
@@ -1798,7 +1872,7 @@ export default function MyTasksPage() {
                         Time Tracking
                       </p>
                       <div className="flex items-center gap-3 flex-wrap">
-                        {isTimerActiveForTask(selectedTask._id) ? (
+                        {isTimerActiveForTask(selectedTask._id) && isTimerValidForCurrentUser() ? (
                           <>
                             <div className="flex-1">
                               <div className="flex items-center gap-3">
@@ -1860,8 +1934,8 @@ export default function MyTasksPage() {
                                 setSelectedTask(null);
                               }}
                               className={`px-4 py-2 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== selectedTask._id
-                                  ? "bg-gray-400 cursor-not-allowed"
-                                  : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                 }`}
                               disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
                               title={
@@ -1900,7 +1974,7 @@ export default function MyTasksPage() {
                     <option value="overdue">Overdue</option>
                     <option value="rejected">Rejected</option>
                   </select>
-                  {selectedTask.status === "rejected" && (
+                  {selectedTask.status === "rejected" && isTaskAssignee(selectedTask) && (
                     <button
                       onClick={() => {
                         handleSendForRework(selectedTask._id);
@@ -1916,7 +1990,7 @@ export default function MyTasksPage() {
                       Send for Rework
                     </button>
                   )}
-                  {selectedTask.status !== "completed" &&
+                  {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
                     selectedTask.status !== "submitted" &&
                     selectedTask.status !== "rejected" && (
                       <>
