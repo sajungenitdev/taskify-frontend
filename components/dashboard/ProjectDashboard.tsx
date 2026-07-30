@@ -107,6 +107,7 @@ export default function ProjectDashboard() {
   const [taskFilter, setTaskFilter] = useState<"all" | "pending" | "in_progress" | "submitted" | "completed" | "overdue" | "rejected">("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentName, setDepartmentName] = useState("");
+  const [departmentCode, setDepartmentCode] = useState("");
 
   useEffect(() => {
     fetchDashboardData();
@@ -115,19 +116,10 @@ export default function ProjectDashboard() {
   // Get user's department ID from multiple possible sources
   const userDepartmentId = useMemo(() => {
     const extendedUser = user as any;
-    // Try multiple possible locations for department ID
     return extendedUser?.department?._id ||
       extendedUser?.departmentId ||
       extendedUser?.department ||
       null;
-  }, [user]);
-
-  // Get user's department name
-  const userDepartmentName = useMemo(() => {
-    const extendedUser = user as any;
-    return extendedUser?.department?.name ||
-      extendedUser?.departmentName ||
-      "Your Department";
   }, [user]);
 
   const isProjectManager = user?.role === "project_manager";
@@ -137,107 +129,174 @@ export default function ProjectDashboard() {
       setLoading(true);
 
       console.log("🔍 Fetching dashboard data...");
-      console.log("👤 Current User:", user);
-      console.log("🏢 User Department ID:", userDepartmentId);
-      console.log("📛 User Department Name:", userDepartmentName);
 
-      // Fetch all data in parallel
-      const [projectsRes, tasksRes, usersRes] = await Promise.all([
-        api.get("/projects"),
-        api.get("/tasks"),
+      // Fetch all data
+      const [usersRes, tasksRes, projectsRes] = await Promise.all([
         api.get("/users"),
+        api.get("/tasks"),
+        api.get("/projects"),
       ]);
 
-      const allProjects = projectsRes.data.data || [];
-      const allTasksData = tasksRes.data.data || [];
       const allUsers = usersRes.data.data || [];
+      const allTasksData = tasksRes.data.data || [];
+      const allProjects = projectsRes.data.data || [];
 
-      console.log("📊 All Projects:", allProjects.length);
-      console.log("📊 All Tasks:", allTasksData.length);
       console.log("👥 All Users:", allUsers.length);
+      console.log("📋 All Tasks:", allTasksData.length);
+      console.log("📁 All Projects:", allProjects.length);
 
-      // Log sample data to see structure
-      if (allUsers.length > 0) {
-        console.log("👤 Sample User:", allUsers[0]);
-        console.log("👤 User Department ID field:", allUsers[0].departmentId);
-        console.log("👤 User Department object:", allUsers[0].department);
+      // Log all users to see department data
+      console.log("👥 All Users with departments:");
+      allUsers.forEach((u: any) => {
+        console.log(`  - ${u.fullName}: departmentId=${u.departmentId}, department=${u.department?._id || u.department}`);
+      });
+
+      // ============================================================
+      // 1. FIND DEPARTMENT ID - CRITICAL FIX
+      // ============================================================
+      let deptId = null;
+      let deptName = "";
+      let deptCode = "";
+
+      // Try to get department from user context first
+      if (userDepartmentId) {
+        deptId = userDepartmentId;
+        console.log("🏢 Using memoized department ID:", deptId);
       }
-      if (allTasksData.length > 0) {
-        console.log("📋 Sample Task:", allTasksData[0]);
+
+      // Find current user in the users list to get department
+      const currentUser = allUsers.find((u: any) => u._id === user?._id);
+      console.log("👤 Current User from API:", currentUser);
+
+      if (currentUser) {
+        // Check if user has department object with _id
+        if (currentUser.department && typeof currentUser.department === 'object' && currentUser.department._id) {
+          deptId = currentUser.department._id;
+          deptName = currentUser.department.name || "";
+          deptCode = currentUser.department.code || "";
+          console.log("🏢 Found department from user.department._id:", { deptId, deptName, deptCode });
+        }
+        // Check if user has departmentId string
+        else if (currentUser.departmentId) {
+          deptId = currentUser.departmentId;
+          console.log("🏢 Found departmentId from user.departmentId:", deptId);
+        }
+        // Check if user has department as string
+        else if (typeof currentUser.department === 'string') {
+          deptId = currentUser.department;
+          console.log("🏢 Found department as string:", deptId);
+        }
       }
-      if (allProjects.length > 0) {
-        console.log("📁 Sample Project:", allProjects[0]);
+
+      // 🔥 FIX: If we still don't have a department ID, try to find the SQA department
+      if (!deptId) {
+        // Try to find department by name "SQA" or "SQA Department"
+        const sqaUsers = allUsers.filter((u: any) => {
+          const deptName = u.department?.name || "";
+          return deptName.toLowerCase().includes("sqa");
+        });
+
+        if (sqaUsers.length > 0) {
+          const firstUser = sqaUsers[0];
+          deptId = firstUser.department?._id || firstUser.departmentId || firstUser.department;
+          deptName = firstUser.department?.name || "SQA";
+          deptCode = firstUser.department?.code || "SQA";
+          console.log("🏢 Found SQA department from users:", { deptId, deptName, deptCode });
+        }
       }
 
       // ============================================================
-      // 1. FILTER DEPARTMENT USERS
+      // 2. FILTER DEPARTMENT USERS - SHOW ALL USERS IN DEPARTMENT
       // ============================================================
       let deptUsers = [];
 
-      if (userDepartmentId) {
-        // Try multiple ways to match department
+      if (deptId) {
+        // 🔥 CRITICAL: Filter users by department ID - SHOW ALL USERS
         deptUsers = allUsers.filter((u: any) => {
-          const userDeptId = u.departmentId || u.department?._id || u.department;
+          // Check multiple possible department field locations
+          const uDeptId = u.departmentId || u.department?._id || u.department;
           // Convert both to string for comparison
-          const match = String(userDeptId) === String(userDepartmentId);
+          const match = String(uDeptId) === String(deptId);
           if (match) {
             console.log(`✅ Found user ${u.fullName} in department`);
           }
           return match;
         });
-        console.log("👥 Department Users (filtered):", deptUsers.length);
-      } else {
-        // If no department ID, try to get users by department name
-        const deptName = userDepartmentName;
-        deptUsers = allUsers.filter((u: any) => {
-          const userDeptName = u.department?.name || u.departmentName || "";
-          return userDeptName.toLowerCase() === deptName.toLowerCase();
-        });
-        console.log("👥 Department Users (by name):", deptUsers.length);
+
+        console.log("👥 All Department Users (filtered by ID):", deptUsers.length);
       }
 
-      // If still no users found, check if current user is in the list
-      if (deptUsers.length === 0 && user) {
-        const currentUser = allUsers.find((u: any) => u._id === user._id);
-        if (currentUser) {
-          console.log("👤 Current user found in users list:", currentUser);
-          // Try to get department from current user
-          const userDeptId = currentUser.departmentId || currentUser.department?._id || currentUser.department;
-          if (userDeptId) {
-            deptUsers = allUsers.filter((u: any) => {
-              const uDeptId = u.departmentId || u.department?._id || u.department;
-              return String(uDeptId) === String(userDeptId);
-            });
-            console.log("👥 Department Users (from current user):", deptUsers.length);
-          }
+      // If no users found by ID, try by department name
+      if (deptUsers.length === 0 && deptName) {
+        deptUsers = allUsers.filter((u: any) => {
+          const uDeptName = u.department?.name || u.departmentName || "";
+          return uDeptName.toLowerCase() === deptName.toLowerCase();
+        });
+        console.log("👥 Department Users (filtered by name):", deptUsers.length);
+      }
+
+      // 🔥 FALLBACK: If still no users, try to find users with department name containing "SQA"
+      if (deptUsers.length === 0) {
+        deptUsers = allUsers.filter((u: any) => {
+          const uDeptName = u.department?.name || "";
+          return uDeptName.toLowerCase().includes("sqa");
+        });
+        console.log("👥 Department Users (SQA fallback):", deptUsers.length);
+      }
+
+      // 🔥 FINAL FALLBACK: Show all users if department is SQA
+      if (deptUsers.length === 0) {
+        // Check if current user's department name contains SQA
+        const currentUserDeptName = currentUser?.department?.name || "";
+        if (currentUserDeptName.toLowerCase().includes("sqa")) {
+          deptUsers = allUsers.filter((u: any) => {
+            const uDeptName = u.department?.name || "";
+            return uDeptName.toLowerCase().includes("sqa");
+          });
+          console.log("👥 Department Users (SQA fallback from current user):", deptUsers.length);
         }
       }
+
+      // Set department name from the users or use fallback
+      if (deptUsers.length > 0) {
+        const firstUser = deptUsers[0];
+        deptName = firstUser.department?.name || deptName || "SQA Department";
+        deptCode = firstUser.department?.code || deptCode || "SQA";
+      } else {
+        deptName = "SQA Department";
+        deptCode = "SQA";
+      }
+
+      setDepartmentName(deptName);
+      setDepartmentCode(deptCode);
 
       // Get department user IDs
       const deptUserIds = deptUsers.map((u: any) => u._id);
       console.log("👥 Department User IDs:", deptUserIds);
+      console.log("👥 Total Department Users:", deptUsers.length);
 
       // ============================================================
-      // 2. GET DEPARTMENT TASKS
+      // 3. GET DEPARTMENT TASKS
       // ============================================================
-      // Get tasks assigned to department users
       let deptTasks = [];
+
       if (deptUserIds.length > 0) {
+        // Tasks assigned to department users
         deptTasks = allTasksData.filter((t: any) => {
           const taskAssigneeId = t.assignedTo?._id || t.assignedTo;
           return deptUserIds.includes(taskAssigneeId);
         });
-        console.log("📋 Department Tasks:", deptTasks.length);
+        console.log("📋 Tasks assigned to department users:", deptTasks.length);
       }
 
-      // Also get tasks that have departmentId matching
+      // Also get tasks with departmentId matching
       let deptTasksByDeptId = [];
-      if (userDepartmentId) {
+      if (deptId) {
         deptTasksByDeptId = allTasksData.filter((t: any) => {
           const taskDeptId = t.departmentId?._id || t.departmentId || t.department;
-          return String(taskDeptId) === String(userDepartmentId);
+          return String(taskDeptId) === String(deptId);
         });
-        console.log("📋 Department Tasks (by deptId):", deptTasksByDeptId.length);
+        console.log("📋 Tasks with department ID:", deptTasksByDeptId.length);
       }
 
       // Combine and remove duplicates
@@ -249,7 +308,7 @@ export default function ProjectDashboard() {
       console.log("📋 Combined Tasks:", combinedTasks.length);
 
       // ============================================================
-      // 3. GET PROJECTS
+      // 4. GET PROJECTS
       // ============================================================
       // Projects managed by this user
       const managedProjects = allProjects.filter((p: any) => {
@@ -260,47 +319,24 @@ export default function ProjectDashboard() {
 
       // Projects in the department
       let deptProjects = [];
-      if (userDepartmentId) {
+      if (deptId) {
         deptProjects = allProjects.filter((p: any) => {
-          const deptId = p.departmentId?._id || p.departmentId || p.department;
-          return String(deptId) === String(userDepartmentId);
+          const pDeptId = p.departmentId?._id || p.departmentId || p.department;
+          return String(pDeptId) === String(deptId);
         });
         console.log("📁 Department Projects:", deptProjects.length);
       }
 
-      // Also get projects where department users are team members
-      const deptProjectIds = new Set();
-      if (deptUserIds.length > 0) {
-        allProjects.forEach((p: any) => {
-          const teamMembers = p.teamMembers || [];
-          const hasDeptUser = teamMembers.some((member: any) => {
-            const userId = member.userId?._id || member.userId;
-            return deptUserIds.includes(userId);
-          });
-          if (hasDeptUser) {
-            deptProjectIds.add(p._id);
-          }
-        });
-        console.log("📁 Projects with department team members:", deptProjectIds.size);
-      }
-
-      // Combine all projects
+      // Combine projects
       const projectMap = new Map();
       [...managedProjects, ...deptProjects].forEach((p: any) => {
         projectMap.set(p._id, p);
-      });
-      // Add projects with department team members
-      deptProjectIds.forEach((id) => {
-        const project = allProjects.find((p: any) => p._id === id);
-        if (project) {
-          projectMap.set(id, project);
-        }
       });
       const combinedProjects = Array.from(projectMap.values());
       console.log("📁 Combined Projects:", combinedProjects.length);
 
       // ============================================================
-      // 4. CALCULATE STATS
+      // 5. CALCULATE STATS
       // ============================================================
       const totalTasks = combinedTasks.length;
       const completedTasks = combinedTasks.filter((t: any) => t.status === "completed").length;
@@ -315,13 +351,6 @@ export default function ProjectDashboard() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ).slice(0, 5);
 
-      // Get department name
-      const deptName = deptUsers.length > 0
-        ? (deptUsers[0].department?.name || userDepartmentName || "Department")
-        : (userDepartmentName || "Department");
-
-      setDepartmentName(deptName);
-
       setStats({
         totalProjects: combinedProjects.length,
         totalTasks: totalTasks,
@@ -334,7 +363,6 @@ export default function ProjectDashboard() {
         completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
         totalTeamMembers: deptUsers.length,
         activeProjects: combinedProjects.filter((p: any) => p.status === "active").length,
-        totalDepartments: 1,
       });
 
       setDepartmentUsers(deptUsers);
@@ -342,7 +370,7 @@ export default function ProjectDashboard() {
       setAllTasks(combinedTasks);
       setProjects(combinedProjects);
 
-      console.log("✅ Dashboard Stats:", {
+      console.log("✅ Final Stats:", {
         totalTasks,
         totalProjects: combinedProjects.length,
         totalTeamMembers: deptUsers.length,
@@ -454,7 +482,7 @@ export default function ProjectDashboard() {
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Project Manager Dashboard</h1>
             <p className="text-sm text-gray-500">
-              {departmentName || userDepartmentName} Department • {stats.totalTeamMembers} Team Members
+              {departmentName} Department {departmentCode ? `(${departmentCode})` : ""} • {stats.totalTeamMembers} Team Members
             </p>
           </div>
         </div>
@@ -480,7 +508,7 @@ export default function ProjectDashboard() {
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-800">
-              {departmentName || userDepartmentName} Department
+              {departmentName} Department {departmentCode ? `(${departmentCode})` : ""}
             </p>
             <p className="text-xs text-gray-500 flex items-center gap-2">
               <Users size={12} />
@@ -546,7 +574,7 @@ export default function ProjectDashboard() {
             <Users className="w-5 h-5 text-purple-500" />
           </div>
           <p className="text-xs text-gray-500 mt-0.5">Team Members</p>
-          <p className="text-xs text-purple-600 mt-1">{departmentName || userDepartmentName} team</p>
+          <p className="text-xs text-purple-600 mt-1">{departmentName} team</p>
         </div>
       </motion.div>
 
@@ -658,8 +686,8 @@ export default function ProjectDashboard() {
             key={tab}
             onClick={() => setActiveTab(tab as any)}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition capitalize ${activeTab === tab
-                ? "bg-indigo-600 text-white shadow-md"
-                : "text-gray-600 hover:bg-gray-100"
+              ? "bg-indigo-600 text-white shadow-md"
+              : "text-gray-600 hover:bg-gray-100"
               }`}
           >
             {tab === "overview" ? "📊 Overview" :
@@ -728,7 +756,7 @@ export default function ProjectDashboard() {
               </div>
             )}
 
-            {/* Team Members Preview */}
+            {/* Team Members Preview - Shows ALL department members */}
             {departmentUsers.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -782,8 +810,8 @@ export default function ProjectDashboard() {
                     key={filter}
                     onClick={() => setTaskFilter(filter as any)}
                     className={`px-2.5 py-1 text-[10px] rounded-full transition capitalize ${taskFilter === filter
-                        ? "bg-indigo-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                   >
                     {filter.replace("_", " ")}
@@ -878,7 +906,7 @@ export default function ProjectDashboard() {
                 </button>
               </div>
               <div className="divide-y divide-gray-100 max-h-[400px] overflow-y-auto">
-                {(showAllUsers ? departmentUsers : departmentUsers.slice(0, 8)).map((member) => (
+                {departmentUsers.map((member) => (
                   <div key={member._id} className="p-3 hover:bg-gray-50 transition flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
@@ -960,10 +988,10 @@ export default function ProjectDashboard() {
                         <p className="text-xs text-gray-500">{project.code}</p>
                       </div>
                       <span className={`text-[10px] px-2 py-0.5 rounded-full ${project.status === "active" ? "bg-emerald-100 text-emerald-700" :
-                          project.status === "planning" ? "bg-amber-100 text-amber-700" :
-                            project.status === "on_hold" ? "bg-rose-100 text-rose-700" :
-                              project.status === "completed" ? "bg-blue-100 text-blue-700" :
-                                "bg-gray-100 text-gray-700"
+                        project.status === "planning" ? "bg-amber-100 text-amber-700" :
+                          project.status === "on_hold" ? "bg-rose-100 text-rose-700" :
+                            project.status === "completed" ? "bg-blue-100 text-blue-700" :
+                              "bg-gray-100 text-gray-700"
                         }`}>
                         {project.status?.replace("_", " ") || "Active"}
                       </span>
