@@ -377,7 +377,7 @@ export default function ProfilePage() {
       // Skills - make sure it's an array of strings
       if (updateData.skills) {
         if (Array.isArray(updateData.skills)) {
-          updateData.skills = updateData.skills.filter(s => typeof s === 'string' && s.trim());
+          updateData.skills = updateData.skills.filter((s: string) => typeof s === 'string' && s.trim());
         } else {
           // If it's not an array, convert it or set to empty array
           console.warn("⚠️ Skills is not an array:", updateData.skills);
@@ -390,7 +390,7 @@ export default function ProfilePage() {
       // Languages - make sure it's an array of strings
       if (updateData.languages) {
         if (Array.isArray(updateData.languages)) {
-          updateData.languages = updateData.languages.filter(l => typeof l === 'string' && l.trim());
+          updateData.languages = updateData.languages.filter((l: string) => typeof l === 'string' && l.trim());
         } else {
           console.warn("⚠️ Languages is not an array:", updateData.languages);
           updateData.languages = [];
@@ -402,7 +402,7 @@ export default function ProfilePage() {
       // Achievements - make sure it's an array of objects
       if (updateData.achievements) {
         if (Array.isArray(updateData.achievements)) {
-          updateData.achievements = updateData.achievements.filter(a =>
+          updateData.achievements = updateData.achievements.filter((a: any) =>
             typeof a === 'object' && a.title && a.description
           );
         } else {
@@ -421,7 +421,6 @@ export default function ProfilePage() {
           if (Array.isArray(updateData.socialLinks)) {
             const socialObj: any = {};
             const platforms = ['linkedin', 'github', 'twitter', 'facebook', 'instagram'];
-            // @ts-ignore - we're handling the array case
             updateData.socialLinks.forEach((key: string) => {
               if (platforms.includes(key)) {
                 socialObj[key] = '';
