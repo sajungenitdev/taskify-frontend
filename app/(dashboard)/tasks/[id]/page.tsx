@@ -425,7 +425,7 @@ export default function TaskDetailPage() {
       toast.error(errorMessage);
 
       if (error.response?.status === 404) {
-        setTimeout(() => router.push("/tasks"), 2000);
+        setTimeout(() => router.push("/tasks/task-board"), 2000);
       }
     } finally {
       setLoading(false);
@@ -920,7 +920,7 @@ export default function TaskDetailPage() {
       const response = await api.delete(`/tasks/${id}`);
       if (response.data.success) {
         toast.success("Task deleted successfully");
-        router.push("/tasks");
+        router.push("/tasks/task-board");
       }
     } catch (error: any) {
       console.error("Error deleting task:", error);
@@ -1038,15 +1038,14 @@ export default function TaskDetailPage() {
         toast.success(`⏱️ Time tracked: ${result.displayTime}`);
         await fetchTask();
       } else {
-        // The result doesn't have an error property, so just show a generic message
-        toast.error("Failed to stop timer. Please try again.");
+        // This happens when the timer wasn't active
+        toast.error("Timer was not active. Please try again.");
       }
     } catch (error: any) {
       console.error("Error stopping timer:", error);
-      toast.error(error?.message || "Failed to stop timer");
+      toast.error(error?.message || "Failed to stop timer. Please try again.");
     }
   };
-
 
   const handleCopyLink = () => {
     const url = window.location.href;

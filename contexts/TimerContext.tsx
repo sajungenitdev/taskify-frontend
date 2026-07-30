@@ -12,7 +12,6 @@ import {
   ReactNode,
 } from "react";
 import api from "@/lib/axios";
-import toast from "react-hot-toast";
 
 // ============ TYPES ============
 interface TimerState {
@@ -41,6 +40,12 @@ interface TimerContextType {
   isTimerRunning: boolean;
   activeTimerTaskId: string | null;
   syncTimerWithBackend: (taskId: string) => Promise<void>;
+  resetTimer: () => void;
+  stopTimerAutomatically: (taskId: string) => Promise<{
+    success: boolean;
+    minutes: number;
+    displayTime: string;
+  }>;
 }
 
 // ============ CONSTANTS ============
@@ -94,6 +99,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const isMountedRef = useRef(true);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const timerStateRef = useRef(timerState);
+  const isStoppingRef = useRef(false);
 
   // Update ref whenever state changes
   useEffect(() => {
@@ -118,6 +124,43 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // ============ RESET TIMER ============
+  const resetTimer = useCallback(() => {
+    console.log("🔄 resetTimer called - Clearing timer state");
+
+    // Clear intervals
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+    if (syncIntervalRef.current) {
+      clearInterval(syncIntervalRef.current);
+      syncIntervalRef.current = null;
+    }
+
+    // Clear storage
+    try {
+      localStorage.removeItem(TIMER_KEY);
+    } catch {
+      // Silent fail
+    }
+
+    // Reset state
+    const resetState: TimerState = {
+      taskId: null,
+      isRunning: false,
+      seconds: 0,
+      elapsedSeconds: 0,
+      lastSavedTime: Date.now(),
+      lastSyncedMinutes: 0,
+    };
+
+    setTimerState(resetState);
+    timerStateRef.current = resetState;
+    isStoppingRef.current = false;
+    console.log("✅ Timer reset successfully");
+  }, []);
+
   // ============ BACKEND SYNC ============
   const syncTimerWithBackend = useCallback(async (taskId: string) => {
     const currentState = timerStateRef.current;
@@ -127,7 +170,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const minutes = Math.floor(totalSeconds / 60);
     const newMinutes = minutes - currentState.lastSyncedMinutes;
 
-    if (newMinutes > 0) {
+    if (newMinutes > 0 && !isStoppingRef.current) {
       try {
         const taskResponse = await api.get(`/tasks/${taskId}`);
         const currentMinutes = taskResponse.data.data?.actualMinutes || 0;
@@ -165,15 +208,34 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
   }, []);
 
-  // ============ TIMER FUNCTIONS - FIXED ============
+  // ============ TIMER FUNCTIONS ============
   const startTimer = useCallback(
     (taskId: string, initialSeconds: number = 0) => {
       console.log("🔄 startTimer called with:", { taskId, initialSeconds });
+
+      // Reset stopping flag
+      isStoppingRef.current = false;
 
       // Clear any existing timer interval
       if (timerIntervalRef.current) {
         clearInterval(timerIntervalRef.current);
         timerIntervalRef.current = null;
+      }
+
+      // Clear any sync interval
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+
+      // If there's a previous timer, clear it from storage
+      if (timerStateRef.current.taskId && timerStateRef.current.taskId !== taskId) {
+        console.log(`⚠️ Clearing previous timer for task: ${timerStateRef.current.taskId}`);
+        try {
+          localStorage.removeItem(TIMER_KEY);
+        } catch {
+          // Silent fail
+        }
       }
 
       const now = Date.now();
@@ -190,19 +252,10 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       // Update state
       setTimerState(newState);
-
-      // Update ref immediately
       timerStateRef.current = newState;
-
-      // Save to storage
       saveTimerToStorage(newState);
 
       // Start the timer interval
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-
       timerIntervalRef.current = setInterval(() => {
         setTimerState((prev) => {
           const updated = {
@@ -215,10 +268,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         });
       }, 1000);
 
+      // Start sync interval
+      syncIntervalRef.current = setInterval(() => {
+        syncTimerWithBackend(taskId);
+      }, SYNC_INTERVAL);
+
       console.log("✅ Timer started, state:", newState);
-      console.log("✅ Timer interval set");
     },
-    [saveTimerToStorage],
+    [saveTimerToStorage, syncTimerWithBackend],
   );
 
   const pauseTimer = useCallback(() => {
@@ -287,6 +344,79 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     }, 1000);
   }, []);
 
+  // ============ STOP TIMER (AUTOMATIC) ============
+  const stopTimerAutomatically = useCallback(
+    async (taskId: string) => {
+      console.log("⏹️ stopTimerAutomatically called for task:", taskId);
+
+      if (timerStateRef.current.taskId !== taskId) {
+        console.log("⏹️ Timer not active for this task");
+        return { success: false, minutes: 0, displayTime: "0m" };
+      }
+
+      // Set stopping flag to prevent sync during stop
+      isStoppingRef.current = true;
+
+      const totalSeconds = timerStateRef.current.elapsedSeconds;
+      const minutes = Math.floor(totalSeconds / 60);
+
+      // Clear intervals
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
+      if (syncIntervalRef.current) {
+        clearInterval(syncIntervalRef.current);
+        syncIntervalRef.current = null;
+      }
+
+      // Clear storage
+      try {
+        localStorage.removeItem(TIMER_KEY);
+      } catch {
+        // Silent fail
+      }
+
+      // Save final time to backend
+      let savedMinutes = 0;
+      if (minutes > 0) {
+        try {
+          const taskResponse = await api.get(`/tasks/${taskId}`);
+          const currentMinutes = taskResponse.data.data?.actualMinutes || 0;
+          savedMinutes = currentMinutes + minutes;
+          await api.patch(`/tasks/${taskId}/status`, {
+            actualMinutes: savedMinutes,
+          });
+          console.log(`✅ Timer stopped automatically: +${minutes}m (total: ${savedMinutes}m)`);
+        } catch (error) {
+          console.error("❌ Failed to save final timer:", error);
+        }
+      }
+
+      // Reset timer state
+      const resetState: TimerState = {
+        taskId: null,
+        isRunning: false,
+        seconds: 0,
+        elapsedSeconds: 0,
+        lastSavedTime: Date.now(),
+        lastSyncedMinutes: 0,
+      };
+
+      setTimerState(resetState);
+      timerStateRef.current = resetState;
+      isStoppingRef.current = false;
+
+      return {
+        success: true,
+        minutes: savedMinutes > 0 ? savedMinutes : minutes,
+        displayTime: formatTimeShort(totalSeconds),
+      };
+    },
+    [formatTimeShort],
+  );
+
+  // ============ STOP TIMER (MANUAL) ============
   const stopTimer = useCallback(
     async (taskId: string) => {
       console.log("⏹️ stopTimer called for task:", taskId);
@@ -295,6 +425,9 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         console.log("⏹️ Timer not active for this task");
         return { success: false, minutes: 0, displayTime: "0m" };
       }
+
+      // Set stopping flag to prevent sync during stop
+      isStoppingRef.current = true;
 
       const totalSeconds = timerStateRef.current.elapsedSeconds;
       const minutes = Math.floor(totalSeconds / 60);
@@ -344,6 +477,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       setTimerState(resetState);
       timerStateRef.current = resetState;
+      isStoppingRef.current = false;
 
       return {
         success: true,
@@ -405,7 +539,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       syncIntervalRef.current = null;
     }
 
-    if (timerState.isRunning && timerState.taskId) {
+    if (timerState.isRunning && timerState.taskId && !isStoppingRef.current) {
       syncIntervalRef.current = setInterval(() => {
         syncTimerWithBackend(timerState.taskId!);
       }, SYNC_INTERVAL);
@@ -422,7 +556,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   // Save before page unload
   useEffect(() => {
     const handleBeforeUnload = async () => {
-      if (timerState.isRunning && timerState.taskId) {
+      if (timerState.isRunning && timerState.taskId && !isStoppingRef.current) {
         await syncTimerWithBackend(timerState.taskId);
         saveTimerToStorage(timerState);
       }
@@ -459,6 +593,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       pauseTimer,
       resumeTimer,
       stopTimer,
+      stopTimerAutomatically,
       formatTime,
       formatTimeShort,
       getDisplayTimeForTask,
@@ -466,6 +601,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       isTimerRunning,
       activeTimerTaskId,
       syncTimerWithBackend,
+      resetTimer,
     }),
     [
       timerState,
@@ -473,6 +609,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       pauseTimer,
       resumeTimer,
       stopTimer,
+      stopTimerAutomatically,
       formatTime,
       formatTimeShort,
       getDisplayTimeForTask,
@@ -480,6 +617,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       isTimerRunning,
       activeTimerTaskId,
       syncTimerWithBackend,
+      resetTimer,
     ],
   );
 

@@ -240,6 +240,7 @@ export default function MyTasksPage() {
     pauseTimer,
     resumeTimer,
     stopTimer,
+    stopTimerAutomatically,
     formatTime,
     formatTimeShort,
     getDisplayTimeForTask,
@@ -247,6 +248,7 @@ export default function MyTasksPage() {
     isTimerRunning,
     activeTimerTaskId,
     syncTimerWithBackend,
+    resetTimer,
   } = useTimer();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -322,10 +324,10 @@ export default function MyTasksPage() {
 
     setIsCompleting(taskId);
     try {
-      // Stop timer if running for this task
+      // Stop timer automatically if running for this task
       let actualMinutes = task.actualMinutes || 0;
       if (isTimerActiveForTask(taskId)) {
-        const timerResult = await stopTimer(taskId);
+        const timerResult = await stopTimerAutomatically(taskId);
         if (timerResult.success && timerResult.minutes > 0) {
           actualMinutes = timerResult.minutes;
           toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
@@ -366,6 +368,14 @@ export default function MyTasksPage() {
 
     setIsSubmitting(taskId);
     try {
+      // Stop timer automatically if running for this task
+      if (isTimerActiveForTask(taskId)) {
+        const timerResult = await stopTimerAutomatically(taskId);
+        if (timerResult.success && timerResult.minutes > 0) {
+          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
+        }
+      }
+
       const response = await api.patch(`/tasks/${taskId}/status`, {
         status: "submitted",
       });
@@ -438,7 +448,7 @@ export default function MyTasksPage() {
           ),
         );
         if (newStatus === "completed" && activeTimerTaskId === taskId) {
-          await stopTimer(taskId);
+          await stopTimerAutomatically(taskId);
         }
       }
     } catch (error: any) {
@@ -449,21 +459,29 @@ export default function MyTasksPage() {
     }
   };
 
-  // ============ TIMER HANDLERS ============
+  // ============ START TIMER ============
   const handleStartTimer = async (taskId: string) => {
     const task = tasks.find((t) => t._id === taskId);
-    if (!task) return;
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
 
-    // If another task timer is active, auto-stop it
+    // Check if another task's timer is running
     if (activeTimerTaskId && activeTimerTaskId !== taskId) {
       const currentTask = tasks.find((t) => t._id === activeTimerTaskId);
-      const result = await stopTimer(activeTimerTaskId);
-      if (result.success && result.minutes > 0) {
-        toast.success(
-          `⏱️ Timer stopped for "${currentTask?.title}". Tracked: ${result.displayTime}`,
-        );
-        await fetchMyTasks();
-      }
+      toast.error(
+        `⚠️ A timer is already running for "${currentTask?.title || 'another task'}". 
+         Please stop that timer first before starting a new one.`,
+        { duration: 4000 }
+      );
+      return;
+    }
+
+    // If there's a ghost timer state (paused but no active task), reset it
+    if (timerState.taskId === null && timerState.elapsedSeconds > 0) {
+      console.log("🧹 Cleaning up ghost timer state");
+      resetTimer();
     }
 
     const baselineSeconds = (task.actualMinutes || 0) * 60;
@@ -489,16 +507,7 @@ export default function MyTasksPage() {
         if (result.success) {
           if (result.minutes > 0) {
             toast.success(`⏱️ Time tracked: ${result.displayTime}`);
-            setTasks((prev) =>
-              prev.map((task) =>
-                task._id === taskId
-                  ? {
-                    ...task,
-                    actualMinutes: (task.actualMinutes || 0) + result.minutes,
-                  }
-                  : task,
-              ),
-            );
+            await fetchMyTasks();
           } else {
             toast.success("⏱️ Timer stopped - no time tracked");
           }
@@ -513,7 +522,7 @@ export default function MyTasksPage() {
         return { success: false, minutes: 0, displayTime: "0m" };
       }
     },
-    [stopTimer, setTasks],
+    [stopTimer, fetchMyTasks],
   );
 
   const toggleStar = (taskId: string) => {
@@ -528,7 +537,7 @@ export default function MyTasksPage() {
 
   // Filter and sort tasks
   const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter((task) => {
+    const filtered = tasks.filter((task) => {
       const matchesSearch =
         task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         task.description.toLowerCase().includes(searchTerm.toLowerCase());
@@ -644,8 +653,6 @@ export default function MyTasksPage() {
     toast.success("Tasks exported successfully");
   };
 
-  const activeTask = tasks.find((t) => t._id === activeTimerTaskId);
-
   // Helper to get total time for a task including current timer session
   const getTotalTimeForTask = useCallback((task: Task) => {
     if (!task) return { minutes: 0, display: "0m" };
@@ -663,6 +670,22 @@ export default function MyTasksPage() {
       display: formatTimeShort(totalMinutes * 60)
     };
   }, [timerState, isTimerActiveForTask, formatTimeShort]);
+
+  // ============ RESET TIMER ============
+  const handleResetTimer = () => {
+    resetTimer();
+    toast.success("Timer state reset successfully");
+  };
+
+  // Check if timer can be started for a task
+  const canStartTimer = (taskId: string) => {
+    // If no active timer, can start
+    if (!activeTimerTaskId) return true;
+    // If active timer is for this task, can start (but it's already running)
+    if (activeTimerTaskId === taskId) return true;
+    // Otherwise, can't start
+    return false;
+  };
 
   if (loading) {
     return (
@@ -711,6 +734,16 @@ export default function MyTasksPage() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {/* Reset Timer Button - Show only when there's a ghost timer */}
+            {timerState.taskId === null && timerState.elapsedSeconds > 0 && (
+              <button
+                onClick={handleResetTimer}
+                className="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm flex items-center gap-2 transition shadow-sm"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Reset Stuck Timer
+              </button>
+            )}
             <button
               onClick={handleExport}
               className="px-3 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm"
@@ -955,6 +988,37 @@ export default function MyTasksPage() {
           )}
         </AnimatePresence>
 
+        {/* Active Timer Warning Banner */}
+        {activeTimerTaskId && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3"
+          >
+            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-amber-800">
+                <strong>Timer Active:</strong> A timer is currently running for a task.
+                Please stop or pause it before starting a new timer.
+                {(() => {
+                  const activeTask = tasks.find(t => t._id === activeTimerTaskId);
+                  return activeTask ? ` (${activeTask.title})` : '';
+                })()}
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                if (activeTimerTaskId) {
+                  handleStopTimer(activeTimerTaskId);
+                }
+              }}
+              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition"
+            >
+              Stop Timer
+            </button>
+          </motion.div>
+        )}
+
         {/* Tasks Grid View */}
         {view === "grid" ? (
           filteredTasks.length === 0 ? (
@@ -1002,6 +1066,7 @@ export default function MyTasksPage() {
                   );
                   const totalTime = getTotalTimeForTask(task);
                   const isRejected = task.status === "rejected";
+                  const isTaskTimerActive = activeTimerTaskId === task._id;
 
                   return (
                     <motion.div
@@ -1017,7 +1082,9 @@ export default function MyTasksPage() {
                       whileHover={{ y: -4, scale: 1.01 }}
                       className={`group relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl ${isRejected
                         ? "border-red-200 hover:border-red-300 hover:shadow-red-500/10"
-                        : "border-gray-200/50 hover:border-indigo-300/50 hover:shadow-indigo-500/10"
+                        : isTaskTimerActive
+                          ? "border-indigo-400 shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-400/50"
+                          : "border-gray-200/50 hover:border-indigo-300/50 hover:shadow-indigo-500/10"
                         }`}
                       onClick={() => setSelectedTask(task)}
                     >
@@ -1061,6 +1128,12 @@ export default function MyTasksPage() {
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
                                 <History className="w-3 h-3" />
                                 {totalTime.display}
+                              </span>
+                            )}
+                            {isTaskTimerActive && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
+                                <TimerIcon className="w-3 h-3" />
+                                Active
                               </span>
                             )}
                           </div>
@@ -1199,12 +1272,16 @@ export default function MyTasksPage() {
                                         e.stopPropagation();
                                         handleStartTimer(task._id);
                                       }}
-                                      className="px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50"
-                                      disabled={
-                                        activeTimerTaskId !== null &&
-                                        activeTimerTaskId !== task._id
+                                      className={`px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== task._id
+                                          ? "from-gray-400 to-gray-500 cursor-not-allowed"
+                                          : "from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                                        }`}
+                                      disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
+                                      title={
+                                        activeTimerTaskId && activeTimerTaskId !== task._id
+                                          ? "Another task timer is running"
+                                          : "Start Timer"
                                       }
-                                      title="Start Timer"
                                     >
                                       <Play className="w-3 h-3 me-2" />
                                       Start
@@ -1314,7 +1391,7 @@ export default function MyTasksPage() {
             </>
           )
         ) : (
-          // List View - Updated with all features
+          // List View
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1508,12 +1585,16 @@ export default function MyTasksPage() {
                                           e.stopPropagation();
                                           handleStartTimer(task._id);
                                         }}
-                                        className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-40"
-                                        disabled={
-                                          activeTimerTaskId !== null &&
-                                          activeTimerTaskId !== task._id
+                                        className={`p-1.5 rounded-lg transition disabled:opacity-40 ${activeTimerTaskId && activeTimerTaskId !== task._id
+                                            ? "text-gray-400 cursor-not-allowed"
+                                            : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                          }`}
+                                        disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
+                                        title={
+                                          activeTimerTaskId && activeTimerTaskId !== task._id
+                                            ? "Another task timer is running"
+                                            : "Start Timer"
                                         }
-                                        title="Start Timer"
                                       >
                                         <Play className="w-4 h-4" />
                                       </button>
@@ -1778,10 +1859,15 @@ export default function MyTasksPage() {
                                 handleStartTimer(selectedTask._id);
                                 setSelectedTask(null);
                               }}
-                              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50"
-                              disabled={
-                                activeTimerTaskId !== null &&
-                                activeTimerTaskId !== selectedTask._id
+                              className={`px-4 py-2 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== selectedTask._id
+                                  ? "bg-gray-400 cursor-not-allowed"
+                                  : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                }`}
+                              disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
+                              title={
+                                activeTimerTaskId && activeTimerTaskId !== selectedTask._id
+                                  ? "Another task timer is running"
+                                  : "Start Timer"
                               }
                             >
                               <Play className="w-4 h-4" />
