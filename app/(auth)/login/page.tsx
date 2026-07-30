@@ -47,7 +47,11 @@ const ALLOWED_ROLES = [
   "employee",
 ];
 
+// ============================================================
+// FLOATING PARTICLES - FIXED HYDRATION
+// ============================================================
 const FloatingParticles = () => {
+  const [mounted, setMounted] = useState(false);
   const [particles, setParticles] = useState<
     Array<{
       id: number;
@@ -61,6 +65,7 @@ const FloatingParticles = () => {
   >([]);
 
   useEffect(() => {
+    setMounted(true);
     const newParticles = Array.from({ length: 30 }, (_, i) => ({
       id: i,
       size: Math.random() * 3 + 1,
@@ -73,7 +78,7 @@ const FloatingParticles = () => {
     setParticles(newParticles);
   }, []);
 
-  if (particles.length === 0) return null;
+  if (!mounted || particles.length === 0) return null;
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -110,6 +115,9 @@ const FloatingParticles = () => {
   );
 };
 
+// ============================================================
+// GLOWING ORBS
+// ============================================================
 const GlowingOrbs = () => {
   const [mounted, setMounted] = useState(false);
 
@@ -222,11 +230,10 @@ const UserButton = memo(
         transition={{ delay: index * 0.05 }}
         onClick={onClick}
         type="button"
-        className={`w-full group relative overflow-hidden rounded-xl transition-all duration-300 p-3 ${
-          isActive
+        className={`w-full group relative overflow-hidden rounded-xl transition-all duration-300 p-3 ${isActive
             ? `bg-linear-to-r ${gradient} border-indigo-500/40 shadow-lg shadow-indigo-500/20 scale-[1.02]`
             : "bg-white/5 border-white/10 hover:border-white/20 hover:bg-white/10 hover:scale-[1.01]"
-        } border backdrop-blur-sm`}
+          } border backdrop-blur-sm`}
       >
         <div
           className={`absolute inset-0 bg-linear-to-r ${gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}
@@ -252,9 +259,8 @@ const UserButton = memo(
             </div>
           </div>
           <ArrowRight
-            className={`w-4 h-4 text-slate-400 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${
-              isActive ? "text-indigo-400" : ""
-            }`}
+            className={`w-4 h-4 text-slate-400 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${isActive ? "text-indigo-400" : ""
+              }`}
           />
         </div>
       </motion.button>
@@ -264,13 +270,15 @@ const UserButton = memo(
 
 UserButton.displayName = "UserButton";
 
+// ============================================================
+// MAIN LOGIN PAGE
+// ============================================================
 export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isFocused, setIsFocused] = useState({ email: false, password: false });
   const [formData, setFormData] = useState({ email: "", password: "" });
-  const [mounted, setMounted] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
@@ -278,49 +286,53 @@ export default function LoginPage() {
   const [activeUser, setActiveUser] = useState<string | null>(null);
 
   useEffect(() => {
-    setMounted(true);
-    fetchActiveUsers();
-  }, []);
+    let isMounted = true;
 
-  const fetchActiveUsers = async () => {
-    try {
-      setLoadingUsers(true);
-      const response = await api.get("/auth/active-users");
+    const fetchActiveUsers = async () => {
+      try {
+        const response = await api.get("/auth/active-users");
 
-      if (response.data?.success) {
-        const users: ActiveUser[] = response.data.data || [];
-        const filteredUsers = users.filter((user: ActiveUser) =>
-          ALLOWED_ROLES.includes(user.role),
+        if (response.data?.success) {
+          const users: ActiveUser[] = response.data.data || [];
+          const filteredUsers = users.filter((user: ActiveUser) =>
+            ALLOWED_ROLES.includes(user.role),
+          );
+
+          const rolePriority: Record<string, number> = {
+            super_admin: 1,
+            admin: 2,
+            hr_manager: 3,
+            dept_manager: 4,
+            project_manager: 5,
+            employee: 6,
+          };
+
+          filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
+            return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
+          });
+
+          if (isMounted) setActiveUsers(filteredUsers);
+        } else {
+          console.error("Failed to fetch users:", response.data?.message);
+          if (isMounted) setActiveUsers([]);
+        }
+      } catch (error: any) {
+        console.error(
+          "Failed to fetch active users:",
+          error?.response?.data?.message || error.message,
         );
-
-        const rolePriority: Record<string, number> = {
-          super_admin: 1,
-          admin: 2,
-          hr_manager: 3,
-          dept_manager: 4,
-          project_manager: 5,
-          employee: 6,
-        };
-
-        filteredUsers.sort((a: ActiveUser, b: ActiveUser) => {
-          return (rolePriority[a.role] || 99) - (rolePriority[b.role] || 99);
-        });
-
-        setActiveUsers(filteredUsers);
-      } else {
-        console.error("Failed to fetch users:", response.data?.message);
-        setActiveUsers([]);
+        if (isMounted) setActiveUsers([]);
+      } finally {
+        if (isMounted) setLoadingUsers(false);
       }
-    } catch (error: any) {
-      console.error(
-        "Failed to fetch active users:",
-        error?.response?.data?.message || error.message,
-      );
-      setActiveUsers([]);
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
+    };
+
+    fetchActiveUsers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleUserSelect = useCallback((email: string) => {
     setFormData({ email, password: "Admin@123" });
@@ -346,22 +358,14 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      console.log("🚀 Calling login with:", formData.email);
-
-      // Now this will be properly typed as User
       const userData = await login(formData.email, formData.password);
 
-      console.log("✅ Login successful for:", userData?.email);
-      console.log("👤 User data:", userData);
-
       const token = localStorage.getItem("token");
-      console.log("🔑 Token after login:", token ? "YES" : "NO");
 
       if (token) {
         toast.success(`Welcome back, ${userData?.fullName || "User"}!`);
         router.push("/dashboard");
       } else {
-        console.error("❌ No token found after login!");
         setLoginError(
           "Login succeeded but no token was stored. Please try again.",
         );
@@ -370,8 +374,6 @@ export default function LoginPage() {
         );
       }
     } catch (error: unknown) {
-      console.error("❌ Login error in component:", error);
-
       let errorMessage = "Login failed. Please try again.";
 
       if (typeof error === "string") {
@@ -396,45 +398,6 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  if (!mounted) {
-    return (
-      <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
-        <div className="relative z-10 w-full max-w-4xl">
-          <div className="relative bg-white/80 backdrop-blur-xl border border-white shadow-2xl rounded-2xl overflow-hidden">
-            <div className="flex flex-col items-center text-center p-8">
-              <div className="relative">
-                <div className="relative w-16 h-16 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
-                  <CheckSquare className="w-7 h-7 text-white" />
-                </div>
-              </div>
-              <h1 className="mt-4 text-2xl font-bold text-slate-800">
-                Welcome Back
-              </h1>
-              <p className="text-slate-500 text-sm mt-1">
-                Sign in to your workspace
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-6 p-8 pt-0">
-              <div className="space-y-4">
-                <div className="h-12 bg-slate-100 rounded-xl animate-pulse" />
-                <div className="h-12 bg-slate-100 rounded-xl animate-pulse" />
-                <div className="h-12 bg-linear-to-r from-indigo-600 to-purple-600 rounded-xl animate-pulse" />
-              </div>
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="h-14 bg-slate-100 rounded-xl animate-pulse"
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
@@ -530,15 +493,13 @@ export default function LoginPage() {
                     Email Address
                   </label>
                   <motion.div
-                    className={`relative transition-all duration-300 ${
-                      isFocused.email ? "scale-[1.01]" : ""
-                    }`}
+                    className={`relative transition-all duration-300 ${isFocused.email ? "scale-[1.01]" : ""
+                      }`}
                     whileHover={{ scale: 1.01 }}
                   >
                     <Mail
-                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                        isFocused.email ? "text-indigo-600" : "text-slate-400"
-                      }`}
+                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${isFocused.email ? "text-indigo-600" : "text-slate-400"
+                        }`}
                     />
                     <input
                       type="email"
@@ -573,17 +534,15 @@ export default function LoginPage() {
                     </Link>
                   </div>
                   <motion.div
-                    className={`relative transition-all duration-300 ${
-                      isFocused.password ? "scale-[1.01]" : ""
-                    }`}
+                    className={`relative transition-all duration-300 ${isFocused.password ? "scale-[1.01]" : ""
+                      }`}
                     whileHover={{ scale: 1.01 }}
                   >
                     <Lock
-                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${
-                        isFocused.password
+                      className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${isFocused.password
                           ? "text-indigo-600"
                           : "text-slate-400"
-                      }`}
+                        }`}
                     />
                     <input
                       type={showPassword ? "text" : "password"}
