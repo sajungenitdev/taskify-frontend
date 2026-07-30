@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTimer } from "@/contexts/TimerContext";
 import { useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, HistoryIcon, Pause, TimerIcon } from "lucide-react";
 import {
   CheckSquare,
   Clock,
@@ -98,8 +99,30 @@ interface ExtendedUser {
 }
 
 export default function TasksPage() {
-  const { user, isAuthenticated, isLoading, hasRole } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+
+  // ============ TIMER CONTEXT ============
+  const {
+    timerState,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    stopTimer,
+    stopTimerAutomatically,
+    formatTime,
+    formatTimeShort,
+    getDisplayTimeForTask,
+    isTimerActiveForTask,
+    isTimerRunning,
+    activeTimerTaskId,
+    syncTimerWithBackend,
+    resetTimer,
+    isTimerValidForUser,
+    getTimerOwner,
+  } = useTimer();
+
+  // ============ STATE ============
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -114,9 +137,7 @@ export default function TasksPage() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null,
-  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -125,6 +146,7 @@ export default function TasksPage() {
   const [showEvidenceUpload, setShowEvidenceUpload] = useState(false);
   const [newEvidenceUrl, setNewEvidenceUrl] = useState("");
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
@@ -159,6 +181,12 @@ export default function TasksPage() {
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
+  // ============ STATE FOR TASK ACTIONS ============
+  const [isCompleting, setIsCompleting] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+  const [isReworking, setIsReworking] = useState<string | null>(null);
+
+  // ============ ROLE CHECKS ============
   const userRole = user?.role;
   const isSuperAdmin = userRole === "super_admin";
   const isAdmin = userRole === "admin";
@@ -168,13 +196,7 @@ export default function TasksPage() {
   const isLineManager = userRole === "line_manager";
 
   const canManage = isSuperAdmin || isAdmin || isHrManager || isDeptManager || isProjectManager || isLineManager;
-  const canApprove =
-    isSuperAdmin ||
-    isAdmin ||
-    isHrManager ||
-    isDeptManager ||
-    isProjectManager ||
-    isLineManager;
+  const canApprove = isSuperAdmin || isAdmin || isHrManager || isDeptManager || isProjectManager || isLineManager;
 
   // Get user's department ID
   const userDepartmentId = useMemo(() => {
@@ -182,13 +204,47 @@ export default function TasksPage() {
     return extendedUser?.department?._id || extendedUser?.departmentId || null;
   }, [user]);
 
-  // Check if user is a department manager or project manager (should see department tasks)
+  // Check if user is a department manager or project manager
   const isDepartmentManager = useMemo(() => {
     return isDeptManager || isProjectManager || isLineManager;
   }, [isDeptManager, isProjectManager, isLineManager]);
 
+  // ============ CHECK IF USER IS TASK ASSIGNEE ============
+  const isTaskAssignee = useCallback((task: Task): boolean => {
+    if (!user || !task) return false;
 
+    if (task.assignedTo && typeof task.assignedTo === 'object') {
+      const assigneeId = task.assignedTo._id || (task.assignedTo as any).id;
+      const userId = user._id || (user as any).id;
+      return assigneeId === userId;
+    }
 
+    if (typeof task.assignedTo === 'string') {
+      return task.assignedTo === (user._id || (user as any).id);
+    }
+
+    return false;
+  }, [user]);
+
+  // ============ CHECK IF TIMER BELONGS TO CURRENT USER ============
+  const isTimerValidForCurrentUser = useCallback((): boolean => {
+    if (!user) return false;
+    const userId = user._id || (user as any).id || '';
+    return isTimerValidForUser(userId);
+  }, [user, isTimerValidForUser]);
+
+  // ============ CHECK IF USER HAS ANY TASKS ============
+  const hasAssignedTasks = tasks.some(task => isTaskAssignee(task));
+
+  // ============ CHECK IF ACTIVE TIMER BELONGS TO USER'S TASK ============
+  const hasValidActiveTimer = useCallback((): boolean => {
+    if (!activeTimerTaskId) return false;
+    const task = tasks.find(t => t._id === activeTimerTaskId);
+    if (!task) return false;
+    return isTaskAssignee(task) && isTimerValidForCurrentUser();
+  }, [activeTimerTaskId, tasks, isTaskAssignee, isTimerValidForCurrentUser]);
+
+  // ============ EFFECTS ============
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
@@ -204,8 +260,7 @@ export default function TasksPage() {
     }
   }, [isAuthenticated, user, filter]);
 
-  // In your tasks page component
-
+  // ============ FETCH FUNCTIONS ============
   const fetchDepartmentUsers = async () => {
     try {
       if (!userDepartmentId) {
@@ -216,7 +271,6 @@ export default function TasksPage() {
 
       console.log(`🔍 Fetching users for department: ${userDepartmentId}`);
 
-      // Try the auth/users/department endpoint first
       try {
         const response = await api.get(`/auth/users/department/${userDepartmentId}`);
         if (response.data.success) {
@@ -229,7 +283,6 @@ export default function TasksPage() {
         console.warn("⚠️ Auth endpoint failed, trying users endpoint:", authError);
       }
 
-      // Fallback: Try the users/department endpoint
       try {
         const response = await api.get(`/users/department/${userDepartmentId}`);
         if (response.data.success) {
@@ -242,7 +295,6 @@ export default function TasksPage() {
         console.warn("⚠️ Users endpoint also failed:", usersError);
       }
 
-      // Last resort: Try fetching all users and filter
       try {
         const allUsersResponse = await api.get('/users');
         if (allUsersResponse.data.success) {
@@ -259,7 +311,6 @@ export default function TasksPage() {
         console.error("❌ Fallback also failed:", fallbackError);
       }
 
-      // If all fails, extract from tasks
       if (tasks && tasks.length > 0) {
         const userMap = new Map();
         tasks.forEach(task => {
@@ -306,26 +357,21 @@ export default function TasksPage() {
       console.error("Error fetching projects:", error);
     }
   };
-  // In your tasks page component
 
   const fetchTasks = async () => {
     try {
       setLoading(true);
 
-      // Build query params
       const params = new URLSearchParams();
 
       if (filter !== "all") {
         params.append("status", filter);
       }
 
-      // For project manager - send departmentId to get all department tasks
       if (isProjectManager && userDepartmentId) {
         params.append("departmentId", userDepartmentId);
         console.log(`📋 Project Manager - fetching all tasks for department: ${userDepartmentId}`);
-      }
-      // For department manager
-      else if (isDeptManager && userDepartmentId) {
+      } else if (isDeptManager && userDepartmentId) {
         params.append("departmentId", userDepartmentId);
         console.log(`🏢 Department Manager - filtering by departmentId: ${userDepartmentId}`);
       }
@@ -342,15 +388,12 @@ export default function TasksPage() {
           setStats(response.data.stats);
         }
 
-        // Fetch real counts for each task
         const tasksWithCounts = await Promise.all(
           (response.data.data || []).map(async (task: Task) => {
             try {
-              // Fetch comments count
               const commentsResponse = await api.get(`/tasks/${task._id}/comments`);
               const commentsCount = commentsResponse.data.data?.length || 0;
 
-              // Fetch attachments count
               const attachmentsResponse = await api.get(`/tasks/${task._id}/attachments`);
               const attachmentsCount = attachmentsResponse.data.data?.length || 0;
 
@@ -382,28 +425,23 @@ export default function TasksPage() {
       setLoading(false);
     }
   };
-  // Filter users based on department for project managers
-  // Replace the getAvailableUsers with this updated version
+
+  // ============ FILTER USERS ============
   const getAvailableUsers = useMemo(() => {
-    // For super admin, admin, HR manager - show all users
     if (isSuperAdmin || isAdmin || isHrManager) {
       return users;
     }
 
-    // For department managers - show users from their department
     if (isDepartmentManager && userDepartmentId) {
-      // First try to get users from departmentUsers state
       if (departmentUsers.length > 0) {
         return departmentUsers;
       }
 
-      // Fallback: filter from all users
       const filtered = users.filter(u =>
         (u as any).department?._id === userDepartmentId ||
         (u as any).departmentId === userDepartmentId
       );
 
-      // If still no users, return all users (fallback)
       if (filtered.length === 0) {
         console.warn("⚠️ No department users found, showing all users as fallback");
         return users;
@@ -414,6 +452,8 @@ export default function TasksPage() {
 
     return users;
   }, [users, isSuperAdmin, isAdmin, isHrManager, isDepartmentManager, userDepartmentId, departmentUsers]);
+
+  // ============ TASK ACTION HANDLERS ============
 
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     setUpdating(true);
@@ -484,7 +524,321 @@ export default function TasksPage() {
     }
   };
 
-  // Evidence handlers
+  // ============ MARK COMPLETE ============
+  const handleMarkComplete = async (taskId: string) => {
+    if (isCompleting === taskId) return;
+
+    const task = tasks.find(t => t._id === taskId);
+    if (!task) return;
+
+    if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
+      toast.error("⚠️ Evidence required! Please upload evidence before completing this task.");
+      return;
+    }
+
+    setIsCompleting(taskId);
+    try {
+      let actualMinutes = task.actualMinutes || 0;
+      if (isTimerActiveForTask(taskId)) {
+        const timerResult = await stopTimerAutomatically(taskId);
+        if (timerResult.success && timerResult.minutes > 0) {
+          actualMinutes = timerResult.minutes;
+          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
+        }
+      }
+
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: "completed",
+        actualMinutes: actualMinutes,
+        approvalNote: "Task marked as complete by assignee",
+      });
+
+      if (response.data.success) {
+        toast.success(`✅ Task marked as complete! ${actualMinutes > 0 ? `Time tracked: ${formatTimeShort(actualMinutes * 60)}` : ''}`);
+        await fetchTasks();
+        setSelectedTask(null);
+      }
+    } catch (error: any) {
+      console.error("Error marking task complete:", error);
+      toast.error(error.response?.data?.message || "Failed to mark task as complete");
+    } finally {
+      setIsCompleting(null);
+    }
+  };
+
+  // ============ SUBMIT FOR REVIEW ============
+  const handleSubmitForReview = async (taskId: string) => {
+    if (isSubmitting === taskId) return;
+
+    const task = tasks.find(t => t._id === taskId);
+    if (!task) return;
+
+    if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
+      toast.error("⚠️ Evidence required! Please upload evidence before submitting.");
+      return;
+    }
+
+    setIsSubmitting(taskId);
+    try {
+      if (isTimerActiveForTask(taskId)) {
+        const timerResult = await stopTimerAutomatically(taskId);
+        if (timerResult.success && timerResult.minutes > 0) {
+          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
+        }
+      }
+
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: "submitted",
+      });
+
+      if (response.data.success) {
+        toast.success(`✅ Task submitted for review!`);
+        await fetchTasks();
+        setSelectedTask(null);
+      }
+    } catch (error: any) {
+      console.error("Error submitting task:", error);
+      toast.error(error.response?.data?.message || "Failed to submit task");
+    } finally {
+      setIsSubmitting(null);
+    }
+  };
+
+  // ============ SEND FOR REWORK ============
+  const handleSendForRework = async (taskId: string) => {
+    if (isReworking === taskId) return;
+
+    if (!confirm("Send this task back for rework?")) return;
+
+    setIsReworking(taskId);
+    try {
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: "pending",
+      });
+
+      if (response.data.success) {
+        toast.success(`🔄 Task sent back for rework!`);
+        await fetchTasks();
+        setSelectedTask(null);
+      }
+    } catch (error: any) {
+      console.error("Error sending for rework:", error);
+      toast.error(error.response?.data?.message || "Failed to send for rework");
+    } finally {
+      setIsReworking(null);
+    }
+  };
+
+  const handleStatusChange = async (taskId: string, newStatus: string) => {
+    if (updatingStatus === taskId) return;
+
+    if (newStatus === "completed") {
+      await handleMarkComplete(taskId);
+      return;
+    }
+
+    if (newStatus === "submitted") {
+      await handleSubmitForReview(taskId);
+      return;
+    }
+
+    setUpdatingStatus(taskId);
+    try {
+      const response = await api.patch(`/tasks/${taskId}/status`, {
+        status: newStatus,
+      });
+      if (response.data.success) {
+        toast.success(`Task moved to ${newStatus.replace("_", " ")}`);
+        setTasks((prev) =>
+          prev.map((task) =>
+            task._id === taskId
+              ? { ...task, status: newStatus as Task["status"] }
+              : task,
+          ),
+        );
+        if (newStatus === "completed" && activeTimerTaskId === taskId) {
+          await stopTimerAutomatically(taskId);
+        }
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update status");
+      await fetchTasks();
+    } finally {
+      setUpdatingStatus(null);
+    }
+  };
+
+  // ============ TIMER HANDLERS ============
+  const handleStartTimer = async (taskId: string) => {
+    const task = tasks.find((t) => t._id === taskId);
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
+
+    if (!isTaskAssignee(task)) {
+      toast.error("You don't have permission to start timer for this task");
+      return;
+    }
+
+    if (activeTimerTaskId && activeTimerTaskId !== taskId) {
+      if (isTimerValidForCurrentUser()) {
+        const currentTask = tasks.find((t) => t._id === activeTimerTaskId);
+        toast.error(
+          `⚠️ A timer is already running for "${currentTask?.title || 'another task'}". Please stop that timer first before starting a new one.`,
+          { duration: 4000 }
+        );
+        return;
+      } else {
+        resetTimer();
+      }
+    }
+
+    if (timerState.taskId === null && timerState.elapsedSeconds > 0) {
+      console.log("🧹 Cleaning up ghost timer state");
+      resetTimer();
+    }
+
+    const baselineSeconds = (task.actualMinutes || 0) * 60;
+    startTimer(taskId, baselineSeconds);
+    toast.success(`⏱️ Timer started for "${task.title}"`);
+  };
+
+  const handlePauseTimer = () => {
+    pauseTimer();
+    toast.success("⏸️ Timer paused");
+  };
+
+  const handleResumeTimer = () => {
+    resumeTimer();
+    toast.success("▶️ Timer resumed");
+  };
+
+  const handleStopTimer = useCallback(
+    async (taskId: string) => {
+      try {
+        const result = await stopTimer(taskId);
+
+        if (result.success) {
+          if (result.minutes > 0) {
+            toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+            await fetchTasks();
+          } else {
+            toast.success("⏱️ Timer stopped - no time tracked");
+          }
+          return result;
+        } else {
+          toast.error("Failed to stop timer");
+          return result;
+        }
+      } catch (error) {
+        console.error("Error stopping timer:", error);
+        toast.error("Failed to stop timer");
+        return { success: false, minutes: 0, displayTime: "0m" };
+      }
+    },
+    [stopTimer, fetchTasks],
+  );
+
+  // ============ OTHER HANDLERS ============
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      const response = await api.delete(`/tasks/${taskId}`);
+      if (response.data.success) {
+        toast.success("Task deleted successfully");
+        setShowDeleteConfirm(null);
+        fetchTasks();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete task");
+    }
+  };
+
+  const handleUpdateTask = async () => {
+    if (!editingTask) return;
+
+    try {
+      const response = await api.put(`/tasks/${editingTask._id}`, editFormData);
+      if (response.data.success) {
+        toast.success("Task updated successfully");
+        setShowEditModal(false);
+        setEditingTask(null);
+        fetchTasks();
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update task");
+    }
+  };
+
+  const toggleStar = (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((task) =>
+        task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
+      ),
+    );
+    const task = tasks.find((t) => t._id === taskId);
+    toast.success(task?.isStarred ? "Task unstarred" : "Task starred");
+  };
+
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setEditFormData({
+      title: task.title,
+      description: task.description,
+      priority: task.priority,
+      status: task.status,
+      deadline: task.deadline.split("T")[0],
+      estimatedHours: task.estimatedHours,
+      assignedTo: task.assignedTo?._id || "",
+      projectId: task.projectId?._id || "",
+    });
+    setShowEditModal(true);
+  };
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTasks((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleAllTasks = () => {
+    if (selectedTasks.size === filteredTasks.length) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(filteredTasks.map((t) => t._id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTasks.size === 0) {
+      toast.error("No tasks selected");
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const deletePromises = Array.from(selectedTasks).map((taskId) =>
+        api.delete(`/tasks/${taskId}`),
+      );
+      await Promise.all(deletePromises);
+      toast.success(`Successfully deleted ${selectedTasks.size} tasks`);
+      setSelectedTasks(new Set());
+      setIsBulkDeleteModalOpen(false);
+      fetchTasks();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete tasks");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  // ============ EVIDENCE HANDLERS ============
   const handleAddEvidence = () => {
     if (newEvidenceUrl && newEvidenceUrl.trim()) {
       setSelectedTask((prev) => {
@@ -540,104 +894,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleUpdateTask = async () => {
-    if (!editingTask) return;
-
-    try {
-      const response = await api.put(`/tasks/${editingTask._id}`, editFormData);
-      if (response.data.success) {
-        toast.success("Task updated successfully");
-        setShowEditModal(false);
-        setEditingTask(null);
-        fetchTasks();
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update task");
-    }
-  };
-
-  const handleDeleteTask = async (taskId: string) => {
-    try {
-      const response = await api.delete(`/tasks/${taskId}`);
-      if (response.data.success) {
-        toast.success("Task deleted successfully");
-        setShowDeleteConfirm(null);
-        fetchTasks();
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to delete task");
-    }
-  };
-
-  const toggleStar = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
-      ),
-    );
-    const task = tasks.find((t) => t._id === taskId);
-    toast.success(task?.isStarred ? "Task unstarred" : "Task starred");
-  };
-
-  const openEditModal = (task: Task) => {
-    setEditingTask(task);
-    setEditFormData({
-      title: task.title,
-      description: task.description,
-      priority: task.priority,
-      status: task.status,
-      deadline: task.deadline.split("T")[0],
-      estimatedHours: task.estimatedHours,
-      assignedTo: task.assignedTo?._id || "",
-      projectId: task.projectId?._id || "",
-    });
-    setShowEditModal(true);
-  };
-
-  // Bulk selection handlers
-  const toggleTaskSelection = (taskId: string) => {
-    setSelectedTasks((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(taskId)) {
-        newSet.delete(taskId);
-      } else {
-        newSet.add(taskId);
-      }
-      return newSet;
-    });
-  };
-
-  const toggleAllTasks = () => {
-    if (selectedTasks.size === filteredTasks.length) {
-      setSelectedTasks(new Set());
-    } else {
-      setSelectedTasks(new Set(filteredTasks.map((t) => t._id)));
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedTasks.size === 0) {
-      toast.error("No tasks selected");
-      return;
-    }
-
-    setIsBulkDeleting(true);
-    try {
-      const deletePromises = Array.from(selectedTasks).map((taskId) =>
-        api.delete(`/tasks/${taskId}`),
-      );
-      await Promise.all(deletePromises);
-      toast.success(`Successfully deleted ${selectedTasks.size} tasks`);
-      setSelectedTasks(new Set());
-      setIsBulkDeleteModalOpen(false);
-      fetchTasks();
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to delete tasks");
-    } finally {
-      setIsBulkDeleting(false);
-    }
-  };
-
+  // ============ HELPERS ============
   const getPriorityConfig = (priority: string) => {
     const config = {
       low: {
@@ -783,6 +1040,7 @@ export default function TasksPage() {
     toast.success("Tasks exported successfully");
   };
 
+  // ============ FILTERED TASKS ============
   const getFilteredTasks = useCallback(() => {
     return tasks
       .filter((task) => {
@@ -803,10 +1061,8 @@ export default function TasksPage() {
         } else if (sortBy === "priority") {
           const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
           return sortOrder === "asc"
-            ? (priorityOrder[a.priority] || 0) -
-            (priorityOrder[b.priority] || 0)
-            : (priorityOrder[b.priority] || 0) -
-            (priorityOrder[a.priority] || 0);
+            ? (priorityOrder[a.priority] || 0) - (priorityOrder[b.priority] || 0)
+            : (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
         } else {
           return sortOrder === "asc"
             ? new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime()
@@ -817,6 +1073,7 @@ export default function TasksPage() {
 
   const filteredTasks = getFilteredTasks();
 
+  // ============ STATS CARDS ============
   const statCards = [
     {
       label: "Total",
@@ -889,6 +1146,13 @@ export default function TasksPage() {
     return null;
   }, [user, isDepartmentManager, departmentUsers]);
 
+  // ============ RESET TIMER ============
+  const handleResetTimer = () => {
+    resetTimer();
+    toast.success("Timer state reset successfully");
+  };
+
+  // ============ LOADING STATE ============
   if (isLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50/30">
@@ -907,6 +1171,7 @@ export default function TasksPage() {
     );
   }
 
+  // ============ RENDER ============
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/20">
       <div className="p-4 md:p-6 lg:p-8">
@@ -947,8 +1212,6 @@ export default function TasksPage() {
                   <p className="text-xs text-gray-500 flex items-center gap-2">
                     <Users size={12} />
                     {departmentInfo.memberCount} members
-                    {/* <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                    {stats.total} tasks */}
                   </p>
                 </div>
               </div>
@@ -1254,6 +1517,7 @@ export default function TasksPage() {
               ))}
             </motion.div>
           ) : (
+            // List View - This is where the table is
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1298,125 +1562,139 @@ export default function TasksPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredTasks.map((task) => (
-                      <tr
-                        key={task._id}
-                        className={`hover:bg-indigo-50/30 transition-colors duration-200 ${selectedTasks.has(task._id)
-                          ? "bg-indigo-50/50 border-l-4 border-indigo-500"
-                          : ""
-                          }`}
-                      >
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => toggleTaskSelection(task._id)}
-                            className="p-1 rounded-lg hover:bg-indigo-100 transition"
-                          >
-                            {selectedTasks.has(task._id) ? (
-                              <CheckSquare className="w-4 h-4 text-indigo-600" />
-                            ) : (
-                              <Square className="w-4 h-4 text-gray-400" />
-                            )}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
+                    {filteredTasks.map((task) => {
+                      const isAssignee = isTaskAssignee(task);
+                      return (
+                        <tr
+                          key={task._id}
+                          className={`hover:bg-indigo-50/30 transition-colors duration-200 ${selectedTasks.has(task._id)
+                            ? "bg-indigo-50/50 border-l-4 border-indigo-500"
+                            : ""
+                            }`}
+                        >
+                          <td className="px-4 py-3">
                             <button
-                              onClick={() => toggleStar(task._id)}
-                              className="text-gray-400 hover:text-amber-400 transition"
+                              onClick={() => toggleTaskSelection(task._id)}
+                              className="p-1 rounded-lg hover:bg-indigo-100 transition"
                             >
-                              <Star
-                                size={14}
-                                className={
-                                  task.isStarred
-                                    ? "fill-amber-400 text-amber-400"
-                                    : ""
-                                }
-                              />
+                              {selectedTasks.has(task._id) ? (
+                                <CheckSquare className="w-4 h-4 text-indigo-600" />
+                              ) : (
+                                <Square className="w-4 h-4 text-gray-400" />
+                              )}
                             </button>
-                            <div>
-                              <p className="text-gray-800 text-sm font-medium hover:text-indigo-600 transition">
-                                {task.title}
-                              </p>
-                              <p className="text-gray-400 text-xs line-clamp-1">
-                                {task.description}
-                              </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => toggleStar(task._id)}
+                                className="text-gray-400 hover:text-amber-400 transition"
+                              >
+                                <Star
+                                  size={14}
+                                  className={
+                                    task.isStarred
+                                      ? "fill-amber-400 text-amber-400"
+                                      : ""
+                                  }
+                                />
+                              </button>
+                              <div>
+                                <p className="text-gray-800 text-sm font-medium hover:text-indigo-600 transition">
+                                  {task.title}
+                                </p>
+                                <p className="text-gray-400 text-xs line-clamp-1">
+                                  {task.description}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color} shadow-sm`}
-                          >
-                            <span className="mr-1">
-                              {getPriorityConfig(task.priority).icon}
-                            </span>
-                            {task.priority}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                          </td>
+                          <td className="px-4 py-3">
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${getStatusConfig(task.status).dot}`}
-                            />
-                            <span
-                              className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
+                              className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color} shadow-sm`}
                             >
-                              {getStatusConfig(task.status).icon}{" "}
-                              {task.status.replace("_", " ")}
+                              <span className="mr-1">
+                                {getPriorityConfig(task.priority).icon}
+                              </span>
+                              {task.priority}
                             </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                              <span className="text-white text-[10px] font-bold">
-                                {task.assignedTo?.fullName?.charAt(0) || "?"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${getStatusConfig(task.status).dot}`}
+                              />
+                              <span
+                                className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
+                              >
+                                {getStatusConfig(task.status).icon}{" "}
+                                {task.status.replace("_", " ")}
                               </span>
                             </div>
-                            <span className="text-sm text-gray-600">
-                              {task.assignedTo?.fullName ?? "Unassigned"}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full ${new Date(task.deadline) < new Date() &&
-                              task.status !== "completed"
-                              ? "bg-rose-50 text-rose-600 border border-rose-200"
-                              : "bg-gray-50 text-gray-600 border border-gray-200"
-                              }`}
-                          >
-                            {formatDate(task.deadline)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              onClick={() => setSelectedTask(task)}
-                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                                <span className="text-white text-[10px] font-bold">
+                                  {task.assignedTo?.fullName?.charAt(0) || "?"}
+                                </span>
+                              </div>
+                              <span className="text-sm text-gray-600">
+                                {task.assignedTo?.fullName ?? "Unassigned"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`text-xs font-medium px-2.5 py-1 rounded-full ${new Date(task.deadline) < new Date() &&
+                                task.status !== "completed"
+                                ? "bg-rose-50 text-rose-600 border border-rose-200"
+                                : "bg-gray-50 text-gray-600 border border-gray-200"
+                                }`}
                             >
-                              <Eye size={14} />
-                            </button>
-                            {canManage && (
-                              <>
-                                <button
-                                  onClick={() => openEditModal(task)}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
-                                  onClick={() => setShowDeleteConfirm(task._id)}
-                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              {formatDate(task.deadline)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => setSelectedTask(task)}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                              >
+                                <Eye size={14} />
+                              </button>
+                              {canManage && (
+                                <>
+                                  <button
+                                    onClick={() => openEditModal(task)}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => setShowDeleteConfirm(task._id)}
+                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                              {isAssignee && task.status !== "completed" &&
+                                task.status !== "submitted" &&
+                                task.status !== "rejected" && (
+                                  <button
+                                    onClick={() => handleStartTimer(task._id)}
+                                    className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                    title="Start Timer"
+                                  >
+                                    <Play size={14} />
+                                  </button>
+                                )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1424,6 +1702,8 @@ export default function TasksPage() {
           )}
         </div>
       </div>
+
+      {/* ============ MODALS ============ */}
 
       {/* Create Task Modal */}
       <CreateTaskModal
@@ -1435,392 +1715,323 @@ export default function TasksPage() {
         }}
       />
 
-      {/* Task Details Modal - Keep existing */}
       {/* Task Details Modal */}
       <AnimatePresence>
         {selectedTask && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-            onClick={() => setSelectedTask(null)}
-          >
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-2xl bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              {/* Header */}
-              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start z-10">
-                <div>
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getPriorityConfig(selectedTask.priority).color}`}
-                    >
-                      {getPriorityConfig(selectedTask.priority).icon} {selectedTask.priority.toUpperCase()}
-                    </span>
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getStatusConfig(selectedTask.status).color}`}
-                    >
-                      {getStatusConfig(selectedTask.status).icon} {selectedTask.status.replace("_", " ").toUpperCase()}
-                    </span>
-
-                    {selectedTask.evidenceRequired && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
-                        <Paperclip size={12} className="inline mr-1" />
-                        Evidence Required
-                      </span>
-                    )}
-
-                    {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
-                        <Paperclip size={12} className="inline mr-1" />
-                        Evidence ({selectedTask.evidenceUrls.length})
-                      </span>
-                    )}
-
-                    {selectedTask.status === "rejected" && (
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700">
-                        <X size={12} className="inline mr-1" />
-                        Rejected
-                      </span>
-                    )}
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-gradient-to-r from-indigo-100 to-purple-100">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`p-2.5 rounded-xl bg-gradient-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
+                  >
+                    {getPriorityConfig(selectedTask.priority).icon}
                   </div>
-                  <h2 className="text-xl font-bold text-gray-800">{selectedTask.title}</h2>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      {selectedTask.title}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold text-black px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(selectedTask.priority).bg} ${getPriorityConfig(selectedTask.priority).border}`}
+                      >
+                        {selectedTask.priority.toUpperCase()}
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold text-black px-2.5 py-1 rounded-full border-2 ${getStatusConfig(selectedTask.status).bg} ${getStatusConfig(selectedTask.status).border}`}
+                      >
+                        {selectedTask.status.replace("_", " ").toUpperCase()}
+                      </span>
+                      {selectedTask.evidenceRequired && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
+                          <Paperclip className="w-3 h-3" />
+                          Evidence Required
+                        </span>
+                      )}
+                      {/* <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
+                        <HistoryIcon className="w-3 h-3" />
+                        {getDisplayTimeForTask(
+                          selectedTask._id,
+                          selectedTask.actualMinutes,
+                        )}
+                      </span> */}
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={() => setSelectedTask(null)}
-                  className="p-1 text-gray-400 hover:text-gray-600 transition"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
                 >
-                  <X size={20} />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-
-              {/* Content */}
-              <div className="p-5 space-y-5">
-                {/* Description */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
-                  <p className="text-gray-600 text-sm">{selectedTask.description}</p>
+              <div className="p-5 space-y-4">
+                <div className="bg-gradient-to-br from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-100">
+                  <p className="text-gray-500 text-sm mb-2 font-medium">
+                    Description
+                  </p>
+                  <p className="text-gray-800">{selectedTask.description}</p>
                 </div>
 
-                {/* Rejection Reason */}
-                {selectedTask.status === "rejected" && selectedTask.rejectionReason && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="pt-3 border-t border-gray-200"
-                  >
-                    <div className="p-4 bg-red-50 rounded-xl border border-red-200">
-                      <div className="flex items-start gap-3">
-                        <div className="p-1.5 bg-red-100 rounded-lg">
-                          <X size={16} className="text-red-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-red-800 flex items-center gap-2">
-                            ❌ Rejection Reason
-                          </p>
-                          <p className="text-sm text-red-700 mt-1 leading-relaxed">
-                            {selectedTask.rejectionReason}
-                          </p>
-                          <p className="text-xs text-red-500 mt-2">
-                            Please review the feedback and resubmit with improvements.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
+                {selectedTask.rejectionReason && (
+                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <p className="text-xs text-red-500 font-medium mb-1">Rejection Reason</p>
+                    <p className="text-sm text-red-700">{selectedTask.rejectionReason}</p>
+                  </div>
                 )}
 
-                {/* Approval Note */}
-                {selectedTask.status === "completed" && selectedTask.approvalNote && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="pt-3 border-t border-gray-200"
-                  >
-                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                      <div className="flex items-start gap-3">
-                        <div className="p-1.5 bg-emerald-100 rounded-lg">
-                          <ThumbsUp size={16} className="text-emerald-600" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
-                            ✅ Approval Note
-                          </p>
-                          <p className="text-sm text-emerald-700 mt-1 leading-relaxed">
-                            {selectedTask.approvalNote}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
+                {selectedTask.approvalNote && (
+                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                    <p className="text-xs text-emerald-500 font-medium mb-1">Approval Note</p>
+                    <p className="text-sm text-emerald-700">{selectedTask.approvalNote}</p>
+                  </div>
                 )}
 
-                {/* Task Details Grid */}
-                <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-200">
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Assigned To</h3>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                        <span className="text-white text-xs font-bold">
-                          {selectedTask.assignedTo?.fullName?.charAt(0) || "?"}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-gray-800 text-sm font-medium">
-                          {selectedTask.assignedTo?.fullName || "Unassigned"}
-                        </p>
-                        <p className="text-gray-400 text-xs">
-                          {selectedTask.assignedTo?.email || ""}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Assigned By</h3>
-                    <p className="text-gray-800 text-sm font-medium">
-                      {selectedTask.assignedBy?.fullName || "Unknown"}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">Project</p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {selectedTask.projectId?.name || "-"}
                     </p>
                   </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Deadline</h3>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={14} className="text-gray-400" />
-                      <span className="text-gray-800 text-sm font-medium">
-                        {new Date(selectedTask.deadline).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Estimated Hours</h3>
-                    <p className="text-gray-800 text-sm font-medium">
-                      {selectedTask.estimatedHours} hours
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Assigned By
+                    </p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {selectedTask.assignedBy?.fullName || "-"}
                     </p>
                   </div>
-
-                  {selectedTask.projectId && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-500 mb-1">Project</h3>
-                      <div className="flex items-center gap-2">
-                        <Briefcase size={14} className="text-gray-400" />
-                        <span className="text-gray-800 text-sm font-medium">
-                          {selectedTask.projectId.name}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Created</h3>
-                    <p className="text-gray-800 text-sm font-medium">
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Deadline
+                    </p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {new Date(selectedTask.deadline).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Estimated Hours
+                    </p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {selectedTask.estimatedHours}h
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">
+                      Time Logged
+                    </p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {getDisplayTimeForTask(
+                        selectedTask._id,
+                        selectedTask.actualMinutes,
+                      )}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">Created</p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {new Date(selectedTask.createdAt || "").toLocaleDateString()}
                     </p>
                   </div>
-
-                  {selectedTask.actualMinutes !== undefined && selectedTask.actualMinutes > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-500 mb-1">Time Logged</h3>
-                      <p className="text-gray-800 text-sm font-medium">
-                        {selectedTask.actualMinutes} minutes
-                      </p>
-                    </div>
-                  )}
                 </div>
 
-                {/* Evidence Section */}
-                {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
-                  <div className="pt-3 border-t border-gray-200">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <Paperclip size={16} className="text-emerald-500" />
-                      Evidence ({selectedTask.evidenceUrls.length})
-                      {selectedTask.evidenceRequired && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Required
-                        </span>
-                      )}
-                      {selectedTask.status === "submitted" && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-                          Submitted with Evidence
-                        </span>
-                      )}
-                      {selectedTask.status === "completed" && (
-                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Approved
-                        </span>
-                      )}
-                    </h3>
-                    <div className="space-y-2">
-                      {selectedTask.evidenceUrls.map((url: string, index: number) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-emerald-200 transition group"
-                        >
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                            <Link2 size={14} className="text-emerald-600" />
-                          </div>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 text-sm text-indigo-600 hover:text-indigo-800 truncate transition"
-                          >
-                            {url}
-                          </a>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 text-xs bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition opacity-0 group-hover:opacity-100"
-                          >
-                            Open
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                    {selectedTask.evidenceSubmittedAt && (
-                      <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                        <ClockIcon size={12} />
-                        Evidence submitted on {new Date(selectedTask.evidenceSubmittedAt).toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* Timer Controls in Modal */}
+                {(() => {
+                  const isAssignee = isTaskAssignee(selectedTask);
+                  const canShowTimer = isAssignee &&
+                    selectedTask.status !== "completed" &&
+                    selectedTask.status !== "submitted" &&
+                    selectedTask.status !== "rejected";
 
-                {/* Evidence Required Message */}
-                {selectedTask.evidenceRequired && (!selectedTask.evidenceUrls || selectedTask.evidenceUrls.length === 0) && (
-                  <div className="pt-3 border-t border-gray-200">
-                    <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                      <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-amber-700">Evidence Required</p>
-                        <p className="text-xs text-amber-600">
-                          This task requires evidence to be submitted upon completion.
-                        </p>
+                  return canShowTimer ? (
+                    <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
+                      <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                        <TimerIcon className="w-4 h-4 text-indigo-600" />
+                        Time Tracking
+                      </p>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {isTimerActiveForTask(selectedTask._id) && isTimerValidForCurrentUser() ? (
+                          <>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3">
+                                <span className="text-2xl font-mono font-bold text-indigo-700 tabular-nums">
+                                  {formatTime(timerState.elapsedSeconds)}
+                                </span>
+                                <span
+                                  className={`text-xs font-medium ${isTimerRunning ? "text-emerald-600" : "text-amber-600"}`}
+                                >
+                                  {isTimerRunning ? "● Running" : "● Paused"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {isTimerRunning ? (
+                                <button
+                                  onClick={() => {
+                                    handlePauseTimer();
+                                    setSelectedTask(null);
+                                  }}
+                                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg"
+                                >
+                                  <Pause className="w-4 h-4" />
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    handleResumeTimer();
+                                    setSelectedTask(null);
+                                  }}
+                                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg"
+                                >
+                                  <Play className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => {
+                                  handleStopTimer(selectedTask._id);
+                                  setSelectedTask(null);
+                                }}
+                                className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg"
+                              >
+                                <Square className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex-1">
+                              <span className="text-sm text-gray-500">
+                                {selectedTask.actualMinutes
+                                  ? `${selectedTask.actualMinutes} minutes logged`
+                                  : "No time tracked yet"}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                handleStartTimer(selectedTask._id);
+                                setSelectedTask(null);
+                              }}
+                              className={`px-4 py-2 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== selectedTask._id
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                }`}
+                              disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
+                              title={
+                                activeTimerTaskId && activeTimerTaskId !== selectedTask._id
+                                  ? "Another task timer is running"
+                                  : "Start Timer"
+                              }
+                            >
+                              <Play className="w-4 h-4" />
+                              Start Timer
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Comments & Attachments Stats */}
-                <div className="flex items-center gap-4 pt-3 border-t border-gray-200">
-                  <div className="flex items-center gap-1">
-                    <MessageSquare size={14} className="text-gray-400" />
-                    <span className="text-gray-500 text-xs">{selectedTask.comments || 0} comments</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Paperclip size={14} className="text-gray-400" />
-                    <span className="text-gray-500 text-xs">{selectedTask.attachments || 0} attachments</span>
-                  </div>
-                </div>
+                  ) : null;
+                })()}
 
                 {/* Action Buttons */}
-                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
-                  {selectedTask.status === "pending" && (
+                <div className="flex gap-3 pt-4 border-t border-gray-200 flex-wrap">
+                  <select
+                    value={selectedTask.status}
+                    onChange={(e) => {
+                      handleStatusChange(selectedTask._id, e.target.value);
+                      setSelectedTask(null);
+                    }}
+                    disabled={
+                      updatingStatus === selectedTask._id ||
+                      isCompleting === selectedTask._id ||
+                      isSubmitting === selectedTask._id
+                    }
+                    className="cursor-pointer flex-1 min-w-[150px] px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="completed">Completed</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+
+                  {selectedTask.status === "rejected" && isTaskAssignee(selectedTask) && (
                     <button
                       onClick={() => {
-                        updateTaskStatus(selectedTask._id, "in_progress");
-                        setSelectedTask(null);
+                        handleSendForRework(selectedTask._id);
                       }}
-                      disabled={updating}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                      disabled={isReworking === selectedTask._id}
+                      className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                      <Play size={14} />
-                      Start Task
-                    </button>
-                  )}
-
-                  {selectedTask.status === "in_progress" && (
-                    <>
-                      <button
-                        onClick={() => {
-                          updateTaskStatus(selectedTask._id, "submitted");
-                          setSelectedTask(null);
-                        }}
-                        disabled={updating}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <Send size={14} />
-                        Submit for Review
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleMarkComplete(selectedTask._id);
-                          setSelectedTask(null);
-                        }}
-                        disabled={updating}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <CheckCircle size={14} />
-                        Mark Complete
-                      </button>
-                    </>
-                  )}
-
-                  {selectedTask.status === "submitted" && canApprove && (
-                    <>
-                      <button
-                        onClick={() => {
-                          handleApprove(selectedTask._id);
-                          setSelectedTask(null);
-                        }}
-                        disabled={approving}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <ThumbsUp size={14} />
-                        Approve & Complete
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedTask(selectedTask);
-                          setShowRejectModal(true);
-                        }}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                      >
-                        <ThumbsDown size={14} />
-                        Reject
-                      </button>
-                    </>
-                  )}
-
-                  {selectedTask.status === "rejected" && (
-                    <button
-                      onClick={() => {
-                        updateTaskStatus(selectedTask._id, "pending");
-                        setSelectedTask(null);
-                      }}
-                      disabled={updating}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
-                    >
-                      <RefreshCw size={14} />
+                      {isReworking === selectedTask._id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
                       Send for Rework
                     </button>
                   )}
 
+                  {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
+                    selectedTask.status !== "submitted" &&
+                    selectedTask.status !== "rejected" && (
+                      <>
+                        <button
+                          onClick={() => {
+                            handleSubmitForReview(selectedTask._id);
+                          }}
+                          disabled={isSubmitting === selectedTask._id}
+                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isSubmitting === selectedTask._id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                          Submit Review
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleMarkComplete(selectedTask._id);
+                          }}
+                          disabled={isCompleting === selectedTask._id}
+                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isCompleting === selectedTask._id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
+                          Complete
+                        </button>
+                      </>
+                    )}
+
                   <button
                     onClick={() => setSelectedTask(null)}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition"
+                    className="cursor-pointer flex-1 min-w-[100px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
                   >
                     Close
                   </button>
-
                   <Link
                     href={`/tasks/${selectedTask._id}`}
-                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm rounded-lg transition flex items-center gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                    className="cursor-pointer flex-1 min-w-[100px] bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 py-2.5 rounded-xl transition flex items-center justify-center gap-2"
                   >
-                    <ExternalLink size={14} />
-                    View Full Details
+                    <Eye className="w-4 h-4" />
+                    Check Details
                   </Link>
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -2230,7 +2441,7 @@ export default function TasksPage() {
   );
 }
 
-// Task Card Component
+// ============ TASK CARD COMPONENT ============
 function TaskCard({
   task,
   idx,
