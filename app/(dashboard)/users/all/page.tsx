@@ -67,13 +67,13 @@ interface User {
   role: string; // Legacy single role
   roles?: Role[]; // New multi-role support
   department?:
-    | {
-        _id: string;
-        name: string;
-        code: string;
-      }
-    | string
-    | null;
+  | {
+    _id: string;
+    name: string;
+    code: string;
+  }
+  | string
+  | null;
   departmentId?: {
     _id: string;
     name: string;
@@ -1000,11 +1000,10 @@ export default function AllUsersPage() {
                                   userItem.isActive,
                                 )
                               }
-                              className={`px-2.5 py-1 text-xs font-medium rounded-full flex items-center gap-1.5 transition ${
-                                userItem.isActive
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                                  : "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
-                              }`}
+                              className={`px-2.5 py-1 text-xs font-medium rounded-full flex items-center gap-1.5 transition ${userItem.isActive
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                                : "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                                }`}
                             >
                               {userItem.isActive ? (
                                 <CheckCircle size={10} />
@@ -1020,8 +1019,8 @@ export default function AllUsersPage() {
                               <span className="text-sm text-gray-500">
                                 {userItem.lastLogin
                                   ? new Date(
-                                      userItem.lastLogin,
-                                    ).toLocaleDateString()
+                                    userItem.lastLogin,
+                                  ).toLocaleDateString()
                                   : "Never"}
                               </span>
                             </div>
@@ -1126,11 +1125,10 @@ export default function AllUsersPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm transition ${
-                            currentPage === pageNum
-                              ? "bg-indigo-600 text-white shadow-sm"
-                              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                          }`}
+                          className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -1196,11 +1194,10 @@ export default function AllUsersPage() {
                     return (
                       <label
                         key={role._id}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${
-                          isSelected
-                            ? "bg-indigo-50 hover:bg-indigo-100"
-                            : "hover:bg-gray-50"
-                        }`}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${isSelected
+                          ? "bg-indigo-50 hover:bg-indigo-100"
+                          : "hover:bg-gray-50"
+                          }`}
                       >
                         <input
                           type="checkbox"
@@ -1597,11 +1594,10 @@ export default function AllUsersPage() {
                       {selectedUser.role.replace(/_/g, " ")}
                     </span>
                     <span
-                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
-                        selectedUser.isActive
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
-                      }`}
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${selectedUser.isActive
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
                     >
                       {selectedUser.isActive ? "Active" : "Inactive"}
                     </span>
@@ -1956,6 +1952,240 @@ export default function AllUsersPage() {
                 </button>
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+      {/* ============ CREATE USER MODAL ============ */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                  <UserPlus className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Add New User</h2>
+                  <p className="text-xs text-gray-500">Create a new user account</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setCreateFormData({
+                    fullName: "",
+                    email: "",
+                    password: "",
+                    employeeId: "",
+                    role: "employee",
+                    departmentId: "",
+                    phoneNumber: "",
+                  });
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateUser} className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createFormData.fullName}
+                  onChange={(e) =>
+                    setCreateFormData({
+                      ...createFormData,
+                      fullName: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="John Doe"
+                  required
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={createFormData.email}
+                  onChange={(e) =>
+                    setCreateFormData({
+                      ...createFormData,
+                      email: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="john@example.com"
+                  required
+                />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={createFormData.password}
+                    onChange={(e) =>
+                      setCreateFormData({
+                        ...createFormData,
+                        password: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition pr-10"
+                    placeholder="Min 8 characters"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <EyeIcon size={18} />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Password must be at least 8 characters
+                </p>
+              </div>
+
+              {/* Employee ID */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Employee ID <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={createFormData.employeeId}
+                  onChange={(e) =>
+                    setCreateFormData({
+                      ...createFormData,
+                      employeeId: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="EMP001"
+                  required
+                />
+              </div>
+
+              {/* Phone Number */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={createFormData.phoneNumber}
+                  onChange={(e) =>
+                    setCreateFormData({
+                      ...createFormData,
+                      phoneNumber: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="+1 234 567 8900"
+                />
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={createFormData.role}
+                  onChange={(e) =>
+                    setCreateFormData({
+                      ...createFormData,
+                      role: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                >
+                  {roles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Department */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Department
+                </label>
+                <select
+                  value={createFormData.departmentId}
+                  onChange={(e) =>
+                    setCreateFormData({
+                      ...createFormData,
+                      departmentId: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                >
+                  <option value="">No Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept._id} value={dept._id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Form Actions */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200 flex-shrink-0">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                >
+                  {creating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <UserPlus size={16} />
+                  )}
+                  {creating ? "Creating..." : "Create User"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setCreateFormData({
+                      fullName: "",
+                      email: "",
+                      password: "",
+                      employeeId: "",
+                      role: "employee",
+                      departmentId: "",
+                      phoneNumber: "",
+                    });
+                  }}
+                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}
