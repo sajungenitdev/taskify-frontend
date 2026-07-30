@@ -341,14 +341,39 @@ export default function TasksPage() {
         if (response.data.stats) {
           setStats(response.data.stats);
         }
-        const tasksWithMeta = (response.data.data || []).map((task: Task) => ({
-          ...task,
-          comments: Math.floor(Math.random() * 10),
-          attachments: Math.floor(Math.random() * 5),
-          isStarred: false,
-        }));
-        setTasks(tasksWithMeta);
-        console.log(`📊 Loaded ${tasksWithMeta.length} tasks for department`);
+
+        // Fetch real counts for each task
+        const tasksWithCounts = await Promise.all(
+          (response.data.data || []).map(async (task: Task) => {
+            try {
+              // Fetch comments count
+              const commentsResponse = await api.get(`/tasks/${task._id}/comments`);
+              const commentsCount = commentsResponse.data.data?.length || 0;
+
+              // Fetch attachments count
+              const attachmentsResponse = await api.get(`/tasks/${task._id}/attachments`);
+              const attachmentsCount = attachmentsResponse.data.data?.length || 0;
+
+              return {
+                ...task,
+                comments: commentsCount,
+                attachments: attachmentsCount,
+                isStarred: false,
+              };
+            } catch (error) {
+              console.error(`Error fetching counts for task ${task._id}:`, error);
+              return {
+                ...task,
+                comments: 0,
+                attachments: 0,
+                isStarred: false,
+              };
+            }
+          })
+        );
+
+        setTasks(tasksWithCounts);
+        console.log(`📊 Loaded ${tasksWithCounts.length} tasks with real counts`);
       }
     } catch (error: any) {
       console.error("Error fetching tasks:", error);
@@ -1411,6 +1436,7 @@ export default function TasksPage() {
       />
 
       {/* Task Details Modal - Keep existing */}
+      {/* Task Details Modal */}
       <AnimatePresence>
         {selectedTask && (
           <motion.div
@@ -1427,8 +1453,372 @@ export default function TasksPage() {
               className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Task details content - same as before */}
-              {/* ... (keep the existing task details modal content) ... */}
+              {/* Header */}
+              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start z-10">
+                <div>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getPriorityConfig(selectedTask.priority).color}`}
+                    >
+                      {getPriorityConfig(selectedTask.priority).icon} {selectedTask.priority.toUpperCase()}
+                    </span>
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getStatusConfig(selectedTask.status).color}`}
+                    >
+                      {getStatusConfig(selectedTask.status).icon} {selectedTask.status.replace("_", " ").toUpperCase()}
+                    </span>
+
+                    {selectedTask.evidenceRequired && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+                        <Paperclip size={12} className="inline mr-1" />
+                        Evidence Required
+                      </span>
+                    )}
+
+                    {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
+                        <Paperclip size={12} className="inline mr-1" />
+                        Evidence ({selectedTask.evidenceUrls.length})
+                      </span>
+                    )}
+
+                    {selectedTask.status === "rejected" && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-red-700">
+                        <X size={12} className="inline mr-1" />
+                        Rejected
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800">{selectedTask.title}</h2>
+                </div>
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="p-1 text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-5 space-y-5">
+                {/* Description */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
+                  <p className="text-gray-600 text-sm">{selectedTask.description}</p>
+                </div>
+
+                {/* Rejection Reason */}
+                {selectedTask.status === "rejected" && selectedTask.rejectionReason && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="pt-3 border-t border-gray-200"
+                  >
+                    <div className="p-4 bg-red-50 rounded-xl border border-red-200">
+                      <div className="flex items-start gap-3">
+                        <div className="p-1.5 bg-red-100 rounded-lg">
+                          <X size={16} className="text-red-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-red-800 flex items-center gap-2">
+                            ❌ Rejection Reason
+                          </p>
+                          <p className="text-sm text-red-700 mt-1 leading-relaxed">
+                            {selectedTask.rejectionReason}
+                          </p>
+                          <p className="text-xs text-red-500 mt-2">
+                            Please review the feedback and resubmit with improvements.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Approval Note */}
+                {selectedTask.status === "completed" && selectedTask.approvalNote && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="pt-3 border-t border-gray-200"
+                  >
+                    <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <div className="flex items-start gap-3">
+                        <div className="p-1.5 bg-emerald-100 rounded-lg">
+                          <ThumbsUp size={16} className="text-emerald-600" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
+                            ✅ Approval Note
+                          </p>
+                          <p className="text-sm text-emerald-700 mt-1 leading-relaxed">
+                            {selectedTask.approvalNote}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Task Details Grid */}
+                <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-200">
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Assigned To</h3>
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                        <span className="text-white text-xs font-bold">
+                          {selectedTask.assignedTo?.fullName?.charAt(0) || "?"}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-gray-800 text-sm font-medium">
+                          {selectedTask.assignedTo?.fullName || "Unassigned"}
+                        </p>
+                        <p className="text-gray-400 text-xs">
+                          {selectedTask.assignedTo?.email || ""}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Assigned By</h3>
+                    <p className="text-gray-800 text-sm font-medium">
+                      {selectedTask.assignedBy?.fullName || "Unknown"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Deadline</h3>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={14} className="text-gray-400" />
+                      <span className="text-gray-800 text-sm font-medium">
+                        {new Date(selectedTask.deadline).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Estimated Hours</h3>
+                    <p className="text-gray-800 text-sm font-medium">
+                      {selectedTask.estimatedHours} hours
+                    </p>
+                  </div>
+
+                  {selectedTask.projectId && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-gray-500 mb-1">Project</h3>
+                      <div className="flex items-center gap-2">
+                        <Briefcase size={14} className="text-gray-400" />
+                        <span className="text-gray-800 text-sm font-medium">
+                          {selectedTask.projectId.name}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="text-xs font-semibold text-gray-500 mb-1">Created</h3>
+                    <p className="text-gray-800 text-sm font-medium">
+                      {new Date(selectedTask.createdAt || "").toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  {selectedTask.actualMinutes !== undefined && selectedTask.actualMinutes > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-gray-500 mb-1">Time Logged</h3>
+                      <p className="text-gray-800 text-sm font-medium">
+                        {selectedTask.actualMinutes} minutes
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Evidence Section */}
+                {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Paperclip size={16} className="text-emerald-500" />
+                      Evidence ({selectedTask.evidenceUrls.length})
+                      {selectedTask.evidenceRequired && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Required
+                        </span>
+                      )}
+                      {selectedTask.status === "submitted" && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                          Submitted with Evidence
+                        </span>
+                      )}
+                      {selectedTask.status === "completed" && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Approved
+                        </span>
+                      )}
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedTask.evidenceUrls.map((url: string, index: number) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-emerald-200 transition group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <Link2 size={14} className="text-emerald-600" />
+                          </div>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 text-sm text-indigo-600 hover:text-indigo-800 truncate transition"
+                          >
+                            {url}
+                          </a>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 text-xs bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition opacity-0 group-hover:opacity-100"
+                          >
+                            Open
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                    {selectedTask.evidenceSubmittedAt && (
+                      <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                        <ClockIcon size={12} />
+                        Evidence submitted on {new Date(selectedTask.evidenceSubmittedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Evidence Required Message */}
+                {selectedTask.evidenceRequired && (!selectedTask.evidenceUrls || selectedTask.evidenceUrls.length === 0) && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-700">Evidence Required</p>
+                        <p className="text-xs text-amber-600">
+                          This task requires evidence to be submitted upon completion.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Comments & Attachments Stats */}
+                <div className="flex items-center gap-4 pt-3 border-t border-gray-200">
+                  <div className="flex items-center gap-1">
+                    <MessageSquare size={14} className="text-gray-400" />
+                    <span className="text-gray-500 text-xs">{selectedTask.comments || 0} comments</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Paperclip size={14} className="text-gray-400" />
+                    <span className="text-gray-500 text-xs">{selectedTask.attachments || 0} attachments</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
+                  {selectedTask.status === "pending" && (
+                    <button
+                      onClick={() => {
+                        updateTaskStatus(selectedTask._id, "in_progress");
+                        setSelectedTask(null);
+                      }}
+                      disabled={updating}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                    >
+                      <Play size={14} />
+                      Start Task
+                    </button>
+                  )}
+
+                  {selectedTask.status === "in_progress" && (
+                    <>
+                      <button
+                        onClick={() => {
+                          updateTaskStatus(selectedTask._id, "submitted");
+                          setSelectedTask(null);
+                        }}
+                        disabled={updating}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                      >
+                        <Send size={14} />
+                        Submit for Review
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleMarkComplete(selectedTask._id);
+                          setSelectedTask(null);
+                        }}
+                        disabled={updating}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                      >
+                        <CheckCircle size={14} />
+                        Mark Complete
+                      </button>
+                    </>
+                  )}
+
+                  {selectedTask.status === "submitted" && canApprove && (
+                    <>
+                      <button
+                        onClick={() => {
+                          handleApprove(selectedTask._id);
+                          setSelectedTask(null);
+                        }}
+                        disabled={approving}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                      >
+                        <ThumbsUp size={14} />
+                        Approve & Complete
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedTask(selectedTask);
+                          setShowRejectModal(true);
+                        }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                      >
+                        <ThumbsDown size={14} />
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {selectedTask.status === "rejected" && (
+                    <button
+                      onClick={() => {
+                        updateTaskStatus(selectedTask._id, "pending");
+                        setSelectedTask(null);
+                      }}
+                      disabled={updating}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-md"
+                    >
+                      <RefreshCw size={14} />
+                      Send for Rework
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => setSelectedTask(null)}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-lg transition"
+                  >
+                    Close
+                  </button>
+
+                  <Link
+                    href={`/tasks/${selectedTask._id}`}
+                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm rounded-lg transition flex items-center gap-2"
+                  >
+                    <ExternalLink size={14} />
+                    View Full Details
+                  </Link>
+                </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
