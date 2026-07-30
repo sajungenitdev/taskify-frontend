@@ -514,11 +514,26 @@ export const SUB_ITEMS = {
     ],
     { description: "Manage your account preferences" },
   ),
-  securitySettings: createSubNavItem(
-    "security-settings",
-    "Security",
-    "/settings/security",
-    ShieldCheck,
+  // securitySettings: createSubNavItem(
+  //   "security-settings",
+  //   "Security",
+  //   "/settings/security",
+  //   ShieldCheck,
+  //   "My Profile",
+  //   [
+  //     ROLES.SUPER_ADMIN,
+  //     ROLES.ADMIN,
+  //     ROLES.HR_MANAGER,
+  //     ROLES.EMPLOYEE,
+  //     ROLES.DEPT_MANAGER,
+  //   ],
+  //   { description: "Manage your security settings" },
+  // ),
+  onboarding: createSubNavItem(
+    "onboarding",
+    "Onboarding",
+    "/onboarding",
+    UserPlus,
     "My Profile",
     [
       ROLES.SUPER_ADMIN,
@@ -527,7 +542,22 @@ export const SUB_ITEMS = {
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
     ],
-    { description: "Manage your security settings" },
+    { description: "View your performance metrics and reviews" },
+  ),
+  performance: createSubNavItem(
+    "performance",
+    "My Performance",
+    "/performance/my",
+    TrendingUp,
+    "My Profile",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.EMPLOYEE,
+      ROLES.DEPT_MANAGER,
+    ],
+    { description: "View your performance metrics and reviews" },
   ),
   notifications: createSubNavItem(
     "notifications",
@@ -555,21 +585,7 @@ export const SUB_ITEMS = {
       description: "Get intelligent assistance from AI",
     },
   ),
-  performance: createSubNavItem(
-    "performance",
-    "My Performance",
-    "/performance/my",
-    TrendingUp,
-    "My Profile",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-    ],
-    { description: "View your performance metrics and reviews" },
-  ),
+
 
   // KPI Dashboard Sub-items
   kpiOverview: createSubNavItem(
