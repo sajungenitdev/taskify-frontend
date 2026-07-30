@@ -39,6 +39,19 @@ interface VelocityChartProps {
   sprintData?: any[];
 }
 
+// ============ FIX: Define the formatter function outside the component ============
+// ============ QUICK FIX: Use any type ============
+const tooltipFormatter = (value: any, name: any): [any, string] => {
+  const labels: Record<string, string> = {
+    tasksCompleted: "Tasks Completed",
+    tasksAdded: "Tasks Added",
+    cumulativeCompleted: "Cumulative Total",
+  };
+  const nameStr = String(name || '');
+  const label = labels[nameStr] || nameStr;
+  return [value, label];
+};
+
 export function VelocityChart({
   projectId,
   tasks = [],
@@ -373,14 +386,8 @@ export function VelocityChart({
                   borderRadius: "8px",
                   padding: "12px",
                 }}
-                formatter={(value: any, name: string) => {
-                  const labels: Record<string, string> = {
-                    tasksCompleted: "Tasks Completed",
-                    tasksAdded: "Tasks Added",
-                    cumulativeCompleted: "Cumulative Total",
-                  };
-                  return [value, labels[name] || name];
-                }}
+                // ============ FIX: Use the defined formatter function ============
+                formatter={tooltipFormatter}
               />
               <Legend />
               <Area

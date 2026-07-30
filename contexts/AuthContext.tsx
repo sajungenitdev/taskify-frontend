@@ -35,7 +35,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>; // ← Change from Promise<void> to Promise<User>
   logout: () => void;
   hasRole: (roles: string | string[]) => boolean;
   updateUser: (userData: Partial<User>) => void;

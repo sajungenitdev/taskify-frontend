@@ -34,13 +34,22 @@ interface User {
   fullName: string;
   email: string;
   role: string;
+  department?:
+    | {
+        _id: string;
+        name: string;
+        code: string;
+      }
+    | string
+    | null;
   departmentId?:
     | {
         _id: string;
         name: string;
         code: string;
       }
-    | string;
+    | string
+    | null;
   managerId?:
     | {
         _id: string;
@@ -85,7 +94,7 @@ interface CreateTaskModalProps {
 
 // ============ TYPE GUARDS ============
 const isDepartmentObject = (
-  dept: string | { _id: string; name: string; code: string } | undefined,
+  dept: string | { _id: string; name: string; code: string } | null | undefined,
 ): dept is { _id: string; name: string; code: string } => {
   return typeof dept === "object" && dept !== null && "_id" in dept;
 };
@@ -101,11 +110,27 @@ const isManagerObject = (
 
 // ============ HELPER FUNCTIONS ============
 const getDepartmentId = (user: User): string | null => {
-  if (!user.departmentId) return null;
-  if (isDepartmentObject(user.departmentId)) {
-    return user.departmentId._id;
+  // Check department field first (populated object)
+  if (user.department) {
+    if (isDepartmentObject(user.department)) {
+      return user.department._id;
+    }
+    if (typeof user.department === "string") {
+      return user.department;
+    }
   }
-  return user.departmentId;
+
+  // Fallback to departmentId
+  if (user.departmentId) {
+    if (isDepartmentObject(user.departmentId)) {
+      return user.departmentId._id;
+    }
+    if (typeof user.departmentId === "string") {
+      return user.departmentId;
+    }
+  }
+
+  return null;
 };
 
 const getManagerId = (user: User): string | null => {
@@ -142,6 +167,8 @@ export default function CreateTaskModal({
   const [selectedUserWorkload, setSelectedUserWorkload] =
     useState<WorkloadInfo | null>(null);
   const [showWorkloadWarning, setShowWorkloadWarning] = useState(false);
+  const [selectedAssignee, setSelectedAssignee] = useState<User | null>(null);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -228,6 +255,9 @@ export default function CreateTaskModal({
 
       if (response.data.success) {
         const usersData = response.data.data || [];
+
+        console.log("📡 Raw users data:", usersData);
+
         let filtered: User[] = usersData;
 
         if (isDeptManager) {
@@ -247,6 +277,7 @@ export default function CreateTaskModal({
           filtered = usersData.filter((u: User) => u._id === user?._id);
         }
 
+        console.log("✅ Filtered users:", filtered);
         setUsers(filtered);
         setFilteredUsers(filtered);
 
@@ -280,6 +311,7 @@ export default function CreateTaskModal({
       resetForm();
       setSelectedUserWorkload(null);
       setShowWorkloadWarning(false);
+      setSelectedAssignee(null);
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
@@ -290,6 +322,10 @@ export default function CreateTaskModal({
         const userDeptId = getDepartmentId(u);
         return userDeptId === selectedDepartment;
       });
+      console.log(
+        `📊 Filtered users by department ${selectedDepartment}:`,
+        filtered,
+      );
       setFilteredUsers(filtered);
     } else {
       setFilteredUsers(users);
@@ -301,21 +337,33 @@ export default function CreateTaskModal({
     setFormData((prev) => ({ ...prev, assignedTo: "" }));
     setSelectedUserWorkload(null);
     setShowWorkloadWarning(false);
+    setSelectedAssignee(null);
   }, [selectedDepartment]);
 
-  // Check workload when assignee changes
+  // Update workload when assignee changes
   useEffect(() => {
-    if (formData.assignedTo && workloadData[formData.assignedTo]) {
-      const workload = workloadData[formData.assignedTo];
-      setSelectedUserWorkload(workload);
-      setShowWorkloadWarning(
-        workload.statusColor === "red" || workload.statusColor === "amber",
-      );
+    if (formData.assignedTo) {
+      // Find the selected user object
+      const selectedUser = users.find((u) => u._id === formData.assignedTo);
+      setSelectedAssignee(selectedUser || null);
+
+      // Check workload
+      if (workloadData[formData.assignedTo]) {
+        const workload = workloadData[formData.assignedTo];
+        setSelectedUserWorkload(workload);
+        setShowWorkloadWarning(
+          workload.statusColor === "red" || workload.statusColor === "amber",
+        );
+      } else {
+        setSelectedUserWorkload(null);
+        setShowWorkloadWarning(false);
+      }
     } else {
+      setSelectedAssignee(null);
       setSelectedUserWorkload(null);
       setShowWorkloadWarning(false);
     }
-  }, [formData.assignedTo, workloadData]);
+  }, [formData.assignedTo, workloadData, users]);
 
   // Handle quick task toggle
   useEffect(() => {
@@ -564,6 +612,7 @@ export default function CreateTaskModal({
     setIsQuickTask(false);
     setSelectedUserWorkload(null);
     setShowWorkloadWarning(false);
+    setSelectedAssignee(null);
   };
 
   // ============ GET AVAILABLE USERS ============
@@ -679,9 +728,16 @@ export default function CreateTaskModal({
   };
 
   // ============ WORKLOAD BADGE COMPONENT ============
-  const WorkloadBadge = ({ userId }: { userId: string }) => {
-    const workload = getWorkloadStatus(userId);
-    if (!workload) return null;
+  const WorkloadBadge = ({ user: userProp }: { user: User | null }) => {
+    if (!userProp) return null;
+
+    const workload = getWorkloadStatus(userProp._id);
+    if (!workload)
+      return (
+        <div className="mt-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+          <p className="text-xs text-gray-500">Loading workload data...</p>
+        </div>
+      );
 
     return (
       <div
@@ -961,18 +1017,37 @@ export default function CreateTaskModal({
                                 : "No users available"
                             : "Select team member"}
                     </option>
-                    {availableUsers.map((u) => (
-                      <option key={u._id} value={u._id}>
-                        {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
-                        {u._id === user?._id && " (You)"}
-                      </option>
-                    ))}
+                    {availableUsers.map((u) => {
+                      // Get department name for display
+                      let deptName = "";
+                      if (
+                        u.department &&
+                        typeof u.department === "object" &&
+                        "name" in u.department
+                      ) {
+                        deptName = ` (${u.department.name})`;
+                      } else if (
+                        u.departmentId &&
+                        typeof u.departmentId === "object" &&
+                        "name" in u.departmentId
+                      ) {
+                        deptName = ` (${u.departmentId.name})`;
+                      }
+
+                      return (
+                        <option key={u._id} value={u._id}>
+                          {u.fullName} ({u.email}) - {u.role.replace(/_/g, " ")}
+                          {deptName}
+                          {u._id === user?._id && " (You)"}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
                 {/* Workload Badge - Shows when a user is selected */}
                 {formData.assignedTo && !isQuickTask && (
-                  <WorkloadBadge userId={formData.assignedTo} />
+                  <WorkloadBadge user={selectedAssignee} />
                 )}
 
                 {/* Role-based info messages */}

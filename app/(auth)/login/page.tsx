@@ -21,7 +21,6 @@ import {
   Briefcase,
   User,
   Building2,
-  Award,
 } from "lucide-react";
 import { Button } from "@/components/UI/Button";
 import { motion, AnimatePresence } from "framer-motion";
@@ -31,7 +30,7 @@ import Link from "next/link";
 
 interface ActiveUser {
   _id: string;
-  id: string;
+  id?: string;
   fullName: string;
   email: string;
   role: string;
@@ -39,7 +38,6 @@ interface ActiveUser {
   badge: string;
 }
 
-// Allowed roles to display
 const ALLOWED_ROLES = [
   "super_admin",
   "admin",
@@ -49,7 +47,6 @@ const ALLOWED_ROLES = [
   "employee",
 ];
 
-// Floating Particles Component - Client-side only
 const FloatingParticles = () => {
   const [particles, setParticles] = useState<
     Array<{
@@ -113,7 +110,6 @@ const FloatingParticles = () => {
   );
 };
 
-// Glowing Orbs Component - Client-side only
 const GlowingOrbs = () => {
   const [mounted, setMounted] = useState(false);
 
@@ -155,7 +151,6 @@ const GlowingOrbs = () => {
   );
 };
 
-// Grid Pattern - Static, no hydration issues
 const GridPattern = () => {
   return (
     <div
@@ -168,7 +163,6 @@ const GridPattern = () => {
   );
 };
 
-// Quick Access User Button Component
 const UserButton = memo(
   ({
     user,
@@ -244,21 +238,21 @@ const UserButton = memo(
             {icon}
           </div>
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-semibold text-red-900 group-hover:text-white transition-colors truncate">
+            <p className="text-sm font-semibold text-slate-900 group-hover:text-white transition-colors truncate">
               {user.fullName}
             </p>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-[10px] font-medium text-red-900">
+              <span className="text-[10px] font-medium text-slate-600 group-hover:text-white/80 transition-colors">
                 {displayRole}
               </span>
-              <span className="w-1 h-1 rounded-full bg-white/20" />
-              <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-white/10 border border-white/10 text-red-900">
+              <span className="w-1 h-1 rounded-full bg-slate-300 group-hover:bg-white/30" />
+              <span className="text-[9px] font-medium px-2 py-0.5 rounded-full bg-slate-100/50 border border-slate-200 group-hover:bg-white/10 group-hover:border-white/20 text-slate-600 group-hover:text-white/80 transition-colors">
                 {user.badge}
               </span>
             </div>
           </div>
           <ArrowRight
-            className={`w-4 h-4 text-red-900 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${
+            className={`w-4 h-4 text-slate-400 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all ${
               isActive ? "text-indigo-400" : ""
             }`}
           />
@@ -288,18 +282,13 @@ export default function LoginPage() {
     fetchActiveUsers();
   }, []);
 
-  // In LoginPage.tsx - Update fetchActiveUsers
-  // In LoginPage.tsx - Update fetchActiveUsers
   const fetchActiveUsers = async () => {
     try {
       setLoadingUsers(true);
-
-      // ✅ CORRECT: Use the public endpoint (no /auth prefix, just /active-users)
       const response = await api.get("/auth/active-users");
-      // ❌ WRONG: This was /users/active which requires authentication
 
       if (response.data?.success) {
-        const users = response.data.data || [];
+        const users: ActiveUser[] = response.data.data || [];
         const filteredUsers = users.filter((user: ActiveUser) =>
           ALLOWED_ROLES.includes(user.role),
         );
@@ -339,7 +328,6 @@ export default function LoginPage() {
     setTimeout(() => setActiveUser(null), 400);
   }, []);
 
-  // In LoginPage.tsx - Updated handleSubmit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
@@ -360,22 +348,18 @@ export default function LoginPage() {
     try {
       console.log("🚀 Calling login with:", formData.email);
 
-      // Call the login function from AuthContext
-      await login(formData.email, formData.password);
+      // Now this will be properly typed as User
+      const userData = await login(formData.email, formData.password);
 
-      console.log("✅ Login function completed successfully");
+      console.log("✅ Login successful for:", userData?.email);
+      console.log("👤 User data:", userData);
 
-      // Check if token was saved
       const token = localStorage.getItem("token");
       console.log("🔑 Token after login:", token ? "YES" : "NO");
-      console.log("🔑 Token value:", token?.substring(0, 40) + "...");
 
       if (token) {
-        toast.success("Login successful! Redirecting...");
-        // Small delay to ensure state updates
-        setTimeout(() => {
-          router.push("/dashboard");
-        }, 100);
+        toast.success(`Welcome back, ${userData?.fullName || "User"}!`);
+        router.push("/dashboard");
       } else {
         console.error("❌ No token found after login!");
         setLoginError(
@@ -385,12 +369,26 @@ export default function LoginPage() {
           "Login succeeded but no token was stored. Please try again.",
         );
       }
-    } catch (error: any) {
-      console.error("Login error:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Login failed. Please try again.";
+    } catch (error: unknown) {
+      console.error("❌ Login error in component:", error);
+
+      let errorMessage = "Login failed. Please try again.";
+
+      if (typeof error === "string") {
+        errorMessage = error;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error
+      ) {
+        const err = error as { response?: { data?: { message?: string } } };
+        if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        }
+      }
+
       setLoginError(errorMessage);
       toast.error(errorMessage);
       setFormData((prev) => ({ ...prev, password: "" }));
@@ -398,7 +396,7 @@ export default function LoginPage() {
       setIsSubmitting(false);
     }
   };
-  // Prevent hydration mismatch by not rendering animated elements on server
+
   if (!mounted) {
     return (
       <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
@@ -440,12 +438,10 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-50 via-white to-slate-100">
-      {/* Background Effects */}
       <FloatingParticles />
       <GlowingOrbs />
       <GridPattern />
 
-      {/* Main Login Card - Two Columns */}
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -453,14 +449,12 @@ export default function LoginPage() {
         className="relative z-10 w-full max-w-5xl"
       >
         <div className="relative bg-white/80 backdrop-blur-xl border border-white shadow-2xl rounded-2xl overflow-hidden">
-          {/* Card Glow */}
           <div className="absolute -top-32 -right-32 w-64 h-64 bg-indigo-100/30 rounded-full blur-3xl" />
           <div className="absolute -bottom-32 -left-32 w-64 h-64 bg-purple-100/30 rounded-full blur-3xl" />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
             {/* Left Column - Login Form */}
             <div className="p-8 lg:p-10">
-              {/* Header */}
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -510,7 +504,6 @@ export default function LoginPage() {
                 </p>
               </motion.div>
 
-              {/* Error Message */}
               <AnimatePresence>
                 {loginError && (
                   <motion.div
@@ -525,7 +518,6 @@ export default function LoginPage() {
                 )}
               </AnimatePresence>
 
-              {/* Login Form */}
               <motion.form
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -650,7 +642,6 @@ export default function LoginPage() {
                 </motion.div>
               </motion.form>
 
-              {/* Security Badges */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -704,7 +695,6 @@ export default function LoginPage() {
                   </div>
                 </motion.div>
 
-                {/* Loading State */}
                 <AnimatePresence>
                   {loadingUsers && (
                     <motion.div
@@ -723,7 +713,6 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                {/* User List */}
                 <AnimatePresence>
                   {!loadingUsers && activeUsers.length > 0 && (
                     <motion.div
@@ -742,7 +731,6 @@ export default function LoginPage() {
                         />
                       ))}
 
-                      {/* Demo Credentials Notice */}
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -763,7 +751,6 @@ export default function LoginPage() {
                   )}
                 </AnimatePresence>
 
-                {/* No Users State */}
                 <AnimatePresence>
                   {!loadingUsers && activeUsers.length === 0 && (
                     <motion.div
@@ -788,7 +775,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Footer */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -66,11 +66,19 @@ interface User {
   phoneNumber?: string;
   role: string; // Legacy single role
   roles?: Role[]; // New multi-role support
+  department?:
+    | {
+        _id: string;
+        name: string;
+        code: string;
+      }
+    | string
+    | null;
   departmentId?: {
     _id: string;
     name: string;
     code: string;
-  };
+  } | null;
   isActive: boolean;
   lastLogin?: string;
   createdAt: string;
@@ -158,7 +166,7 @@ export default function AllUsersPage() {
   const canCreateUser = hasRole(["super_admin", "admin", "hr_manager"]);
   const canEditUser = hasRole(["super_admin", "admin", "hr_manager"]);
   const canChangePassword = hasRole(["super_admin", "admin", "hr_manager"]);
-
+  console.log(users, "users");
   // Check permission
   useEffect(() => {
     if (!canManageUsers) {
@@ -252,13 +260,10 @@ export default function AllUsersPage() {
 
     setUpdatingRoles(true);
     try {
-      const response = await api.put(
-        `/roles/user/${selectedUser._id}/assign`,
-        {
-          roleIds: selectedRolesForUser,
-          primaryRoleId: primaryRoleForUser || selectedRolesForUser[0],
-        },
-      );
+      const response = await api.put(`/roles/user/${selectedUser._id}/assign`, {
+        roleIds: selectedRolesForUser,
+        primaryRoleId: primaryRoleForUser || selectedRolesForUser[0],
+      });
 
       if (response.data.success) {
         toast.success("Roles updated successfully");
@@ -279,6 +284,7 @@ export default function AllUsersPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate required fields
     if (
       !createFormData.fullName ||
       !createFormData.email ||
@@ -294,12 +300,36 @@ export default function AllUsersPage() {
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(createFormData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
     setCreating(true);
     try {
-      const response = await api.post("/auth/register", createFormData);
+      // Prepare the data - match what the backend expects
+      const userData = {
+        fullName: createFormData.fullName,
+        email: createFormData.email,
+        password: createFormData.password,
+        employeeId: createFormData.employeeId,
+        role: createFormData.role || "employee",
+        department: createFormData.departmentId || null,
+        phoneNumber: createFormData.phoneNumber || null,
+      };
+
+      console.log("📝 Creating user with data:", userData);
+
+      const response = await api.post("/auth/register", userData);
+
+      console.log("📡 Response:", response.data);
+
       if (response.data.success) {
         toast.success("User created successfully");
         setShowCreateModal(false);
+        // Reset form
         setCreateFormData({
           fullName: "",
           email: "",
@@ -309,10 +339,23 @@ export default function AllUsersPage() {
           departmentId: "",
           phoneNumber: "",
         });
+        // Refresh the user list
         await fetchUsers();
+      } else {
+        throw new Error(response.data.message || "Failed to create user");
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to create user");
+      console.error("❌ Create user error:", error);
+
+      // Extract error message
+      let errorMessage = "Failed to create user";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setCreating(false);
     }
@@ -320,12 +363,20 @@ export default function AllUsersPage() {
 
   const handleEditUser = (userItem: User) => {
     setEditingUser(userItem);
+    // Get department ID from either field
+    const deptId =
+      (userItem.department as any)?._id ||
+      (userItem.departmentId as any)?._id ||
+      userItem.department ||
+      userItem.departmentId ||
+      "";
+
     setEditFormData({
       fullName: userItem.fullName,
       email: userItem.email,
       phoneNumber: userItem.phoneNumber || "",
       role: userItem.role,
-      departmentId: userItem.departmentId?._id || "",
+      departmentId: typeof deptId === "string" ? deptId : deptId?._id || "",
       employeeId: userItem.employeeId,
       isActive: userItem.isActive,
       position: (userItem as any).position || "",
@@ -350,12 +401,13 @@ export default function AllUsersPage() {
 
     setEditing(true);
     try {
+      // Use 'department' instead of 'departmentId' to match backend
       const response = await api.put(`/auth/users/${editingUser._id}`, {
         fullName: editFormData.fullName,
         email: editFormData.email,
         phoneNumber: editFormData.phoneNumber,
         role: editFormData.role,
-        departmentId: editFormData.departmentId || null,
+        department: editFormData.departmentId || null, // ← Changed to 'department'
         employeeId: editFormData.employeeId,
         isActive: editFormData.isActive,
         position: editFormData.position,
@@ -374,7 +426,6 @@ export default function AllUsersPage() {
       setEditing(false);
     }
   };
-
   const handleOpenPasswordModal = (userItem: User) => {
     setSelectedUser(userItem);
     setPasswordData({
@@ -494,7 +545,6 @@ export default function AllUsersPage() {
     }
     return [userItem.role];
   };
-
   const filteredUsers = useMemo(() => {
     let filtered = users.filter((userItem) => {
       const matchesSearch =
@@ -503,12 +553,18 @@ export default function AllUsersPage() {
         userItem.employeeId?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const userRoles = getUserRoleCodes(userItem);
-      const matchesRole =
-        !selectedRole || userRoles.includes(selectedRole);
+      const matchesRole = !selectedRole || userRoles.includes(selectedRole);
+
+      // Check both department and departmentId
+      const userDeptId =
+        (userItem.department as any)?._id ||
+        (userItem.departmentId as any)?._id ||
+        userItem.department ||
+        userItem.departmentId;
       const matchesDepartment =
         !selectedDepartment ||
-        (userItem.departmentId &&
-          (userItem.departmentId as any)._id === selectedDepartment);
+        (userDeptId && userDeptId === selectedDepartment);
+
       const matchesStatus =
         showStatus === "all" ||
         (showStatus === "active" && userItem.isActive) ||
@@ -826,7 +882,7 @@ export default function AllUsersPage() {
                       const RoleIcon = getRoleIcon(userItem.role);
                       const userRoles = userItem.roles || [];
                       const hasMultipleRoles = userRoles.length > 1;
-                      
+
                       return (
                         <motion.tr
                           key={userItem._id}
@@ -908,9 +964,32 @@ export default function AllUsersPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-sm text-gray-600">
-                              {userItem.departmentId
-                                ? (userItem.departmentId as any).name
-                                : "-"}
+                              {(() => {
+                                // Check if department exists and is an object with name
+                                if (
+                                  userItem.department &&
+                                  typeof userItem.department === "object"
+                                ) {
+                                  // If it has a name property
+                                  if ("name" in userItem.department) {
+                                    return userItem.department.name;
+                                  }
+                                  // If it has a _id but no name (unlikely)
+                                  if ("_id" in userItem.department) {
+                                    return "Department";
+                                  }
+                                }
+                                // Fallback to departmentId (for backward compatibility)
+                                if (
+                                  userItem.departmentId &&
+                                  typeof userItem.departmentId === "object"
+                                ) {
+                                  if ("name" in userItem.departmentId) {
+                                    return userItem.departmentId.name;
+                                  }
+                                }
+                                return "-";
+                              })()}
                             </span>
                           </td>
                           <td className="px-6 py-4">
@@ -1178,7 +1257,10 @@ export default function AllUsersPage() {
 
               <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                 <div className="flex items-start gap-2">
-                  <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <Info
+                    size={14}
+                    className="text-blue-500 flex-shrink-0 mt-0.5"
+                  />
                   <div>
                     <p className="text-xs text-gray-600 font-medium">
                       Multiple Roles Support

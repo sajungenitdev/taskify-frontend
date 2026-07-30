@@ -2,14 +2,15 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import SuperAdminDashboard from "@/app/(dashboard)/dashboard/components/SuperAdminDashboard";
-import AdminDashboard from "@/app/(dashboard)/dashboard/components/AdminDashboard";
-import HRDashboard from "@/app/(dashboard)/dashboard/components/HRDashboard";
-import DepartmentDashboard from "@/app/(dashboard)/dashboard/components/DepartmentDashboard";
-import ProjectDashboard from "@/app/(dashboard)/dashboard/components/ProjectDashboard";
-import LineManagerDashboard from "@/app/(dashboard)/dashboard/components/LineManagerDashboard";
-import EmployeeDashboard from "@/app/(dashboard)/dashboard/components/EmployeeDashboard";
+
 import { Users, LayoutDashboard } from "lucide-react";
+import SuperAdminDashboard from "./SuperAdminDashboard";
+import AdminDashboard from "./AdminDashboard";
+import HRDashboard from "./HRDashboard";
+import DepartmentDashboard from "./DepartmentDashboard";
+import ProjectDashboard from "./ProjectDashboard";
+import LineManagerDashboard from "./LineManagerDashboard";
+import EmployeeDashboard from "./EmployeeDashboard";
 
 interface DashboardFactoryProps {
   // You can pass additional props if needed
