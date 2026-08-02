@@ -13,6 +13,7 @@ import {
   CheckSquare,
   ChevronRight as ChevronRightIcon,
   ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 import {
   PERSONAL_ITEMS,
@@ -336,6 +337,13 @@ export default function Sidebar({
   };
 
   /**
+   * Check if a URL is external
+   */
+  const isExternalLink = (href: string): boolean => {
+    return href.startsWith("http://") || href.startsWith("https://");
+  };
+
+  /**
    * Get badge display for an item
    * Supports both static and dynamic badges
    */
@@ -429,7 +437,63 @@ export default function Sidebar({
             const SubIcon = subItem.icon;
             const badgeInfo = getBadgeDisplay(subItem);
             const showBadge = shouldShowBadge(subItem);
+            const isExternal = isExternalLink(subItem.href);
 
+            // For external links, use <a> tag
+            if (isExternal) {
+              return (
+                <a
+                  key={subItem.id}
+                  href={subItem.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    setHoveredItem(null);
+                    onClose?.();
+                  }}
+                  className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
+                      ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                      : "text-gray-300 hover:text-white hover:bg-white/10"
+                    }`}
+                >
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${isSubActive
+                        ? "bg-indigo-500/30"
+                        : "bg-white/10 group-hover:bg-white/20"
+                      }`}
+                  >
+                    <SubIcon
+                      size={14}
+                      className={
+                        isSubActive
+                          ? "text-indigo-300"
+                          : "text-gray-400 group-hover:text-white"
+                      }
+                    />
+                  </div>
+                  <span className="text-sm font-medium flex-1">
+                    {subItem.name}
+                  </span>
+                  <ExternalLink size={12} className="text-gray-400" />
+                  {showBadge && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                          ? "bg-red-500/30 text-red-300 animate-pulse"
+                          : subItem.badgeColor ||
+                          "bg-indigo-500/30 text-indigo-300"
+                        }`}
+                    >
+                      {badgeInfo.text}
+                    </span>
+                  )}
+                  {isSubActive && (
+                    <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400" />
+                  )}
+                </a>
+              );
+            }
+
+            // Internal links with Next.js Link
             return (
               <Link
                 key={subItem.id}
@@ -439,14 +503,14 @@ export default function Sidebar({
                   onClose?.();
                 }}
                 className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
-                  ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
-                  : "text-gray-300 hover:text-white hover:bg-white/10"
+                    ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-white/10"
                   }`}
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${isSubActive
-                    ? "bg-indigo-500/30"
-                    : "bg-white/10 group-hover:bg-white/20"
+                      ? "bg-indigo-500/30"
+                      : "bg-white/10 group-hover:bg-white/20"
                     }`}
                 >
                   <SubIcon
@@ -464,9 +528,9 @@ export default function Sidebar({
                 {showBadge && (
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                      ? "bg-red-500/30 text-red-300 animate-pulse"
-                      : subItem.badgeColor ||
-                      "bg-indigo-500/30 text-indigo-300"
+                        ? "bg-red-500/30 text-red-300 animate-pulse"
+                        : subItem.badgeColor ||
+                        "bg-indigo-500/30 text-indigo-300"
                       }`}
                   >
                     {badgeInfo.text}
@@ -534,8 +598,8 @@ export default function Sidebar({
         {/* Header with Toggle Button - Fixed height */}
         <div
           className={`flex-shrink-0 px-4 py-[12px] bg-transparent transition-all duration-300 sticky top-0 z-10 ${scrolled
-            ? "bg-[#0f2444]/90 backdrop-blur-md"
-            : "bg-[#0f2444]/60 backdrop-blur-sm"
+              ? "bg-[#0f2444]/90 backdrop-blur-md"
+              : "bg-[#0f2444]/60 backdrop-blur-sm"
             }`}
         >
           <div className="flex items-center justify-between">
@@ -607,7 +671,63 @@ export default function Sidebar({
                 const Icon = item.icon;
                 const badgeInfo = getBadgeDisplay(item);
                 const showBadge = shouldShowBadge(item);
+                const isExternal = isExternalLink(item.href);
 
+                // For external links in personal items
+                if (isExternal) {
+                  return (
+                    <a
+                      key={item.id}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={onClose}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${isCollapsed ? "justify-center" : ""
+                        } ${active
+                          ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
+                          : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
+                        }`}
+                      title={isCollapsed ? item.name : ""}
+                    >
+                      <div className="relative">
+                        <Icon
+                          size={18}
+                          className={`transition-all duration-200 ${active
+                              ? "text-indigo-300"
+                              : "text-gray-400 group-hover:text-white"
+                            }`}
+                        />
+                        {isCollapsed && showBadge && (
+                          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
+                        )}
+                      </div>
+                      {!isCollapsed && (
+                        <>
+                          <span className="text-sm font-medium flex-1">
+                            {item.name}
+                          </span>
+                          <ExternalLink size={14} className="text-gray-400" />
+                          {showBadge && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                                  ? "bg-red-500/30 text-red-300 animate-pulse"
+                                  : item.badgeColor ||
+                                  "bg-indigo-500/30 text-indigo-300"
+                                }`}
+                            >
+                              {badgeInfo.text}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {active && !isCollapsed && (
+                        <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                      )}
+                    </a>
+                  );
+                }
+
+                // Internal links with Next.js Link
                 return (
                   <Link
                     key={item.id}
@@ -624,8 +744,8 @@ export default function Sidebar({
                       <Icon
                         size={18}
                         className={`transition-all duration-200 ${active
-                          ? "text-indigo-300"
-                          : "text-gray-400 group-hover:text-white"
+                            ? "text-indigo-300"
+                            : "text-gray-400 group-hover:text-white"
                           }`}
                       />
                       {isCollapsed && showBadge && (
@@ -640,9 +760,9 @@ export default function Sidebar({
                         {showBadge && (
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                              ? "bg-red-500/30 text-red-300 animate-pulse"
-                              : item.badgeColor ||
-                              "bg-indigo-500/30 text-indigo-300"
+                                ? "bg-red-500/30 text-red-300 animate-pulse"
+                                : item.badgeColor ||
+                                "bg-indigo-500/30 text-indigo-300"
                               }`}
                           >
                             {badgeInfo.text}
@@ -686,38 +806,103 @@ export default function Sidebar({
                   const isHovered = hoveredItem === item.name;
                   const badgeInfo = getBadgeDisplay(item);
                   const showBadge = shouldShowBadge(item);
+                  const isExternal = isExternalLink(item.href);
 
-                  return (
-                    <div
-                      key={item.id}
-                      onMouseEnter={(e) => {
-                        if (hasSubmenu) handleMouseEnter(item.name, e);
-                      }}
-                      onMouseLeave={() => {
-                        if (hasSubmenu) handleMouseLeave();
-                      }}
-                    >
+                  // If item has submenu, render with dropdown
+                  if (hasSubmenu) {
+                    return (
                       <div
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
-                          } ${isParentActiveFlag || (isHovered && hasSubmenu)
-                            ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
-                            : isActive(item.href) && !hasSubmenu
+                        key={item.id}
+                        onMouseEnter={(e) => {
+                          handleMouseEnter(item.name, e);
+                        }}
+                        onMouseLeave={() => {
+                          handleMouseLeave();
+                        }}
+                      >
+                        <div
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
+                            } ${isParentActiveFlag || (isHovered && hasSubmenu)
                               ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
                               : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
+                            }`}
+                          title={isCollapsed ? item.name : ""}
+                        >
+                          <div className="relative">
+                            <Icon
+                              size={18}
+                              className={`transition-all duration-200 ${isParentActiveFlag || (isHovered && hasSubmenu)
+                                  ? "text-indigo-300"
+                                  : "text-gray-400 group-hover:text-white"
+                                }`}
+                            />
+                            {isCollapsed && showBadge && !hasSubmenu && (
+                              <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
+                            )}
+                          </div>
+                          {!isCollapsed && (
+                            <>
+                              <span className="text-sm font-medium flex-1 text-left">
+                                {item.name}
+                              </span>
+                              <ChevronRightIcon
+                                size={14}
+                                className={`transition-all duration-300 ${isHovered
+                                    ? "translate-x-1 text-indigo-300"
+                                    : "text-gray-400 group-hover:text-white"
+                                  }`}
+                              />
+                              {showBadge && !hasSubmenu && (
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                                      ? "bg-red-500/30 text-red-300 animate-pulse"
+                                      : item.badgeColor ||
+                                      "bg-indigo-500/30 text-indigo-300"
+                                    }`}
+                                >
+                                  {badgeInfo.text}
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {(isParentActiveFlag ||
+                            (isActive(item.href) && !hasSubmenu)) &&
+                            !isCollapsed && (
+                              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                            )}
+                        </div>
+
+                        {hasSubmenu && renderDropdownMenu(item.name, subItems)}
+                      </div>
+                    );
+                  }
+
+                  // For items without submenu
+                  // External links
+                  if (isExternal) {
+                    return (
+                      <a
+                        key={item.id}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={onClose}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
+                          } ${isActive(item.href)
+                            ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
+                            : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
                           }`}
                         title={isCollapsed ? item.name : ""}
                       >
                         <div className="relative">
                           <Icon
                             size={18}
-                            className={`transition-all duration-200 ${isParentActiveFlag || (isHovered && hasSubmenu)
-                              ? "text-indigo-300"
-                              : isActive(item.href) && !hasSubmenu
+                            className={`transition-all duration-200 ${isActive(item.href)
                                 ? "text-indigo-300"
                                 : "text-gray-400 group-hover:text-white"
                               }`}
                           />
-                          {isCollapsed && showBadge && !hasSubmenu && (
+                          {isCollapsed && showBadge && (
                             <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
                           )}
                         </div>
@@ -726,21 +911,13 @@ export default function Sidebar({
                             <span className="text-sm font-medium flex-1 text-left">
                               {item.name}
                             </span>
-                            {hasSubmenu && (
-                              <ChevronRightIcon
-                                size={14}
-                                className={`transition-all duration-300 ${isHovered
-                                  ? "translate-x-1 text-indigo-300"
-                                  : "text-gray-400 group-hover:text-white"
-                                  }`}
-                              />
-                            )}
-                            {showBadge && !hasSubmenu && (
+                            <ExternalLink size={14} className="text-gray-400" />
+                            {showBadge && (
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                                  ? "bg-red-500/30 text-red-300 animate-pulse"
-                                  : item.badgeColor ||
-                                  "bg-indigo-500/30 text-indigo-300"
+                                    ? "bg-red-500/30 text-red-300 animate-pulse"
+                                    : item.badgeColor ||
+                                    "bg-indigo-500/30 text-indigo-300"
                                   }`}
                               >
                                 {badgeInfo.text}
@@ -748,15 +925,60 @@ export default function Sidebar({
                             )}
                           </>
                         )}
-                        {(isParentActiveFlag ||
-                          (isActive(item.href) && !hasSubmenu)) &&
-                          !isCollapsed && (
-                            <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
-                          )}
-                      </div>
+                        {isActive(item.href) && !isCollapsed && (
+                          <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                        )}
+                      </a>
+                    );
+                  }
 
-                      {hasSubmenu && renderDropdownMenu(item.name, subItems)}
-                    </div>
+                  // Internal links
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={onClose}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
+                        } ${isActive(item.href)
+                          ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
+                          : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
+                        }`}
+                      title={isCollapsed ? item.name : ""}
+                    >
+                      <div className="relative">
+                        <Icon
+                          size={18}
+                          className={`transition-all duration-200 ${isActive(item.href)
+                              ? "text-indigo-300"
+                              : "text-gray-400 group-hover:text-white"
+                            }`}
+                        />
+                        {isCollapsed && showBadge && (
+                          <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-pulse shadow-lg shadow-red-500/30" />
+                        )}
+                      </div>
+                      {!isCollapsed && (
+                        <>
+                          <span className="text-sm font-medium flex-1 text-left">
+                            {item.name}
+                          </span>
+                          {showBadge && (
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
+                                  ? "bg-red-500/30 text-red-300 animate-pulse"
+                                  : item.badgeColor ||
+                                  "bg-indigo-500/30 text-indigo-300"
+                                }`}
+                            >
+                              {badgeInfo.text}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {isActive(item.href) && !isCollapsed && (
+                        <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                      )}
+                    </Link>
                   );
                 })}
               </div>

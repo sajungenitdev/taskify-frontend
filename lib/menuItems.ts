@@ -133,6 +133,8 @@ export interface NavItem {
 
 export interface SubNavItem extends Omit<NavItem, "section"> {
   parent: string;
+  target?: string; // ✅ Add this
+  rel?: string;    // ✅ Add this
 }
 
 export interface SectionConfig {
@@ -288,6 +290,8 @@ const createSubNavItem = (
       | "description"
       | "isNew"
       | "requiresFeature"
+      | "target"
+      | "rel"
     >
   > = {},
 ): SubNavItem => ({
@@ -297,6 +301,8 @@ const createSubNavItem = (
   icon,
   parent,
   roles,
+  target: options.target || "_self",
+  rel: options.rel || "",
   ...options,
 });
 
@@ -1219,11 +1225,15 @@ export const SUB_ITEMS = {
   documentation: createSubNavItem(
     "documentation",
     "Documentation",
-    "/docs",
+    "https://sajungenitdev.github.io/task-documentation/",
     BookOpen,
     "Help & Support",
     [ROLES.ALL],
-    { description: "Read full system documentation" },
+    {
+      description: "Read full system documentation",
+      target: "_blank",      
+      rel: "noopener noreferrer" 
+    },
   ),
   apiDocs: createSubNavItem(
     "api-docs",
