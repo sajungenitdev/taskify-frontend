@@ -318,7 +318,7 @@ const SupportTicketsPage: React.FC = () => {
             const validFiles = fileArray.filter(file => file.size <= maxSize);
             
             if (validFiles.length !== fileArray.length) {
-                toast.warning("Some files exceed 5MB limit and were skipped");
+                toast.error("Some files exceed 5MB limit and were skipped");
             }
             
             setCreateAttachments([...createAttachments, ...validFiles]);
@@ -336,7 +336,7 @@ const SupportTicketsPage: React.FC = () => {
             const validFiles = fileArray.filter(file => file.size <= maxSize);
             
             if (validFiles.length !== fileArray.length) {
-                toast.warning("Some files exceed 5MB limit and were skipped");
+                toast.error("Some files exceed 5MB limit and were skipped");
             }
             
             setReplyAttachments([...replyAttachments, ...validFiles]);
