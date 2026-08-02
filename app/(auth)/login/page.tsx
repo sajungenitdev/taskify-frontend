@@ -15,13 +15,16 @@ import {
   Shield,
   ArrowRight,
   AlertCircle,
+  CheckCircle,
+  UserPlus,
+  ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import Link from "next/link";
 
 // ============================================================
-// FLOATING PARTICLES - INFINITE LOOP (FIXED)
+// FLOATING PARTICLES - INFINITE LOOP
 // ============================================================
 const FloatingParticles = () => {
   const [particles, setParticles] = useState<
@@ -92,7 +95,7 @@ const FloatingParticles = () => {
 };
 
 // ============================================================
-// GLOWING ORBS - INFINITE LOOP (FIXED)
+// GLOWING ORBS - INFINITE LOOP
 // ============================================================
 const GlowingOrbs = () => {
   return (
@@ -174,6 +177,20 @@ export default function LoginPage() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFocused, setIsFocused] = useState({ email: false, password: false });
+  const [emailValid, setEmailValid] = useState(false);
+
+  const validateEmail = (email: string) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  };
+
+  useEffect(() => {
+    if (formData.email) {
+      setEmailValid(validateEmail(formData.email));
+    } else {
+      setEmailValid(false);
+    }
+  }, [formData.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,8 +201,7 @@ export default function LoginPage() {
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!validateEmail(formData.email)) {
       setLoginError("Please enter a valid email address");
       return;
     }
@@ -290,7 +306,7 @@ export default function LoginPage() {
               </motion.h1>
 
               <p className="text-blue-300/70 text-sm mt-1">
-                Sign in to your workspace
+                Sign in to your workspace to continue
               </p>
             </motion.div>
 
@@ -336,11 +352,14 @@ export default function LoginPage() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     onFocus={() => setIsFocused({ ...isFocused, email: true })}
                     onBlur={() => setIsFocused({ ...isFocused, email: false })}
-                    className="w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-blue-300/30 bg-white/5 border border-blue-400/20 focus:border-blue-400 rounded-xl outline-none transition-all duration-300 focus:shadow-lg focus:shadow-blue-500/10"
+                    className="w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-blue-300/30 bg-white/5 border border-blue-400/20 focus:border-blue-400 rounded-xl outline-none transition-all duration-300 focus:shadow-lg focus:shadow-blue-500/10"
                     placeholder="name@company.com"
                     required
                     disabled={isSubmitting}
                   />
+                  {formData.email && emailValid && (
+                    <CheckCircle className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-400" />
+                  )}
                 </motion.div>
               </div>
 
@@ -354,7 +373,7 @@ export default function LoginPage() {
                     href="/forgot-password"
                     className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
                   >
-                    Forgot?
+                    Forgot Password?
                   </Link>
                 </div>
                 <motion.div
@@ -396,7 +415,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading || isSubmitting}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
                 >
                   {isLoading || isSubmitting ? (
                     <>
@@ -414,12 +433,47 @@ export default function LoginPage() {
               </motion.div>
             </motion.form>
 
-            {/* Footer Badges */}
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/10"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-3 bg-transparent text-blue-300/40">or</span>
+              </div>
+            </div>
+
+            {/* Create Account Section - IMPROVED */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.4 }}
-              className="mt-6 flex justify-center items-center gap-4 flex-wrap"
+              className="text-center space-y-3"
+            >
+              <p className="text-sm text-blue-300/60">
+                Don't have an account?
+              </p>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center w-full gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-400/30 hover:border-emerald-400/50 text-white font-medium rounded-xl transition-all duration-300 group"
+                >
+                  <UserPlus size={18} className="text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <span>Create New Account</span>
+                  <ChevronRight size={16} className="text-emerald-400/60 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </motion.div>
+            </motion.div>
+
+            {/* Footer Badges */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-6 flex justify-center items-center gap-3 flex-wrap"
             >
               {[
                 { icon: Shield, label: "256-bit SSL" },
@@ -447,7 +501,7 @@ export default function LoginPage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
+              transition={{ delay: 0.6 }}
               className="mt-6 pt-4 border-t border-white/5 text-center"
             >
               <p className="text-[10px] text-blue-300/30">
