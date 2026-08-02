@@ -324,8 +324,11 @@ export default function EmailSettingsPage() {
         setSaving(true);
         setSaved(false);
         try {
-            const dataToSend = { ...settings };
-            if (!dataToSend.smtpPassword) {
+            // Create a copy and conditionally remove password
+            const dataToSend: any = { ...settings };
+
+            // Only delete if it exists and is empty or undefined
+            if (dataToSend.smtpPassword === '' || dataToSend.smtpPassword === undefined || dataToSend.smtpPassword === null) {
                 delete dataToSend.smtpPassword;
             }
 
@@ -529,8 +532,8 @@ export default function EmailSettingsPage() {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={`px-4 py-3 text-sm font-medium transition-all duration-200 relative whitespace-nowrap ${isActive
-                                            ? "text-indigo-600"
-                                            : "text-gray-500 hover:text-gray-700"
+                                        ? "text-indigo-600"
+                                        : "text-gray-500 hover:text-gray-700"
                                         }`}
                                 >
                                     <Icon size={16} className="inline mr-2" />
@@ -852,15 +855,15 @@ function TemplatesTab({
                                 key={template.id}
                                 onClick={() => setSelectedTemplate(template.id)}
                                 className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-between ${selectedTemplate === template.id
-                                        ? "bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200"
-                                        : "bg-gray-50/80 border border-gray-200 hover:bg-gray-100"
+                                    ? "bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200"
+                                    : "bg-gray-50/80 border border-gray-200 hover:bg-gray-100"
                                     }`}
                             >
                                 <span className="text-sm font-medium text-gray-700">{template.label}</span>
                                 <div className="flex items-center gap-2">
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${template.enabled
-                                            ? "bg-emerald-100 text-emerald-700"
-                                            : "bg-gray-200 text-gray-500"
+                                        ? "bg-emerald-100 text-emerald-700"
+                                        : "bg-gray-200 text-gray-500"
                                         }`}>
                                         {template.enabled ? "Active" : "Disabled"}
                                     </span>
