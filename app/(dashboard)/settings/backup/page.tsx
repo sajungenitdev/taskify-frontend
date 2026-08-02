@@ -18,7 +18,7 @@ import {
     Clock as ClockIcon,
     Save,
 } from "lucide-react";
-import { apiService } from "@/lib/axios";
+import api, { apiService } from "@/lib/axios";
 import { useAuth } from "@/hooks/useAuth";
 import toast from "react-hot-toast";
 
@@ -177,10 +177,13 @@ const BackupPage: React.FC = () => {
 
         try {
             const toastId = toast.loading("Downloading backup...");
-            const response = await apiService.get(`/backup/${backupId}/download`, {
+
+            // Use api directly to get full response with headers
+            const response = await api.get(`/backup/${backupId}/download`, {
                 responseType: "blob",
             });
 
+            // Now response has headers
             if (!response.data || response.data.size === 0) {
                 toast.dismiss(toastId);
                 toast.error("Backup file is empty or corrupted");
@@ -191,6 +194,7 @@ const BackupPage: React.FC = () => {
             const link = document.createElement("a");
             link.href = url;
 
+            // Access headers from response
             const contentDisposition = response.headers?.["content-disposition"];
             let filename = `backup-${new Date().toISOString().split("T")[0]}.zip`;
             if (contentDisposition) {
@@ -504,10 +508,10 @@ const BackupPage: React.FC = () => {
                                         </td>
                                         <td className="py-3 px-4">
                                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${backup.type === "full"
-                                                    ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-                                                    : backup.type === "partial"
-                                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                                                        : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400"
+                                                ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                                                : backup.type === "partial"
+                                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                                    : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-400"
                                                 }`}>
                                                 {backup.type.charAt(0).toUpperCase() + backup.type.slice(1)}
                                             </span>
