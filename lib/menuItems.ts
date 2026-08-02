@@ -1199,7 +1199,7 @@ export const SUB_ITEMS = {
   backupManagement: createSubNavItem(
     "backup-management",
     "Backup Management",
-    "/backup",
+    "/settings/backup",
     DatabaseBackup,
     "System Settings",
     [ROLES.SUPER_ADMIN],

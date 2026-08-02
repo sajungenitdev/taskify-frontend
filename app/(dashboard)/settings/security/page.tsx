@@ -514,7 +514,7 @@ const SecuritySettingsPage: React.FC = () => {
     // MAIN RENDER
     // ============================================================
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+        <div className="min-h-screen bg-gray-50  p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Modern Header with Gradient */}
                 <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
