@@ -1246,7 +1246,7 @@ export const SUB_ITEMS = {
   systemStatus: createSubNavItem(
     "system-status",
     "System Status",
-    "/status",
+    "/help/system-status",
     Activity,
     "Help & Support",
     [ROLES.ALL],
