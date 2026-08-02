@@ -1,7 +1,7 @@
 // app/(dashboard)/settings/audit-logs/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react"; // ✅ Added useRef
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     Activity,
     Search,
@@ -61,7 +61,7 @@ import toast from "react-hot-toast";
 // TYPES
 // ============================================================
 interface AuditLog {
-    id: string;
+    _id: string;
     action: string;
     resource: string;
     resourceId: string;
@@ -249,13 +249,13 @@ const DATE_RANGES = ["today", "week", "month"] as const;
 type DateRange = typeof DATE_RANGES[number];
 
 // ============================================================
-// STATS ITEMS
+// STATS ITEMS - Only include numeric fields
 // ============================================================
-const STATS_ITEMS = [
+const STATS_ITEMS: Array<{ key: keyof Pick<AuditLogStats, "total" | "today" | "thisWeek" | "thisMonth" | "success" | "failed">; label: string; color: string }> = [
     { key: "total", label: "Total", color: "text-white" },
     { key: "today", label: "Today", color: "text-white" },
-    { key: "week", label: "This Week", color: "text-white" },
-    { key: "month", label: "This Month", color: "text-white" },
+    { key: "thisWeek", label: "This Week", color: "text-white" },
+    { key: "thisMonth", label: "This Month", color: "text-white" },
     { key: "success", label: "Success", color: "text-green-300" },
     { key: "failed", label: "Failed", color: "text-red-300" },
 ];
@@ -297,7 +297,6 @@ const AuditLogsPage: React.FC = () => {
     // ============================================================
     // FETCH DATA
     // ============================================================
-
     const fetchLogs = useCallback(async (): Promise<void> => {
         try {
             setLoading(true);
@@ -347,7 +346,9 @@ const AuditLogsPage: React.FC = () => {
         return () => {
             isMounted.current = false;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
     // ============================================================
     // HANDLERS
     // ============================================================
@@ -402,7 +403,7 @@ const AuditLogsPage: React.FC = () => {
 
     const handleExport = async (): Promise<void> => {
         try {
-            toast.loading("Exporting audit logs...");
+            const toastId = toast.loading("Exporting audit logs...");
             const response = await apiService.get("/audit-logs/export", {
                 params: filters,
                 responseType: "blob",
@@ -411,9 +412,11 @@ const AuditLogsPage: React.FC = () => {
             const link = document.createElement("a");
             link.href = url;
             link.download = `audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
             window.URL.revokeObjectURL(url);
-            toast.dismiss();
+            toast.dismiss(toastId);
             toast.success("Audit logs exported successfully");
         } catch (error: any) {
             toast.dismiss();
@@ -456,7 +459,6 @@ const AuditLogsPage: React.FC = () => {
     const handlePageChange = (page: number): void => {
         setPagination((prev) => ({ ...prev, page }));
     };
-
 
     // ============================================================
     // UTILITY FUNCTIONS
@@ -510,7 +512,6 @@ const AuditLogsPage: React.FC = () => {
     const getStatusColor = (status: string): string => {
         return STATUS_COLORS[status as keyof typeof STATUS_COLORS] || "bg-gray-100 text-gray-700";
     };
-
 
     // ============================================================
     // RENDER LOADING
@@ -568,7 +569,7 @@ const AuditLogsPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Stats - ✅ Added keys */}
+                {/* Stats - ✅ Fixed TypeScript error */}
                 {stats && (
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-6">
                         {STATS_ITEMS.map((item) => (
@@ -578,7 +579,7 @@ const AuditLogsPage: React.FC = () => {
                             >
                                 <p className="text-indigo-100 text-xs">{item.label}</p>
                                 <p className={`text-xl font-bold ${item.color}`}>
-                                    {stats[item.key as keyof AuditLogStats]}
+                                    {stats[item.key]}
                                 </p>
                             </div>
                         ))}
@@ -614,7 +615,7 @@ const AuditLogsPage: React.FC = () => {
                         <ChevronDown className={`w-4 h-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
                     </button>
 
-                    {/* Date Range - ✅ Already has keys */}
+                    {/* Date Range */}
                     <div className="flex gap-2">
                         {DATE_RANGES.map((range) => (
                             <button
@@ -631,7 +632,7 @@ const AuditLogsPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Expanded Filters - ✅ Added keys to selects */}
+                {/* Expanded Filters */}
                 {showFilters && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                         <div>
@@ -768,10 +769,10 @@ const AuditLogsPage: React.FC = () => {
                                     const ResourceIcon = getResourceIcon(log.resource);
                                     const SeverityIcon = getSeverityIcon(log.severity);
                                     const DeviceIcon = getDeviceIcon(log.userAgent);
-                                    const isExpanded = expandedRows.has(log.id);
+                                    const isExpanded = expandedRows.has(log._id);
 
                                     return (
-                                        <React.Fragment key={log.id}>
+                                        <React.Fragment key={log._id}>
                                             <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                                 <td className="py-3 px-4">
                                                     <div className="flex flex-col">
@@ -858,7 +859,7 @@ const AuditLogsPage: React.FC = () => {
                                                 <td className="py-3 px-4 text-right">
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button
-                                                            onClick={() => toggleRowExpand(log.id)}
+                                                            onClick={() => toggleRowExpand(log._id)}
                                                             className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                                                             title="Toggle details"
                                                         >
@@ -879,7 +880,7 @@ const AuditLogsPage: React.FC = () => {
                                                 </td>
                                             </tr>
 
-                                            {/* Expanded Row - ✅ Added keys to all mapped items */}
+                                            {/* Expanded Row - ✅ FIXED with proper keys on ALL children */}
                                             {isExpanded && (
                                                 <tr className="bg-gray-50 dark:bg-gray-800/50">
                                                     <td colSpan={7} className="py-3 px-4">
@@ -908,7 +909,7 @@ const AuditLogsPage: React.FC = () => {
                                                                     Metadata
                                                                 </h4>
                                                                 <div className="space-y-1">
-                                                                    <div className="flex items-start gap-2">
+                                                                    <div key={`${log._id}-user-agent`} className="flex items-start gap-2">
                                                                         <span className="text-gray-500 dark:text-gray-400 font-medium min-w-[100px]">
                                                                             User Agent:
                                                                         </span>
@@ -916,7 +917,7 @@ const AuditLogsPage: React.FC = () => {
                                                                             {log.userAgent}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="flex items-start gap-2">
+                                                                    <div key={`${log._id}-location`} className="flex items-start gap-2">
                                                                         <span className="text-gray-500 dark:text-gray-400 font-medium min-w-[100px]">
                                                                             Location:
                                                                         </span>
@@ -924,7 +925,7 @@ const AuditLogsPage: React.FC = () => {
                                                                             {log.location || "Unknown"}
                                                                         </span>
                                                                     </div>
-                                                                    <div className="flex items-start gap-2">
+                                                                    <div key={`${log._id}-device`} className="flex items-start gap-2">
                                                                         <span className="text-gray-500 dark:text-gray-400 font-medium min-w-[100px]">
                                                                             Device:
                                                                         </span>
@@ -933,8 +934,8 @@ const AuditLogsPage: React.FC = () => {
                                                                         </span>
                                                                     </div>
                                                                     {log.metadata && (
-                                                                        <>
-                                                                            <div className="flex items-start gap-2">
+                                                                        <React.Fragment key={`${log._id}-metadata`}>
+                                                                            <div key={`${log._id}-browser`} className="flex items-start gap-2">
                                                                                 <span className="text-gray-500 dark:text-gray-400 font-medium min-w-[100px]">
                                                                                     Browser:
                                                                                 </span>
@@ -942,7 +943,7 @@ const AuditLogsPage: React.FC = () => {
                                                                                     {log.metadata.browser}
                                                                                 </span>
                                                                             </div>
-                                                                            <div className="flex items-start gap-2">
+                                                                            <div key={`${log._id}-os`} className="flex items-start gap-2">
                                                                                 <span className="text-gray-500 dark:text-gray-400 font-medium min-w-[100px]">
                                                                                     OS:
                                                                                 </span>
@@ -950,7 +951,7 @@ const AuditLogsPage: React.FC = () => {
                                                                                     {log.metadata.os}
                                                                                 </span>
                                                                             </div>
-                                                                        </>
+                                                                        </React.Fragment>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -1011,7 +1012,7 @@ const AuditLogsPage: React.FC = () => {
                 )}
             </div>
 
-            {/* Log Details Modal - ✅ Added keys to all mapped items */}
+            {/* Log Details Modal */}
             {showDetailsModal && selectedLog && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
@@ -1086,7 +1087,6 @@ const AuditLogsPage: React.FC = () => {
                                             selectedLog.severity
                                         )}`}
                                     >
-                                        {/* <SeverityIcon className="w-3 h-3" /> */}
                                         {selectedLog.severity.charAt(0).toUpperCase() + selectedLog.severity.slice(1)}
                                     </span>
                                 </div>
@@ -1106,7 +1106,7 @@ const AuditLogsPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Details - ✅ Added keys */}
+                            {/* Details */}
                             <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Details</p>
                                 <div className="space-y-1">
