@@ -23,6 +23,20 @@ import {
   Download,
   Shield,
   Briefcase,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar,
+  Clock,
+  Award,
+  Star,
+  TrendingUp,
+  Zap,
+  UserPlus,
+  UserMinus,
+  CreditCard,
+  HardDrive,
+  ExternalLink,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -40,7 +54,7 @@ interface Department {
     email: string;
     role: string;
   };
-  parentDepartmentId?: {
+  parentDepartment?: {
     _id: string;
     name: string;
     code: string;
@@ -61,11 +75,18 @@ interface DepartmentMember {
   fullName: string;
   email: string;
   role: string;
+  employeeId?: string;
   avatar?: string;
-  department: string;
-  position: string;
-  joinDate: string;
+  department: string | { _id: string; name: string; code: string };
+  position?: string;
+  joinDate?: string;
   status: "active" | "inactive" | "on_leave";
+  phoneNumber?: string;
+  location?: string;
+  profilePhoto?: string;
+  createdAt?: string;
+  lastLogin?: string;
+  isActive?: boolean;
 }
 
 export default function DepartmentDetailPage() {
@@ -83,12 +104,7 @@ export default function DepartmentDetailPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const canManage = hasRole([
-    "super_admin",
-    "admin",
-    "hr_manager",
-    "dept_manager",
-  ]);
+  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
 
   // Handle ESC key for modal closure
   useEffect(() => {
@@ -107,146 +123,70 @@ export default function DepartmentDetailPage() {
       setError(null);
 
       // Fetch department details
-      let departmentData: Department | null = null;
-      try {
-        const deptRes = await api.get(`/departments/${departmentId}`);
-        if (deptRes.data?.success) {
-          departmentData = deptRes.data.data;
-          setDepartment(departmentData);
-        } else {
-          throw new Error(
-            deptRes.data?.message || "Failed to fetch department",
-          );
-        }
-      } catch (deptError: any) {
-        console.error("Department fetch error:", deptError);
-        const mockData = getMockDepartment(departmentId);
-        setDepartment(mockData);
-        departmentData = mockData;
-        toast.success("Using sample department data (API unavailable)");
+      const deptRes = await api.get(`/departments/${departmentId}`);
+      if (!deptRes.data?.success) {
+        throw new Error(deptRes.data?.message || "Failed to fetch department");
       }
 
-      // Fetch department employees
+      const departmentData = deptRes.data.data;
+      setDepartment(departmentData);
+
+      // Fetch all users to find department members
       try {
-        const employeesRes = await api.get(
-          `/departments/${departmentId}/employees`,
-        );
-        if (employeesRes.data?.success) {
-          const employeeData = employeesRes.data.data || [];
-          const formattedMembers: DepartmentMember[] = employeeData.map(
-            (emp: any) => ({
-              _id: emp._id || emp.userId?._id || `emp-${Math.random()}`,
-              fullName: emp.fullName || emp.userId?.fullName || "Unknown",
-              email: emp.email || emp.userId?.email || "N/A",
-              role: emp.role || emp.userId?.role || "employee",
-              avatar: emp.avatar || emp.userId?.avatar,
-              department: departmentData?.name || "",
-              position: emp.position || emp.role || "Member",
-              joinDate:
-                emp.joinDate || emp.createdAt || new Date().toISOString(),
-              status: emp.status || "active",
-            }),
-          );
+        const usersRes = await api.get("/users");
+        if (usersRes.data?.success) {
+          const allUsers = usersRes.data.data || [];
+
+          // Filter users belonging to this department
+          const deptMembers = allUsers.filter((user: any) => {
+            if (user.department) {
+              const deptId = typeof user.department === 'object' ? user.department._id : user.department;
+              return deptId === departmentId || deptId === departmentId?.toString();
+            }
+            return false;
+          });
+
+          // Format members
+          const formattedMembers: DepartmentMember[] = deptMembers.map((user: any) => ({
+            _id: user._id,
+            fullName: user.fullName || user.name || "Unknown",
+            email: user.email || "N/A",
+            role: user.role || "employee",
+            employeeId: user.employeeId || user.employeeID || `EMP-${String(user._id).slice(-6)}`,
+            avatar: user.profilePhoto || user.avatar,
+            department: user.department || departmentData?.name || "",
+            position: user.position || user.role || "Member",
+            joinDate: user.createdAt || user.joinDate || new Date().toISOString(),
+            status: user.isActive ? "active" : "inactive",
+            phoneNumber: user.phoneNumber,
+            location: user.location,
+            profilePhoto: user.profilePhoto,
+            createdAt: user.createdAt,
+            lastLogin: user.lastLogin,
+            isActive: user.isActive,
+          }));
+
           setMembers(formattedMembers);
+
+          // Update department employee count
+          if (departmentData) {
+            departmentData.employeeCount = formattedMembers.length;
+            setDepartment(departmentData);
+          }
         }
-      } catch (membersError) {
-        console.error("Members fetch error:", membersError);
-        const mockMembers = getMockMembers(departmentData);
-        setMembers(mockMembers);
+      } catch (usersError) {
+        console.error("Error fetching users:", usersError);
+        // Don't fail the whole page if users fetch fails
+        toast.error("Could not load department members");
       }
     } catch (err: any) {
       console.error("Error fetching department data:", err);
       setError(err.message || "Failed to fetch department data");
+      toast.error(err.message || "Failed to load department");
     } finally {
       setLoading(false);
     }
   }, [departmentId]);
-
-  // Fallback Mock Data Generators
-  const getMockDepartment = (id: string): Department => ({
-    _id: id,
-    name: "Engineering Department",
-    code: "ENG",
-    description:
-      "Responsible for software development, technical operations, infrastructure, and core product innovation.",
-    headOfDepartment: {
-      _id: "mock-manager-1",
-      fullName: "John Smith",
-      email: "john.smith@company.com",
-      role: "dept_manager",
-    },
-    employeeCount: 24,
-    budget: {
-      allocated: 250000,
-      spent: 120000,
-      currency: "USD",
-    },
-    isActive: true,
-    createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
-
-  const getMockMembers = (dept: Department | null): DepartmentMember[] => {
-    const departmentName = dept?.name || "Engineering";
-    return [
-      {
-        _id: "mock-1",
-        fullName: "Alice Johnson",
-        email: "alice.j@company.com",
-        role: "senior_developer",
-        department: departmentName,
-        position: "Senior Developer",
-        joinDate: new Date(
-          Date.now() - 180 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        status: "active",
-      },
-      {
-        _id: "mock-2",
-        fullName: "Bob Williams",
-        email: "bob.w@company.com",
-        role: "developer",
-        department: departmentName,
-        position: "Full Stack Developer",
-        joinDate: new Date(
-          Date.now() - 120 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        status: "active",
-      },
-      {
-        _id: "mock-3",
-        fullName: "Carol Davis",
-        email: "carol.d@company.com",
-        role: "developer",
-        department: departmentName,
-        position: "Frontend Developer",
-        joinDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "on_leave",
-      },
-      {
-        _id: "mock-4",
-        fullName: "David Martinez",
-        email: "david.m@company.com",
-        role: "intern",
-        department: departmentName,
-        position: "Software Intern",
-        joinDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        status: "active",
-      },
-      {
-        _id: "mock-5",
-        fullName: "Emma Wilson",
-        email: "emma.w@company.com",
-        role: "team_lead",
-        department: departmentName,
-        position: "Tech Lead",
-        joinDate: new Date(
-          Date.now() - 200 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-        status: "active",
-      },
-    ];
-  };
 
   useEffect(() => {
     if (departmentId) {
@@ -261,11 +201,7 @@ export default function DepartmentDetailPage() {
       toast.success("Department deleted successfully");
       router.push("/departments");
     } catch (err: any) {
-      toast.error(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to delete department",
-      );
+      toast.error(err.response?.data?.message || err.message || "Failed to delete department");
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
@@ -286,14 +222,12 @@ export default function DepartmentDetailPage() {
       toast.error("No members to export");
       return;
     }
-    const headers = ["ID,Full Name,Email,Role,Position,Status,Join Date"];
+    const headers = ["ID,Full Name,Email,Role,Employee ID,Position,Status,Join Date"];
     const rows = members.map(
       (m) =>
-        `"${m._id}","${m.fullName}","${m.email}","${m.role}","${m.position}","${m.status}","${formatDate(m.joinDate)}"`,
+        `"${m._id}","${m.fullName}","${m.email}","${m.role}","${m.employeeId || ''}","${m.position || ''}","${m.status}","${formatDate(m.joinDate || m.createdAt || new Date().toISOString())}"`,
     );
-    const blob = new Blob([[headers, ...rows].join("\n")], {
-      type: "text/csv",
-    });
+    const blob = new Blob([[headers, ...rows].join("\n")], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -309,9 +243,12 @@ export default function DepartmentDetailPage() {
       admin: "bg-purple-50 text-purple-700 border-purple-200",
       hr_manager: "bg-pink-50 text-pink-700 border-pink-200",
       dept_manager: "bg-indigo-50 text-indigo-700 border-indigo-200",
+      project_manager: "bg-blue-50 text-blue-700 border-blue-200",
+      line_manager: "bg-cyan-50 text-cyan-700 border-cyan-200",
       team_lead: "bg-blue-50 text-blue-700 border-blue-200",
       senior_developer: "bg-cyan-50 text-cyan-700 border-cyan-200",
       developer: "bg-sky-50 text-sky-700 border-sky-200",
+      employee: "bg-gray-50 text-gray-700 border-gray-200",
       intern: "bg-teal-50 text-teal-700 border-teal-200",
     };
     return styles[role] || "bg-gray-100 text-gray-700 border-gray-200";
@@ -324,9 +261,11 @@ export default function DepartmentDetailPage() {
       hr_manager: "HR Manager",
       dept_manager: "Dept Manager",
       project_manager: "Project Manager",
+      line_manager: "Line Manager",
       team_lead: "Team Lead",
       senior_developer: "Senior Dev",
       developer: "Developer",
+      employee: "Employee",
       intern: "Intern",
     };
     return labels[role] || role.replace(/_/g, " ");
@@ -361,7 +300,8 @@ export default function DepartmentDetailPage() {
     (member) =>
       member.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       member.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.position.toLowerCase().includes(searchTerm.toLowerCase()),
+      member.position?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   if (loading) {
@@ -419,8 +359,7 @@ export default function DepartmentDetailPage() {
             Department Not Found
           </h3>
           <p className="text-sm text-gray-500 mb-4">
-            The department you are looking for does not exist or has been
-            removed.
+            The department you are looking for does not exist or has been removed.
           </p>
           <Link
             href="/departments"
@@ -486,11 +425,10 @@ export default function DepartmentDetailPage() {
                     {department.name}
                   </h1>
                   <span
-                    className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${
-                      department.isActive
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-gray-100 text-gray-500 border-gray-200"
-                    }`}
+                    className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${department.isActive
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-gray-100 text-gray-500 border-gray-200"
+                      }`}
                   >
                     {department.isActive ? "Active" : "Inactive"}
                   </span>
@@ -562,7 +500,7 @@ export default function DepartmentDetailPage() {
                   Total Members
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {department.employeeCount || members.length || 0}
+                  {members.length}
                 </p>
               </div>
               <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
@@ -575,7 +513,7 @@ export default function DepartmentDetailPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-gray-500 mb-1">
-                  Active Status
+                  Active Members
                 </p>
                 <p className="text-2xl font-bold text-emerald-600">
                   {members.filter((m) => m.status === "active").length}
@@ -616,10 +554,10 @@ export default function DepartmentDetailPage() {
                   <p className="text-2xl font-bold text-amber-600">
                     {department.budget?.spent && department.budget?.allocated
                       ? Math.round(
-                          (department.budget.spent /
-                            department.budget.allocated) *
-                            100,
-                        )
+                        (department.budget.spent /
+                          department.budget.allocated) *
+                        100,
+                      )
                       : 0}
                     %
                   </p>
@@ -673,11 +611,11 @@ export default function DepartmentDetailPage() {
                     {department.headOfDepartment?.fullName || "Unassigned"}
                   </span>
                 </div>
-                {department.parentDepartmentId && (
+                {department.parentDepartment && (
                   <div className="flex items-center justify-between py-1 border-b border-gray-50">
                     <span className="text-gray-500">Parent Dept.</span>
                     <span className="text-gray-900 font-medium">
-                      {department.parentDepartmentId.name}
+                      {department.parentDepartment.name}
                     </span>
                   </div>
                 )}
@@ -747,7 +685,7 @@ export default function DepartmentDetailPage() {
                 </div>
               </div>
 
-              {/* List */}
+              {/* Members List */}
               <div className="p-4">
                 {filteredMembers.length > 0 ? (
                   <div className="space-y-2.5">
@@ -756,7 +694,7 @@ export default function DepartmentDetailPage() {
                         key={member._id}
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-gray-50/60 rounded-xl border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition gap-3"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-semibold shadow-xs shrink-0">
                             {member.fullName.charAt(0).toUpperCase()}
                           </div>
@@ -764,13 +702,20 @@ export default function DepartmentDetailPage() {
                             <p className="text-xs md:text-sm font-semibold text-gray-900 truncate">
                               {member.fullName}
                             </p>
-                            <p className="text-xs text-gray-400 truncate">
-                              {member.email}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs text-gray-400 truncate">
+                                {member.email}
+                              </p>
+                              {member.employeeId && (
+                                <span className="text-[10px] text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                                  ID: {member.employeeId}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 justify-between sm:justify-end">
+                        <div className="flex items-center gap-2 justify-between sm:justify-end flex-wrap">
                           <span
                             className={`text-[11px] px-2 py-0.5 rounded-md border font-medium ${getRoleBadgeStyle(
                               member.role,
@@ -785,27 +730,36 @@ export default function DepartmentDetailPage() {
                           >
                             {member.status.replace(/_/g, " ")}
                           </span>
-                          <button
-                            onClick={() => router.push(`/users/${member._id}`)}
+                          <Link
+                            href={`/users/${member._id}`}
                             className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
                             title="View Profile"
                           >
-                            <User size={14} />
-                          </button>
+                            <ExternalLink size={14} />
+                          </Link>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-10 text-gray-400">
-                    <Users className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-                    <p className="text-xs md:text-sm font-medium text-gray-600">
-                      No members found
+                  <div className="text-center py-10">
+                    <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm font-medium text-gray-600">
+                      {searchTerm ? "No members match your search" : "No members in this department"}
                     </p>
                     {searchTerm && (
                       <p className="text-xs text-gray-400 mt-1">
                         Try adjusting your search criteria
                       </p>
+                    )}
+                    {!searchTerm && canManage && (
+                      <Link
+                        href={`/departments/${departmentId}/members/add`}
+                        className="inline-block mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl transition"
+                      >
+                        <Plus size={14} className="inline mr-1" />
+                        Add First Member
+                      </Link>
                     )}
                   </div>
                 )}
@@ -848,9 +802,7 @@ export default function DepartmentDetailPage() {
                     disabled={isDeleting}
                     className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 text-xs font-semibold rounded-xl transition flex items-center justify-center gap-1.5 shadow-xs disabled:opacity-50"
                   >
-                    {isDeleting && (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    )}
+                    {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     Delete
                   </button>
                   <button

@@ -19,18 +19,23 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  ArrowLeft,
-  Filter,
   Grid,
   List,
   CheckCircle,
   XCircle,
+  User,
+  TrendingUp,
+  UserPlus,
+  UserMinus,
+  CreditCard,
+  HardDrive,
+  Mail,
+  Phone,
+  MapPin,
   Calendar,
   Clock,
-  User,
   Briefcase,
   Star,
-  TrendingUp,
   Award,
   Zap,
 } from "lucide-react";
@@ -54,7 +59,7 @@ interface Department {
     name: string;
     code: string;
   };
-  employeeCount: number;
+  employeeCount?: number;
   budget?: {
     allocated: number;
     spent: number;
@@ -71,27 +76,45 @@ interface Department {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  members?: User[];
+}
+
+interface User {
+  _id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  employeeId: string;
+  department: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  isActive: boolean;
+  profilePhoto?: string;
+  phoneNumber?: string;
+  location?: string;
+  createdAt: string;
+  lastLogin?: string;
 }
 
 export default function AllDepartmentsPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingDept, setEditingDept] = useState<Department | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null,
-  );
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [sortBy, setSortBy] = useState<
-    "name" | "code" | "employeeCount" | "budget"
-  >("name");
+  const [sortBy, setSortBy] = useState<"name" | "code" | "employeeCount" | "budget">("name");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [showStats, setShowStats] = useState(true);
+
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -102,19 +125,48 @@ export default function AllDepartmentsPage() {
   const canEdit = hasRole(["super_admin", "admin"]);
 
   useEffect(() => {
-    fetchDepartments();
+    fetchData();
   }, []);
 
-  const fetchDepartments = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/departments");
-      if (response.data.success) {
-        setDepartments(response.data.data);
+
+      // Fetch departments
+      const deptResponse = await api.get("/departments");
+      const usersResponse = await api.get("/users");
+
+      if (deptResponse.data.success) {
+        const depts = deptResponse.data.data;
+
+        // Get all users
+        const users = usersResponse.data.success ? usersResponse.data.data : [];
+        setAllUsers(users);
+
+        // Map users to departments
+        const departmentsWithMembers = depts.map((dept: any) => {
+          const members = users.filter((u: any) => {
+            if (u.department) {
+              const deptId = typeof u.department === 'object' ? u.department._id : u.department;
+              return deptId === dept._id || deptId === dept._id?.toString();
+            }
+            return false;
+          });
+
+          return {
+            ...dept,
+            members: members || [],
+            employeeCount: members?.length || 0,
+            budget: dept.budget || { allocated: 0, spent: 0 },
+            assets: dept.assets || { total: 0, value: 0 },
+          };
+        });
+
+        setDepartments(departmentsWithMembers);
       }
     } catch (error) {
-      console.error("Error fetching departments:", error);
-      toast.error("Failed to fetch departments");
+      console.error("Error fetching data:", error);
+      toast.error("Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -128,12 +180,10 @@ export default function AllDepartmentsPage() {
         toast.success("Department created successfully");
         setShowCreateModal(false);
         setFormData({ name: "", code: "", description: "" });
-        fetchDepartments();
+        fetchData();
       }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to create department",
-      );
+      toast.error(error.response?.data?.message || "Failed to create department");
     }
   };
 
@@ -141,21 +191,16 @@ export default function AllDepartmentsPage() {
     e.preventDefault();
     if (!editingDept) return;
     try {
-      const response = await api.put(
-        `/departments/${editingDept._id}`,
-        formData,
-      );
+      const response = await api.put(`/departments/${editingDept._id}`, formData);
       if (response.data.success) {
         toast.success("Department updated successfully");
         setShowCreateModal(false);
         setEditingDept(null);
         setFormData({ name: "", code: "", description: "" });
-        fetchDepartments();
+        fetchData();
       }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to update department",
-      );
+      toast.error(error.response?.data?.message || "Failed to update department");
     }
   };
 
@@ -164,11 +209,9 @@ export default function AllDepartmentsPage() {
       await api.delete(`/departments/${id}`);
       toast.success("Department deleted successfully");
       setShowDeleteConfirm(null);
-      fetchDepartments();
+      fetchData();
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to delete department",
-      );
+      toast.error(error.response?.data?.message || "Failed to delete department");
     }
   };
 
@@ -196,9 +239,7 @@ export default function AllDepartmentsPage() {
         bVal = b.budget?.allocated || 0;
       }
       if (typeof aVal === "string") {
-        return sortOrder === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+        return sortOrder === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
       return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
     });
@@ -208,15 +249,12 @@ export default function AllDepartmentsPage() {
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentDepartments = filteredDepartments.slice(
-    indexOfFirstItem,
-    indexOfLastItem,
-  );
+  const currentDepartments = filteredDepartments.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredDepartments.length / itemsPerPage);
 
   const stats = {
     total: departments.length,
-    employees: departments.reduce((sum, d) => sum + d.employeeCount, 0),
+    employees: departments.reduce((sum, d) => sum + (d.employeeCount || 0), 0),
     budget: departments.reduce((sum, d) => sum + (d.budget?.allocated || 0), 0),
     assets: departments.reduce((sum, d) => sum + (d.assets?.total || 0), 0),
     active: departments.filter((d) => d.isActive).length,
@@ -234,12 +272,8 @@ export default function AllDepartmentsPage() {
           <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-10 h-10 text-rose-500" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Access Denied
-          </h2>
-          <p className="text-gray-500">
-            You don't have permission to view this page
-          </p>
+          <h2 className="text-xl font-semibold text-gray-800 mb-2">Access Denied</h2>
+          <p className="text-gray-500">You don't have permission to view this page</p>
         </motion.div>
       </div>
     );
@@ -260,16 +294,12 @@ export default function AllDepartmentsPage() {
                 <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Building2 className="w-4 h-4 text-white" />
                 </div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                  All Departments
-                </h1>
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">All Departments</h1>
                 <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
                   {departments.length}
                 </span>
               </div>
-              <p className="text-gray-500 text-sm">
-                Manage and view all departments in the system
-              </p>
+              <p className="text-gray-500 text-sm">Manage and view all departments in the system</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -280,9 +310,7 @@ export default function AllDepartmentsPage() {
                 {showStats ? "Hide Stats" : "Show Stats"}
               </button>
               <button
-                onClick={() =>
-                  setViewMode(viewMode === "grid" ? "list" : "grid")
-                }
+                onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
               >
                 {viewMode === "grid" ? <List size={14} /> : <Grid size={14} />}
@@ -302,13 +330,10 @@ export default function AllDepartmentsPage() {
                 </button>
               )}
               <button
-                onClick={fetchDepartments}
+                onClick={fetchData}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
               >
-                <RefreshCw
-                  size={16}
-                  className={loading ? "animate-spin" : ""}
-                />
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               </button>
             </div>
           </motion.div>
@@ -324,9 +349,7 @@ export default function AllDepartmentsPage() {
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-gray-800">
-                      {stats.total}
-                    </p>
+                    <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Departments</p>
                   </div>
                   <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
@@ -337,9 +360,7 @@ export default function AllDepartmentsPage() {
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-emerald-600">
-                      {stats.employees}
-                    </p>
+                    <p className="text-2xl font-bold text-emerald-600">{stats.employees}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Employees</p>
                   </div>
                   <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -350,9 +371,7 @@ export default function AllDepartmentsPage() {
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-blue-600">
-                      ${stats.budget.toLocaleString()}
-                    </p>
+                    <p className="text-2xl font-bold text-blue-600">${stats.budget.toLocaleString()}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Budget</p>
                   </div>
                   <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
@@ -363,9 +382,7 @@ export default function AllDepartmentsPage() {
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-purple-600">
-                      {stats.assets}
-                    </p>
+                    <p className="text-2xl font-bold text-purple-600">{stats.assets}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Assets</p>
                   </div>
                   <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -376,9 +393,7 @@ export default function AllDepartmentsPage() {
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-emerald-600">
-                      {stats.active}
-                    </p>
+                    <p className="text-2xl font-bold text-emerald-600">{stats.active}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Active</p>
                   </div>
                   <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
@@ -389,9 +404,7 @@ export default function AllDepartmentsPage() {
               <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold text-rose-600">
-                      {stats.inactive}
-                    </p>
+                    <p className="text-2xl font-bold text-rose-600">{stats.inactive}</p>
                     <p className="text-xs text-gray-500 mt-0.5">Inactive</p>
                   </div>
                   <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center">
@@ -427,13 +440,11 @@ export default function AllDepartmentsPage() {
               >
                 <option value="name">Sort by Name</option>
                 <option value="code">Sort by Code</option>
-                <option value="employeeCount">Sort by Employees</option>
+                <option value="employeeCount">Sort by Members</option>
                 <option value="budget">Sort by Budget</option>
               </select>
               <button
-                onClick={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
                 className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
               >
                 {sortOrder === "asc" ? "↑" : "↓"}
@@ -455,13 +466,9 @@ export default function AllDepartmentsPage() {
               <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Building2 className="w-10 h-10 text-gray-400" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-1">
-                No Departments Found
-              </h3>
+              <h3 className="text-xl font-semibold text-gray-800 mb-1">No Departments Found</h3>
               <p className="text-gray-500">
-                {searchTerm
-                  ? "Try adjusting your search terms"
-                  : "Create your first department to get started"}
+                {searchTerm ? "Try adjusting your search terms" : "Create your first department to get started"}
               </p>
               {canEdit && !searchTerm && (
                 <button
@@ -484,104 +491,124 @@ export default function AllDepartmentsPage() {
               transition={{ delay: 0.3 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
             >
-              {currentDepartments.map((dept, index) => (
-                <motion.div
-                  key={dept._id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition"
-                >
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                          <Building2 className="w-5 h-5 text-indigo-500" />
+              {currentDepartments.map((dept, index) => {
+                const memberCount = dept.members?.length || dept.employeeCount || 0;
+                const budgetAmount = dept.budget?.allocated || 0;
+                const assetCount = dept.assets?.total || 0;
+                const members = dept.members || [];
+
+                return (
+                  <motion.div
+                    key={dept._id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition"
+                  >
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                            <Building2 className="w-5 h-5 text-indigo-500" />
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-800">{dept.name}</h3>
+                            <span className="text-xs font-mono text-gray-400">{dept.code}</span>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="text-sm font-semibold text-gray-800">
-                            {dept.name}
-                          </h3>
-                          <span className="text-xs font-mono text-gray-400">
-                            {dept.code}
-                          </span>
-                        </div>
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${dept.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}
-                      >
-                        {dept.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    {dept.description && (
-                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                        {dept.description}
-                      </p>
-                    )}
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
-                        <p className="text-lg font-bold text-gray-700">
-                          {dept.employeeCount}
-                        </p>
-                        <p className="text-[10px] text-gray-400">Members</p>
-                      </div>
-                      <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
-                        <p className="text-lg font-bold text-gray-700">
-                          ${(dept.budget?.allocated || 0).toLocaleString()}
-                        </p>
-                        <p className="text-[10px] text-gray-400">Budget</p>
-                      </div>
-                      <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
-                        <p className="text-lg font-bold text-gray-700">
-                          {dept.assets?.total || 0}
-                        </p>
-                        <p className="text-[10px] text-gray-400">Assets</p>
-                      </div>
-                    </div>
-                    {dept.headOfDepartment && (
-                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
-                        <User size={12} className="text-gray-400" />
-                        <span className="text-xs text-gray-600">
-                          Head: {dept.headOfDepartment.fullName}
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${dept.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+                            }`}
+                        >
+                          {dept.isActive ? "Active" : "Inactive"}
                         </span>
                       </div>
-                    )}
-                  </div>
-                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                    <Link
-                      href={`/departments/${dept._id}`}
-                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-                    >
-                      <Eye size={12} />
-                      View Details
-                    </Link>
-                    {canEdit && (
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => {
-                            setEditingDept(dept);
-                            setFormData({
-                              name: dept.name,
-                              code: dept.code,
-                              description: dept.description || "",
-                            });
-                            setShowCreateModal(true);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                        <button
-                          onClick={() => setShowDeleteConfirm(dept._id)}
-                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                      {dept.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{dept.description}</p>
+                      )}
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
+                          <p className="text-lg font-bold text-gray-700">{memberCount}</p>
+                          <p className="text-[10px] text-gray-400">Members</p>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
+                          <p className="text-lg font-bold text-gray-700">${budgetAmount.toLocaleString()}</p>
+                          <p className="text-[10px] text-gray-400">Budget</p>
+                        </div>
+                        <div className="text-center p-2 bg-gray-50 rounded-lg border border-gray-100">
+                          <p className="text-lg font-bold text-gray-700">{assetCount}</p>
+                          <p className="text-[10px] text-gray-400">Assets</p>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+
+                      {/* Show Members Preview */}
+                      {members.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-xs font-medium text-gray-500 mb-1">Members ({members.length})</p>
+                          <div className="flex -space-x-2 overflow-hidden">
+                            {members.slice(0, 5).map((member) => (
+                              <div
+                                key={member._id}
+                                className="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center"
+                                title={member.fullName}
+                              >
+                                <span className="text-[10px] font-bold text-indigo-600">
+                                  {member.fullName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            ))}
+                            {members.length > 5 && (
+                              <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                                <span className="text-[8px] font-medium text-gray-600">+{members.length - 5}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {dept.headOfDepartment && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-2">
+                          <User size={12} className="text-gray-400" />
+                          <span className="text-xs text-gray-600">Head: {dept.headOfDepartment.fullName}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                      <Link
+                        href={`/departments/${dept._id}`}
+                        className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                      >
+                        <Eye size={12} />
+                        View Details
+                      </Link>
+                      {canEdit && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setEditingDept(dept);
+                              setFormData({
+                                name: dept.name,
+                                code: dept.code,
+                                description: dept.description || "",
+                              });
+                              setShowCreateModal(true);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(dept._id)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </motion.div>
           ) : (
             <motion.div
@@ -595,145 +622,142 @@ export default function AllDepartmentsPage() {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("name")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Department
-                          {sortBy === "name" &&
-                            (sortOrder === "asc" ? "↑" : "↓")}
+                        <button onClick={() => handleSort("name")} className="flex items-center gap-1 hover:text-gray-700">
+                          Department {sortBy === "name" && (sortOrder === "asc" ? "↑" : "↓")}
                         </button>
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("code")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Code
-                          {sortBy === "code" &&
-                            (sortOrder === "asc" ? "↑" : "↓")}
+                        <button onClick={() => handleSort("code")} className="flex items-center gap-1 hover:text-gray-700">
+                          Code {sortBy === "code" && (sortOrder === "asc" ? "↑" : "↓")}
                         </button>
                       </th>
-                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Head
-                      </th>
+                      <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Head</th>
                       <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("employeeCount")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Members
-                          {sortBy === "employeeCount" &&
-                            (sortOrder === "asc" ? "↑" : "↓")}
+                        <button onClick={() => handleSort("employeeCount")} className="flex items-center gap-1 hover:text-gray-700">
+                          Members {sortBy === "employeeCount" && (sortOrder === "asc" ? "↑" : "↓")}
                         </button>
                       </th>
                       <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("budget")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Budget
-                          {sortBy === "budget" &&
-                            (sortOrder === "asc" ? "↑" : "↓")}
+                        <button onClick={() => handleSort("budget")} className="flex items-center gap-1 hover:text-gray-700">
+                          Budget {sortBy === "budget" && (sortOrder === "asc" ? "↑" : "↓")}
                         </button>
                       </th>
-                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Assets
-                      </th>
-                      <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Assets</th>
+                      <th className="text-center px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {currentDepartments.map((dept, index) => (
-                      <motion.tr
-                        key={dept._id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.03 }}
-                        className="hover:bg-gray-50 transition"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                              <Building2 className="w-4 h-4 text-indigo-500" />
+                    {currentDepartments.map((dept, index) => {
+                      const memberCount = dept.members?.length || dept.employeeCount || 0;
+                      const budgetAmount = dept.budget?.allocated || 0;
+                      const assetCount = dept.assets?.total || 0;
+
+                      return (
+                        <motion.tr
+                          key={dept._id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.03 }}
+                          className="hover:bg-gray-50 transition"
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                                <Building2 className="w-4 h-4 text-indigo-500" />
+                              </div>
+                              <div>
+                                <p className="text-gray-800 text-sm font-medium">{dept.name}</p>
+                                {dept.description && (
+                                  <p className="text-gray-400 text-xs line-clamp-1">{dept.description}</p>
+                                )}
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-gray-800 text-sm font-medium">
-                                {dept.name}
-                              </p>
-                              {dept.description && (
-                                <p className="text-gray-400 text-xs line-clamp-1">
-                                  {dept.description}
-                                </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 text-xs font-mono bg-gray-100 text-gray-600 rounded-lg border border-gray-200">
+                              {dept.code}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">
+                            {dept.headOfDepartment?.fullName || "Not Assigned"}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <span className="text-sm font-medium text-gray-700">{memberCount}</span>
+                              {memberCount > 0 && (
+                                <div className="flex -space-x-1">
+                                  {dept.members?.slice(0, 3).map((member) => (
+                                    <div
+                                      key={member._id}
+                                      className="w-5 h-5 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center"
+                                      title={member.fullName}
+                                    >
+                                      <span className="text-[8px] font-bold text-indigo-600">
+                                        {member.fullName.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {memberCount > 3 && (
+                                    <div className="w-5 h-5 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                                      <span className="text-[8px] font-medium text-gray-600">+{memberCount - 3}</span>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 text-xs font-mono bg-gray-100 text-gray-600 rounded-lg border border-gray-200">
-                            {dept.code}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {dept.headOfDepartment?.fullName || "-"}
-                        </td>
-                        <td className="px-6 py-4 text-center text-sm text-gray-700 font-medium">
-                          {dept.employeeCount}
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm text-gray-700 font-medium">
-                          ${(dept.budget?.allocated || 0).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 text-right text-sm text-gray-600">
-                          {dept.assets?.total || 0}
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full ${dept.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"}`}
-                          >
-                            {dept.isActive ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Link
-                              href={`/departments/${dept._id}`}
-                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                          </td>
+                          <td className="px-6 py-4 text-right text-sm text-gray-700 font-medium">
+                            ${budgetAmount.toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4 text-right text-sm text-gray-600">
+                            {assetCount}
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full ${dept.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
+                                }`}
                             >
-                              <Eye size={16} />
-                            </Link>
-                            {canEdit && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    setEditingDept(dept);
-                                    setFormData({
-                                      name: dept.name,
-                                      code: dept.code,
-                                      description: dept.description || "",
-                                    });
-                                    setShowCreateModal(true);
-                                  }}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button
-                                  onClick={() => setShowDeleteConfirm(dept._id)}
-                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
+                              {dept.isActive ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Link
+                                href={`/departments/${dept._id}`}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                              >
+                                <Eye size={16} />
+                              </Link>
+                              {canEdit && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditingDept(dept);
+                                      setFormData({
+                                        name: dept.name,
+                                        code: dept.code,
+                                        description: dept.description || "",
+                                      });
+                                      setShowCreateModal(true);
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button
+                                    onClick={() => setShowDeleteConfirm(dept._id)}
+                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -748,8 +772,7 @@ export default function AllDepartmentsPage() {
               className="flex items-center justify-between pt-4"
             >
               <p className="text-sm text-gray-500">
-                Showing {indexOfFirstItem + 1} to{" "}
-                {Math.min(indexOfLastItem, filteredDepartments.length)} of{" "}
+                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredDepartments.length)} of{" "}
                 {filteredDepartments.length} departments
               </p>
               <div className="flex gap-1">
@@ -775,20 +798,17 @@ export default function AllDepartmentsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg text-sm transition ${
-                        currentPage === pageNum
+                      className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
                           ? "bg-indigo-600 text-white shadow-sm"
                           : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>
                   );
                 })}
                 <button
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                   className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-50 hover:bg-gray-50 transition"
                 >
@@ -800,7 +820,7 @@ export default function AllDepartmentsPage() {
         </div>
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal - Same as before */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -816,9 +836,7 @@ export default function AllDepartmentsPage() {
                     {editingDept ? "Edit Department" : "Create Department"}
                   </h2>
                   <p className="text-xs text-gray-500">
-                    {editingDept
-                      ? "Update department information"
-                      : "Add a new department"}
+                    {editingDept ? "Update department information" : "Add a new department"}
                   </p>
                 </div>
                 <button
@@ -831,10 +849,7 @@ export default function AllDepartmentsPage() {
                   <X size={20} />
                 </button>
               </div>
-              <form
-                onSubmit={editingDept ? handleUpdate : handleCreate}
-                className="p-5 space-y-4"
-              >
+              <form onSubmit={editingDept ? handleUpdate : handleCreate} className="p-5 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Department Name <span className="text-rose-500">*</span>
@@ -842,9 +857,7 @@ export default function AllDepartmentsPage() {
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                     placeholder="e.g., Software Engineering"
                     required
@@ -857,26 +870,17 @@ export default function AllDepartmentsPage() {
                   <input
                     type="text"
                     value={formData.code}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        code: e.target.value.toUpperCase(),
-                      })
-                    }
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                     className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition font-mono"
                     placeholder="e.g., SWE"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Description
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
                   <textarea
                     value={formData.description}
-                    onChange={(e) =>
-                      setFormData({ ...formData, description: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
                     className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none resize-none transition"
                     placeholder="Describe the department's purpose..."
@@ -906,7 +910,7 @@ export default function AllDepartmentsPage() {
         )}
       </AnimatePresence>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal - Same as before */}
       <AnimatePresence>
         {showDeleteConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -922,12 +926,8 @@ export default function AllDepartmentsPage() {
                     <AlertCircle className="w-4 h-4 text-rose-600" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-800">
-                      Delete Department
-                    </h2>
-                    <p className="text-xs text-gray-500">
-                      This action cannot be undone
-                    </p>
+                    <h2 className="text-lg font-semibold text-gray-800">Delete Department</h2>
+                    <p className="text-xs text-gray-500">This action cannot be undone</p>
                   </div>
                 </div>
                 <button
@@ -939,8 +939,7 @@ export default function AllDepartmentsPage() {
               </div>
               <div className="p-5">
                 <p className="text-gray-600">
-                  Are you sure you want to delete this department? This action
-                  cannot be undone.
+                  Are you sure you want to delete this department? This action cannot be undone.
                 </p>
                 <div className="flex gap-3 mt-6">
                   <button
