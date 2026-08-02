@@ -1210,7 +1210,7 @@ export const SUB_ITEMS = {
   helpCenter: createSubNavItem(
     "help-center",
     "Help Center",
-    "/help",
+    "/help/support",
     HelpCircle,
     "Help & Support",
     [ROLES.ALL],
@@ -1228,7 +1228,7 @@ export const SUB_ITEMS = {
   apiDocs: createSubNavItem(
     "api-docs",
     "API Documentation",
-    "/api-docs",
+    "/help/api-docs",
     Code2,
     "Help & Support",
     [ROLES.ALL],
@@ -1237,7 +1237,7 @@ export const SUB_ITEMS = {
   supportTickets: createSubNavItem(
     "support-tickets",
     "Support Tickets",
-    "/support/tickets",
+    "/help/support/tickets",
     LifeBuoy,
     "Help & Support",
     [ROLES.ALL],
@@ -1264,7 +1264,7 @@ export const SUB_ITEMS = {
   releaseNotes: createSubNavItem(
     "release-notes",
     "Release Notes",
-    "/changelog",
+    "/help/changelog",
     Newspaper,
     "Help & Support",
     [ROLES.ALL],
@@ -1273,7 +1273,7 @@ export const SUB_ITEMS = {
   productRoadmap: createSubNavItem(
     "product-roadmap",
     "Product Roadmap",
-    "/roadmap",
+    "/help/product-roadmap",
     Rocket,
     "Help & Support",
     [ROLES.ALL],
