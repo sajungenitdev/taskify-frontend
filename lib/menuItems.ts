@@ -600,6 +600,8 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "View KPI performance overview" },
   ),
@@ -615,6 +617,8 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Configure and manage KPIs" },
   ),
@@ -630,6 +634,8 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "View performance rankings and achievements" },
   ),
@@ -645,6 +651,8 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Generate and export KPI reports" },
   ),
@@ -660,6 +668,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
     ],
     { description: "Advanced analytics for KPIs" },
   ),
@@ -675,6 +684,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
     ],
     { description: "Track KPI trends over time" },
   ),

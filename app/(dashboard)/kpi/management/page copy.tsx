@@ -272,26 +272,7 @@ export default function KPIManagementPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const isDepartmentsLoaded = useRef(false);
 
-  // ✅ FIX: Allow Project Managers to view KPI
   const canManage = hasRole([
-    "super_admin",
-    "admin",
-    "hr_manager",
-    "dept_manager",
-    "project_manager",
-  ]);
-
-  // ✅ FIX: Project Managers can calculate KPI for their department
-  const canCalculate = hasRole([
-    "super_admin",
-    "admin",
-    "hr_manager",
-    "dept_manager",
-    "project_manager",
-  ]);
-
-  // ✅ FIX: Only admins and dept managers can edit weights
-  const canEditWeights = hasRole([
     "super_admin",
     "admin",
     "hr_manager",
@@ -320,9 +301,8 @@ export default function KPIManagementPage() {
   const isFetching = useRef(false);
   const isInitialized = useRef(false);
 
-  // ============================================================
-  // API CALLS
-  // ============================================================
+
+
   const fetchKPIWeights = useCallback(async (departmentId: string) => {
     if (isFetching.current) return;
     try {
@@ -398,6 +378,7 @@ export default function KPIManagementPage() {
     }
   }, [selectedMonth, selectedYear, months]);
 
+
   const fetchDepartments = useCallback(async () => {
     try {
       const response = await api.get("/departments");
@@ -412,6 +393,7 @@ export default function KPIManagementPage() {
       toast.error("Failed to fetch departments");
     }
   }, [selectedDepartment]);
+
 
   // ============================================================
   // HANDLERS
@@ -593,7 +575,7 @@ export default function KPIManagementPage() {
   }, []);
 
   // ============================================================
-  // EFFECTS
+  // EFFECTS - All effects should be declared after all functions
   // ============================================================
 
   // Initialize selected month
@@ -626,7 +608,11 @@ export default function KPIManagementPage() {
   }, [selectedMonth, selectedYear, fetchMonthlyReport]);
 
   // ============================================================
-  // ACCESS DENIED - Only for non-managers
+  // API CALLS - All functions declared before they're used
+  // ============================================================
+
+  // ============================================================
+  // ACCESS DENIED
   // ============================================================
   if (!canManage) {
     return (
@@ -777,20 +763,18 @@ export default function KPIManagementPage() {
                   ))}
                 </select>
               </div>
-              {canCalculate && (
-                <button
-                  onClick={handleCalculateKPI}
-                  disabled={calculating}
-                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-emerald-500/20 hover:shadow-lg disabled:opacity-50"
-                >
-                  {calculating ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Zap size={16} />
-                  )}
-                  Calculate KPI
-                </button>
-              )}
+              <button
+                onClick={handleCalculateKPI}
+                disabled={calculating}
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-emerald-500/20 hover:shadow-lg disabled:opacity-50"
+              >
+                {calculating ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Zap size={16} />
+                )}
+                Calculate KPI
+              </button>
             </div>
           </motion.div>
 
@@ -849,7 +833,6 @@ export default function KPIManagementPage() {
                 WEIGHT_DESCRIPTIONS={WEIGHT_DESCRIPTIONS}
                 WEIGHT_ICONS={WEIGHT_ICONS}
                 DEFAULT_WEIGHTS={DEFAULT_WEIGHTS}
-                canEditWeights={canEditWeights}
               />
             )}
 
@@ -903,7 +886,6 @@ interface WeightsTabProps {
   WEIGHT_DESCRIPTIONS: WeightDescriptions;
   WEIGHT_ICONS: WeightIcons;
   DEFAULT_WEIGHTS: KPIWeights;
-  canEditWeights: boolean;
 }
 
 function WeightsTab({
@@ -921,7 +903,6 @@ function WeightsTab({
   WEIGHT_DESCRIPTIONS,
   WEIGHT_ICONS,
   DEFAULT_WEIGHTS,
-  canEditWeights,
 }: WeightsTabProps) {
   const total = Object.values(editingWeights).reduce(
     (sum: number, val: number) => sum + val,
@@ -948,27 +929,23 @@ function WeightsTab({
             KPI Weights for {departmentName}
           </h3>
           <p className="text-sm text-gray-500">
-            {canEditWeights 
-              ? "Configure the weight distribution for KPI calculations" 
-              : "View KPI weights configuration (read-only)"}
+            Configure the weight distribution for KPI calculations
           </p>
         </div>
-        {canEditWeights && (
-          <button
-            onClick={() => setShowWeightEditor(!showWeightEditor)}
-            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20"
-          >
-            {showWeightEditor ? <X size={16} /> : <Edit2 size={16} />}
-            {showWeightEditor ? "Cancel" : "Edit Weights"}
-          </button>
-        )}
+        <button
+          onClick={() => setShowWeightEditor(!showWeightEditor)}
+          className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20"
+        >
+          {showWeightEditor ? <X size={16} /> : <Edit2 size={16} />}
+          {showWeightEditor ? "Cancel" : "Edit Weights"}
+        </button>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         </div>
-      ) : showWeightEditor && canEditWeights ? (
+      ) : showWeightEditor ? (
         <div className="space-y-4">
           {(Object.keys(editingWeights) as Array<keyof KPIWeights>).map((key) => {
             const Icon = WEIGHT_ICONS[key];
@@ -1112,9 +1089,7 @@ function WeightsTab({
               <Settings className="w-16 h-16 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No weights configured</p>
               <p className="text-sm text-gray-400">
-                {canEditWeights 
-                  ? "Click 'Edit Weights' to configure KPI weights"
-                  : "Contact your administrator to configure KPI weights"}
+                Click "Edit Weights" to configure KPI weights
               </p>
             </div>
           )}

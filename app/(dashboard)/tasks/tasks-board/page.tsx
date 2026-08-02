@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, HistoryIcon, Pause, TimerIcon } from "lucide-react";
+import { Award, AwardIcon, CalendarIcon, Check, ChevronRight, HistoryIcon, Pause, TimerIcon } from "lucide-react";
 import {
   CheckSquare,
   Clock,
@@ -75,6 +75,10 @@ interface Task {
   evidenceRequired?: boolean;
   evidenceUrls?: string[];
   rejectionReason?: string;
+  commentsCount?: number;
+  attachmentsCount?: number;
+  reviewsCount?: number;
+  averageRating?: number;
   approvalNote?: string;
   evidenceSubmitted?: boolean;
   evidenceSubmittedAt?: string;
@@ -1723,9 +1727,10 @@ export default function TasksPage() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-full max-w-2xl bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+              className="w-full max-w-3xl bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-gradient-to-r from-indigo-100 to-purple-100">
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-3">
                   <div
                     className={`p-2.5 rounded-xl bg-gradient-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
@@ -1747,19 +1752,39 @@ export default function TasksPage() {
                       >
                         {selectedTask.status.replace("_", " ").toUpperCase()}
                       </span>
+
+                      {/* Evidence Required Badge */}
                       {selectedTask.evidenceRequired && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
                           <Paperclip className="w-3 h-3" />
                           Evidence Required
                         </span>
                       )}
-                      {/* <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
+
+                      {/* Evidence Submitted Badge */}
+                      {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-emerald-50 border-emerald-200 text-emerald-700">
+                          <Paperclip className="w-3 h-3" />
+                          Evidence ({selectedTask.evidenceUrls.length})
+                        </span>
+                      )}
+
+                      {/* Time Logged Badge */}
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
                         <HistoryIcon className="w-3 h-3" />
                         {getDisplayTimeForTask(
                           selectedTask._id,
                           selectedTask.actualMinutes,
                         )}
-                      </span> */}
+                      </span>
+
+                      {/* Timer Active Badge */}
+                      {isTimerActiveForTask(selectedTask._id) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
+                          <TimerIcon className="w-3 h-3" />
+                          Timer Active
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1770,79 +1795,274 @@ export default function TasksPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
-                <div className="bg-gradient-to-br from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-100">
-                  <p className="text-gray-500 text-sm mb-2 font-medium">
-                    Description
-                  </p>
-                  <p className="text-gray-800">{selectedTask.description}</p>
+
+              {/* Content */}
+              <div className="p-5 space-y-5">
+                {/* Description */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Description</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">{selectedTask.description}</p>
                 </div>
 
-                {selectedTask.rejectionReason && (
-                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                    <p className="text-xs text-red-500 font-medium mb-1">Rejection Reason</p>
-                    <p className="text-sm text-red-700">{selectedTask.rejectionReason}</p>
+                {/* Rejection Reason - Show when task is rejected */}
+                {selectedTask.status === "rejected" && selectedTask.rejectionReason && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-red-50 rounded-xl border border-red-200"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 bg-red-100 rounded-lg">
+                        <X size={16} className="text-red-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-red-800 flex items-center gap-2">
+                          ❌ Rejection Reason
+                        </p>
+                        <p className="text-sm text-red-700 mt-1 leading-relaxed">
+                          {selectedTask.rejectionReason}
+                        </p>
+                        <p className="text-xs text-red-500 mt-2">
+                          Please review the feedback and resubmit with improvements.
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Approval Note - Show when task is completed */}
+                {selectedTask.status === "completed" && selectedTask.approvalNote && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-emerald-50 rounded-xl border border-emerald-200"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 bg-emerald-100 rounded-lg">
+                        <ThumbsUp size={16} className="text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-emerald-800 flex items-center gap-2">
+                          ✅ Approval Note
+                        </p>
+                        <p className="text-sm text-emerald-700 mt-1 leading-relaxed">
+                          {selectedTask.approvalNote}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Evidence Section - Show when evidence exists */}
+                {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <Paperclip size={16} className="text-emerald-500" />
+                      Evidence ({selectedTask.evidenceUrls.length})
+                      {selectedTask.evidenceRequired && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Required
+                        </span>
+                      )}
+                      {selectedTask.status === "submitted" && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                          Submitted with Evidence
+                        </span>
+                      )}
+                      {selectedTask.status === "completed" && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Approved
+                        </span>
+                      )}
+                    </h3>
+                    <div className="space-y-2">
+                      {selectedTask.evidenceUrls.map((url: string, index: number) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-emerald-200 transition group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <Link2 size={14} className="text-emerald-600" />
+                          </div>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 text-sm text-indigo-600 hover:text-indigo-800 truncate transition"
+                          >
+                            {url}
+                          </a>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1 text-xs bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition opacity-0 group-hover:opacity-100"
+                          >
+                            Open
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                    {selectedTask.evidenceSubmittedAt && (
+                      <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                        <Clock size={12} />
+                        Evidence submitted on {new Date(selectedTask.evidenceSubmittedAt).toLocaleString()}
+                      </p>
+                    )}
                   </div>
                 )}
 
-                {selectedTask.approvalNote && (
-                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                    <p className="text-xs text-emerald-500 font-medium mb-1">Approval Note</p>
-                    <p className="text-sm text-emerald-700">{selectedTask.approvalNote}</p>
+                {/* Evidence Required Message - Show when evidence is required but none provided */}
+                {selectedTask.evidenceRequired && (!selectedTask.evidenceUrls || selectedTask.evidenceUrls.length === 0) && (
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-amber-700">Evidence Required</p>
+                        <p className="text-xs text-amber-600">
+                          This task requires evidence to be submitted upon completion.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                {/* Task Details Grid */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  {/* Project */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Project</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {selectedTask.projectId?.name || "-"}
                     </p>
+                    {selectedTask.projectId?.code && (
+                      <p className="text-xs text-gray-400">{selectedTask.projectId.code}</p>
+                    )}
                   </div>
+
+                  {/* Assigned By */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Assigned By
-                    </p>
+                    <p className="text-xs text-gray-500 font-medium">Assigned By</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {selectedTask.assignedBy?.fullName || "-"}
                     </p>
                   </div>
+
+                  {/* Assigned To - Detailed */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Deadline
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                    <p className="text-xs text-gray-500 font-medium">Assigned To</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                        <span className="text-white text-[10px] font-bold">
+                          {selectedTask.assignedTo?.fullName?.charAt(0) || "?"}
+                        </span>
+                      </div>
+                      <p className="text-gray-800 text-sm font-semibold">
+                        {selectedTask.assignedTo?.fullName || "Unassigned"}
+                      </p>
+                    </div>
+                    {selectedTask.assignedTo?.email && (
+                      <p className="text-xs text-gray-400 mt-0.5">{selectedTask.assignedTo.email}</p>
+                    )}
+                  </div>
+
+                  {/* Deadline */}
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">Deadline</p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
+                      <CalendarIcon size={14} className="text-gray-400" />
                       {new Date(selectedTask.deadline).toLocaleDateString()}
                     </p>
+                    {/* {isOverdue && (
+                      <p className="text-xs text-rose-500 mt-0.5">⚠️ Overdue</p>
+                    )} */}
                   </div>
+
+                  {/* Estimated Hours */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Estimated Hours
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                    <p className="text-xs text-gray-500 font-medium">Estimated Hours</p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
+                      <Clock size={14} className="text-gray-400" />
                       {selectedTask.estimatedHours}h
                     </p>
                   </div>
+
+                  {/* Time Logged */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Time Logged
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                    <p className="text-xs text-gray-500 font-medium">Time Logged</p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
+                      <HistoryIcon size={14} className="text-gray-400" />
                       {getDisplayTimeForTask(
                         selectedTask._id,
                         selectedTask.actualMinutes,
                       )}
                     </p>
                   </div>
+
+                  {/* Created */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Created</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {new Date(selectedTask.createdAt || "").toLocaleDateString()}
                     </p>
                   </div>
+
+                  {/* Updated */}
+                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-500 font-medium">Last Updated</p>
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {new Date(selectedTask.updatedAt || "").toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  {/* Comments Count */}
+                  {selectedTask.commentsCount !== undefined && (
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <p className="text-xs text-gray-500 font-medium">Comments</p>
+                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
+                        <MessageSquare size={14} className="text-gray-400" />
+                        {selectedTask.commentsCount}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Attachments Count */}
+                  {selectedTask.attachmentsCount !== undefined && (
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <p className="text-xs text-gray-500 font-medium">Attachments</p>
+                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
+                        <Paperclip size={14} className="text-gray-400" />
+                        {selectedTask.attachmentsCount}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Reviews Count */}
+                  {selectedTask.reviewsCount !== undefined && selectedTask.reviewsCount > 0 && (
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <p className="text-xs text-gray-500 font-medium">Reviews</p>
+                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
+                        <AwardIcon size={14} className="text-gray-400" />
+                        {selectedTask.reviewsCount}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Average Rating */}
+                  {selectedTask.averageRating !== undefined && selectedTask.averageRating > 0 && (
+                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                      <p className="text-xs text-gray-500 font-medium">Average Rating</p>
+                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-1">
+                        <Star size={14} className="fill-amber-400 text-amber-400" />
+                        {selectedTask.averageRating.toFixed(1)}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {/* Timer Controls in Modal */}
+                {/* ============================================================
+              TIMER CONTROLS IN MODAL
+              ============================================================ */}
                 {(() => {
                   const isAssignee = isTaskAssignee(selectedTask);
                   const canShowTimer = isAssignee &&
@@ -1869,6 +2089,9 @@ export default function TasksPage() {
                                 >
                                   {isTimerRunning ? "● Running" : "● Paused"}
                                 </span>
+                                {selectedTask.actualMinutes && selectedTask.actualMinutes > 0 && (
+                                  <span className="text-[10px] text-gray-400">(Saved: {selectedTask.actualMinutes}m)</span>
+                                )}
                               </div>
                             </div>
                             <div className="flex gap-2">
@@ -1939,8 +2162,55 @@ export default function TasksPage() {
                   ) : null;
                 })()}
 
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4 border-t border-gray-200 flex-wrap">
+                {/* ============================================================
+              EXTENSION REQUESTS (if any)
+              ============================================================ */}
+                {/* {extensionRequests.length > 0 && (
+                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CalendarClock className="w-4 h-4 text-blue-600" />
+                      <p className="text-sm font-medium text-blue-800">Extension Requests ({extensionRequests.length})</p>
+                    </div>
+                    <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                      {extensionRequests.map((req) => (
+                        <div key={req._id} className="bg-white rounded-lg p-3 border border-blue-100">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs text-gray-500">Requested: {formatDate(req.requestedDate)}</p>
+                              <p className="text-sm text-gray-700 mt-1">{req.reason}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : req.status === "rejected"
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-amber-100 text-amber-700"
+                                  }`}
+                              >
+                                {req.status.toUpperCase()}
+                              </span>
+                              {canApprove && req.status === "pending" && (
+                                <button
+                                  onClick={() => handleApproveExtension(req._id, req.requestedDate)}
+                                  className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] rounded transition"
+                                >
+                                  Approve
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )} */}
+
+                {/* ============================================================
+              ACTION BUTTONS
+              ============================================================ */}
+                <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
+                  {/* Status dropdown */}
                   <select
                     value={selectedTask.status}
                     onChange={(e) => {
@@ -1952,7 +2222,7 @@ export default function TasksPage() {
                       isCompleting === selectedTask._id ||
                       isSubmitting === selectedTask._id
                     }
-                    className="cursor-pointer flex-1 min-w-[150px] px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                    className="cursor-pointer flex-1 min-w-[120px] px-3 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition disabled:opacity-50"
                   >
                     <option value="pending">Pending</option>
                     <option value="in_progress">In Progress</option>
@@ -1962,71 +2232,111 @@ export default function TasksPage() {
                     <option value="rejected">Rejected</option>
                   </select>
 
+                  {/* Send for Rework - for rejected tasks */}
                   {selectedTask.status === "rejected" && isTaskAssignee(selectedTask) && (
                     <button
                       onClick={() => {
                         handleSendForRework(selectedTask._id);
+                        setSelectedTask(null);
                       }}
                       disabled={isReworking === selectedTask._id}
-                      className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
                     >
                       {isReworking === selectedTask._id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <RefreshCw className="w-4 h-4" />
+                        <RefreshCw size={16} />
                       )}
                       Send for Rework
                     </button>
                   )}
 
-                  {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
+                  {/* Submit Review & Complete - for active tasks */}
+                  {isTaskAssignee(selectedTask) &&
+                    selectedTask.status !== "completed" &&
                     selectedTask.status !== "submitted" &&
                     selectedTask.status !== "rejected" && (
                       <>
                         <button
                           onClick={() => {
                             handleSubmitForReview(selectedTask._id);
+                            setSelectedTask(null);
                           }}
                           disabled={isSubmitting === selectedTask._id}
-                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
                         >
                           {isSubmitting === selectedTask._id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <Send className="w-4 h-4" />
+                            <Send size={16} />
                           )}
                           Submit Review
                         </button>
                         <button
                           onClick={() => {
                             handleMarkComplete(selectedTask._id);
+                            setSelectedTask(null);
                           }}
                           disabled={isCompleting === selectedTask._id}
-                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
                         >
                           {isCompleting === selectedTask._id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                           ) : (
-                            <Check className="w-4 h-4" />
+                            <Check size={16} />
                           )}
                           Complete
                         </button>
                       </>
                     )}
 
+                  {/* Approve & Reject - for submitted tasks */}
+                  {selectedTask.status === "submitted" && canApprove && (
+                    <>
+                      <button
+                        onClick={() => {
+                          handleApprove(selectedTask._id);
+                          setSelectedTask(null);
+                        }}
+                        disabled={approving}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {approving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <ThumbsUp size={16} />
+                        )}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedTask(selectedTask);
+                          setShowRejectModal(true);
+                        }}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition shadow-md hover:shadow-lg flex items-center gap-2"
+                      >
+                        <ThumbsDown size={16} />
+                        Reject
+                      </button>
+                    </>
+                  )}
+
+                  {/* Close button */}
                   <button
                     onClick={() => setSelectedTask(null)}
-                    className="cursor-pointer flex-1 min-w-[100px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex-1 min-w-[80px]"
                   >
                     Close
                   </button>
+
+                  {/* View Full Details link */}
                   <Link
                     href={`/tasks/${selectedTask._id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="cursor-pointer flex-1 min-w-[100px] bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 py-2.5 rounded-xl transition flex items-center justify-center gap-2"
+                    className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition flex items-center gap-2 border border-indigo-200"
                   >
-                    <Eye className="w-4 h-4" />
-                    Check Details
+                    <Eye size={16} />
+                    View Full Details
                   </Link>
                 </div>
               </div>

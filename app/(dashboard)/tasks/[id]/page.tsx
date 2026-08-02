@@ -355,92 +355,98 @@ export default function TaskDetailPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  useEffect(() => {
-    if (isAuthenticated && id) {
-      fetchTask();
-      fetchComments();
-      fetchAttachments();
-      fetchReviews();
-      fetchExtensionRequests();
+
+
+// Fetch Task - with better error handling
+const fetchTask = async () => {
+  try {
+    setLoading(true);
+    setError(null);
+
+    const response = await api.get(`/tasks/${id}`);
+
+    let taskData;
+    if (response.data.success) {
+      taskData = response.data.data;
+    } else if (response.data.task) {
+      taskData = response.data.task;
+    } else {
+      taskData = response.data;
     }
-  }, [isAuthenticated, id]);
 
-  // Fetch Task
-  const fetchTask = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    if (taskData && taskData._id) {
+      const formattedTask = {
+        ...taskData,
+        priority: taskData.priority || "normal",
+        status: taskData.status || "pending",
+        title: taskData.title || "Untitled Task",
+        description: taskData.description || "",
+        estimatedHours: taskData.estimatedHours || 0,
+        assignedTo: taskData.assignedTo || {
+          _id: "",
+          fullName: "Unassigned",
+          email: "",
+        },
+        assignedBy: taskData.assignedBy || { _id: "", fullName: "Unknown" },
+        createdAt: taskData.createdAt || new Date().toISOString(),
+        updatedAt: taskData.updatedAt || new Date().toISOString(),
+        commentsCount: taskData.commentsCount || 0,
+        attachmentsCount: taskData.attachmentsCount || 0,
+        reviewsCount: taskData.reviewsCount || 0,
+        averageRating: taskData.averageRating || 0,
+        rejectionReason: taskData.rejectionReason || "",
+        approvalNote: taskData.approvalNote || "",
+        evidenceRequired: taskData.evidenceRequired || false,
+        evidenceUrls: taskData.evidenceUrls || [],
+        evidenceSubmitted: taskData.evidenceSubmitted || false,
+        evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
+      };
 
-      const response = await api.get(`/tasks/${id}`);
+      setTask(formattedTask);
 
-      let taskData;
-      if (response.data.success) {
-        taskData = response.data.data;
-      } else if (response.data.task) {
-        taskData = response.data.task;
-      } else {
-        taskData = response.data;
+      if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
+        setHasSubmittedEvidence(true);
       }
-
-      if (taskData && taskData._id) {
-        const formattedTask = {
-          ...taskData,
-          priority: taskData.priority || "normal",
-          status: taskData.status || "pending",
-          title: taskData.title || "Untitled Task",
-          description: taskData.description || "",
-          estimatedHours: taskData.estimatedHours || 0,
-          assignedTo: taskData.assignedTo || {
-            _id: "",
-            fullName: "Unassigned",
-            email: "",
-          },
-          assignedBy: taskData.assignedBy || { _id: "", fullName: "Unknown" },
-          createdAt: taskData.createdAt || new Date().toISOString(),
-          updatedAt: taskData.updatedAt || new Date().toISOString(),
-          commentsCount: taskData.commentsCount || 0,
-          attachmentsCount: taskData.attachmentsCount || 0,
-          reviewsCount: taskData.reviewsCount || 0,
-          averageRating: taskData.averageRating || 0,
-          rejectionReason: taskData.rejectionReason || "",
-          approvalNote: taskData.approvalNote || "",
-          evidenceRequired: taskData.evidenceRequired || false,
-          evidenceUrls: taskData.evidenceUrls || [],
-          evidenceSubmitted: taskData.evidenceSubmitted || false,
-          evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
-        };
-
-        setTask(formattedTask);
-
-        if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
-          setHasSubmittedEvidence(true);
-        }
-      } else {
-        throw new Error("Invalid task data received");
-      }
-    } catch (error: any) {
-      console.error("Error fetching task:", error);
-      const errorMessage = error.response?.data?.message || "Failed to fetch task";
-      setError(errorMessage);
+    } else {
+      throw new Error("Invalid task data received");
+    }
+  } catch (error: any) {
+    console.error("Error fetching task:", error);
+    const errorMessage = error.response?.data?.message || "Failed to fetch task";
+    setError(errorMessage);
+    
+    // Don't show toast for 403 (handled by the parent)
+    if (error.response?.status !== 403) {
       toast.error(errorMessage);
-
-      if (error.response?.status === 404) {
-        setTimeout(() => router.push("/tasks/task-board"), 2000);
-      }
-    } finally {
-      setLoading(false);
     }
-  };
 
-  // Fetch Extension Requests
+    if (error.response?.status === 404) {
+      setTimeout(() => router.push("/tasks/task-board"), 2000);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+  // Fetch Extension Requests - with proper 403 handling
   const fetchExtensionRequests = async () => {
     try {
       const response = await api.get(`/tasks/${id}/extension-requests`);
       if (response.data.success) {
         setExtensionRequests(response.data.data || []);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Handle 403 gracefully - user doesn't have permission
+      if (error.response?.status === 403) {
+        console.log("⚠️ User doesn't have permission to view extension requests");
+        setExtensionRequests([]);
+        return;
+      }
       console.error("Error fetching extension requests:", error);
+      // Don't show toast for 403 errors
+      if (error.response?.status !== 403) {
+        toast.error(error.response?.data?.message || "Failed to fetch extension requests");
+      }
     }
   };
 
@@ -1072,6 +1078,47 @@ export default function TaskDetailPage() {
       handleCopyLink();
     }
   };
+// app/(dashboard)/tasks/[id]/page.tsx - Fixed useEffect
+
+// app/(dashboard)/tasks/[id]/page.tsx - Updated useEffect
+
+useEffect(() => {
+  if (isAuthenticated && id) {
+    const fetchAllData = async () => {
+      try {
+        // Fetch task first
+        await fetchTask();
+      } catch (error: any) {
+        // If task fetch fails with 403, redirect to tasks page
+        if (error.response?.status === 403) {
+          toast.error("You don't have permission to view this task");
+          setTimeout(() => router.push("/tasks/task-board"), 1500);
+          return;
+        }
+        console.error("Error fetching task:", error);
+      }
+      
+      // Only fetch other data if task was successfully loaded
+      if (task) {
+        try {
+          await Promise.all([
+            fetchComments(),
+            fetchAttachments(),
+            fetchReviews(),
+            fetchExtensionRequests().catch(() => {
+              // Silently handle 403 for extension requests
+              return [];
+            })
+          ]);
+        } catch (error) {
+          console.error("Error fetching additional data:", error);
+        }
+      }
+    };
+    
+    fetchAllData();
+  }
+}, [isAuthenticated, id]);
 
   const getPriorityConfig = (priority: string) => {
     const config = {
@@ -1177,7 +1224,7 @@ export default function TaskDetailPage() {
     );
   };
 
-  // Render extension requests
+  // Render extension requests - only show if there are requests
   const renderExtensionRequests = () => {
     if (extensionRequests.length === 0) return null;
 
