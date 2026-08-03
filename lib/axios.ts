@@ -29,7 +29,7 @@ const api: AxiosInstance = axios.create({
     Accept: "application/json",
   },
   withCredentials: false,
-  timeout: 30000,
+  timeout: 60000,
 });
 
 // ============ TOKEN INTERCEPTOR - FIXED ============
