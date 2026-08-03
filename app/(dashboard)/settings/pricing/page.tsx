@@ -40,7 +40,7 @@ import {
 } from "lucide-react";
 import { apiService } from "@/lib/axios";
 import toast from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 
 interface PricingPlan {
     _id: string;
@@ -99,7 +99,7 @@ const defaultPlan: Partial<PricingPlan> = {
 };
 
 // Animation variants
-const containerVariants = {
+const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
@@ -109,7 +109,7 @@ const containerVariants = {
     },
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
     hidden: { y: 20, opacity: 0 },
     visible: {
         y: 0,
@@ -122,7 +122,7 @@ const itemVariants = {
     },
 };
 
-const modalVariants = {
+const modalVariants: Variants = {
     hidden: { opacity: 0, scale: 0.95, y: 20 },
     visible: {
         opacity: 1,
@@ -1037,7 +1037,13 @@ export default function PricingAdminPage() {
                                                 value={formData.limits?.users || 1}
                                                 onChange={(e) => setFormData({
                                                     ...formData,
-                                                    limits: { ...formData.limits, users: parseInt(e.target.value) || 1 }
+                                                    limits: {
+                                                        users: parseInt(e.target.value) || 1,
+                                                        projects: formData.limits?.projects ?? 0,
+                                                        tasks: formData.limits?.tasks ?? 0,
+                                                        storage: formData.limits?.storage ?? 0,
+                                                        teamMembers: formData.limits?.teamMembers ?? 0,
+                                                    }
                                                 })}
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 dark:text-white text-sm"
                                                 min="1"
@@ -1050,7 +1056,13 @@ export default function PricingAdminPage() {
                                                 value={formData.limits?.projects || 0}
                                                 onChange={(e) => setFormData({
                                                     ...formData,
-                                                    limits: { ...formData.limits, projects: parseInt(e.target.value) || 0 }
+                                                    limits: {
+                                                        users: formData.limits?.users ?? 1,
+                                                        projects: parseInt(e.target.value) || 0,
+                                                        tasks: formData.limits?.tasks ?? 0,
+                                                        storage: formData.limits?.storage ?? 0,
+                                                        teamMembers: formData.limits?.teamMembers ?? 0,
+                                                    }
                                                 })}
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 dark:text-white text-sm"
                                             />
@@ -1062,7 +1074,13 @@ export default function PricingAdminPage() {
                                                 value={formData.limits?.tasks || 0}
                                                 onChange={(e) => setFormData({
                                                     ...formData,
-                                                    limits: { ...formData.limits, tasks: parseInt(e.target.value) || 0 }
+                                                    limits: {
+                                                        users: formData.limits?.users ?? 1,
+                                                        projects: formData.limits?.projects ?? 0,
+                                                        tasks: parseInt(e.target.value) || 0,
+                                                        storage: formData.limits?.storage ?? 0,
+                                                        teamMembers: formData.limits?.teamMembers ?? 0,
+                                                    }
                                                 })}
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 dark:text-white text-sm"
                                             />
@@ -1074,7 +1092,13 @@ export default function PricingAdminPage() {
                                                 value={formData.limits?.teamMembers || 0}
                                                 onChange={(e) => setFormData({
                                                     ...formData,
-                                                    limits: { ...formData.limits, teamMembers: parseInt(e.target.value) || 0 }
+                                                    limits: {
+                                                        users: formData.limits?.users ?? 1,
+                                                        projects: formData.limits?.projects ?? 0,
+                                                        tasks: formData.limits?.tasks ?? 0,
+                                                        storage: formData.limits?.storage ?? 0,
+                                                        teamMembers: parseInt(e.target.value) || 0,
+                                                    }
                                                 })}
                                                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 dark:text-white text-sm"
                                             />
