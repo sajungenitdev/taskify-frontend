@@ -19,6 +19,8 @@ export interface ApiResponse<T = any> {
 // ============ ENVIRONMENT CONFIGURATION ============
 const API_BASE_URL: string =
   process.env.NEXT_PUBLIC_API_URL || "https://taskify-server-5gat.onrender.com/api/v1";
+  // "http://localhost:5000/api/v1";
+
 
 // ============ CREATE AXIOS INSTANCE =============
 const api: AxiosInstance = axios.create({
@@ -28,38 +30,31 @@ const api: AxiosInstance = axios.create({
     Accept: "application/json",
   },
   withCredentials: false,
-  timeout: 120000, // ✅ Increased to 120 seconds for Render
+  timeout: 60000,
 });
 
-// ============ PUBLIC ROUTES (no token required) ============
-const PUBLIC_ROUTES = [
-  '/auth/login',
-  '/auth/register',
-  '/auth/check-email',
-  '/auth/forgot-password',
-  '/auth/reset-password',
-  '/auth/verify-email',
-  '/pricing-plans',
-  '/health',
-  '/',
-];
+// ============ TOKEN INTERCEPTOR - FIXED ============
+// This runs BEFORE every request and ensures the token is always sent
+api.interceptors.request.use(
+  (config) => {
+    // Get the latest token from localStorage
+    const token = localStorage.getItem("token");
 
-// ============ ROUTES WITH NO RETRY ============
-const NO_RETRY_ROUTES = [
-  '/auth/register', // ✅ Don't retry registration (causes duplicate user errors)
-  '/auth/login',
-  '/auth/check-email',
-];
+    // ALWAYS set the token if it exists
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+      // Log for debugging
+      console.log(`🔑 Token attached to request: ${config.url}`);
+    } else {
+      console.log(`⚠️ No token for request: ${config.url}`);
+    }
 
-// ============ CHECK IF ROUTE IS PUBLIC ============
-const isPublicRoute = (url: string = ''): boolean => {
-  return PUBLIC_ROUTES.some(route => url.includes(route));
-};
-
-// ============ CHECK IF ROUTE SHOULD NOT RETRY ============
-const shouldRetry = (url: string = ''): boolean => {
-  return !NO_RETRY_ROUTES.some(route => url.includes(route));
-};
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
 // ============ RETRY CONFIGURATION ============
 const MAX_RETRIES = 3;
@@ -105,31 +100,16 @@ const isRetryableError = (error: AxiosError): boolean => {
   return false;
 };
 
-// ============ REQUEST INTERCEPTOR ============
+// ============ REQUEST INTERCEPTOR (with logging) ============
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const requestId = Math.random().toString(36).substring(2, 10);
     config.headers["X-Request-ID"] = requestId;
 
-    // ✅ Only add token for non-public routes
-    if (!isPublicRoute(config.url)) {
-      const token = localStorage.getItem("token");
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        if (process.env.NODE_ENV === "development") {
-          console.log(`🔑 [${requestId}] Token attached to: ${config.url}`);
-        }
-      } else {
-        if (process.env.NODE_ENV === "development") {
-          console.log(`⚠️ [${requestId}] No token for protected route: ${config.url}`);
-        }
-      }
-    } else {
-      // ✅ For public routes, ensure Authorization header is NOT sent
-      delete config.headers.Authorization;
-      if (process.env.NODE_ENV === "development") {
-        console.log(`🌐 [${requestId}] Public route: ${config.url}`);
-      }
+    // Double-check token is set
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
 
     // Increase timeout for specific endpoints
@@ -185,16 +165,11 @@ api.interceptors.response.use(
     const requestId =
       (error.config?.headers as any)?.["X-Request-ID"] || "unknown";
 
-    // ✅ Check if this route should NOT retry
-    const url = error.config?.url || '';
-    const allowRetry = shouldRetry(url);
-
     // Network errors
     if (!error.response) {
       console.error(`🌐 [${requestId}] Network Error:`, error.message);
 
-      // ✅ Only retry if allowed
-      if (allowRetry && isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
+      if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
         retryCount++;
         const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
         console.log(
@@ -204,17 +179,6 @@ api.interceptors.response.use(
         return api.request(error.config);
       }
       retryCount = 0;
-
-      // ✅ For registration, show a user-friendly message
-      if (url.includes('/auth/register')) {
-        return Promise.reject({
-          success: false,
-          status: 408,
-          message: "Registration is taking longer than expected. Please check your email for confirmation.",
-          code: error.code,
-          originalError: error,
-        });
-      }
 
       return Promise.reject({
         success: false,
@@ -228,8 +192,8 @@ api.interceptors.response.use(
     const status = response.status;
     const data = response.data as any;
 
-    // ✅ Only retry if allowed
-    if (allowRetry && isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
+    // Retry on retryable status codes
+    if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
       retryCount++;
       const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
       console.log(
