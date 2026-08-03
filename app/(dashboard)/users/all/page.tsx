@@ -1,3 +1,4 @@
+// app/(dashboard)/users/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -8,8 +9,6 @@ import {
   UserCheck,
   UserX,
   Shield,
-  Download,
-  Upload,
   Search,
   Eye,
   Edit2,
@@ -24,12 +23,9 @@ import {
   ChevronRight,
   UserPlus,
   X,
-  Filter,
   ArrowUpDown,
-  MoreVertical,
   Mail,
   Phone,
-  Calendar,
   Clock,
   BadgeCheck,
   UserCircle,
@@ -39,15 +35,16 @@ import {
   EyeOff,
   Eye as EyeIcon,
   Layers,
-  Plus,
-  Minus,
   Info,
+  Calendar,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
+// ============================================================
+// TYPES
+// ============================================================
 interface Role {
   _id: string;
   name: string;
@@ -64,8 +61,8 @@ interface User {
   email: string;
   employeeId: string;
   phoneNumber?: string;
-  role: string; // Legacy single role
-  roles?: Role[]; // New multi-role support
+  role: string;
+  roles?: Role[];
   department?:
   | {
     _id: string;
@@ -74,11 +71,13 @@ interface User {
   }
   | string
   | null;
-  departmentId?: {
+  departmentId?:
+  | {
     _id: string;
     name: string;
     code: string;
-  } | null;
+  }
+  | null;
   isActive: boolean;
   lastLogin?: string;
   createdAt: string;
@@ -95,36 +94,93 @@ interface Department {
   code: string;
 }
 
+interface CreateUserData {
+  fullName: string;
+  email: string;
+  password: string;
+  employeeId: string;
+  role: string;
+  departmentId: string;
+  phoneNumber: string;
+}
+
+interface EditUserData {
+  fullName: string;
+  email: string;
+  phoneNumber: string;
+  role: string;
+  departmentId: string;
+  employeeId: string;
+  isActive: boolean;
+  position: string;
+  location: string;
+  bio: string;
+}
+
+interface PasswordData {
+  newPassword: string;
+  confirmPassword: string;
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const ROLES = [
+  { value: "super_admin", label: "Super Admin" },
+  { value: "admin", label: "Admin" },
+  { value: "hr_manager", label: "HR Manager" },
+  { value: "dept_manager", label: "Department Manager" },
+  { value: "project_manager", label: "Project Manager" },
+  { value: "line_manager", label: "Line Manager" },
+  { value: "employee", label: "Employee" },
+];
+
+const ROLE_BADGE_COLORS: Record<string, string> = {
+  super_admin: "bg-purple-100 text-purple-700 border-purple-200",
+  admin: "bg-red-100 text-red-700 border-red-200",
+  hr_manager: "bg-pink-100 text-pink-700 border-pink-200",
+  dept_manager: "bg-orange-100 text-orange-700 border-orange-200",
+  project_manager: "bg-cyan-100 text-cyan-700 border-cyan-200",
+  line_manager: "bg-green-100 text-green-700 border-green-200",
+  employee: "bg-gray-100 text-gray-700 border-gray-200",
+};
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 export default function AllUsersPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
+
+  // State
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allRoles, setAllRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [showStatus, setShowStatus] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(
-    null,
-  );
-  const [showRoleModal, setShowRoleModal] = useState<string | null>(null);
-  const [selectedRoleForUser, setSelectedRoleForUser] = useState("");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedRole, setSelectedRole] = useState<string>("");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+  const [showStatus, setShowStatus] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage] = useState<number>(10);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showViewModal, setShowViewModal] = useState<boolean>(false);
+  const [showEditModal, setShowEditModal] = useState<boolean>(false);
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+  const [showMultiRoleModal, setShowMultiRoleModal] = useState<boolean>(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [passwordData, setPasswordData] = useState({
+  const [passwordData, setPasswordData] = useState<PasswordData>({
     newPassword: "",
     confirmPassword: "",
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [createFormData, setCreateFormData] = useState({
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [selectedRolesForUser, setSelectedRolesForUser] = useState<string[]>([]);
+  const [primaryRoleForUser, setPrimaryRoleForUser] = useState<string>("");
+
+  // Form States
+  const [createFormData, setCreateFormData] = useState<CreateUserData>({
     fullName: "",
     email: "",
     password: "",
@@ -133,7 +189,8 @@ export default function AllUsersPage() {
     departmentId: "",
     phoneNumber: "",
   });
-  const [editFormData, setEditFormData] = useState({
+
+  const [editFormData, setEditFormData] = useState<EditUserData>({
     fullName: "",
     email: "",
     phoneNumber: "",
@@ -145,29 +202,29 @@ export default function AllUsersPage() {
     location: "",
     bio: "",
   });
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [changingPassword, setChangingPassword] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+
+  // Loading States
+  const [creating, setCreating] = useState<boolean>(false);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [changingPassword, setChangingPassword] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [updatingRoles, setUpdatingRoles] = useState<boolean>(false);
+
+  // Sort States
   const [sortField, setSortField] = useState<keyof User>("fullName");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [showMultiRoleModal, setShowMultiRoleModal] = useState<string | null>(
-    null,
-  );
-  const [selectedRolesForUser, setSelectedRolesForUser] = useState<string[]>(
-    [],
-  );
-  const [primaryRoleForUser, setPrimaryRoleForUser] = useState<string>("");
-  const [updatingRoles, setUpdatingRoles] = useState(false);
 
+  // Permissions
   const canManageUsers = hasRole(["super_admin", "admin", "hr_manager"]);
   const canChangeRole = hasRole(["super_admin"]);
   const canDeleteUser = hasRole(["super_admin"]);
   const canCreateUser = hasRole(["super_admin", "admin", "hr_manager"]);
   const canEditUser = hasRole(["super_admin", "admin", "hr_manager"]);
   const canChangePassword = hasRole(["super_admin", "admin", "hr_manager"]);
-  console.log(users, "users");
-  // Check permission
+
+  // ============================================================
+  // PERMISSION CHECK
+  // ============================================================
   useEffect(() => {
     if (!canManageUsers) {
       toast.error("You don't have permission to access this page");
@@ -175,11 +232,13 @@ export default function AllUsersPage() {
     }
   }, [canManageUsers, router]);
 
-  // Fetch users
-  const fetchUsers = useCallback(async () => {
+  // ============================================================
+  // FETCH FUNCTIONS
+  // ============================================================
+  const fetchUsers = useCallback(async (): Promise<void> => {
     try {
       setLoading(true);
-      const response = await api.get("/auth/users");
+      const response = await api.get("/users");
       if (response.data.success) {
         setUsers(response.data.data || []);
       }
@@ -191,8 +250,7 @@ export default function AllUsersPage() {
     }
   }, []);
 
-  // Fetch departments
-  const fetchDepartments = useCallback(async () => {
+  const fetchDepartments = useCallback(async (): Promise<void> => {
     try {
       const response = await api.get("/departments");
       if (response.data.success) {
@@ -203,8 +261,7 @@ export default function AllUsersPage() {
     }
   }, []);
 
-  // Fetch roles
-  const fetchRoles = useCallback(async () => {
+  const fetchRoles = useCallback(async (): Promise<void> => {
     try {
       const response = await api.get("/roles");
       if (response.data.success) {
@@ -222,69 +279,24 @@ export default function AllUsersPage() {
     fetchRoles();
   }, [fetchUsers, fetchDepartments, fetchRoles]);
 
-  const handleRefresh = async () => {
+  // ============================================================
+  // REFRESH
+  // ============================================================
+  const handleRefresh = async (): Promise<void> => {
     setRefreshing(true);
     await Promise.all([fetchUsers(), fetchDepartments(), fetchRoles()]);
     setRefreshing(false);
     toast.success("Data refreshed");
   };
 
-  // ============ MULTI-ROLE HANDLING ============
-  const handleOpenMultiRoleModal = (userItem: User) => {
-    setSelectedUser(userItem);
-    const userRoles = userItem.roles?.map((r) => r._id) || [];
-    setSelectedRolesForUser(userRoles);
-    // Find primary role (legacy role)
-    const primaryRole = allRoles.find(
-      (r) => r.code.toLowerCase() === userItem.role,
-    );
-    setPrimaryRoleForUser(primaryRole?._id || userRoles[0] || "");
-    setShowMultiRoleModal(userItem._id);
-  };
+  // ============================================================
+  // USER CRUD OPERATIONS
+  // ============================================================
 
-  const handleToggleRoleSelection = (roleId: string) => {
-    setSelectedRolesForUser((prev) =>
-      prev.includes(roleId)
-        ? prev.filter((id) => id !== roleId)
-        : [...prev, roleId],
-    );
-  };
-
-  const handleUpdateUserRoles = async () => {
-    if (!selectedUser) return;
-
-    if (selectedRolesForUser.length === 0) {
-      toast.error("User must have at least one role");
-      return;
-    }
-
-    setUpdatingRoles(true);
-    try {
-      const response = await api.put(`/roles/user/${selectedUser._id}/assign`, {
-        roleIds: selectedRolesForUser,
-        primaryRoleId: primaryRoleForUser || selectedRolesForUser[0],
-      });
-
-      if (response.data.success) {
-        toast.success("Roles updated successfully");
-        setShowMultiRoleModal(null);
-        setSelectedUser(null);
-        setSelectedRolesForUser([]);
-        setPrimaryRoleForUser("");
-        await fetchUsers();
-      }
-    } catch (error: any) {
-      console.error("Error updating roles:", error);
-      toast.error(error.response?.data?.message || "Failed to update roles");
-    } finally {
-      setUpdatingRoles(false);
-    }
-  };
-
-  const handleCreateUser = async (e: React.FormEvent) => {
+  // CREATE USER
+  const handleCreateUser = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
 
-    // Validate required fields
     if (
       !createFormData.fullName ||
       !createFormData.email ||
@@ -300,7 +312,6 @@ export default function AllUsersPage() {
       return;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(createFormData.email)) {
       toast.error("Please enter a valid email address");
@@ -309,7 +320,6 @@ export default function AllUsersPage() {
 
     setCreating(true);
     try {
-      // Prepare the data - match what the backend expects
       const userData = {
         fullName: createFormData.fullName,
         email: createFormData.email,
@@ -320,16 +330,11 @@ export default function AllUsersPage() {
         phoneNumber: createFormData.phoneNumber || null,
       };
 
-      console.log("📝 Creating user with data:", userData);
-
-      const response = await api.post("/auth/register", userData);
-
-      console.log("📡 Response:", response.data);
+      const response = await api.post("/auth/admin/create-user", userData);
 
       if (response.data.success) {
         toast.success("User created successfully");
         setShowCreateModal(false);
-        // Reset form
         setCreateFormData({
           fullName: "",
           email: "",
@@ -339,31 +344,27 @@ export default function AllUsersPage() {
           departmentId: "",
           phoneNumber: "",
         });
-        // Refresh the user list
         await fetchUsers();
       } else {
         throw new Error(response.data.message || "Failed to create user");
       }
     } catch (error: any) {
-      console.error("❌ Create user error:", error);
-
-      // Extract error message
-      let errorMessage = "Failed to create user";
-      if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      toast.error(errorMessage);
+      console.error("Create user error:", error);
+      toast.error(error.response?.data?.message || "Failed to create user");
     } finally {
       setCreating(false);
     }
   };
 
-  const handleEditUser = (userItem: User) => {
+  // VIEW USER
+  const handleViewUser = (userItem: User): void => {
+    setSelectedUser(userItem);
+    setShowViewModal(true);
+  };
+
+  // EDIT USER
+  const handleEditUser = (userItem: User): void => {
     setEditingUser(userItem);
-    // Get department ID from either field
     const deptId =
       (userItem.department as any)?._id ||
       (userItem.departmentId as any)?._id ||
@@ -386,7 +387,8 @@ export default function AllUsersPage() {
     setShowEditModal(true);
   };
 
-  const handleUpdateUser = async (e: React.FormEvent) => {
+  // UPDATE USER
+  const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!editingUser) return;
 
@@ -401,19 +403,19 @@ export default function AllUsersPage() {
 
     setEditing(true);
     try {
-      // Use 'department' instead of 'departmentId' to match backend
-      const response = await api.put(`/auth/users/${editingUser._id}`, {
+      const response = await api.put(`/users/${editingUser._id}`, {
         fullName: editFormData.fullName,
         email: editFormData.email,
         phoneNumber: editFormData.phoneNumber,
         role: editFormData.role,
-        department: editFormData.departmentId || null, // ← Changed to 'department'
+        department: editFormData.departmentId || null,
         employeeId: editFormData.employeeId,
         isActive: editFormData.isActive,
         position: editFormData.position,
         location: editFormData.location,
         bio: editFormData.bio,
       });
+
       if (response.data.success) {
         toast.success("User updated successfully");
         setShowEditModal(false);
@@ -426,7 +428,34 @@ export default function AllUsersPage() {
       setEditing(false);
     }
   };
-  const handleOpenPasswordModal = (userItem: User) => {
+
+  // DELETE USER
+  const handleDeleteUser = async (userId: string): Promise<void> => {
+    try {
+      await api.delete(`/users/${userId}`);
+      toast.success("User deleted successfully");
+      await fetchUsers();
+      setShowDeleteConfirm(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete user");
+    }
+  };
+
+  // TOGGLE USER STATUS
+  const handleToggleStatus = async (userId: string, currentStatus: boolean): Promise<void> => {
+    try {
+      await api.put(`/users/${userId}`, { isActive: !currentStatus });
+      toast.success(
+        `User ${!currentStatus ? "activated" : "deactivated"} successfully`
+      );
+      await fetchUsers();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to update user status");
+    }
+  };
+
+  // CHANGE PASSWORD
+  const handleOpenPasswordModal = (userItem: User): void => {
     setSelectedUser(userItem);
     setPasswordData({
       newPassword: "",
@@ -436,7 +465,10 @@ export default function AllUsersPage() {
     setShowPasswordModal(true);
   };
 
-  const handleChangePassword = async (e: React.FormEvent) => {
+  // app/(dashboard)/users/page.tsx - Update handleChangePassword
+
+  // controllers/auth.controller.js - FIXED changeUserPassword
+  const handleChangePassword = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!selectedUser) return;
 
@@ -458,71 +490,84 @@ export default function AllUsersPage() {
     setChangingPassword(true);
     try {
       const response = await api.post(
-        `/auth/users/${selectedUser._id}/change-password`,
-        {
-          newPassword: passwordData.newPassword,
-        },
+        `/users/${selectedUser._id}/change-password`,
+        { newPassword: passwordData.newPassword }
       );
+
       if (response.data.success) {
-        toast.success(
-          `Password changed successfully for ${selectedUser.fullName}`,
-        );
+        toast.success(`Password changed successfully for ${selectedUser.fullName}`);
         setShowPasswordModal(false);
         setSelectedUser(null);
-        setPasswordData({
-          newPassword: "",
-          confirmPassword: "",
-        });
+        setPasswordData({ newPassword: "", confirmPassword: "" });
+        // Refresh users to update last login info
+        await fetchUsers();
       }
     } catch (error: any) {
+      console.error("Change password error:", error);
       toast.error(error.response?.data?.message || "Failed to change password");
     } finally {
       setChangingPassword(false);
     }
   };
 
-  const handleViewUser = (userItem: User) => {
+  // ============================================================
+  // MULTI-ROLE MANAGEMENT
+  // ============================================================
+  const handleOpenMultiRoleModal = (userItem: User): void => {
     setSelectedUser(userItem);
-    setShowViewModal(true);
+    const userRoles = userItem.roles?.map((r) => r._id) || [];
+    setSelectedRolesForUser(userRoles);
+    const primaryRole = allRoles.find(
+      (r) => r.code.toLowerCase() === userItem.role
+    );
+    setPrimaryRoleForUser(primaryRole?._id || userRoles[0] || "");
+    setShowMultiRoleModal(true);
   };
 
-  const handleDeleteUser = async (userId: string) => {
-    try {
-      await api.delete(`/auth/users/${userId}`);
-      toast.success("User deleted successfully");
-      await fetchUsers();
-      setShowDeleteConfirm(null);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to delete user");
+  const handleToggleRoleSelection = (roleId: string): void => {
+    setSelectedRolesForUser((prev) =>
+      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId]
+    );
+  };
+
+  const handleUpdateUserRoles = async (): Promise<void> => {
+    if (!selectedUser) return;
+
+    if (selectedRolesForUser.length === 0) {
+      toast.error("User must have at least one role");
+      return;
     }
-  };
 
-  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+    setUpdatingRoles(true);
     try {
-      await api.put(`/auth/users/${userId}`, { isActive: !currentStatus });
-      toast.success(
-        `User ${!currentStatus ? "activated" : "deactivated"} successfully`,
+      const response = await api.put(
+        `/roles/user/${selectedUser._id}/assign`,
+        {
+          roleIds: selectedRolesForUser,
+          primaryRoleId: primaryRoleForUser || selectedRolesForUser[0],
+        }
       );
-      await fetchUsers();
+
+      if (response.data.success) {
+        toast.success("Roles updated successfully");
+        setShowMultiRoleModal(false);
+        setSelectedUser(null);
+        setSelectedRolesForUser([]);
+        setPrimaryRoleForUser("");
+        await fetchUsers();
+      }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Failed to update user status",
-      );
+      console.error("Error updating roles:", error);
+      toast.error(error.response?.data?.message || "Failed to update roles");
+    } finally {
+      setUpdatingRoles(false);
     }
   };
 
-  const handleChangeRole = async (userId: string, newRole: string) => {
-    try {
-      await api.put(`/auth/users/${userId}/role`, { role: newRole });
-      toast.success("User role updated successfully");
-      await fetchUsers();
-      setShowRoleModal(null);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update role");
-    }
-  };
-
-  const handleSort = (field: keyof User) => {
+  // ============================================================
+  // UTILITY FUNCTIONS
+  // ============================================================
+  const handleSort = (field: keyof User): void => {
     if (sortField === field) {
       setSortDirection(sortDirection === "asc" ? "desc" : "asc");
     } else {
@@ -531,20 +576,38 @@ export default function AllUsersPage() {
     }
   };
 
-  // Get user's display roles (combine legacy role + roles array)
-  const getUserDisplayRoles = (userItem: User): string => {
-    if (userItem.roles && userItem.roles.length > 0) {
-      return userItem.roles.map((r) => r.name).join(", ");
-    }
-    return userItem.role.replace(/_/g, " ") || "No Role";
-  };
-
   const getUserRoleCodes = (userItem: User): string[] => {
     if (userItem.roles && userItem.roles.length > 0) {
       return userItem.roles.map((r) => r.code.toLowerCase());
     }
     return [userItem.role];
   };
+
+  const getRoleBadgeColor = (role: string): string => {
+    return ROLE_BADGE_COLORS[role] || ROLE_BADGE_COLORS.employee;
+  };
+
+  const getDepartmentName = (userItem: User): string => {
+    if (
+      userItem.department &&
+      typeof userItem.department === "object" &&
+      "name" in userItem.department
+    ) {
+      return userItem.department.name;
+    }
+    if (
+      userItem.departmentId &&
+      typeof userItem.departmentId === "object" &&
+      "name" in userItem.departmentId
+    ) {
+      return userItem.departmentId.name;
+    }
+    return "-";
+  };
+
+  // ============================================================
+  // FILTER & SORT USERS
+  // ============================================================
   const filteredUsers = useMemo(() => {
     let filtered = users.filter((userItem) => {
       const matchesSearch =
@@ -555,12 +618,12 @@ export default function AllUsersPage() {
       const userRoles = getUserRoleCodes(userItem);
       const matchesRole = !selectedRole || userRoles.includes(selectedRole);
 
-      // Check both department and departmentId
       const userDeptId =
         (userItem.department as any)?._id ||
         (userItem.departmentId as any)?._id ||
         userItem.department ||
         userItem.departmentId;
+
       const matchesDepartment =
         !selectedDepartment ||
         (userDeptId && userDeptId === selectedDepartment);
@@ -573,7 +636,6 @@ export default function AllUsersPage() {
       return matchesSearch && matchesRole && matchesDepartment && matchesStatus;
     });
 
-    // Sort
     filtered.sort((a, b) => {
       const aVal = a[sortField] || "";
       const bVal = b[sortField] || "";
@@ -592,52 +654,22 @@ export default function AllUsersPage() {
     sortDirection,
   ]);
 
+  const totalActive = users.filter((u) => u.isActive).length;
+  const totalInactive = users.filter((u) => !u.isActive).length;
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentUsers = filteredUsers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
 
-  const getRoleBadgeColor = (role: string) => {
-    const colors: Record<string, string> = {
-      super_admin: "bg-purple-100 text-purple-700 border-purple-200",
-      admin: "bg-red-100 text-red-700 border-red-200",
-      hr_manager: "bg-pink-100 text-pink-700 border-pink-200",
-      dept_manager: "bg-orange-100 text-orange-700 border-orange-200",
-      project_manager: "bg-cyan-100 text-cyan-700 border-cyan-200",
-      line_manager: "bg-green-100 text-green-700 border-green-200",
-      employee: "bg-gray-100 text-gray-700 border-gray-200",
-    };
-    return colors[role] || colors.employee;
-  };
-
-  const getRoleIcon = (role: string) => {
-    const icons: Record<string, any> = {
-      super_admin: Shield,
-      admin: Shield,
-      hr_manager: Users,
-      dept_manager: Building2,
-      project_manager: Users,
-      line_manager: UserCheck,
-      employee: UserCircle,
-    };
-    return icons[role] || UserCircle;
-  };
-
-  const roles = [
-    { value: "super_admin", label: "Super Admin" },
-    { value: "admin", label: "Admin" },
-    { value: "hr_manager", label: "HR Manager" },
-    { value: "dept_manager", label: "Department Manager" },
-    { value: "project_manager", label: "Project Manager" },
-    { value: "line_manager", label: "Line Manager" },
-    { value: "employee", label: "Employee" },
-  ];
-
-  const totalActive = users.filter((u) => u.isActive).length;
-  const totalInactive = users.filter((u) => !u.isActive).length;
-
+  // ============================================================
+  // PERMISSION CHECK
+  // ============================================================
   if (!canManageUsers) return null;
 
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
@@ -763,17 +795,21 @@ export default function AllUsersPage() {
                   type="text"
                   placeholder="Search by name, email, or employee ID..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setSearchTerm(e.target.value)
+                  }
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
                 />
               </div>
               <select
                 value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setSelectedRole(e.target.value)
+                }
                 className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
               >
                 <option value="">All Roles</option>
-                {roles.map((role) => (
+                {ROLES.map((role) => (
                   <option key={role.value} value={role.value}>
                     {role.label}
                   </option>
@@ -781,7 +817,9 @@ export default function AllUsersPage() {
               </select>
               <select
                 value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setSelectedDepartment(e.target.value)
+                }
                 className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
               >
                 <option value="">All Departments</option>
@@ -793,7 +831,9 @@ export default function AllUsersPage() {
               </select>
               <select
                 value={showStatus}
-                onChange={(e) => setShowStatus(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setShowStatus(e.target.value)
+                }
                 className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
               >
                 <option value="all">All Status</option>
@@ -841,36 +881,16 @@ export default function AllUsersPage() {
                         </button>
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button className="flex items-center gap-1 hover:text-gray-700">
-                          Roles
-                        </button>
+                        Roles
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("departmentId")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Department
-                          <ArrowUpDown size={12} />
-                        </button>
+                        Department
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("isActive")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Status
-                          <ArrowUpDown size={12} />
-                        </button>
+                        Status
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        <button
-                          onClick={() => handleSort("lastLogin")}
-                          className="flex items-center gap-1 hover:text-gray-700"
-                        >
-                          Last Login
-                          <ArrowUpDown size={12} />
-                        </button>
+                        Last Login
                       </th>
                       <th className="text-right px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -879,7 +899,6 @@ export default function AllUsersPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {currentUsers.map((userItem, index) => {
-                      const RoleIcon = getRoleIcon(userItem.role);
                       const userRoles = userItem.roles || [];
                       const hasMultipleRoles = userRoles.length > 1;
 
@@ -938,14 +957,18 @@ export default function AllUsersPage() {
                                 userRoles.slice(0, 2).map((role) => (
                                   <span
                                     key={role._id}
-                                    className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getRoleBadgeColor(role.code.toLowerCase())}`}
+                                    className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getRoleBadgeColor(
+                                      role.code.toLowerCase()
+                                    )}`}
                                   >
                                     {role.code.replace(/_/g, " ")}
                                   </span>
                                 ))
                               ) : (
                                 <span
-                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getRoleBadgeColor(userItem.role)}`}
+                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-full border ${getRoleBadgeColor(
+                                    userItem.role
+                                  )}`}
                                 >
                                   {userItem.role.replace(/_/g, " ")}
                                 </span>
@@ -964,41 +987,13 @@ export default function AllUsersPage() {
                           </td>
                           <td className="px-6 py-4">
                             <span className="text-sm text-gray-600">
-                              {(() => {
-                                // Check if department exists and is an object with name
-                                if (
-                                  userItem.department &&
-                                  typeof userItem.department === "object"
-                                ) {
-                                  // If it has a name property
-                                  if ("name" in userItem.department) {
-                                    return userItem.department.name;
-                                  }
-                                  // If it has a _id but no name (unlikely)
-                                  if ("_id" in userItem.department) {
-                                    return "Department";
-                                  }
-                                }
-                                // Fallback to departmentId (for backward compatibility)
-                                if (
-                                  userItem.departmentId &&
-                                  typeof userItem.departmentId === "object"
-                                ) {
-                                  if ("name" in userItem.departmentId) {
-                                    return userItem.departmentId.name;
-                                  }
-                                }
-                                return "-";
-                              })()}
+                              {getDepartmentName(userItem)}
                             </span>
                           </td>
                           <td className="px-6 py-4">
                             <button
                               onClick={() =>
-                                handleToggleStatus(
-                                  userItem._id,
-                                  userItem.isActive,
-                                )
+                                handleToggleStatus(userItem._id, userItem.isActive)
                               }
                               className={`px-2.5 py-1 text-xs font-medium rounded-full flex items-center gap-1.5 transition ${userItem.isActive
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
@@ -1019,7 +1014,7 @@ export default function AllUsersPage() {
                               <span className="text-sm text-gray-500">
                                 {userItem.lastLogin
                                   ? new Date(
-                                    userItem.lastLogin,
+                                    userItem.lastLogin
                                   ).toLocaleDateString()
                                   : "Never"}
                               </span>
@@ -1036,9 +1031,7 @@ export default function AllUsersPage() {
                               </button>
                               {canChangeRole && (
                                 <button
-                                  onClick={() =>
-                                    handleOpenMultiRoleModal(userItem)
-                                  }
+                                  onClick={() => handleOpenMultiRoleModal(userItem)}
                                   className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition"
                                   title="Manage Roles"
                                 >
@@ -1056,9 +1049,7 @@ export default function AllUsersPage() {
                               )}
                               {canChangePassword && (
                                 <button
-                                  onClick={() =>
-                                    handleOpenPasswordModal(userItem)
-                                  }
+                                  onClick={() => handleOpenPasswordModal(userItem)}
                                   className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
                                   title="Change Password"
                                 >
@@ -1067,9 +1058,7 @@ export default function AllUsersPage() {
                               )}
                               {canDeleteUser && userItem._id !== user?._id && (
                                 <button
-                                  onClick={() =>
-                                    setShowDeleteConfirm(userItem._id)
-                                  }
+                                  onClick={() => setShowDeleteConfirm(userItem._id)}
                                   className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                                   title="Delete User"
                                 >
@@ -1084,6 +1073,7 @@ export default function AllUsersPage() {
                   </tbody>
                 </table>
               </div>
+
               {filteredUsers.length === 0 && (
                 <div className="text-center py-12">
                   <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -1151,281 +1141,191 @@ export default function AllUsersPage() {
         </div>
       </div>
 
-      {/* ============ MULTI-ROLE MANAGEMENT MODAL ============ */}
-      {showMultiRoleModal && selectedUser && (
+      {/* ============================================================
+          CREATE USER MODAL
+          ============================================================ */}
+      {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <Layers className="w-4 h-4 text-white" />
+                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                  <UserPlus className="w-4 h-4 text-white" />
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
-                    Manage Roles
+                    Add New User
                   </h2>
                   <p className="text-xs text-gray-500">
-                    {selectedUser.fullName} - Select multiple roles
+                    Create a new user account
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => {
-                  setShowMultiRoleModal(null);
-                  setSelectedUser(null);
+                  setShowCreateModal(false);
+                  setCreateFormData({
+                    fullName: "",
+                    email: "",
+                    password: "",
+                    employeeId: "",
+                    role: "employee",
+                    departmentId: "",
+                    phoneNumber: "",
+                  });
                 }}
                 className="text-gray-400 hover:text-gray-600 transition"
               >
                 <X size={20} />
               </button>
             </div>
-            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-gray-700">
-                  Select Roles <span className="text-rose-500">*</span>
-                </p>
-                <div className="space-y-1 border border-gray-200 rounded-lg p-2">
-                  {allRoles.map((role) => {
-                    const isSelected = selectedRolesForUser.includes(role._id);
-                    return (
-                      <label
-                        key={role._id}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${isSelected
-                          ? "bg-indigo-50 hover:bg-indigo-100"
-                          : "hover:bg-gray-50"
-                          }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleToggleRoleSelection(role._id)}
-                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">
-                            {role.name}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {role.code} • Level {role.level}
-                          </p>
-                        </div>
-                        {role.isPermanent && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                            Permanent
-                          </span>
-                        )}
-                      </label>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-gray-400">
-                  {selectedRolesForUser.length} role(s) selected
-                </p>
-              </div>
 
-              {selectedRolesForUser.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-1">
-                    Primary Role
-                    <span className="text-xs text-gray-400 ml-2">
-                      (Default: first selected)
-                    </span>
-                  </p>
-                  <select
-                    value={primaryRoleForUser}
-                    onChange={(e) => setPrimaryRoleForUser(e.target.value)}
-                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  >
-                    {selectedRolesForUser.map((roleId) => {
-                      const role = allRoles.find((r) => r._id === roleId);
-                      return role ? (
-                        <option key={roleId} value={roleId}>
-                          {role.name} (Level {role.level})
-                        </option>
-                      ) : null;
-                    })}
-                  </select>
-                </div>
-              )}
-
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                <div className="flex items-start gap-2">
-                  <Info
-                    size={14}
-                    className="text-blue-500 flex-shrink-0 mt-0.5"
-                  />
-                  <div>
-                    <p className="text-xs text-gray-600 font-medium">
-                      Multiple Roles Support
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Users can have multiple roles. The primary role determines
-                      the main role displayed in the UI.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
-                <button
-                  onClick={handleUpdateUserRoles}
-                  disabled={updatingRoles || selectedRolesForUser.length === 0}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                >
-                  {updatingRoles ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Save size={16} />
-                  )}
-                  Save Roles
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMultiRoleModal(null);
-                    setSelectedUser(null);
-                  }}
-                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {showEditModal && editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-          >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                  <Edit2 className="w-4 h-4 text-white" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Edit User
-                </h2>
-              </div>
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingUser(null);
-                }}
-                className="text-gray-400 hover:text-gray-600 transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
             <form
-              onSubmit={handleUpdateUser}
-              className="p-5 space-y-4 max-h-[70vh] overflow-y-auto"
+              onSubmit={handleCreateUser}
+              className="p-5 space-y-4 overflow-y-auto flex-1"
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name *
+                  Full Name <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={editFormData.fullName}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
+                  value={createFormData.fullName}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCreateFormData({
+                      ...createFormData,
                       fullName: e.target.value,
                     })
                   }
                   className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="John Doe"
                   required
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email *
+                  Email <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="email"
-                  value={editFormData.email}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
+                  value={createFormData.email}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCreateFormData({
+                      ...createFormData,
                       email: e.target.value,
                     })
                   }
                   className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="john@example.com"
                   required
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Employee ID *
+                  Password <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={createFormData.password}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setCreateFormData({
+                        ...createFormData,
+                        password: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition pr-10"
+                    placeholder="Min 8 characters"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <EyeIcon size={18} />}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Password must be at least 8 characters
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Employee ID <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={editFormData.employeeId}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
+                  value={createFormData.employeeId}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCreateFormData({
+                      ...createFormData,
                       employeeId: e.target.value,
                     })
                   }
                   className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="EMP001"
                   required
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Phone Number
                 </label>
                 <input
                   type="tel"
-                  value={editFormData.phoneNumber}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
+                  value={createFormData.phoneNumber}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCreateFormData({
+                      ...createFormData,
                       phoneNumber: e.target.value,
                     })
                   }
                   className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="+1 234 567 8900"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role
+                  Role <span className="text-rose-500">*</span>
                 </label>
                 <select
-                  value={editFormData.role}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
+                  value={createFormData.role}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setCreateFormData({
+                      ...createFormData,
                       role: e.target.value,
                     })
                   }
                   className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
                 >
-                  {roles.map((role) => (
+                  {ROLES.map((role) => (
                     <option key={role.value} value={role.value}>
                       {role.label}
                     </option>
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Department
                 </label>
                 <select
-                  value={editFormData.departmentId}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
+                  value={createFormData.departmentId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setCreateFormData({
+                      ...createFormData,
                       departmentId: e.target.value,
                     })
                   }
@@ -1439,104 +1339,33 @@ export default function AllUsersPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Position
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.position}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      position: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="e.g. Senior Developer"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.location}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      location: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="e.g. New York, USA"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
-                </label>
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={editFormData.isActive === true}
-                      onChange={() =>
-                        setEditFormData({ ...editFormData, isActive: true })
-                      }
-                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-gray-700">Active</span>
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      checked={editFormData.isActive === false}
-                      onChange={() =>
-                        setEditFormData({ ...editFormData, isActive: false })
-                      }
-                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm text-gray-700">Inactive</span>
-                  </label>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bio
-                </label>
-                <textarea
-                  value={editFormData.bio}
-                  onChange={(e) =>
-                    setEditFormData({
-                      ...editFormData,
-                      bio: e.target.value,
-                    })
-                  }
-                  rows={2}
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
-                  placeholder="Brief description about the user"
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
+
+              <div className="flex gap-3 pt-4 border-t border-gray-200 flex-shrink-0">
                 <button
                   type="submit"
-                  disabled={editing}
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                  disabled={creating}
+                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                 >
-                  {editing ? (
+                  {creating ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Save size={16} />
+                    <UserPlus size={16} />
                   )}
-                  {editing ? "Saving..." : "Update User"}
+                  {creating ? "Creating..." : "Create User"}
                 </button>
                 <button
                   type="button"
                   onClick={() => {
-                    setShowEditModal(false);
-                    setEditingUser(null);
+                    setShowCreateModal(false);
+                    setCreateFormData({
+                      fullName: "",
+                      email: "",
+                      password: "",
+                      employeeId: "",
+                      role: "employee",
+                      departmentId: "",
+                      phoneNumber: "",
+                    });
                   }}
                   className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
                 >
@@ -1548,7 +1377,9 @@ export default function AllUsersPage() {
         </div>
       )}
 
-      {/* View User Modal */}
+      {/* ============================================================
+          VIEW USER MODAL
+          ============================================================ */}
       {showViewModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <motion.div
@@ -1556,6 +1387,7 @@ export default function AllUsersPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
+            {/* View Modal Content */}
             <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
@@ -1589,7 +1421,9 @@ export default function AllUsersPage() {
                   </h3>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span
-                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getRoleBadgeColor(selectedUser.role)}`}
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getRoleBadgeColor(
+                        selectedUser.role
+                      )}`}
                     >
                       {selectedUser.role.replace(/_/g, " ")}
                     </span>
@@ -1720,7 +1554,263 @@ export default function AllUsersPage() {
         </div>
       )}
 
-      {/* Change Password Modal */}
+      {/* ============================================================
+          EDIT USER MODAL
+          ============================================================ */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+          >
+            {/* Edit Modal Content */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <Edit2 className="w-4 h-4 text-white" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">
+                  Edit User
+                </h2>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form
+              onSubmit={handleUpdateUser}
+              className="p-5 space-y-4 max-h-[70vh] overflow-y-auto"
+            >
+              {/* Form fields */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.fullName}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      fullName: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email *
+                </label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      email: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Employee ID *
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.employeeId}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      employeeId: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editFormData.phoneNumber}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      phoneNumber: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Role
+                </label>
+                <select
+                  value={editFormData.role}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      role: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                >
+                  {ROLES.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Department
+                </label>
+                <select
+                  value={editFormData.departmentId}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      departmentId: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                >
+                  <option value="">No Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept._id} value={dept._id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Position
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.position}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      position: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="e.g. Senior Developer"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Location
+                </label>
+                <input
+                  type="text"
+                  value={editFormData.location}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      location: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  placeholder="e.g. New York, USA"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={editFormData.isActive === true}
+                      onChange={() =>
+                        setEditFormData({ ...editFormData, isActive: true })
+                      }
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-700">Active</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      checked={editFormData.isActive === false}
+                      onChange={() =>
+                        setEditFormData({ ...editFormData, isActive: false })
+                      }
+                      className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm text-gray-700">Inactive</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bio
+                </label>
+                <textarea
+                  value={editFormData.bio}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                    setEditFormData({
+                      ...editFormData,
+                      bio: e.target.value,
+                    })
+                  }
+                  rows={2}
+                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  placeholder="Brief description about the user"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="submit"
+                  disabled={editing}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                >
+                  {editing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  {editing ? "Saving..." : "Update User"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingUser(null);
+                  }}
+                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ============================================================
+          CHANGE PASSWORD MODAL
+          ============================================================ */}
       {showPasswordModal && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <motion.div
@@ -1746,10 +1836,7 @@ export default function AllUsersPage() {
                 onClick={() => {
                   setShowPasswordModal(false);
                   setSelectedUser(null);
-                  setPasswordData({
-                    newPassword: "",
-                    confirmPassword: "",
-                  });
+                  setPasswordData({ newPassword: "", confirmPassword: "" });
                 }}
                 className="text-gray-400 hover:text-gray-600 transition"
               >
@@ -1765,7 +1852,7 @@ export default function AllUsersPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={passwordData.newPassword}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setPasswordData({
                         ...passwordData,
                         newPassword: e.target.value,
@@ -1780,11 +1867,7 @@ export default function AllUsersPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                   >
-                    {showPassword ? (
-                      <EyeOff size={18} />
-                    ) : (
-                      <EyeIcon size={18} />
-                    )}
+                    {showPassword ? <EyeOff size={18} /> : <EyeIcon size={18} />}
                   </button>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
@@ -1799,7 +1882,7 @@ export default function AllUsersPage() {
                   <input
                     type={showPassword ? "text" : "password"}
                     value={passwordData.confirmPassword}
-                    onChange={(e) =>
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setPasswordData({
                         ...passwordData,
                         confirmPassword: e.target.value,
@@ -1819,7 +1902,10 @@ export default function AllUsersPage() {
                     <XCircle size={16} className="text-rose-500" />
                   )}
                   <span
-                    className={`text-sm ${passwordData.newPassword === passwordData.confirmPassword ? "text-emerald-600" : "text-rose-600"}`}
+                    className={`text-sm ${passwordData.newPassword === passwordData.confirmPassword
+                      ? "text-emerald-600"
+                      : "text-rose-600"
+                      }`}
                   >
                     {passwordData.newPassword === passwordData.confirmPassword
                       ? "Passwords match"
@@ -1845,10 +1931,7 @@ export default function AllUsersPage() {
                   onClick={() => {
                     setShowPasswordModal(false);
                     setSelectedUser(null);
-                    setPasswordData({
-                      newPassword: "",
-                      confirmPassword: "",
-                    });
+                    setPasswordData({ newPassword: "", confirmPassword: "" });
                   }}
                   className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
                 >
@@ -1860,7 +1943,157 @@ export default function AllUsersPage() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* ============================================================
+          MULTI-ROLE MANAGEMENT MODAL
+          ============================================================ */}
+      {showMultiRoleModal && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                  <Layers className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">
+                    Manage Roles
+                  </h2>
+                  <p className="text-xs text-gray-500">
+                    {selectedUser.fullName} - Select multiple roles
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowMultiRoleModal(false);
+                  setSelectedUser(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">
+                  Select Roles <span className="text-rose-500">*</span>
+                </p>
+                <div className="space-y-1 border border-gray-200 rounded-lg p-2">
+                  {allRoles.map((role) => {
+                    const isSelected = selectedRolesForUser.includes(role._id);
+                    return (
+                      <label
+                        key={role._id}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition ${isSelected
+                          ? "bg-indigo-50 hover:bg-indigo-100"
+                          : "hover:bg-gray-50"
+                          }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleRoleSelection(role._id)}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">
+                            {role.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {role.code} • Level {role.level}
+                          </p>
+                        </div>
+                        {role.isPermanent && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                            Permanent
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-400">
+                  {selectedRolesForUser.length} role(s) selected
+                </p>
+              </div>
+
+              {selectedRolesForUser.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-1">
+                    Primary Role
+                    <span className="text-xs text-gray-400 ml-2">
+                      (Default: first selected)
+                    </span>
+                  </p>
+                  <select
+                    value={primaryRoleForUser}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                      setPrimaryRoleForUser(e.target.value)
+                    }
+                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                  >
+                    {selectedRolesForUser.map((roleId) => {
+                      const role = allRoles.find((r) => r._id === roleId);
+                      return role ? (
+                        <option key={roleId} value={roleId}>
+                          {role.name} (Level {role.level})
+                        </option>
+                      ) : null;
+                    })}
+                  </select>
+                </div>
+              )}
+
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <div className="flex items-start gap-2">
+                  <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs text-gray-600 font-medium">
+                      Multiple Roles Support
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Users can have multiple roles. The primary role determines
+                      the main role displayed in the UI.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={handleUpdateUserRoles}
+                  disabled={updatingRoles || selectedRolesForUser.length === 0}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  {updatingRoles ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save size={16} />
+                  )}
+                  Save Roles
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMultiRoleModal(false);
+                    setSelectedUser(null);
+                  }}
+                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* ============================================================
+          DELETE CONFIRMATION MODAL
+          ============================================================ */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <motion.div
@@ -1898,294 +2131,6 @@ export default function AllUsersPage() {
                 </button>
               </div>
             </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Change Role Modal */}
-      {showRoleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
-          >
-            <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-                  <Shield className="w-4 h-4 text-white" />
-                </div>
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Change User Role
-                </h2>
-              </div>
-            </div>
-            <div className="p-5 space-y-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Select New Role
-              </label>
-              <select
-                value={selectedRoleForUser}
-                onChange={(e) => setSelectedRoleForUser(e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-              >
-                {roles.map((role) => (
-                  <option key={role.value} value={role.value}>
-                    {role.label}
-                  </option>
-                ))}
-              </select>
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() =>
-                    handleChangeRole(showRoleModal, selectedRoleForUser)
-                  }
-                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg transition shadow-sm"
-                >
-                  Update Role
-                </button>
-                <button
-                  onClick={() => setShowRoleModal(null)}
-                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
-      {/* ============ CREATE USER MODAL ============ */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
-          >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
-                  <UserPlus className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800">Add New User</h2>
-                  <p className="text-xs text-gray-500">Create a new user account</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setCreateFormData({
-                    fullName: "",
-                    email: "",
-                    password: "",
-                    employeeId: "",
-                    role: "employee",
-                    departmentId: "",
-                    phoneNumber: "",
-                  });
-                }}
-                className="text-gray-400 hover:text-gray-600 transition"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateUser} className="p-5 space-y-4 overflow-y-auto flex-1">
-              {/* Full Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Full Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={createFormData.fullName}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      fullName: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="John Doe"
-                  required
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="email"
-                  value={createFormData.email}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      email: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="john@example.com"
-                  required
-                />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={createFormData.password}
-                    onChange={(e) =>
-                      setCreateFormData({
-                        ...createFormData,
-                        password: e.target.value,
-                      })
-                    }
-                    className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition pr-10"
-                    placeholder="Min 8 characters"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <EyeIcon size={18} />}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Password must be at least 8 characters
-                </p>
-              </div>
-
-              {/* Employee ID */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Employee ID <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={createFormData.employeeId}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      employeeId: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="EMP001"
-                  required
-                />
-              </div>
-
-              {/* Phone Number */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={createFormData.phoneNumber}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      phoneNumber: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  placeholder="+1 234 567 8900"
-                />
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={createFormData.role}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      role: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required
-                >
-                  {roles.map((role) => (
-                    <option key={role.value} value={role.value}>
-                      {role.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Department */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Department
-                </label>
-                <select
-                  value={createFormData.departmentId}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      departmentId: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value="">No Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept._id} value={dept._id}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Form Actions */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200 flex-shrink-0">
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
-                >
-                  {creating ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <UserPlus size={16} />
-                  )}
-                  {creating ? "Creating..." : "Create User"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setCreateFormData({
-                      fullName: "",
-                      email: "",
-                      password: "",
-                      employeeId: "",
-                      role: "employee",
-                      departmentId: "",
-                      phoneNumber: "",
-                    });
-                  }}
-                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
           </motion.div>
         </div>
       )}

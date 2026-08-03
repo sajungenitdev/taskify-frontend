@@ -1,3 +1,4 @@
+// app/(auth)/register/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -30,6 +31,9 @@ import {
   Rocket,
   Heart,
   TrendingUp,
+  Timer,
+  Gift,
+  Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -144,7 +148,7 @@ const GlowingOrbs = () => {
 };
 
 // ============================================================
-// REGISTRATION PLANS
+// REGISTRATION PLANS WITH 7-DAY TRIAL
 // ============================================================
 const PLANS = {
   individual: {
@@ -164,6 +168,7 @@ const PLANS = {
       "Mobile app access",
     ],
     popular: false,
+    trialDays: 7,
   },
   team: {
     id: "team",
@@ -184,6 +189,7 @@ const PLANS = {
       "Custom workflows",
     ],
     popular: true,
+    trialDays: 7,
   },
 };
 
@@ -289,18 +295,7 @@ export default function RegisterPage() {
       const selectedPlan = PLANS[userType];
       const pricing = selectedPlan.pricing[billingCycle];
 
-      const registrationData = {
-        ...formData,
-        userType,
-        billingCycle,
-        plan: selectedPlan.id,
-        price: pricing.price,
-        currency: pricing.currency,
-        period: pricing.period,
-        role: userType === "individual" ? "employee" : "admin",
-      };
-
-      // Call registration API
+      // Register user - backend will auto-generate password and send trial email
       const response = await api.post("/auth/register", {
         fullName: formData.fullName,
         email: formData.email,
@@ -312,13 +307,29 @@ export default function RegisterPage() {
         plan: selectedPlan.id,
         billingCycle,
         price: pricing.price,
+        currency: pricing.currency,
+        period: pricing.period,
+        trialDays: selectedPlan.trialDays || 7,
       });
 
       if (response.data.success) {
-        toast.success("Account created successfully! Redirecting to login...");
-        setTimeout(() => {
-          router.push("/login");
-        }, 2000);
+        toast.success(
+          `Account created successfully! A 7-day trial has started. Check your email at ${formData.email}`,
+          { duration: 8000 }
+        );
+
+        // Auto login after registration
+        try {
+          await login(formData.email, formData.password);
+          setTimeout(() => {
+            router.push("/dashboard");
+          }, 1500);
+        } catch (loginError) {
+          // If auto-login fails, redirect to login page
+          setTimeout(() => {
+            router.push("/login?registered=true");
+          }, 2000);
+        }
       }
     } catch (error: any) {
       console.error("Registration error:", error);
@@ -377,6 +388,12 @@ export default function RegisterPage() {
               <p className="text-emerald-300/70 text-sm mt-1">
                 Choose your plan and get started with TaskManager
               </p>
+              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 rounded-full border border-emerald-500/30">
+                <Gift className="w-3 h-3 text-emerald-400" />
+                <span className="text-xs text-emerald-300">
+                  Free 7-day trial included!
+                </span>
+              </div>
             </motion.div>
 
             {/* Step Progress */}
@@ -385,11 +402,10 @@ export default function RegisterPage() {
                 <div key={step.id} className="flex items-center flex-1">
                   <div className="flex flex-col items-center flex-1">
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                        index <= currentStepIndex
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${index <= currentStepIndex
                           ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
                           : "bg-white/10 text-white/40"
-                      }`}
+                        }`}
                     >
                       {index < currentStepIndex ? (
                         <Check className="w-4 h-4" />
@@ -398,22 +414,20 @@ export default function RegisterPage() {
                       )}
                     </div>
                     <span
-                      className={`text-[10px] mt-1 font-medium ${
-                        index <= currentStepIndex
+                      className={`text-[10px] mt-1 font-medium ${index <= currentStepIndex
                           ? "text-emerald-300"
                           : "text-white/30"
-                      }`}
+                        }`}
                     >
                       {step.label}
                     </span>
                   </div>
                   {index < steps.length - 1 && (
                     <div
-                      className={`flex-1 h-0.5 mx-2 ${
-                        index < currentStepIndex
+                      className={`flex-1 h-0.5 mx-2 ${index < currentStepIndex
                           ? "bg-gradient-to-r from-emerald-500 to-teal-500"
                           : "bg-white/10"
-                      }`}
+                        }`}
                     />
                   )}
                 </div>
@@ -459,11 +473,10 @@ export default function RegisterPage() {
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setUserType(key as "individual" | "team")}
-                            className={`relative p-6 rounded-xl border-2 transition-all text-left ${
-                              isSelected
+                            className={`relative p-6 rounded-xl border-2 transition-all text-left ${isSelected
                                 ? "border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/20"
                                 : "border-white/10 hover:border-white/20"
-                            }`}
+                              }`}
                           >
                             {plan.popular && (
                               <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full text-[10px] font-bold text-white">
@@ -471,9 +484,8 @@ export default function RegisterPage() {
                               </div>
                             )}
                             <Icon
-                              className={`w-8 h-8 mb-3 ${
-                                isSelected ? "text-emerald-400" : "text-white/40"
-                              }`}
+                              className={`w-8 h-8 mb-3 ${isSelected ? "text-emerald-400" : "text-white/40"
+                                }`}
                             />
                             <h3 className="text-lg font-semibold text-white">
                               {plan.label}
@@ -481,6 +493,10 @@ export default function RegisterPage() {
                             <p className="text-sm text-white/40 mt-1">
                               {plan.description}
                             </p>
+                            <div className="mt-2 flex items-center gap-1 text-emerald-400">
+                              <Gift className="w-3 h-3" />
+                              <span className="text-xs">{plan.trialDays}-day free trial</span>
+                            </div>
                             <div className="mt-3 space-y-1">
                               {plan.features.slice(0, 3).map((feature, i) => (
                                 <div key={i} className="flex items-center gap-2 text-xs text-white/30">
@@ -518,21 +534,19 @@ export default function RegisterPage() {
                     <div className="flex justify-center gap-2 p-1 bg-white/5 rounded-xl border border-white/10">
                       <button
                         onClick={() => setBillingCycle("monthly")}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          billingCycle === "monthly"
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${billingCycle === "monthly"
                             ? "bg-emerald-500 text-white"
                             : "text-white/40 hover:text-white/60"
-                        }`}
+                          }`}
                       >
                         Monthly
                       </button>
                       <button
                         onClick={() => setBillingCycle("yearly")}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          billingCycle === "yearly"
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${billingCycle === "yearly"
                             ? "bg-emerald-500 text-white"
                             : "text-white/40 hover:text-white/60"
-                        }`}
+                          }`}
                       >
                         Yearly
                         <span className="ml-1 text-[10px] text-emerald-400">(Save 58%)</span>
@@ -555,6 +569,10 @@ export default function RegisterPage() {
                         <span className="text-sm text-white/40">
                           /{pricing.period}
                         </span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-center gap-2 text-emerald-400 text-sm">
+                        <Timer className="w-4 h-4" />
+                        <span>Start with {selectedPlan.trialDays}-day free trial</span>
                       </div>
                       <div className="mt-4 space-y-2 text-sm text-white/50">
                         {selectedPlan.features.map((feature, i) => (
@@ -599,11 +617,10 @@ export default function RegisterPage() {
                             onChange={(e) =>
                               setFormData({ ...formData, fullName: e.target.value })
                             }
-                            className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${
-                              errors.fullName
+                            className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.fullName
                                 ? "border-red-400/50 focus:border-red-400"
                                 : "border-white/10 focus:border-emerald-400"
-                            } focus:shadow-lg focus:shadow-emerald-500/10`}
+                              } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="John Doe"
                           />
                         </div>
@@ -624,11 +641,10 @@ export default function RegisterPage() {
                             onChange={(e) =>
                               setFormData({ ...formData, email: e.target.value })
                             }
-                            className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${
-                              errors.email
+                            className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.email
                                 ? "border-red-400/50 focus:border-red-400"
                                 : "border-white/10 focus:border-emerald-400"
-                            } focus:shadow-lg focus:shadow-emerald-500/10`}
+                              } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="john@example.com"
                           />
                         </div>
@@ -649,11 +665,10 @@ export default function RegisterPage() {
                             onChange={(e) =>
                               setFormData({ ...formData, phone: e.target.value })
                             }
-                            className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${
-                              errors.phone
+                            className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.phone
                                 ? "border-red-400/50 focus:border-red-400"
                                 : "border-white/10 focus:border-emerald-400"
-                            } focus:shadow-lg focus:shadow-emerald-500/10`}
+                              } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="+1 234 567 8900"
                           />
                         </div>
@@ -694,11 +709,10 @@ export default function RegisterPage() {
                             onChange={(e) =>
                               setFormData({ ...formData, password: e.target.value })
                             }
-                            className={`w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${
-                              errors.password
+                            className={`w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.password
                                 ? "border-red-400/50 focus:border-red-400"
                                 : "border-white/10 focus:border-emerald-400"
-                            } focus:shadow-lg focus:shadow-emerald-500/10`}
+                              } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="••••••••"
                           />
                           <button
@@ -726,11 +740,10 @@ export default function RegisterPage() {
                             onChange={(e) =>
                               setFormData({ ...formData, confirmPassword: e.target.value })
                             }
-                            className={`w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${
-                              errors.confirmPassword
+                            className={`w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.confirmPassword
                                 ? "border-red-400/50 focus:border-red-400"
                                 : "border-white/10 focus:border-emerald-400"
-                            } focus:shadow-lg focus:shadow-emerald-500/10`}
+                              } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="••••••••"
                           />
                           <button
@@ -807,8 +820,8 @@ export default function RegisterPage() {
                           </>
                         ) : (
                           <>
-                            Create Account
-                            <Rocket className="w-4 h-4" />
+                            Start 7-Day Free Trial
+                            <Gift className="w-4 h-4" />
                           </>
                         )}
                       </button>
@@ -830,6 +843,9 @@ export default function RegisterPage() {
                 <Link href="/login" className="text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
                   Sign In
                 </Link>
+              </p>
+              <p className="text-xs text-white/20 mt-2">
+                No credit card required. Cancel anytime.
               </p>
             </motion.div>
           </div>
