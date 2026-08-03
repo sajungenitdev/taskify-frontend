@@ -492,7 +492,7 @@ const SecuritySettingsPage: React.FC = () => {
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-                <div className="max-w-7xl mx-auto">
+                <div className="container mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {[1, 2, 3, 4, 5, 6].map((i) => (
                             <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 animate-pulse">
@@ -515,7 +515,7 @@ const SecuritySettingsPage: React.FC = () => {
     // ============================================================
     return (
         <div className="min-h-screen bg-gray-50  p-4 md:p-6">
-            <div className="max-w-7xl mx-auto">
+            <div className="container mx-auto">
                 {/* Modern Header with Gradient */}
                 <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
                     <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>

@@ -90,9 +90,6 @@ import {
   GitMerge,
   GitBranch as GitBranchIcon,
   CreditCard,
-  HistoryIcon,
-  Wallet,
-  Repeat,
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -463,23 +460,7 @@ export const MAIN_ITEMS = {
     ],
     { section: "reports", description: "Analytics, insights, and business reports" },
   ),
-  // billing
-  billing: createNavItem(
-    "billing",
-    "Billing",
-    "/billing",
-    CreditCard,
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    {
-      section: "system",
-      description: "Manage billing, invoices, and subscriptions"
-    },
-  ),
+
   // System
   system: createNavItem(
     "system",
@@ -509,84 +490,6 @@ export const MAIN_ITEMS = {
 // ============================================================================
 
 export const SUB_ITEMS = {
-
-  // Billing Sub-items
-  billingOverview: createSubNavItem(
-    "billing-overview",
-    "Billing Overview",
-    "/billing/overview",
-    LayoutDashboard,
-    "Billing",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    { description: "View billing summary and usage" },
-  ),
-
-  invoices: createSubNavItem(
-    "invoices",
-    "Invoices",
-    "/billing/invoices",
-    FileText,
-    "Billing",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    { description: "View and manage invoices" },
-  ),
-
-  subscriptions: createSubNavItem(
-    "subscriptions",
-    "Subscriptions",
-    "/billing/subscriptions",
-    Repeat,
-    "Billing",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    { description: "Manage subscriptions and plans" },
-  ),
-
-  paymentMethods: createSubNavItem(
-    "payment-methods",
-    "Payment Methods",
-    "/billing/payment-methods",
-    Wallet,
-    "Billing",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    { description: "Manage payment methods" },
-  ),
-
-  billingHistory: createSubNavItem(
-    "billing-history",
-    "Billing History",
-    "/billing/history",
-    HistoryIcon,
-    "Billing",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-    ],
-    { description: "View billing history and transactions" },
-  ),
-
-
   // My Profile Sub-items
   editProfile: createSubNavItem(
     "edit-profile",
@@ -1291,15 +1194,24 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN],
     { description: "View system audit logs and activity" },
   ),
-  // workflowBuilder: createSubNavItem(
-  //   "workflow-builder",
-  //   "Workflow Builder",
-  //   "/workflows",
-  //   Workflow,
-  //   "System Settings",
-  //   [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-  //   { description: "Build and manage custom workflows" },
-  // ),
+  billing: createSubNavItem(
+    "billing",
+    "Billing",
+    "/settings/billing",
+    CreditCard,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN,ROLES.EMPLOYEE],
+    { description: "Manage billing, invoices, and subscriptions" },
+  ),
+  pricingPlans: createSubNavItem(
+    "pricing-plans",
+    "Pricing Plans",
+    "/settings/pricing",
+    DollarSign,
+    "System Settings",
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN,ROLES.EMPLOYEE],
+    { description: "Manage billing, invoices, and subscriptions" },
+  ),
   backupManagement: createSubNavItem(
     "backup-management",
     "Backup Management",
@@ -1329,8 +1241,8 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
     {
       description: "Read full system documentation",
-      target: "_blank",
-      rel: "noopener noreferrer"
+      target: "_blank",      
+      rel: "noopener noreferrer" 
     },
   ),
   apiDocs: createSubNavItem(
