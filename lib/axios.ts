@@ -21,7 +21,7 @@ const API_BASE_URL: string =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
   // "http://localhost:5000/api/v1";
 
-// ============ CREATE AXIOS INSTANCE ============
+// ============ CREATE AXIOS INSTANCE =============
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
