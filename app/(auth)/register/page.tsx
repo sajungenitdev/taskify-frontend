@@ -29,8 +29,6 @@ import {
   Zap,
   Sparkles,
   Shield,
-  CheckCircle2,
-  XCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -67,6 +65,36 @@ interface PricingPlan {
 }
 
 type Step = "user-type" | "pricing" | "details";
+
+// Map plan names to enum values expected by the backend
+// Update these based on your actual User model enum values
+const PLAN_ENUM_MAP: Record<string, string> = {
+  'individual': 'individual',
+  'team': 'team',
+  'pro': 'pro',
+  'enterprise': 'enterprise',
+  // Add more mappings as needed
+};
+
+const getPlanEnumValue = (planName: string): string => {
+  // Try to match by slug or name
+  const normalized = planName.toLowerCase().trim();
+
+  // Direct match
+  if (PLAN_ENUM_MAP[normalized]) {
+    return PLAN_ENUM_MAP[normalized];
+  }
+
+  // Try to find by partial match
+  for (const [key, value] of Object.entries(PLAN_ENUM_MAP)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return value;
+    }
+  }
+
+  // Default to 'individual' if no match
+  return 'individual';
+};
 
 // Floating Particles Component
 const FloatingParticles = () => {
@@ -320,6 +348,15 @@ export default function RegisterPage() {
         finalPrice = selectedPlan.price * 12 * 0.8;
       }
 
+      // Get the correct plan enum value for the backend
+      const planEnum = getPlanEnumValue(selectedPlan.slug || selectedPlan.name);
+
+      console.log("Sending registration with plan:", {
+        selectedPlan: selectedPlan.name,
+        planEnum,
+        slug: selectedPlan.slug,
+      });
+
       const response = await api.post("/auth/register", {
         fullName: formData.fullName,
         email: formData.email,
@@ -328,7 +365,7 @@ export default function RegisterPage() {
         companyName: formData.companyName || "Individual User",
         jobTitle: formData.jobTitle || "User",
         role: selectedPlan.limits?.users > 1 ? "admin" : "employee",
-        plan: selectedPlan.slug || selectedPlan._id,
+        plan: planEnum, // Send the enum value, not the slug
         planName: selectedPlan.name,
         billingCycle,
         price: Math.round(finalPrice),
@@ -358,10 +395,9 @@ export default function RegisterPage() {
       }
     } catch (error: any) {
       console.error("Registration error:", error);
-      setRegistrationError(
-        error.response?.data?.message || "Registration failed. Please try again."
-      );
-      toast.error(error.response?.data?.message || "Registration failed");
+      const errorMessage = error.response?.data?.message || "Registration failed. Please try again.";
+      setRegistrationError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
