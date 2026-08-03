@@ -56,7 +56,7 @@ export default function BillingPage() {
 
             if (accountsRes.success) {
                 console.log("📊 Accounts received:", accountsRes.data);
-                console.log("📊 Total accounts:", accountsRes.total);
+                console.log("📊 Total accounts:", accountsRes.data.length);
 
                 const processedAccounts = accountsRes.data.map((account: BillingAccount) => ({
                     ...account,
