@@ -20,6 +20,7 @@ interface User {
   role: string;
   employeeId?: string;
   departmentId?: any;
+  department?: any; // ✅ Add this
   phoneNumber?: string;
   location?: string;
   position?: string;
@@ -29,6 +30,27 @@ interface User {
   firstLogin?: boolean;
   workSettings?: any;
   notificationPreferences?: any;
+  // ✅ Add trial fields
+  trial?: {
+    isActive: boolean;
+    startDate: string;
+    endDate: string;
+    daysLeft: number;
+    plan: string;
+    billingCycle: string;
+    price: number;
+    currency: string;
+    period: string;
+  };
+  subscription?: {
+    status: string;
+    plan: string;
+    billingCycle: string;
+    price: number;
+    currency: string;
+    startDate: string;
+    trialEndDate: string;
+  };
 }
 
 interface AuthContextType {
