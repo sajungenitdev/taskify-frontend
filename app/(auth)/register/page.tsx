@@ -333,6 +333,7 @@ export default function RegisterPage() {
     return "employee";
   };
 
+  // app/(auth)/register/page.tsx - Updated handleSubmit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegistrationError(null);
@@ -388,6 +389,14 @@ export default function RegisterPage() {
       };
 
       console.log("📝 Registration payload:", payload);
+      console.log("🔑 Email being sent:", payload.email);
+
+      // Check if email is valid
+      if (!payload.email || !payload.email.includes('@')) {
+        toast.error("Please enter a valid email address");
+        setIsSubmitting(false);
+        return;
+      }
 
       const response = await api.post("/auth/register", payload);
 
@@ -403,26 +412,73 @@ export default function RegisterPage() {
             router.push("/dashboard");
           }, 1500);
         } catch (loginError) {
+          console.warn("Auto-login failed:", loginError);
           setTimeout(() => {
             router.push("/login?registered=true");
           }, 2000);
         }
       }
+      // app/(auth)/register/page.tsx - Add this in handleSubmit catch block
     } catch (error: any) {
       console.error("❌ Registration error:", error);
 
+      // 🔍 Log the FULL error response
+      console.log("🔍 Full error details:", {
+        response: error.response,
+        data: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data ? JSON.parse(error.config.data) : null,
+        }
+      });
+
+      // Get the actual error message from the server
       let errorMessage = "Registration failed. Please try again.";
 
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
       }
 
-      if (errorMessage.toLowerCase().includes("email already exists") ||
-        errorMessage.toLowerCase().includes("duplicate key")) {
-        errorMessage = "This email is already registered. Please login or use a different email.";
-        setErrors(prev => ({ ...prev, email: errorMessage }));
+      // If there are validation errors from the backend
+      if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        if (Array.isArray(errors)) {
+          errorMessage = errors.join(", ");
+        } else if (typeof errors === 'object') {
+          const errorMessages = Object.entries(errors)
+            .map(([field, messages]) => `${field}: ${messages}`)
+            .join(", ");
+          errorMessage = errorMessages;
+        }
+      }
+
+      // Check for specific field errors
+      if (error.response?.data?.field) {
+        const field = error.response.data.field;
+        const value = error.response.data.value;
+        errorMessage = `${field} "${value}" is already registered. Please use a different ${field}.`;
+
+        if (field === 'email') {
+          setErrors(prev => ({ ...prev, email: errorMessage }));
+        } else if (field === 'phone') {
+          setErrors(prev => ({ ...prev, phone: errorMessage }));
+        }
+      }
+
+      // Check for duplicate key error from MongoDB
+      if (errorMessage.includes("duplicate key") || errorMessage.includes("E11000")) {
+        if (errorMessage.includes("email")) {
+          errorMessage = `The email "${formData.email}" is already registered. Please use a different email.`;
+          setErrors(prev => ({ ...prev, email: errorMessage }));
+        } else if (errorMessage.includes("phone")) {
+          errorMessage = "This phone number is already registered. Please use a different phone number.";
+          setErrors(prev => ({ ...prev, phone: errorMessage }));
+        } else {
+          errorMessage = "This information is already registered. Please check your details.";
+        }
       }
 
       setRegistrationError(errorMessage);
@@ -603,8 +659,8 @@ export default function RegisterPage() {
                   <div className="flex flex-col items-center flex-1">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${index <= currentStepIndex
-                          ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
-                          : "bg-white/10 text-white/40"
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
+                        : "bg-white/10 text-white/40"
                         }`}
                     >
                       {index < currentStepIndex ? (
@@ -615,8 +671,8 @@ export default function RegisterPage() {
                     </div>
                     <span
                       className={`text-[10px] mt-1 font-medium ${index <= currentStepIndex
-                          ? "text-emerald-300"
-                          : "text-white/30"
+                        ? "text-emerald-300"
+                        : "text-white/30"
                         }`}
                     >
                       {step.label}
@@ -625,8 +681,8 @@ export default function RegisterPage() {
                   {index < steps.length - 1 && (
                     <div
                       className={`flex-1 h-0.5 mx-2 ${index < currentStepIndex
-                          ? "bg-gradient-to-r from-emerald-500 to-teal-500"
-                          : "bg-white/10"
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                        : "bg-white/10"
                         }`}
                     />
                   )}
@@ -768,8 +824,8 @@ export default function RegisterPage() {
                           key={cycle}
                           onClick={() => setBillingCycle(cycle as any)}
                           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize ${billingCycle === cycle
-                              ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                              : "text-white/40 hover:text-white/60"
+                            ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                            : "text-white/40 hover:text-white/60"
                             }`}
                         >
                           {getBillingCycleLabel(cycle)}
@@ -802,8 +858,8 @@ export default function RegisterPage() {
                                 setSelectedPlan(plan);
                               }}
                               className={`relative p-6 rounded-xl border-2 transition-all text-left ${isSelected
-                                  ? `${color.border} ${color.bg} shadow-lg shadow-emerald-500/20`
-                                  : "border-white/10 hover:border-white/20"
+                                ? `${color.border} ${color.bg} shadow-lg shadow-emerald-500/20`
+                                : "border-white/10 hover:border-white/20"
                                 }`}
                             >
                               {plan.isPopular && (
@@ -979,8 +1035,8 @@ export default function RegisterPage() {
                               setFormData({ ...formData, fullName: e.target.value })
                             }
                             className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.fullName
-                                ? "border-red-400/50 focus:border-red-400"
-                                : "border-white/10 focus:border-emerald-400"
+                              ? "border-red-400/50 focus:border-red-400"
+                              : "border-white/10 focus:border-emerald-400"
                               } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="John Doe"
                           />
@@ -1006,8 +1062,8 @@ export default function RegisterPage() {
                               setFormData({ ...formData, email: e.target.value })
                             }
                             className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.email
-                                ? "border-red-400/50 focus:border-red-400"
-                                : "border-white/10 focus:border-emerald-400"
+                              ? "border-red-400/50 focus:border-red-400"
+                              : "border-white/10 focus:border-emerald-400"
                               } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="john@example.com"
                           />
@@ -1033,8 +1089,8 @@ export default function RegisterPage() {
                               setFormData({ ...formData, phone: e.target.value })
                             }
                             className={`w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.phone
-                                ? "border-red-400/50 focus:border-red-400"
-                                : "border-white/10 focus:border-emerald-400"
+                              ? "border-red-400/50 focus:border-red-400"
+                              : "border-white/10 focus:border-emerald-400"
                               } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="+1 234 567 8900"
                           />
@@ -1085,8 +1141,8 @@ export default function RegisterPage() {
                               setFormData({ ...formData, password: e.target.value })
                             }
                             className={`w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.password
-                                ? "border-red-400/50 focus:border-red-400"
-                                : "border-white/10 focus:border-emerald-400"
+                              ? "border-red-400/50 focus:border-red-400"
+                              : "border-white/10 focus:border-emerald-400"
                               } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="••••••••"
                           />
@@ -1119,8 +1175,8 @@ export default function RegisterPage() {
                               setFormData({ ...formData, confirmPassword: e.target.value })
                             }
                             className={`w-full pl-11 pr-11 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border rounded-xl outline-none transition-all ${errors.confirmPassword
-                                ? "border-red-400/50 focus:border-red-400"
-                                : "border-white/10 focus:border-emerald-400"
+                              ? "border-red-400/50 focus:border-red-400"
+                              : "border-white/10 focus:border-emerald-400"
                               } focus:shadow-lg focus:shadow-emerald-500/10`}
                             placeholder="••••••••"
                           />
