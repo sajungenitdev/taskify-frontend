@@ -37,6 +37,8 @@ import {
     MoreVertical,
     MoveUp,
     MoveDown,
+    UserCircle2,
+    UsersRound,
 } from "lucide-react";
 import { apiService } from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -50,6 +52,7 @@ interface PricingPlan {
     icon: string;
     isPopular: boolean;
     isActive: boolean;
+    planType: "individual" | "team"; // NEW: Plan type
     billingCycle: "monthly" | "quarterly" | "semiannual" | "yearly" | "one-time";
     price: number;
     currency: string;
@@ -77,6 +80,7 @@ const defaultPlan: Partial<PricingPlan> = {
     icon: "Users",
     isPopular: false,
     isActive: true,
+    planType: "individual", // NEW: Default plan type
     billingCycle: "monthly",
     price: 0,
     currency: "BDT",
@@ -155,6 +159,7 @@ export default function PricingAdminPage() {
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+    const [filterPlanType, setFilterPlanType] = useState<"all" | "individual" | "team">("all");
 
     const fetchPlans = async () => {
         try {
@@ -229,6 +234,9 @@ export default function PricingAdminPage() {
         if (!formData.description?.trim()) {
             newErrors.description = "Description is required";
         }
+        if (!formData.planType) {
+            newErrors.planType = "Plan type is required";
+        }
         if (formData.price === undefined || formData.price < 0) {
             newErrors.price = "Price must be 0 or greater";
         }
@@ -256,6 +264,7 @@ export default function PricingAdminPage() {
             const payload = {
                 ...formData,
                 name: formData.name?.trim(),
+                planType: formData.planType || "individual",
                 features: formData.features || [],
                 limits: {
                     users: formData.limits?.users || 1,
@@ -325,11 +334,13 @@ export default function PricingAdminPage() {
             Layers: Layers,
             List: List,
             Sparkles: Sparkles,
+            UserCircle2: UserCircle2,
+            UsersRound: UsersRound,
         };
         return icons[iconName] || Users;
     };
 
-    const iconOptions = ["Users", "User", "Crown", "Star", "TrendingUp", "Briefcase", "Zap", "Gift", "Tag", "Layers", "Sparkles"];
+    const iconOptions = ["Users", "User", "Crown", "Star", "TrendingUp", "Briefcase", "Zap", "Gift", "Tag", "Layers", "List", "Sparkles", "UserCircle2", "UsersRound"];
     const colorOptions = [
         { name: "Indigo", value: "indigo", bg: "bg-indigo-50 dark:bg-indigo-900/20", text: "text-indigo-600 dark:text-indigo-400", ring: "ring-indigo-500" },
         { name: "Emerald", value: "emerald", bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", ring: "ring-emerald-500" },
@@ -352,6 +363,16 @@ export default function PricingAdminPage() {
     const getCycleLabel = (cycle: string) => {
         const found = billingCycleOptions.find(c => c.value === cycle);
         return found ? found.label : cycle;
+    };
+
+    const getPlanTypeLabel = (type: string) => {
+        return type === "individual" ? "👤 Individual" : "👥 Team";
+    };
+
+    const getPlanTypeColor = (type: string) => {
+        return type === "individual"
+            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+            : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400";
     };
 
     const getPriceDisplay = (plan: PricingPlan) => {
@@ -394,7 +415,8 @@ export default function PricingAdminPage() {
         const matchesStatus = filterStatus === "all" ||
             (filterStatus === "active" && plan.isActive) ||
             (filterStatus === "inactive" && !plan.isActive);
-        return matchesSearch && matchesStatus;
+        const matchesPlanType = filterPlanType === "all" || plan.planType === filterPlanType;
+        return matchesSearch && matchesStatus && matchesPlanType;
     });
 
     if (loading) {
@@ -507,7 +529,7 @@ export default function PricingAdminPage() {
                     />
                     <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     {["all", "active", "inactive"].map((status) => (
                         <button
                             key={status}
@@ -518,6 +540,19 @@ export default function PricingAdminPage() {
                                 }`}
                         >
                             {status}
+                        </button>
+                    ))}
+                    <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 self-center hidden sm:block" />
+                    {["all", "individual", "team"].map((type) => (
+                        <button
+                            key={type}
+                            onClick={() => setFilterPlanType(type as any)}
+                            className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all capitalize ${filterPlanType === type
+                                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/25'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                }`}
+                        >
+                            {type === "all" ? "All Types" : type === "individual" ? "👤 Individual" : "👥 Team"}
                         </button>
                     ))}
                 </div>
@@ -535,11 +570,11 @@ export default function PricingAdminPage() {
                     </div>
                     <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">No pricing plans found</p>
                     <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-                        {searchTerm || filterStatus !== "all" ? "Try adjusting your filters" : "Create your first pricing plan to get started"}
+                        {searchTerm || filterStatus !== "all" || filterPlanType !== "all" ? "Try adjusting your filters" : "Create your first pricing plan to get started"}
                     </p>
-                    {(searchTerm || filterStatus !== "all") ? (
+                    {(searchTerm || filterStatus !== "all" || filterPlanType !== "all") ? (
                         <button
-                            onClick={() => { setSearchTerm(""); setFilterStatus("all"); }}
+                            onClick={() => { setSearchTerm(""); setFilterStatus("all"); setFilterPlanType("all"); }}
                             className="mt-4 px-6 py-2.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 transition inline-flex items-center gap-2"
                         >
                             <RefreshCw className="w-4 h-4" />
@@ -569,6 +604,8 @@ export default function PricingAdminPage() {
                         const originalPrice = getOriginalPriceDisplay(plan);
                         const savings = getSavingsDisplay(plan);
                         const colorConfig = colorOptions.find(c => c.value === plan.color) || colorOptions[0];
+                        const planTypeLabel = getPlanTypeLabel(plan.planType || "individual");
+                        const planTypeColor = getPlanTypeColor(plan.planType || "individual");
 
                         return (
                             <motion.div
@@ -629,6 +666,13 @@ export default function PricingAdminPage() {
                                                 <Trash2 className="w-4 h-4" />
                                             </motion.button>
                                         </div>
+                                    </div>
+
+                                    {/* Plan Type Badge */}
+                                    <div className="mb-3">
+                                        <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${planTypeColor}`}>
+                                            {planTypeLabel}
+                                        </span>
                                     </div>
 
                                     {/* Badges */}
@@ -800,18 +844,38 @@ export default function PricingAdminPage() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                                            Badge (Optional)
+                                            Plan Type <span className="text-red-500">*</span>
                                         </label>
-                                        <select
-                                            value={formData.badge || ''}
-                                            onChange={(e) => setFormData({ ...formData, badge: e.target.value })}
-                                            className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 dark:bg-gray-700 dark:text-white transition"
-                                        >
-                                            <option value="">None</option>
-                                            <option value="popular">🔥 Popular</option>
-                                            <option value="best-value">⭐ Best Value</option>
-                                            <option value="enterprise">🏢 Enterprise</option>
-                                        </select>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, planType: "individual" })}
+                                                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${formData.planType === "individual"
+                                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 shadow-lg shadow-blue-500/10'
+                                                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                                                    }`}
+                                            >
+                                                <User className="w-4 h-4" />
+                                                Individual
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setFormData({ ...formData, planType: "team" })}
+                                                className={`px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${formData.planType === "team"
+                                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 shadow-lg shadow-purple-500/10'
+                                                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                                                    }`}
+                                            >
+                                                <Users className="w-4 h-4" />
+                                                Team
+                                            </button>
+                                        </div>
+                                        {errors.planType && (
+                                            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                                <AlertCircle className="w-3 h-3" />
+                                                {errors.planType}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -920,8 +984,8 @@ export default function PricingAdminPage() {
                                                         });
                                                     }}
                                                     className={`px-3 py-2.5 rounded-xl border-2 text-sm font-medium transition-all flex items-center justify-center gap-2 ${formData.billingCycle === option.value
-                                                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 shadow-lg shadow-indigo-500/10'
-                                                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
+                                                            ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 shadow-lg shadow-indigo-500/10'
+                                                            : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
                                                         }`}
                                                 >
                                                     <Icon className="w-4 h-4" />

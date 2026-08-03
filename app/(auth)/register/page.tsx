@@ -43,6 +43,7 @@ interface PricingPlan {
   icon: string;
   isPopular: boolean;
   isActive: boolean;
+  planType: "individual" | "team";
   billingCycle: "monthly" | "quarterly" | "semiannual" | "yearly" | "one-time";
   price: number;
   currency: string;
@@ -66,33 +67,28 @@ interface PricingPlan {
 
 type Step = "user-type" | "pricing" | "details";
 
-// Map plan names to enum values expected by the backend
-// Update these based on your actual User model enum values
-const PLAN_ENUM_MAP: Record<string, string> = {
-  'individual': 'individual',
-  'team': 'team',
-  'pro': 'pro',
-  'enterprise': 'enterprise',
-  // Add more mappings as needed
-};
-
 const getPlanEnumValue = (planName: string): string => {
-  // Try to match by slug or name
   const normalized = planName.toLowerCase().trim();
+  const PLAN_ENUM_MAP: Record<string, string> = {
+    'individual': 'individual',
+    'team': 'team',
+    'pro': 'pro',
+    'enterprise': 'enterprise',
+    'starter': 'individual',
+    'professional': 'team',
+    'business': 'pro',
+  };
 
-  // Direct match
   if (PLAN_ENUM_MAP[normalized]) {
     return PLAN_ENUM_MAP[normalized];
   }
 
-  // Try to find by partial match
   for (const [key, value] of Object.entries(PLAN_ENUM_MAP)) {
     if (normalized.includes(key) || key.includes(normalized)) {
       return value;
     }
   }
 
-  // Default to 'individual' if no match
   return 'individual';
 };
 
@@ -214,6 +210,8 @@ export default function RegisterPage() {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [userType, setUserType] = useState<"individual" | "team">("individual");
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -240,14 +238,26 @@ export default function RegisterPage() {
 
       if (response.data.success) {
         const fetchedPlans = response.data.data || [];
+        console.log("📋 Fetched plans:", fetchedPlans);
         setPlans(fetchedPlans);
 
-        // Auto-select first active plan
-        const activePlan = fetchedPlans.find((p: PricingPlan) => p.isActive);
-        if (activePlan) {
-          setSelectedPlan(activePlan);
-        } else if (fetchedPlans.length > 0) {
-          setSelectedPlan(fetchedPlans[0]);
+        // Only auto-select a plan if we haven't already done so
+        if (!hasAutoSelected && currentStep === "user-type") {
+          // Try to find an Individual plan first
+          let activePlan = fetchedPlans.find((p: PricingPlan) => p.isActive && p.planType === "individual");
+          if (!activePlan) {
+            // If no Individual plan, try any active plan
+            activePlan = fetchedPlans.find((p: PricingPlan) => p.isActive);
+          }
+          if (activePlan) {
+            setSelectedPlan(activePlan);
+            setUserType(activePlan.planType || "individual");
+            setHasAutoSelected(true);
+          } else if (fetchedPlans.length > 0) {
+            setSelectedPlan(fetchedPlans[0]);
+            setUserType(fetchedPlans[0].planType || "individual");
+            setHasAutoSelected(true);
+          }
         }
       } else {
         setFetchError("Failed to load pricing plans");
@@ -316,6 +326,13 @@ export default function RegisterPage() {
     }
   };
 
+  const getRole = (type: "individual" | "team"): string => {
+    if (type === "team") {
+      return "admin";
+    }
+    return "employee";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegistrationError(null);
@@ -333,7 +350,6 @@ export default function RegisterPage() {
     try {
       setIsSubmitting(true);
 
-      // Calculate final price based on billing cycle
       let finalPrice = selectedPlan.price;
       let discountPercentage = 0;
 
@@ -348,24 +364,19 @@ export default function RegisterPage() {
         finalPrice = selectedPlan.price * 12 * 0.8;
       }
 
-      // Get the correct plan enum value for the backend
       const planEnum = getPlanEnumValue(selectedPlan.slug || selectedPlan.name);
+      const role = getRole(userType);
 
-      console.log("Sending registration with plan:", {
-        selectedPlan: selectedPlan.name,
-        planEnum,
-        slug: selectedPlan.slug,
-      });
-
-      const response = await api.post("/auth/register", {
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
+      const payload = {
+        fullName: formData.fullName.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
         password: formData.password,
-        companyName: formData.companyName || "Individual User",
-        jobTitle: formData.jobTitle || "User",
-        role: selectedPlan.limits?.users > 1 ? "admin" : "employee",
-        plan: planEnum, // Send the enum value, not the slug
+        companyName: formData.companyName?.trim() || (userType === "team" ? "Team Organization" : "Individual User"),
+        jobTitle: formData.jobTitle?.trim() || (userType === "team" ? "Team Member" : "User"),
+        role: role,
+        userType: userType,
+        plan: planEnum,
         planName: selectedPlan.name,
         billingCycle,
         price: Math.round(finalPrice),
@@ -373,7 +384,12 @@ export default function RegisterPage() {
         period: billingCycle,
         trialDays: selectedPlan.trialDays || 7,
         discountPercentage,
-      });
+        teamName: userType === "team" ? formData.companyName?.trim() || "Team" : undefined,
+      };
+
+      console.log("📝 Registration payload:", payload);
+
+      const response = await api.post("/auth/register", payload);
 
       if (response.data.success) {
         toast.success(
@@ -381,9 +397,8 @@ export default function RegisterPage() {
           { duration: 8000 }
         );
 
-        // Auto login
         try {
-          await login(formData.email, formData.password);
+          await login(formData.email.trim().toLowerCase(), formData.password);
           setTimeout(() => {
             router.push("/dashboard");
           }, 1500);
@@ -394,8 +409,22 @@ export default function RegisterPage() {
         }
       }
     } catch (error: any) {
-      console.error("Registration error:", error);
-      const errorMessage = error.response?.data?.message || "Registration failed. Please try again.";
+      console.error("❌ Registration error:", error);
+
+      let errorMessage = "Registration failed. Please try again.";
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      if (errorMessage.toLowerCase().includes("email already exists") ||
+        errorMessage.toLowerCase().includes("duplicate key")) {
+        errorMessage = "This email is already registered. Please login or use a different email.";
+        setErrors(prev => ({ ...prev, email: errorMessage }));
+      }
+
       setRegistrationError(errorMessage);
       toast.error(errorMessage);
     } finally {
@@ -477,7 +506,6 @@ export default function RegisterPage() {
     return colors[color] || colors.indigo;
   };
 
-  // Steps
   const steps = [
     { id: "user-type", label: "Choose Type" },
     { id: "pricing", label: "Select Plan" },
@@ -486,7 +514,6 @@ export default function RegisterPage() {
 
   const currentStepIndex = steps.findIndex((s) => s.id === currentStep);
 
-  // Loading State
   if (loadingPlans) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900">
@@ -501,7 +528,6 @@ export default function RegisterPage() {
     );
   }
 
-  // Error State
   if (fetchError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 p-4">
@@ -638,70 +664,91 @@ export default function RegisterPage() {
                       Choose how you want to use TaskManager
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {plans
-                        .filter(p => p.isActive)
-                        .sort((a, b) => a.order - b.order)
-                        .map((plan) => {
-                          const Icon = getIcon(plan.icon);
-                          const isIndividual = plan.limits?.users === 1;
-                          const color = getColorClass(plan.color || "indigo");
+                      {/* Individual Option */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setUserType("individual");
+                          setHasAutoSelected(true);
 
-                          return (
-                            <motion.button
-                              key={plan._id}
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={() => {
-                                setSelectedPlan(plan);
-                                setCurrentStep("pricing");
-                              }}
-                              className={`relative p-6 rounded-xl border-2 transition-all text-left ${isIndividual
-                                  ? "border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/20"
-                                  : "border-white/10 hover:border-white/20"
-                                }`}
-                            >
-                              {plan.isPopular && (
-                                <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full text-[10px] font-bold text-white">
-                                  POPULAR
-                                </div>
-                              )}
-                              <Icon
-                                className={`w-8 h-8 mb-3 ${isIndividual ? "text-emerald-400" : "text-white/40"
-                                  }`}
-                              />
-                              <h3 className="text-lg font-semibold text-white">
-                                {plan.name}
-                              </h3>
-                              <p className="text-sm text-white/40 mt-1">
-                                {plan.description}
-                              </p>
-                              <div className="mt-2 flex items-center gap-1 text-emerald-400">
-                                <Gift className="w-3 h-3" />
-                                <span className="text-xs">
-                                  {plan.trialDays}-day free trial
-                                </span>
-                              </div>
-                              <div className="mt-3 space-y-1">
-                                {(plan.features || []).slice(0, 3).map((feature, i) => (
-                                  <div key={i} className="flex items-center gap-2 text-xs text-white/30">
-                                    <Check className="w-3 h-3 text-emerald-400" />
-                                    {feature}
-                                  </div>
-                                ))}
-                                {(plan.features || []).length > 3 && (
-                                  <div className="text-xs text-white/20">
-                                    +{(plan.features || []).length - 3} more features
-                                  </div>
-                                )}
-                              </div>
-                              {isIndividual && (
-                                <div className="mt-3">
-                                  <Check className="w-5 h-5 text-emerald-400 mx-auto" />
-                                </div>
-                              )}
-                            </motion.button>
+                          const individualPlan = plans.find(
+                            p => p.isActive && p.planType === "individual"
                           );
-                        })}
+
+                          if (individualPlan) {
+                            setSelectedPlan(individualPlan);
+                          } else {
+                            toast.error("No individual plan available. Please contact support.");
+                          }
+                          setCurrentStep("pricing");
+                        }}
+                        className="relative p-6 rounded-xl border-2 border-emerald-400 bg-emerald-500/10 shadow-lg shadow-emerald-500/20 text-left"
+                      >
+                        <User className="w-8 h-8 mb-3 text-emerald-400" />
+                        <h3 className="text-lg font-semibold text-white">Individual</h3>
+                        <p className="text-sm text-white/40 mt-1">
+                          Perfect for freelancers and solo professionals
+                        </p>
+                        <div className="mt-2 flex items-center gap-1 text-emerald-400">
+                          <Gift className="w-3 h-3" />
+                          <span className="text-xs">7-day free trial</span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400">
+                            👤 Individual
+                          </span>
+                          <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-400">
+                            Role: Employee
+                          </span>
+                        </div>
+                        <div className="mt-3 text-xs text-white/40">
+                          {plans.filter(p => p.isActive && p.planType === "individual").length} plans available
+                        </div>
+                      </motion.button>
+
+                      {/* Team Option */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setUserType("team");
+                          setHasAutoSelected(true);
+
+                          const teamPlan = plans.find(
+                            p => p.isActive && p.planType === "team"
+                          );
+
+                          if (teamPlan) {
+                            setSelectedPlan(teamPlan);
+                          } else {
+                            toast.error("No team plan available. Please contact support.");
+                          }
+                          setCurrentStep("pricing");
+                        }}
+                        className="relative p-6 rounded-xl border-2 border-white/10 hover:border-white/20 text-left"
+                      >
+                        <Users className="w-8 h-8 mb-3 text-white/40" />
+                        <h3 className="text-lg font-semibold text-white">Team</h3>
+                        <p className="text-sm text-white/40 mt-1">
+                          Ideal for teams and growing businesses
+                        </p>
+                        <div className="mt-2 flex items-center gap-1 text-emerald-400">
+                          <Gift className="w-3 h-3" />
+                          <span className="text-xs">7-day free trial</span>
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400">
+                            👥 Team
+                          </span>
+                          <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-400">
+                            Role: Admin
+                          </span>
+                        </div>
+                        <div className="mt-3 text-xs text-white/40">
+                          {plans.filter(p => p.isActive && p.planType === "team").length} plans available
+                        </div>
+                      </motion.button>
                     </div>
                     <button
                       onClick={handleNextStep}
@@ -715,7 +762,6 @@ export default function RegisterPage() {
 
                 {currentStep === "pricing" && (
                   <div className="space-y-6">
-                    {/* Billing Cycle Toggle */}
                     <div className="flex justify-center gap-2 p-1 bg-white/5 rounded-xl border border-white/10 flex-wrap">
                       {["monthly", "quarterly", "semiannual", "yearly"].map((cycle) => (
                         <button
@@ -734,10 +780,9 @@ export default function RegisterPage() {
                       ))}
                     </div>
 
-                    {/* Plans Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {plans
-                        .filter(p => p.isActive)
+                        .filter(p => p.isActive && p.planType === userType)
                         .sort((a, b) => a.order - b.order)
                         .map((plan) => {
                           const Icon = getIcon(plan.icon);
@@ -746,13 +791,16 @@ export default function RegisterPage() {
                           const originalPrice = getOriginalPrice(plan, billingCycle);
                           const savings = getSavings(plan, billingCycle);
                           const color = getColorClass(plan.color || "indigo");
+                          const isIndividualPlan = plan.planType === "individual";
 
                           return (
                             <motion.button
                               key={plan._id}
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
-                              onClick={() => setSelectedPlan(plan)}
+                              onClick={() => {
+                                setSelectedPlan(plan);
+                              }}
                               className={`relative p-6 rounded-xl border-2 transition-all text-left ${isSelected
                                   ? `${color.border} ${color.bg} shadow-lg shadow-emerald-500/20`
                                   : "border-white/10 hover:border-white/20"
@@ -825,6 +873,14 @@ export default function RegisterPage() {
                                   </div>
                                 )}
                               </div>
+                              <div className="mt-3 flex items-center gap-2">
+                                <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400">
+                                  {isIndividualPlan ? "👤 Individual" : "👥 Team"}
+                                </span>
+                                <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-400">
+                                  {isIndividualPlan ? "Role: Employee" : "Role: Admin"}
+                                </span>
+                              </div>
                               {isSelected && (
                                 <div className="mt-3">
                                   <Check className="w-5 h-5 text-emerald-400 mx-auto" />
@@ -834,6 +890,14 @@ export default function RegisterPage() {
                           );
                         })}
                     </div>
+
+                    {plans.filter(p => p.isActive && p.planType === userType).length === 0 && (
+                      <div className="text-center py-8 text-white/60">
+                        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-emerald-400/50" />
+                        <p className="text-lg font-medium">No plans available</p>
+                        <p className="text-sm text-white/40">Please contact support for assistance.</p>
+                      </div>
+                    )}
 
                     <div className="flex gap-3">
                       <button
@@ -855,13 +919,12 @@ export default function RegisterPage() {
 
                 {currentStep === "details" && (
                   <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Selected Plan Summary */}
                     {selectedPlan && (
                       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 mb-4">
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-white/60">Selected Plan</p>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <p className="text-lg font-semibold text-white">
                                 {selectedPlan.name}
                               </p>
@@ -870,14 +933,25 @@ export default function RegisterPage() {
                                   Popular
                                 </span>
                               )}
+                              <span className="text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded-full">
+                                {userType === "individual" ? "👤 Individual" : "👥 Team"}
+                              </span>
+                              <span className="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded-full">
+                                {userType === "team" ? "🎯 Role: Admin" : "🎯 Role: Employee"}
+                              </span>
                             </div>
-                            <p className="text-sm text-emerald-400">
+                            <p className="text-sm text-emerald-400 mt-1">
                               {getPriceDisplay(selectedPlan, billingCycle)} / {getBillingCycleLabel(billingCycle).toLowerCase()}
                               {selectedPlan.trialDays > 0 && (
                                 <span className="text-xs text-white/40 ml-2">
                                   {selectedPlan.trialDays}-day trial included
                                 </span>
                               )}
+                            </p>
+                            <p className="text-xs text-white/40 mt-1">
+                              {userType === "team"
+                                ? "👑 You will be the Admin with full access to manage your team"
+                                : "👤 You will have Employee access"}
                             </p>
                           </div>
                           <button
@@ -986,9 +1060,14 @@ export default function RegisterPage() {
                               setFormData({ ...formData, companyName: e.target.value })
                             }
                             className="w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border border-white/10 focus:border-emerald-400 rounded-xl outline-none transition-all focus:shadow-lg focus:shadow-emerald-500/10"
-                            placeholder="Company Inc."
+                            placeholder={userType === "team" ? "Team Name" : "Company Inc."}
                           />
                         </div>
+                        {userType === "team" && (
+                          <p className="text-xs text-emerald-400/60 mt-1">
+                            💡 This will be your team name
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1075,7 +1154,7 @@ export default function RegisterPage() {
                             setFormData({ ...formData, jobTitle: e.target.value })
                           }
                           className="w-full pl-11 pr-4 py-3 text-sm text-white placeholder:text-white/20 bg-white/5 border border-white/10 focus:border-emerald-400 rounded-xl outline-none transition-all focus:shadow-lg focus:shadow-emerald-500/10"
-                          placeholder="Software Engineer"
+                          placeholder={userType === "team" ? "Team Lead" : "Software Engineer"}
                         />
                       </div>
                     </div>
