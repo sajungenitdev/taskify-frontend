@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -78,12 +78,12 @@ interface Project {
     joinedAt: string;
   }>;
   status:
-    | "planning"
-    | "active"
-    | "on_hold"
-    | "completed"
-    | "cancelled"
-    | "archived";
+  | "planning"
+  | "active"
+  | "on_hold"
+  | "completed"
+  | "cancelled"
+  | "archived";
   priority: "low" | "normal" | "high" | "critical";
   startDate: string;
   endDate: string;
@@ -173,11 +173,26 @@ export default function ProjectsPage() {
     "dept_manager",
     "project_manager",
   ]);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Function to calculate progress from tasks
+  const calculateProgress = (project: Project): number => {
+    if (!project.tasksCount || project.tasksCount === 0) return 0;
+    return Math.round((project.completedTasks / project.tasksCount) * 100);
+  };
 
   // Fetch all data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
       const [projectsRes, deptsRes, usersRes] = await Promise.all([
         api.get("/projects"),
         api.get("/departments"),
@@ -185,7 +200,13 @@ export default function ProjectsPage() {
       ]);
 
       if (projectsRes.data.success) {
-        setProjects(projectsRes.data.data || []);
+        const projectData = projectsRes.data.data || [];
+        // Calculate progress for each project
+        const projectsWithProgress = projectData.map((project: Project) => ({
+          ...project,
+          progress: calculateProgress(project)
+        }));
+        setProjects(projectsWithProgress);
       }
       if (deptsRes.data.success) {
         setDepartments(deptsRes.data.data || []);
@@ -193,19 +214,47 @@ export default function ProjectsPage() {
       if (usersRes.data.success) {
         setUsers(usersRes.data.data || []);
       }
+
+      setLastUpdated(new Date());
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error(error.response?.data?.message || "Failed to fetch data");
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
+  // Initial fetch
   useEffect(() => {
     if (canManage) {
-      fetchData();
+      fetchData(true);
     }
   }, [canManage, fetchData]);
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    if (autoRefresh && canManage) {
+      intervalRef.current = setInterval(() => {
+        fetchData(false);
+      }, 15000);
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [autoRefresh, canManage, fetchData]);
 
   // Archive project
   const handleArchiveProject = async (id: string) => {
@@ -215,7 +264,7 @@ export default function ProjectsPage() {
       if (response.data.success) {
         toast.success("Project archived successfully");
         setShowArchiveConfirm(null);
-        fetchData();
+        await fetchData(false);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to archive project");
@@ -232,7 +281,7 @@ export default function ProjectsPage() {
       if (response.data.success) {
         toast.success("Project restored from archive");
         setShowUnarchiveConfirm(null);
-        fetchData();
+        await fetchData(false);
       }
     } catch (error: any) {
       toast.error(
@@ -286,7 +335,7 @@ export default function ProjectsPage() {
         toast.success("Project created successfully");
         setShowCreateModal(false);
         resetForm();
-        fetchData();
+        await fetchData(false);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to create project");
@@ -328,7 +377,7 @@ export default function ProjectsPage() {
         setShowCreateModal(false);
         setEditingProject(null);
         resetForm();
-        fetchData();
+        await fetchData(false);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update project");
@@ -344,7 +393,7 @@ export default function ProjectsPage() {
       if (response.data.success) {
         toast.success("Project deleted successfully");
         setShowDeleteConfirm(null);
-        fetchData();
+        await fetchData(false);
       }
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to delete project");
@@ -387,28 +436,35 @@ export default function ProjectsPage() {
     setShowViewModal(true);
   };
 
-  // Statistics
-  const stats = {
-    total: projects.length,
-    active: projects.filter((p) => p.status === "active").length,
-    planning: projects.filter((p) => p.status === "planning").length,
-    onHold: projects.filter((p) => p.status === "on_hold").length,
-    completed: projects.filter((p) => p.status === "completed").length,
-    cancelled: projects.filter((p) => p.status === "cancelled").length,
-    archived: projects.filter((p) => p.status === "archived").length,
-    totalBudget: projects.reduce(
-      (sum, p) => sum + (p.budget?.allocated || 0),
-      0,
-    ),
-    totalTasks: projects.reduce((sum, p) => sum + p.tasksCount, 0),
-    completedTasks: projects.reduce((sum, p) => sum + p.completedTasks, 0),
-    avgProgress:
-      projects.length > 0
-        ? Math.round(
-            projects.reduce((sum, p) => sum + p.progress, 0) / projects.length,
+  // Statistics - using calculated progress
+  const stats = useMemo(() => {
+    const projectsWithProgress = projects.map(p => ({
+      ...p,
+      progress: calculateProgress(p)
+    }));
+
+    return {
+      total: projects.length,
+      active: projects.filter((p) => p.status === "active").length,
+      planning: projects.filter((p) => p.status === "planning").length,
+      onHold: projects.filter((p) => p.status === "on_hold").length,
+      completed: projects.filter((p) => p.status === "completed" || calculateProgress(p) >= 100).length,
+      cancelled: projects.filter((p) => p.status === "cancelled").length,
+      archived: projects.filter((p) => p.status === "archived").length,
+      totalBudget: projects.reduce(
+        (sum, p) => sum + (p.budget?.allocated || 0),
+        0,
+      ),
+      totalTasks: projects.reduce((sum, p) => sum + p.tasksCount, 0),
+      completedTasks: projects.reduce((sum, p) => sum + p.completedTasks, 0),
+      avgProgress:
+        projects.length > 0
+          ? Math.round(
+            projects.reduce((sum, p) => sum + calculateProgress(p), 0) / projects.length,
           )
-        : 0,
-  };
+          : 0,
+    };
+  }, [projects]);
 
   // Filter and sort projects
   const filteredProjects = useMemo(() => {
@@ -438,8 +494,8 @@ export default function ProjectsPage() {
           bVal = b.name;
           break;
         case "progress":
-          aVal = a.progress;
-          bVal = b.progress;
+          aVal = calculateProgress(a);
+          bVal = calculateProgress(b);
           break;
         case "priority":
           const priorityOrder = { critical: 4, high: 3, normal: 2, low: 1 };
@@ -479,7 +535,10 @@ export default function ProjectsPage() {
   const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
 
   // Helper functions
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, progress?: number) => {
+    if (progress === 100) {
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    }
     const colors: Record<string, string> = {
       planning: "bg-gray-100 text-gray-700 border-gray-200",
       active: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -545,6 +604,66 @@ export default function ProjectsPage() {
       month: "short",
       day: "numeric",
     });
+  };
+
+  // Progress bar component with animation - FIXED
+  const ProgressBar = ({ project }: { project: Project }) => {
+    const progress = calculateProgress(project);
+    const isComplete = progress >= 100;
+    const isArchived = project.status === "archived";
+
+    return (
+      <div className="w-full">
+        <div className="flex items-center justify-between text-xs mb-1">
+          <span className="text-gray-500">Progress</span>
+          <div className="flex items-center gap-2">
+            <span className={`font-medium ${isComplete ? 'text-emerald-600' : 'text-gray-700'}`}>
+              {progress}%
+            </span>
+            {isComplete && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 pointer-events-none">
+                <CheckCircle size={10} className="text-emerald-500" />
+                Complete
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <motion.div
+            className={`h-2 rounded-full ${isComplete
+              ? "bg-emerald-500"
+              : "bg-gradient-to-r from-indigo-500 to-purple-600"
+              }`}
+            initial={{ width: 0 }}
+            animate={{
+              width: `${Math.min(progress, 100)}%`,
+              transition: {
+                duration: 0.8,
+                ease: "easeOut"
+              }
+            }}
+            style={{
+              boxShadow: isComplete ? "0 0 10px rgba(16, 185, 129, 0.3)" : "none"
+            }}
+          />
+          {progress > 0 && progress < 100 && (
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer pointer-events-none" />
+          )}
+          {/* REMOVED the green pulse overlay - it was causing the full page animation */}
+        </div>
+        <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1">
+          <span>
+            {progress >= 100 ? '✓ All tasks completed!' : `${progress}% complete`}
+          </span>
+          {isComplete && (
+            <span className="text-emerald-600 font-medium flex items-center gap-1 pointer-events-none">
+              <CheckCircle size={10} />
+              Done
+            </span>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (!canManage) {
@@ -640,14 +759,36 @@ export default function ProjectsPage() {
                 Create Project
               </button>
               <button
-                onClick={fetchData}
-                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
+                onClick={() => {
+                  fetchData(false);
+                }}
+                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm flex items-center gap-2"
+                disabled={isRefreshing}
               >
                 <RefreshCw
                   size={16}
-                  className={loading ? "animate-spin" : ""}
+                  className={isRefreshing ? "animate-spin" : ""}
                 />
+                {isRefreshing ? "Updating..." : "Refresh"}
               </button>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                {lastUpdated && (
+                  <span className="hidden sm:inline">
+                    Updated: {lastUpdated.toLocaleTimeString()}
+                  </span>
+                )}
+                <button
+                  onClick={() => setAutoRefresh(!autoRefresh)}
+                  className={`p-1 rounded transition ${autoRefresh ? 'text-emerald-500' : 'text-gray-400'
+                    }`}
+                  title={autoRefresh ? "Auto-refresh on" : "Auto-refresh off"}
+                >
+                  <Clock size={14} />
+                </button>
+                {autoRefresh && (
+                  <span className="text-emerald-500 text-[10px] animate-pulse">●</span>
+                )}
+              </div>
             </div>
           </motion.div>
 
@@ -811,11 +952,10 @@ export default function ProjectsPage() {
                 setShowArchived(false);
                 setStatusFilter("all");
               }}
-              className={`px-3 py-1.5 text-sm rounded-lg transition ${
-                !showArchived
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`px-3 py-1.5 text-sm rounded-lg transition ${!showArchived
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+                }`}
             >
               Active Projects
             </button>
@@ -824,19 +964,17 @@ export default function ProjectsPage() {
                 setShowArchived(true);
                 setStatusFilter("all");
               }}
-              className={`px-3 py-1.5 text-sm rounded-lg transition flex items-center gap-2 ${
-                showArchived
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+              className={`px-3 py-1.5 text-sm rounded-lg transition flex items-center gap-2 ${showArchived
+                ? "bg-indigo-600 text-white shadow-sm"
+                : "text-gray-600 hover:bg-gray-100"
+                }`}
             >
               <Archive size={14} />
               Archived Projects
               {stats.archived > 0 && (
                 <span
-                  className={`text-xs px-1.5 py-0.5 rounded-full ${
-                    showArchived ? "bg-white/20" : "bg-gray-200"
-                  }`}
+                  className={`text-xs px-1.5 py-0.5 rounded-full ${showArchived ? "bg-white/20" : "bg-gray-200"
+                    }`}
                 >
                   {stats.archived}
                 </span>
@@ -893,178 +1031,168 @@ export default function ProjectsPage() {
               transition={{ delay: 0.3 }}
               className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
             >
-              {currentProjects.map((project, index) => (
-                <motion.div
-                  key={project._id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group ${
-                    project.status === "archived"
+              {currentProjects.map((project, index) => {
+                const progress = calculateProgress(project);
+                const isComplete = progress >= 100;
+                return (
+                  <motion.div
+                    key={project._id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                    className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group ${project.status === "archived"
                       ? "border-gray-300 opacity-75 hover:opacity-100"
-                      : "border-gray-200"
-                  }`}
-                  onClick={() => openViewModal(project)}
-                >
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            project.status === "archived"
+                      : isComplete
+                        ? "border-emerald-200 hover:border-emerald-300"
+                        : "border-gray-200"
+                      }`}
+                    onClick={() => openViewModal(project)}
+                  >
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center ${project.status === "archived"
                               ? "bg-gray-100"
-                              : "bg-indigo-50"
-                          }`}
-                        >
-                          {project.status === "archived" ? (
-                            <Archive className="w-5 h-5 text-gray-500" />
-                          ) : (
-                            <FolderKanban className="w-5 h-5 text-indigo-500" />
-                          )}
-                        </div>
-                        <div>
-                          <h3
-                            className={`text-sm font-semibold transition ${
-                              project.status === "archived"
-                                ? "text-gray-500"
-                                : "text-gray-800 group-hover:text-indigo-600"
-                            }`}
+                              : isComplete
+                                ? "bg-emerald-50"
+                                : "bg-indigo-50"
+                              }`}
                           >
-                            {project.name}
-                          </h3>
-                          <span className="text-xs font-mono text-gray-400">
-                            {project.code}
+                            {project.status === "archived" ? (
+                              <Archive className="w-5 h-5 text-gray-500" />
+                            ) : isComplete ? (
+                              <CheckCircle className="w-5 h-5 text-emerald-500" />
+                            ) : (
+                              <FolderKanban className="w-5 h-5 text-indigo-500" />
+                            )}
+                          </div>
+                          <div>
+                            <h3
+                              className={`text-sm font-semibold transition ${project.status === "archived"
+                                ? "text-gray-500"
+                                : isComplete
+                                  ? "text-emerald-700"
+                                  : "text-gray-800 group-hover:text-indigo-600"
+                                }`}
+                            >
+                              {project.name}
+                            </h3>
+                            <span className="text-xs font-mono text-gray-400">
+                              {project.code}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${getPriorityColor(project.priority)}`}
+                          >
+                            {getPriorityIcon(project.priority)}
+                            {project.priority}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
+
+                      {project.description && (
+                        <p className="text-xs text-gray-500 line-clamp-2 mb-3">
+                          {project.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-2 mb-3">
                         <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${getPriorityColor(project.priority)}`}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${getStatusColor(project.status, progress)}`}
                         >
-                          {getPriorityIcon(project.priority)}
-                          {project.priority}
+                          {isComplete ? (
+                            <CheckCircle size={10} className="text-emerald-500" />
+                          ) : (
+                            getStatusIcon(project.status)
+                          )}
+                          {isComplete ? "Complete" : project.status.replace("_", " ")}
                         </span>
+                        {project.managerId && (
+                          <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                            <User size={10} />
+                            {project.managerId.fullName}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Progress Bar */}
+                      <ProgressBar project={project} />
+
+                      <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <Calendar size={12} />
+                          <span>{formatDate(project.startDate)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <DollarSign size={12} className="text-emerald-500" />
+                          <span>
+                            {formatCurrency(project.budget?.allocated || 0)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CheckCircle size={12} className="text-blue-500" />
+                          <span>
+                            {project.completedTasks}/{project.tasksCount}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {project.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2 mb-3">
-                        {project.description}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-2 mb-3">
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${getStatusColor(project.status)}`}
-                      >
-                        {getStatusIcon(project.status)}
-                        {project.status.replace("_", " ")}
+                    <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                      <span className="text-xs text-gray-400">
+                        {project.status === "archived" ? "Archived" : "Updated"}:{" "}
+                        {new Date(project.updatedAt).toLocaleDateString()}
                       </span>
-                      {project.managerId && (
-                        <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                          <User size={10} />
-                          {project.managerId.fullName}
-                        </span>
-                      )}
-                      {project.archivedAt && (
-                        <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                          <History size={10} />
-                          {new Date(project.archivedAt).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-500">Progress</span>
-                        <span className="font-medium text-gray-700">
-                          {project.progress}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            project.status === "archived"
-                              ? "bg-gray-400"
-                              : "bg-gradient-to-r from-indigo-500 to-purple-600"
-                          }`}
-                          style={{ width: `${project.progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                      <div className="flex items-center gap-1">
-                        <Calendar size={12} />
-                        <span>{formatDate(project.startDate)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <DollarSign size={12} className="text-emerald-500" />
-                        <span>
-                          {formatCurrency(project.budget?.allocated || 0)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <CheckCircle size={12} className="text-blue-500" />
-                        <span>
-                          {project.completedTasks}/{project.tasksCount}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                    <span className="text-xs text-gray-400">
-                      {project.status === "archived" ? "Archived" : "Updated"}:{" "}
-                      {new Date(project.updatedAt).toLocaleDateString()}
-                    </span>
-                    <div
-                      className="flex items-center gap-1"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {project.status === "archived" ? (
-                        <button
-                          onClick={() => setShowUnarchiveConfirm(project._id)}
-                          className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                          title="Restore from archive"
-                        >
-                          <ArchiveRestore size={14} />
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            // onClick={() => openEditModal(project)}
-                            onClick={() => router.push(`/projects/${project._id}/edit`)}
-                            className="p-1 cursor-pointer text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => setShowArchiveConfirm(project._id)}
-                            className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                            title="Archive project"
-                          >
-                            <Archive size={14} />
-                          </button>
-                          <Link
-                            href={`/projects/${project._id}/dashboard`}
-                            className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                            title="View project"
-                          >
-                            <EyeIcon size={14} />
-                          </Link>
-                        </>
-                      )}
-                      <button
-                        onClick={() => setShowDeleteConfirm(project._id)}
-                        className="p-1 cursor-pointer text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      <div
+                        className="flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Trash2 size={14} />
-                      </button>
+                        {project.status === "archived" ? (
+                          <button
+                            onClick={() => setShowUnarchiveConfirm(project._id)}
+                            className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                            title="Restore from archive"
+                          >
+                            <ArchiveRestore size={14} />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => router.push(`/projects/${project._id}/edit`)}
+                              className="p-1 cursor-pointer text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => setShowArchiveConfirm(project._id)}
+                              className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              title="Archive project"
+                            >
+                              <Archive size={14} />
+                            </button>
+                            <Link
+                              href={`/projects/${project._id}/dashboard`}
+                              className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                              title="View project"
+                            >
+                              <EyeIcon size={14} />
+                            </Link>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setShowDeleteConfirm(project._id)}
+                          className="p-1 cursor-pointer text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </motion.div>
           ) : (
             <motion.div
@@ -1104,181 +1232,224 @@ export default function ProjectsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {currentProjects.map((project, index) => (
-                      <motion.tr
-                        key={project._id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.03 }}
-                        className={`hover:bg-gray-50 transition cursor-pointer ${
-                          project.status === "archived" ? "opacity-75" : ""
-                        }`}
-                        onClick={() => openViewModal(project)}
-                      >
-                        <td className="px-6 py-4">
-                          <div>
-                            <p
-                              className={`font-medium ${
-                                project.status === "archived"
-                                  ? "text-gray-500"
-                                  : "text-gray-800 group-hover:text-indigo-600"
-                              }`}
-                            >
-                              {project.name}
-                            </p>
-                            <p className="text-gray-400 text-xs font-mono">
-                              {project.code}
-                            </p>
-                            {project.description && (
-                              <p className="text-gray-400 text-xs mt-1 line-clamp-1">
-                                {project.description}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 w-fit ${getPriorityColor(project.priority)}`}
-                          >
-                            {getPriorityIcon(project.priority)}
-                            {project.priority}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 w-fit ${getStatusColor(project.status)}`}
-                          >
-                            {getStatusIcon(project.status)}
-                            {project.status.replace("_", " ")}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {project.managerId ? (
+                    {currentProjects.map((project, index) => {
+                      const progress = calculateProgress(project);
+                      const isComplete = progress >= 100;
+                      return (
+                        <motion.tr
+                          key={project._id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.03 }}
+                          className={`hover:bg-gray-50 transition cursor-pointer ${project.status === "archived" ? "opacity-75" : ""
+                            } ${isComplete ? "bg-emerald-50/30" : ""}`}
+                          onClick={() => openViewModal(project)}
+                        >
+                          <td className="px-6 py-4">
                             <div>
-                              <p className="text-sm text-gray-800">
-                                {project.managerId.fullName}
+                              <p
+                                className={`font-medium ${project.status === "archived"
+                                  ? "text-gray-500"
+                                  : isComplete
+                                    ? "text-emerald-700"
+                                    : "text-gray-800 group-hover:text-indigo-600"
+                                  }`}
+                              >
+                                {project.name}
+                                {isComplete && (
+                                  <span className="ml-2 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                    ✓ Done
+                                  </span>
+                                )}
                               </p>
-                              <p className="text-xs text-gray-400">
-                                {project.managerId.email}
+                              <p className="text-gray-400 text-xs font-mono">
+                                {project.code}
                               </p>
+                              {project.description && (
+                                <p className="text-gray-400 text-xs mt-1 line-clamp-1">
+                                  {project.description}
+                                </p>
+                              )}
                             </div>
-                          ) : (
-                            <span className="text-sm text-gray-400">
-                              Unassigned
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 w-fit ${getPriorityColor(project.priority)}`}
+                            >
+                              {getPriorityIcon(project.priority)}
+                              {project.priority}
                             </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                              <div
-                                className={`h-2 rounded-full transition-all ${
-                                  project.status === "archived"
-                                    ? "bg-gray-400"
-                                    : "bg-gradient-to-r from-indigo-500 to-purple-600"
-                                }`}
-                                style={{ width: `${project.progress}%` }}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full border flex items-center gap-1 w-fit ${getStatusColor(project.status, progress)}`}
+                            >
+                              {isComplete ? (
+                                <CheckCircle size={12} className="text-emerald-500" />
+                              ) : (
+                                getStatusIcon(project.status)
+                              )}
+                              {isComplete ? "Complete" : project.status.replace("_", " ")}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {project.managerId ? (
+                              <div>
+                                <p className="text-sm text-gray-800">
+                                  {project.managerId.fullName}
+                                </p>
+                                <p className="text-xs text-gray-400">
+                                  {project.managerId.email}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">
+                                Unassigned
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 min-w-[120px]">
+                                <div className="flex items-center justify-between text-xs mb-1">
+                                  <span className="text-gray-500">Progress</span>
+                                  <span className={`font-medium ${isComplete ? 'text-emerald-600' : 'text-gray-700'}`}>
+                                    {progress}%
+                                  </span>
+                                </div>
+                                {/* In the list view table progress column */}
+                                {/* <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                  <motion.div
+                                    className={`h-2 rounded-full ${isComplete
+                                      ? "bg-emerald-500"
+                                      : "bg-gradient-to-r from-indigo-500 to-purple-600"
+                                      }`}
+                                    initial={{ width: 0 }}
+                                    animate={{
+                                      width: `${Math.min(progress, 100)}%`,
+                                      transition: {
+                                        duration: 0.8,
+                                        ease: "easeOut"
+                                      }
+                                    }}
+                                    style={{
+                                      boxShadow: isComplete ? "0 0 10px rgba(16, 185, 129, 0.3)" : "none"
+                                    }}
+                                  />
+                                  {isComplete && (
+                                    <motion.div
+                                      className="absolute inset-0 bg-emerald-400/20 pointer-events-none"
+                                      animate={{
+                                        opacity: [0.2, 0.5, 0.2],
+                                        transition: { duration: 2, repeat: Infinity }
+                                      }}
+                                    />
+                                  )}
+                                </div> */}
+                              </div>
+                              {isComplete && (
+                                <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 whitespace-nowrap flex items-center gap-1">
+                                  <CheckCircle size={12} className="text-emerald-500" />
+                                  Done
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {project.completedTasks}/{project.tasksCount} tasks
+                            </p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                              <Calendar size={12} />
+                              <span>{formatDate(project.startDate)}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+                              <Calendar size={12} />
+                              <span>{formatDate(project.endDate)}</span>
+                            </div>
+                            {project.archivedAt && (
+                              <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+                                <History size={10} />
+                                <span>
+                                  Archived:{" "}
+                                  {new Date(
+                                    project.archivedAt,
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1">
+                              <DollarSign
+                                size={14}
+                                className="text-emerald-500"
                               />
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              {project.progress}%
-                            </span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {project.completedTasks}/{project.tasksCount} tasks
-                          </p>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1 text-sm text-gray-500">
-                            <Calendar size={12} />
-                            <span>{formatDate(project.startDate)}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-sm text-gray-500 mt-1">
-                            <Calendar size={12} />
-                            <span>{formatDate(project.endDate)}</span>
-                          </div>
-                          {project.archivedAt && (
-                            <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
-                              <History size={10} />
-                              <span>
-                                Archived:{" "}
-                                {new Date(
-                                  project.archivedAt,
-                                ).toLocaleDateString()}
+                              <span className="text-gray-800 text-sm">
+                                {formatCurrency(project.budget?.allocated || 0)}
                               </span>
                             </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1">
-                            <DollarSign
-                              size={14}
-                              className="text-emerald-500"
-                            />
-                            <span className="text-gray-800 text-sm">
-                              {formatCurrency(project.budget?.allocated || 0)}
-                            </span>
-                          </div>
-                          {project.budget?.spent &&
-                            project.budget.spent > 0 && (
-                              <p className="text-xs text-gray-400 mt-1">
-                                Spent: {formatCurrency(project.budget.spent)}
-                              </p>
-                            )}
-                        </td>
-                        <td
-                          className="px-6 py-4 text-right"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              onClick={() => openViewModal(project)}
-                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                              title="View Details"
-                            >
-                              <Eye size={16} />
-                            </button>
-                            {project.status === "archived" ? (
+                            {project.budget?.spent &&
+                              project.budget.spent > 0 && (
+                                <p className="text-xs text-gray-400 mt-1">
+                                  Spent: {formatCurrency(project.budget.spent)}
+                                </p>
+                              )}
+                          </td>
+                          <td
+                            className="px-6 py-4 text-right"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center justify-end gap-1">
                               <button
-                                onClick={() =>
-                                  setShowUnarchiveConfirm(project._id)
-                                }
-                                className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                title="Restore from archive"
+                                onClick={() => openViewModal(project)}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                title="View Details"
                               >
-                                <ArchiveRestore size={16} />
+                                <Eye size={16} />
                               </button>
-                            ) : (
-                              <>
-                                <Link
-  href={`/projects/${project._id}/edit`}
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                  title="Edit Project"
-                                >
-                                  <Edit2 size={16} />
-                                </Link>
+                              {project.status === "archived" ? (
                                 <button
                                   onClick={() =>
-                                    setShowArchiveConfirm(project._id)
+                                    setShowUnarchiveConfirm(project._id)
                                   }
-                                  className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                                  title="Archive Project"
+                                  className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                  title="Restore from archive"
                                 >
-                                  <Archive size={16} />
+                                  <ArchiveRestore size={16} />
                                 </button>
-                              </>
-                            )}
-                            <button
-                              onClick={() => setShowDeleteConfirm(project._id)}
-                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                              title="Delete Project"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
+                              ) : (
+                                <>
+                                  <Link
+                                    href={`/projects/${project._id}/edit`}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                    title="Edit Project"
+                                  >
+                                    <Edit2 size={16} />
+                                  </Link>
+                                  <button
+                                    onClick={() =>
+                                      setShowArchiveConfirm(project._id)
+                                    }
+                                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                    title="Archive Project"
+                                  >
+                                    <Archive size={16} />
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                onClick={() => setShowDeleteConfirm(project._id)}
+                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                title="Delete Project"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1320,11 +1491,10 @@ export default function ProjectsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg text-sm transition ${
-                        currentPage === pageNum
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                      className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -1345,7 +1515,7 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Create/Edit Project Modal - Same as before */}
+      {/* Create/Edit Project Modal */}
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -1591,7 +1761,7 @@ export default function ProjectsPage() {
         )}
       </AnimatePresence>
 
-      {/* View Project Modal - Same as before */}
+      {/* View Project Modal */}
       <AnimatePresence>
         {showViewModal && selectedProject && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -1609,9 +1779,9 @@ export default function ProjectsPage() {
                       {selectedProject.name}
                     </h2>
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor(selectedProject.status)}`}
+                      className={`text-xs px-2 py-0.5 rounded-full border ${getStatusColor(selectedProject.status, calculateProgress(selectedProject))}`}
                     >
-                      {selectedProject.status.replace("_", " ")}
+                      {calculateProgress(selectedProject) >= 100 ? "Complete" : selectedProject.status.replace("_", " ")}
                     </span>
                   </div>
                   <p className="text-xs text-gray-400 mt-1 font-mono">
@@ -1630,11 +1800,10 @@ export default function ProjectsPage() {
               <div className="flex border-b border-gray-200 px-5 bg-gray-50">
                 <button
                   onClick={() => setActiveTab("overview")}
-                  className={`px-4 py-3 text-sm font-medium transition relative ${
-                    activeTab === "overview"
-                      ? "text-indigo-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-4 py-3 text-sm font-medium transition relative ${activeTab === "overview"
+                    ? "text-indigo-600"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   Overview
                   {activeTab === "overview" && (
@@ -1643,11 +1812,10 @@ export default function ProjectsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("tasks")}
-                  className={`px-4 py-3 text-sm font-medium transition relative ${
-                    activeTab === "tasks"
-                      ? "text-indigo-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-4 py-3 text-sm font-medium transition relative ${activeTab === "tasks"
+                    ? "text-indigo-600"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   Tasks ({selectedProject.tasksCount})
                   {activeTab === "tasks" && (
@@ -1656,11 +1824,10 @@ export default function ProjectsPage() {
                 </button>
                 <button
                   onClick={() => setActiveTab("team")}
-                  className={`px-4 py-3 text-sm font-medium transition relative ${
-                    activeTab === "team"
-                      ? "text-indigo-600"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
+                  className={`px-4 py-3 text-sm font-medium transition relative ${activeTab === "team"
+                    ? "text-indigo-600"
+                    : "text-gray-500 hover:text-gray-700"
+                    }`}
                 >
                   Team ({selectedProject.teamMembers?.length || 0})
                   {activeTab === "team" && (
@@ -1669,7 +1836,7 @@ export default function ProjectsPage() {
                 </button>
               </div>
 
-              {/* Content - Same as before */}
+              {/* Content */}
               <div className="p-5">
                 {activeTab === "overview" && (
                   <div className="space-y-6">
@@ -1682,20 +1849,55 @@ export default function ProjectsPage() {
                         <div className="flex-1">
                           <div className="flex justify-between text-sm text-gray-500 mb-1">
                             <span>Overall Completion</span>
-                            <span className="font-medium text-gray-700">
-                              {selectedProject.progress}%
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`font-medium ${calculateProgress(selectedProject) >= 100 ? 'text-emerald-600' : 'text-gray-700'}`}>
+                                {calculateProgress(selectedProject)}%
+                              </span>
+                              {calculateProgress(selectedProject) >= 100 && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 animate-pulse">
+                                  <CheckCircle size={10} className="text-emerald-500" />
+                                  Complete
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-3">
-                            <div
-                              className={`h-3 rounded-full transition-all ${
-                                selectedProject.status === "archived"
+                          {/* In the view modal - Progress Section */}
+                          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <motion.div
+                              className={`h-3 rounded-full ${calculateProgress(selectedProject) >= 100
+                                ? "bg-emerald-500"
+                                : selectedProject.status === "archived"
                                   ? "bg-gray-400"
                                   : "bg-gradient-to-r from-indigo-500 to-purple-600"
-                              }`}
-                              style={{ width: `${selectedProject.progress}%` }}
+                                }`}
+                              initial={{ width: 0 }}
+                              animate={{
+                                width: `${Math.min(calculateProgress(selectedProject), 100)}%`,
+                                transition: { duration: 0.8, ease: "easeOut" }
+                              }}
+                              style={{
+                                boxShadow: calculateProgress(selectedProject) >= 100 ? "0 0 20px rgba(16, 185, 129, 0.4)" : "none"
+                              }}
                             />
+                            {calculateProgress(selectedProject) >= 100 && (
+                              <motion.div
+                                className="absolute inset-0 bg-emerald-400/20 pointer-events-none"
+                                animate={{
+                                  opacity: [0.2, 0.5, 0.2],
+                                  transition: { duration: 2, repeat: Infinity }
+                                }}
+                              />
+                            )}
                           </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            {selectedProject.completedTasks} of {selectedProject.tasksCount} tasks completed
+                          </div>
+                          {calculateProgress(selectedProject) >= 100 && (
+                            <div className="mt-1 text-xs text-emerald-600 font-medium flex items-center gap-1">
+                              <CheckCircle size={12} />
+                              All tasks completed! Project is complete.
+                            </div>
+                          )}
                         </div>
                         <div className="text-center px-4">
                           <p className="text-2xl font-bold text-gray-800">
@@ -1816,7 +2018,7 @@ export default function ProjectsPage() {
                 {activeTab === "team" && (
                   <div className="space-y-3">
                     {selectedProject.teamMembers &&
-                    selectedProject.teamMembers.length > 0 ? (
+                      selectedProject.teamMembers.length > 0 ? (
                       selectedProject.teamMembers.map((member) => (
                         <div
                           key={member.userId._id}
@@ -2070,6 +2272,20 @@ export default function ProjectsPage() {
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 2s infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        .animate-pulse {
+          animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
         }
       `}</style>
     </div>
