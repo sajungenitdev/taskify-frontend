@@ -474,7 +474,7 @@ export default function ProjectsPage() {
         setAssignProject(null);
         setSearchUsers("");
       } else {
-        toast.info("No changes made");
+        toast.error("No changes made");
       }
     } catch (error: any) {
       console.error("Error updating team:", error);
