@@ -153,11 +153,13 @@ const formatDateShort = (date: Date | string): string => {
 };
 
 const getStatusColor = (status: string): string => {
-    return STATUS_COLORS[status] || "#6b7280";
+    const key = status as keyof typeof STATUS_COLORS;
+    return STATUS_COLORS[key] || "#6b7280";
 };
 
 const getStatusLabel = (status: string): string => {
-    return STATUS_LABELS[status] || status;
+    const key = status as keyof typeof STATUS_LABELS;
+    return STATUS_LABELS[key] || status;
 };
 
 const getPriorityLabel = (priority: string): string => {
