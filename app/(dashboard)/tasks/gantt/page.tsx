@@ -337,12 +337,6 @@ export default function GanttChartPage() {
         }
     }, [authLoading, isAuthenticated, router]);
 
-    // Fetch data
-    useEffect(() => {
-        if (isAuthenticated) {
-            fetchData();
-        }
-    }, [isAuthenticated]);
 
     const fetchData = useCallback(async () => {
         try {
@@ -375,6 +369,13 @@ export default function GanttChartPage() {
             setLoading(false);
         }
     }, []);
+    
+    // Fetch data
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchData();
+        }
+    }, [isAuthenticated]);
 
     // Generate Gantt data
     const ganttData = useMemo(() => {
