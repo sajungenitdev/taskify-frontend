@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -28,6 +28,7 @@ import {
   Trophy,
   Zap,
   Crown,
+  AlertCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -48,13 +49,17 @@ interface Project {
   completedTasks: number;
   departmentId?: { _id: string; name: string; code: string };
   teamMembers?: Array<{ userId: { _id: string; fullName: string } }>;
+  status?: string;
+  updatedAt?: string;
 }
 
 export default function CompletedProjectsPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(6);
@@ -63,6 +68,7 @@ export default function CompletedProjectsPage() {
     "completedAt",
   );
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const canManage = hasRole([
     "super_admin",
@@ -71,65 +77,135 @@ export default function CompletedProjectsPage() {
     "project_manager",
   ]);
 
-  useEffect(() => {
-    fetchProjects();
-  }, []);
+  // Check if a project is completed based on multiple criteria
+  const isProjectCompleted = (project: Project): boolean => {
+    // Check if ALL tasks are completed (most reliable)
+    const allTasksCompleted = project.tasksCount > 0 &&
+      project.completedTasks === project.tasksCount;
 
-  const fetchProjects = async () => {
+    // Check progress
+    const hasFullProgress = project.progress === 100;
+
+    // Check status
+    const hasCompletedStatus = project.status === "completed" ||
+      project.status === "complete";
+
+    // Check if completedAt exists
+    const hasCompletedDate = project.completedAt !== null &&
+      project.completedAt !== undefined;
+
+    // Project is completed if ANY of these conditions are met
+    return allTasksCompleted || hasFullProgress || hasCompletedStatus || hasCompletedDate;
+  };
+
+  // Calculate actual progress based on tasks
+  const calculateActualProgress = (project: Project): number => {
+    if (project.tasksCount === 0) return 0;
+    return Math.round((project.completedTasks / project.tasksCount) * 100);
+  };
+
+  // FIXED: Fetch projects with better completion detection
+  const fetchProjects = useCallback(async (showLoading = true) => {
     try {
-      setLoading(true);
-      const response = await api.get("/projects?status=completed");
+      if (showLoading) setLoading(true);
+      setIsRefreshing(true);
+      setError(null);
+
+      console.log("🔍 Fetching all projects...");
+
+      // Get ALL projects first
+      const response = await api.get("/projects?limit=1000");
+      console.log("📦 Raw API Response:", response.data);
+
       if (response.data.success) {
-        setProjects(response.data.data || []);
+        const allProjects = response.data.data || [];
+        console.log(`📊 Total projects found: ${allProjects.length}`);
+
+        // Log the first project to see its structure
+        if (allProjects.length > 0) {
+          console.log("🔍 Sample project structure:", allProjects[0]);
+        }
+
+        // Filter for completed projects using the improved detection
+        const completedProjects = allProjects.filter((project: any) => {
+          // Check if project is completed based on MULTIPLE criteria
+          const isCompleted =
+            // All tasks are completed (even if progress is 0%)
+            (project.tasksCount > 0 && project.completedTasks === project.tasksCount) ||
+            // Progress is 100%
+            project.progress === 100 ||
+            // Status is completed
+            project.status === "completed" ||
+            project.status === "complete" ||
+            // Has completed date
+            (project.completedAt !== null && project.completedAt !== undefined);
+
+          if (isCompleted) {
+            const actualProgress = project.tasksCount > 0
+              ? Math.round((project.completedTasks / project.tasksCount) * 100)
+              : project.progress;
+            console.log(`✅ Completed project found: ${project.name} (${project.code}) - Tasks: ${project.completedTasks}/${project.tasksCount} - Progress: ${actualProgress}%`);
+          }
+          return isCompleted;
+        });
+
+        console.log(`🎯 Completed projects found: ${completedProjects.length}`);
+
+        // Update the progress field to reflect actual task completion
+        const projectsWithCorrectProgress = completedProjects.map((project: any) => ({
+          ...project,
+          progress: project.tasksCount > 0
+            ? Math.round((project.completedTasks / project.tasksCount) * 100)
+            : project.progress
+        }));
+
+        setProjects(projectsWithCorrectProgress);
+        setFilteredProjects(projectsWithCorrectProgress);
+
+        if (completedProjects.length === 0) {
+          toast.custom((t) => (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800">No Completed Projects Found</p>
+                  <p className="text-xs text-blue-600 mt-0.5">
+                    Projects with all tasks completed will appear here
+                  </p>
+                </div>
+              </div>
+            </div>
+          ), { duration: 5000 });
+        }
+      } else {
+        throw new Error(response.data.message || "Failed to fetch projects");
       }
-    } catch (error) {
-      console.error("Error fetching projects:", error);
+    } catch (error: any) {
+      console.error("❌ Error fetching projects:", error);
+      setError(error.message || "Failed to fetch projects");
       toast.error("Failed to fetch projects");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
+      setIsRefreshing(false);
     }
-  };
+  }, []);
 
-  const handleExport = () => {
-    const headers = [
-      "Project Name",
-      "Code",
-      "Completed Date",
-      "Tasks Completed",
-      "Total Tasks",
-      "Completion Rate",
-    ];
-    const rows = filteredProjects.map((p) => [
-      p.name,
-      p.code,
-      p.completedAt ? new Date(p.completedAt).toLocaleDateString() : "N/A",
-      p.completedTasks,
-      p.tasksCount,
-      p.progress + "%",
-    ]);
+  // Apply search and filters
+  const applyFilters = useCallback(() => {
+    let result = [...projects];
 
-    const csvContent = [headers, ...rows]
-      .map((row) => row.join(","))
-      .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `completed_projects_${new Date().toISOString().split("T")[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success("Report exported successfully");
-  };
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(
+        (project) =>
+          project.name.toLowerCase().includes(term) ||
+          project.code.toLowerCase().includes(term) ||
+          project.description?.toLowerCase().includes(term)
+      );
+    }
 
-  // REMOVED useMemo - Let React Compiler handle optimization
-  const filteredProjects = (() => {
-    let filtered = projects.filter(
-      (project) =>
-        project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        project.code.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
-
-    filtered.sort((a, b) => {
+    // Sort
+    result.sort((a, b) => {
       let aVal: any, bVal: any;
       switch (sortBy) {
         case "name":
@@ -156,30 +232,39 @@ export default function CompletedProjectsPage() {
       return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
     });
 
-    return filtered;
-  })();
+    setFilteredProjects(result);
+    setCurrentPage(1);
+  }, [projects, searchTerm, sortBy, sortOrder]);
 
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentProjects = filteredProjects.slice(
-    indexOfFirstItem,
-    indexOfLastItem,
-  );
-  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
-  const stats = {
-    total: projects.length,
-    totalTasks: projects.reduce((sum, p) => sum + p.completedTasks, 0),
-    avgProgress:
-      projects.length > 0
-        ? Math.round(
-            projects.reduce((sum, p) => sum + p.progress, 0) / projects.length,
-          )
-        : 0,
-    totalMembers: projects.reduce(
-      (sum, p) => sum + (p.teamMembers?.length || 0),
-      0,
-    ),
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  // Debug function to check project status
+  const debugProjects = () => {
+    console.log("=== DEBUG PROJECTS ===");
+    console.log("Total projects in state:", projects.length);
+    console.log("Filtered projects:", filteredProjects.length);
+    console.log("Search term:", searchTerm);
+
+    projects.forEach((p, index) => {
+      const allTasksDone = p.tasksCount > 0 && p.completedTasks === p.tasksCount;
+      const isComplete = isProjectCompleted(p);
+      console.log(`\n${index + 1}. Project: ${p.name}`);
+      console.log(`   - Code: ${p.code}`);
+      console.log(`   - Tasks: ${p.completedTasks}/${p.tasksCount}`);
+      console.log(`   - Progress from API: ${p.progress}%`);
+      console.log(`   - All tasks done? ${allTasksDone}`);
+      console.log(`   - Status: ${p.status || 'N/A'}`);
+      console.log(`   - Completed At: ${p.completedAt || 'N/A'}`);
+      console.log(`   - Is completed? ${isComplete}`);
+    });
+
+    toast.success("Check console for debug info");
   };
 
   const formatDate = (dateString: string) => {
@@ -189,6 +274,29 @@ export default function CompletedProjectsPage() {
       day: "numeric",
     });
   };
+
+  const stats = {
+    total: projects.length,
+    totalTasks: projects.reduce((sum, p) => sum + p.completedTasks, 0),
+    avgProgress:
+      projects.length > 0
+        ? Math.round(
+          projects.reduce((sum, p) => sum + p.progress, 0) / projects.length,
+        )
+        : 0,
+    totalMembers: projects.reduce(
+      (sum, p) => sum + (p.teamMembers?.length || 0),
+      0,
+    ),
+  };
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentProjects = filteredProjects.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
+  const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
 
   if (!canManage) {
     return (
@@ -216,31 +324,7 @@ export default function CompletedProjectsPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="p-4 md:p-6 lg:p-8">
         <div className="container mx-auto space-y-6">
-          {/* Breadcrumb */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 text-sm"
-          >
-            <Link
-              href="/dashboard"
-              className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1"
-            >
-              <Home size={14} />
-              Dashboard
-            </Link>
-            <ChevronRight size={14} className="text-gray-300" />
-            <Link
-              href="/projects"
-              className="text-gray-400 hover:text-gray-600 transition"
-            >
-              Projects
-            </Link>
-            <ChevronRight size={14} className="text-gray-300" />
-            <span className="text-gray-700 font-medium">Completed</span>
-          </motion.div>
-
-          {/* Header */}
+          {/* Header with Debug Button */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -259,16 +343,16 @@ export default function CompletedProjectsPage() {
                 </span>
               </div>
               <p className="text-gray-500 text-sm">
-                View successfully completed projects
+                View successfully completed projects (based on task completion)
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={handleExport}
-                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
+                onClick={debugProjects}
+                className="px-3 py-2 bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 text-yellow-700 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
               >
-                <Download size={14} />
-                Export
+                <AlertCircle size={14} />
+                Debug
               </button>
               <button
                 onClick={() =>
@@ -280,12 +364,13 @@ export default function CompletedProjectsPage() {
                 {viewMode === "grid" ? "List View" : "Grid View"}
               </button>
               <button
-                onClick={fetchProjects}
+                onClick={() => fetchProjects(true)}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
+                disabled={loading}
               >
                 <RefreshCw
                   size={16}
-                  className={loading ? "animate-spin" : ""}
+                  className={loading || isRefreshing ? "animate-spin" : ""}
                 />
               </button>
             </div>
@@ -356,7 +441,7 @@ export default function CompletedProjectsPage() {
             </div>
           </motion.div>
 
-          {/* Search and Filters */}
+          {/* Search */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -407,10 +492,10 @@ export default function CompletedProjectsPage() {
               <h3 className="text-lg font-semibold text-gray-800 mb-1">
                 No Completed Projects
               </h3>
-              <p className="text-gray-500">
+              <p className="text-gray-500 max-w-md mx-auto">
                 {searchTerm
                   ? "No projects match your search"
-                  : "Projects you complete will appear here"}
+                  : "Projects with all tasks completed will appear here"}
               </p>
             </motion.div>
           ) : viewMode === "grid" ? (
@@ -619,11 +704,10 @@ export default function CompletedProjectsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg text-sm transition ${
-                        currentPage === pageNum
+                      className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
                           ? "bg-indigo-600 text-white shadow-sm"
                           : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>
