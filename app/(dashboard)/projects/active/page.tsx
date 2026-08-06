@@ -167,6 +167,14 @@ export default function ProjectsPage() {
     allocatedBudget: 0,
   });
 
+  // Assign team modal states
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignProject, setAssignProject] = useState<Project | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [searchUsers, setSearchUsers] = useState("");
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
   const canManage = hasRole([
     "super_admin",
     "admin",
@@ -177,6 +185,15 @@ export default function ProjectsPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const borderColors = [
+    "border-l-amber-500",
+    "border-l-indigo-500",
+    "border-l-emerald-500",
+    "border-l-rose-500",
+    "border-l-sky-500",
+    "border-l-purple-500",
+  ];
 
   // Function to calculate progress from tasks
   const calculateProgress = (project: Project): number => {
@@ -201,7 +218,6 @@ export default function ProjectsPage() {
 
       if (projectsRes.data.success) {
         const projectData = projectsRes.data.data || [];
-        // Calculate progress for each project
         const projectsWithProgress = projectData.map((project: Project) => ({
           ...project,
           progress: calculateProgress(project)
@@ -213,6 +229,7 @@ export default function ProjectsPage() {
       }
       if (usersRes.data.success) {
         setUsers(usersRes.data.data || []);
+        setAllUsers(usersRes.data.data || []);
       }
 
       setLastUpdated(new Date());
@@ -400,6 +417,90 @@ export default function ProjectsPage() {
     }
   };
 
+  // In your handleAssignUsers function, update the error handling:
+
+  const handleAssignUsers = async () => {
+    if (!assignProject) return;
+
+    if (selectedUsers.length === 0) {
+      toast.error("Please select at least one user to assign");
+      return;
+    }
+
+    setAssignSubmitting(true);
+    try {
+      const currentMemberIds = assignProject.teamMembers.map(
+        (member) => member.userId._id
+      );
+
+      const usersToAdd = selectedUsers.filter(
+        (id) => !currentMemberIds.includes(id)
+      );
+
+      const usersToRemove = currentMemberIds.filter(
+        (id) => !selectedUsers.includes(id)
+      );
+
+      let successMessage = "";
+
+      // Add users
+      if (usersToAdd.length > 0) {
+        const addResponse = await api.post(`/projects/${assignProject._id}/team/add`, {
+          userIds: usersToAdd,
+        });
+        if (!addResponse.data.success) {
+          throw new Error(addResponse.data.message || "Failed to add users");
+        }
+        successMessage += `${usersToAdd.length} user(s) added`;
+      }
+
+      // Remove users
+      if (usersToRemove.length > 0) {
+        const removeResponse = await api.post(`/projects/${assignProject._id}/team/remove`, {
+          userIds: usersToRemove,
+        });
+        if (!removeResponse.data.success) {
+          throw new Error(removeResponse.data.message || "Failed to remove users");
+        }
+        if (successMessage) successMessage += " and ";
+        successMessage += `${usersToRemove.length} user(s) removed`;
+      }
+
+      if (usersToAdd.length > 0 || usersToRemove.length > 0) {
+        toast.success(`Project team updated: ${successMessage}`);
+        await fetchData(false);
+        setShowAssignModal(false);
+        setSelectedUsers([]);
+        setAssignProject(null);
+        setSearchUsers("");
+      } else {
+        toast.info("No changes made");
+      }
+    } catch (error: any) {
+      console.error("Error updating team:", error);
+      toast.error(error.response?.data?.message || error.message || "Failed to update project team");
+    } finally {
+      setAssignSubmitting(false);
+    }
+  };
+
+  const openAssignModal = (project: Project) => {
+    setAssignProject(project);
+    const currentMemberIds = project.teamMembers.map(
+      (member) => member.userId._id
+    );
+    setSelectedUsers(currentMemberIds);
+    setShowAssignModal(true);
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers((prev) =>
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -468,8 +569,7 @@ export default function ProjectsPage() {
 
   // Filter and sort projects
   const filteredProjects = useMemo(() => {
-    let filtered = projects.filter((project) => {
-      // Filter by archived status
+    const filtered = projects.filter((project) => {
       if (!showArchived && project.status === "archived") return false;
       if (showArchived && project.status !== "archived") return false;
 
@@ -485,7 +585,6 @@ export default function ProjectsPage() {
       return matchesSearch && matchesStatus && matchesPriority;
     });
 
-    // Sort
     filtered.sort((a, b) => {
       let aVal: any, bVal: any;
       switch (sortBy) {
@@ -606,11 +705,51 @@ export default function ProjectsPage() {
     });
   };
 
-  // Progress bar component with animation - FIXED
+  // Update your getAvatarColor function to handle undefined names
+  const getAvatarColor = (name: string) => {
+    // Return a default color if name is undefined or empty
+    if (!name || name.trim() === '') {
+      return 'bg-gray-400';
+    }
+
+    const colors = [
+      'bg-indigo-500', 'bg-emerald-500', 'bg-amber-500',
+      'bg-rose-500', 'bg-blue-500', 'bg-purple-500',
+      'bg-cyan-500', 'bg-pink-500', 'bg-orange-500',
+      'bg-teal-500', 'bg-violet-500', 'bg-fuchsia-500'
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  // Update your getInitials function to handle undefined names
+  const getInitials = (name: string) => {
+    if (!name || name.trim() === '') {
+      return '?';
+    }
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Filter users for assign modal
+  const filteredAssignUsers = useMemo(() => {
+    return allUsers.filter((user) =>
+      user.fullName.toLowerCase().includes(searchUsers.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchUsers.toLowerCase())
+    );
+  }, [allUsers, searchUsers]);
+
+  // Progress bar component
   const ProgressBar = ({ project }: { project: Project }) => {
     const progress = calculateProgress(project);
     const isComplete = progress >= 100;
-    const isArchived = project.status === "archived";
 
     return (
       <div className="w-full">
@@ -649,7 +788,6 @@ export default function ProjectsPage() {
           {progress > 0 && progress < 100 && (
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer pointer-events-none" />
           )}
-          {/* REMOVED the green pulse overlay - it was causing the full page animation */}
         </div>
         <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1">
           <span>
@@ -1034,17 +1172,16 @@ export default function ProjectsPage() {
               {currentProjects.map((project, index) => {
                 const progress = calculateProgress(project);
                 const isComplete = progress >= 100;
+
                 return (
                   <motion.div
                     key={project._id}
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: index * 0.05 }}
-                    className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group ${project.status === "archived"
-                      ? "border-gray-300 opacity-75 hover:opacity-100"
-                      : isComplete
-                        ? "border-emerald-200 hover:border-emerald-300"
-                        : "border-gray-200"
+                    className={`bg-white border-l-8 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition cursor-pointer group ${project.status === "archived"
+                      ? "border-l-gray-300 opacity-75 hover:opacity-100"
+                      : borderColors[index % borderColors.length]
                       }`}
                     onClick={() => openViewModal(project)}
                   >
@@ -1119,7 +1256,40 @@ export default function ProjectsPage() {
                       </div>
 
                       {/* Progress Bar */}
-                      <ProgressBar project={project} />
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className={`font-semibold ${isComplete ? 'text-emerald-600' : 'text-gray-700'
+                            }`}>
+                            {progress}%
+                          </span>
+                          <span className="text-gray-300">·</span>
+                          <span className="text-xs text-gray-500">
+                            {project.completedTasks}/{project.tasksCount} tasks
+                          </span>
+                          {isComplete && (
+                            <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                              <CheckCircle size={10} className="text-emerald-500" />
+                              Done
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                          <motion.div
+                            className={`h-1.5 rounded-full ${isComplete
+                              ? "bg-emerald-500"
+                              : "bg-gradient-to-r from-indigo-500 to-purple-600"
+                              }`}
+                            initial={{ width: 0 }}
+                            animate={{
+                              width: `${Math.min(progress, 100)}%`,
+                              transition: {
+                                duration: 0.8,
+                                ease: "easeOut"
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
 
                       <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
                         <div className="flex items-center gap-1">
@@ -1132,62 +1302,106 @@ export default function ProjectsPage() {
                             {formatCurrency(project.budget?.allocated || 0)}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <CheckCircle size={12} className="text-blue-500" />
-                          <span>
-                            {project.completedTasks}/{project.tasksCount}
-                          </span>
-                        </div>
                       </div>
-                    </div>
 
-                    <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-xs text-gray-400">
-                        {project.status === "archived" ? "Archived" : "Updated"}:{" "}
-                        {new Date(project.updatedAt).toLocaleDateString()}
-                      </span>
-                      <div
-                        className="flex items-center gap-1"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {project.status === "archived" ? (
-                          <button
-                            onClick={() => setShowUnarchiveConfirm(project._id)}
-                            className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                            title="Restore from archive"
-                          >
-                            <ArchiveRestore size={14} />
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => router.push(`/projects/${project._id}/edit`)}
-                              className="p-1 cursor-pointer text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={() => setShowArchiveConfirm(project._id)}
-                              className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                              title="Archive project"
-                            >
-                              <Archive size={14} />
-                            </button>
-                            <Link
-                              href={`/projects/${project._id}/dashboard`}
-                              className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                              title="View project"
-                            >
-                              <EyeIcon size={14} />
-                            </Link>
-                          </>
-                        )}
-                        <button
-                          onClick={() => setShowDeleteConfirm(project._id)}
-                          className="p-1 cursor-pointer text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                      {/* Manager and Team Members with Profile Avatars */}
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {/* Manager Avatar */}
+                          {project.managerId ? (
+                            <div className="flex items-center gap-1.5">
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[8px] font-medium ${getAvatarColor(project.managerId.fullName || 'Unknown')}`}
+                                title={project.managerId.fullName || 'Unknown'}
+                              >
+                                {getInitials(project.managerId.fullName || 'Unknown')}
+                              </div>
+                              <span className="text-xs text-gray-600">
+                                {project.managerId.fullName?.split(' ')[0] || 'Unknown'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">No manager</span>
+                          )}
+
+                          {/* Team Members Avatars - Add unique keys */}
+                          {project.teamMembers && project.teamMembers.length > 0 && (
+                            <div className="flex items-center -space-x-1 ml-0.5">
+                              {project.teamMembers.slice(0, 3).map((member, idx) => {
+                                const userName = member?.userId?.fullName || 'Unknown';
+                                return (
+                                  <div
+                                    key={member?.userId?._id || `member-${idx}`}
+                                    className={`w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white text-[6px] font-medium ${getAvatarColor(userName)}`}
+                                    title={userName}
+                                  >
+                                    {getInitials(userName)}
+                                  </div>
+                                );
+                              })}
+                              {project.teamMembers.length > 3 && (
+                                <div
+                                  key="more-members"
+                                  className="w-5 h-5 rounded-full border-2 border-white bg-gray-300 flex items-center justify-center text-[6px] font-medium text-gray-600"
+                                >
+                                  +{project.teamMembers.length - 3}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action buttons - Added Assign Team button */}
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <Trash2 size={14} />
-                        </button>
+                          {project.status === "archived" ? (
+                            <button
+                              onClick={() => setShowUnarchiveConfirm(project._id)}
+                              className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                              title="Restore from archive"
+                            >
+                              <ArchiveRestore size={14} />
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => openAssignModal(project)}
+                                className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                title="Assign team members"
+                              >
+                                <Users size={14} />
+                              </button>
+                              <button
+                                onClick={() => router.push(`/projects/${project._id}/edit`)}
+                                className="p-1 cursor-pointer text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                              >
+                                <Edit2 size={14} />
+                              </button>
+                              <button
+                                onClick={() => setShowArchiveConfirm(project._id)}
+                                className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                title="Archive project"
+                              >
+                                <Archive size={14} />
+                              </button>
+                              <Link
+                                href={`/projects/${project._id}/dashboard`}
+                                className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                title="View project"
+                              >
+                                <EyeIcon size={14} />
+                              </Link>
+                            </>
+                          )}
+                          <button
+                            onClick={() => setShowDeleteConfirm(project._id)}
+                            className="p-1 cursor-pointer text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -1195,6 +1409,7 @@ export default function ProjectsPage() {
               })}
             </motion.div>
           ) : (
+            // List view
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1317,8 +1532,7 @@ export default function ProjectsPage() {
                                     {progress}%
                                   </span>
                                 </div>
-                                {/* In the list view table progress column */}
-                                {/* <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                                   <motion.div
                                     className={`h-2 rounded-full ${isComplete
                                       ? "bg-emerald-500"
@@ -1332,20 +1546,8 @@ export default function ProjectsPage() {
                                         ease: "easeOut"
                                       }
                                     }}
-                                    style={{
-                                      boxShadow: isComplete ? "0 0 10px rgba(16, 185, 129, 0.3)" : "none"
-                                    }}
                                   />
-                                  {isComplete && (
-                                    <motion.div
-                                      className="absolute inset-0 bg-emerald-400/20 pointer-events-none"
-                                      animate={{
-                                        opacity: [0.2, 0.5, 0.2],
-                                        transition: { duration: 2, repeat: Infinity }
-                                      }}
-                                    />
-                                  )}
-                                </div> */}
+                                </div>
                               </div>
                               {isComplete && (
                                 <span className="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 whitespace-nowrap flex items-center gap-1">
@@ -1420,6 +1622,13 @@ export default function ProjectsPage() {
                                 </button>
                               ) : (
                                 <>
+                                  <button
+                                    onClick={() => openAssignModal(project)}
+                                    className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                    title="Assign team members"
+                                  >
+                                    <Users size={16} />
+                                  </button>
                                   <Link
                                     href={`/projects/${project._id}/edit`}
                                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
@@ -1861,7 +2070,6 @@ export default function ProjectsPage() {
                               )}
                             </div>
                           </div>
-                          {/* In the view modal - Progress Section */}
                           <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                             <motion.div
                               className={`h-3 rounded-full ${calculateProgress(selectedProject) >= 100
@@ -2082,6 +2290,16 @@ export default function ProjectsPage() {
                     <button
                       onClick={() => {
                         setShowViewModal(false);
+                        openAssignModal(selectedProject);
+                      }}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Users size={16} />
+                      Assign Team
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false);
                         setShowArchiveConfirm(selectedProject._id);
                       }}
                       className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
@@ -2097,6 +2315,195 @@ export default function ProjectsPage() {
                 >
                   Close
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Assign Team Modal */}
+      <AnimatePresence>
+        {showAssignModal && assignProject && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 sticky top-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Users size={20} className="text-emerald-500" />
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      Assign Team Members
+                    </h2>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {assignProject.name} - Select users to assign to this project
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAssignModal(false);
+                    setSelectedUsers([]);
+                    setAssignProject(null);
+                    setSearchUsers("");
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-5">
+                {/* Current team summary */}
+                <div className="mb-4 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">
+                      Current Team Members: <span className="font-semibold">{assignProject.teamMembers?.length || 0}</span>
+                    </span>
+                    <span className="text-sm text-gray-600">
+                      Selected: <span className="font-semibold text-emerald-600">{selectedUsers.length}</span>
+                    </span>
+                  </div>
+                  {assignProject.teamMembers && assignProject.teamMembers.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {assignProject.teamMembers.map((member) => (
+                        <span
+                          key={member.userId._id}
+                          className={`text-xs px-2 py-0.5 rounded-full border ${selectedUsers.includes(member.userId._id)
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                            : "bg-gray-100 text-gray-500 border-gray-200"
+                            }`}
+                        >
+                          {member.userId.fullName}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Search users */}
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search users by name or email..."
+                    value={searchUsers}
+                    onChange={(e) => setSearchUsers(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+                  />
+                </div>
+
+                {/* Users list */}
+                <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                  {filteredAssignUsers.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      {searchUsers ? "No users found matching your search" : "No users available"}
+                    </div>
+                  ) : (
+                    filteredAssignUsers.map((user) => {
+                      const isAssigned = selectedUsers.includes(user._id);
+                      const isCurrentMember = assignProject.teamMembers?.some(
+                        (member) => member.userId._id === user._id
+                      );
+
+                      return (
+                        <div
+                          key={user._id}
+                          className={`flex items-center justify-between p-3 hover:bg-gray-50 transition cursor-pointer ${isAssigned ? "bg-emerald-50/30" : ""
+                            }`}
+                          onClick={() => toggleUserSelection(user._id)}
+
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium ${isAssigned ? "bg-emerald-500" : "bg-gray-400"
+                              }`}>
+                              {getInitials(user.fullName || 'Unknown')}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-800">
+                                {user.fullName}
+                                {isCurrentMember && (
+                                  <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
+                                    Current
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-400">{user.email}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                              {user.role.replace(/_/g, " ")}
+                            </span>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isAssigned
+                              ? "bg-emerald-500 border-emerald-500"
+                              : "border-gray-300"
+                              }`}>
+                              {isAssigned && (
+                                <CheckCircle size={12} className="text-white" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Selected count and actions */}
+                <div className="mt-4 flex items-center justify-between">
+                  <span className="text-sm text-gray-500">
+                    {selectedUsers.length} user{selectedUsers.length !== 1 ? "s" : ""} selected
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedUsers([])}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                    >
+                      Clear All
+                    </button>
+                    <button
+                      onClick={() => {
+                        const allUserIds = allUsers.map((user) => user._id);
+                        setSelectedUsers(allUserIds);
+                      }}
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                    >
+                      Select All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-5 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleAssignUsers}
+                    disabled={assignSubmitting}
+                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    {assignSubmitting ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Users size={16} />
+                        Update Team
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAssignModal(false);
+                      setSelectedUsers([]);
+                      setAssignProject(null);
+                      setSearchUsers("");
+                    }}
+                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
