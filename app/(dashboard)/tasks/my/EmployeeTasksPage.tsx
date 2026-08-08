@@ -453,8 +453,8 @@ export default function EmployeeTasksPage() {
           <button
             onClick={() => setFilterType("all")}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "all"
-                ? "bg-gray-900 text-white shadow-sm"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+              ? "bg-gray-900 text-white shadow-sm"
+              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             All ({stats.total})
@@ -462,8 +462,8 @@ export default function EmployeeTasksPage() {
           <button
             onClick={() => setFilterType("today")}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "today"
-                ? "bg-gray-900 text-white shadow-sm"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+              ? "bg-gray-900 text-white shadow-sm"
+              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             Today ({stats.pending + stats.inProgress})
@@ -471,8 +471,8 @@ export default function EmployeeTasksPage() {
           <button
             onClick={() => setFilterType("overdue")}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "overdue"
-                ? "bg-gray-900 text-white shadow-sm"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+              ? "bg-gray-900 text-white shadow-sm"
+              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             Overdue ({stats.overdue})
@@ -480,8 +480,8 @@ export default function EmployeeTasksPage() {
           <button
             onClick={() => setFilterType("done")}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "done"
-                ? "bg-gray-900 text-white shadow-sm"
-                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
+              ? "bg-gray-900 text-white shadow-sm"
+              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             Done ({stats.completed})
@@ -663,8 +663,8 @@ export default function EmployeeTasksPage() {
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${currentPage === pageNum
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
                         }`}
                     >
                       {pageNum}
@@ -685,6 +685,7 @@ export default function EmployeeTasksPage() {
       </div>
 
       {/* ============ EVIDENCE SUBMISSION MODAL ============ */}
+      {/* ============ EVIDENCE SUBMISSION MODAL ============ */}
       <AnimatePresence>
         {showEvidenceModal && evidenceTask && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -692,80 +693,97 @@ export default function EmployeeTasksPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-[440px] p-6 sm:p-8 overflow-y-auto max-h-[90vh]"
             >
-              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-center">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <Text className="w-5 h-5 text-indigo-500" />
-                    Submit Evidence
-                  </h2>
-                  <p className="text-xs text-gray-500">Evidence is required to complete this task</p>
+              {/* Header */}
+              <div className="flex items-start gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 text-xl font-bold">
+                  📎
                 </div>
-                <button
-                  onClick={closeEvidenceModal}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition"
-                >
-                  <X size={20} className="text-gray-400" />
-                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Upload Evidence
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Attach proof of task completion. Required before submitting.
+                  </p>
+                </div>
               </div>
 
-              <div className="p-6 space-y-6">
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                  <p className="text-xs text-gray-500 mb-1">Task</p>
-                  <p className="text-sm font-medium text-gray-800">{evidenceTask.title}</p>
-                </div>
-
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-amber-800">Evidence Required</p>
-                    <p className="text-xs text-amber-700">
-                      Please provide evidence details below. You can add URLs or describe the evidence.
-                    </p>
+              <div className="space-y-5 mt-6">
+                {/* 4 Options Grid */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
+                    <span className="text-2xl mb-1.5 block">📷</span>
+                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">Photo / Image</span>
+                  </div>
+                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
+                    <span className="text-2xl mb-1.5 block">📄</span>
+                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">PDF / Document</span>
+                  </div>
+                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
+                    <span className="text-2xl mb-1.5 block">🔗</span>
+                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">URL / Link</span>
+                  </div>
+                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
+                    <span className="text-2xl mb-1.5 block">📍</span>
+                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">GPS Location</span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Evidence Details <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    value={evidenceText}
-                    onChange={(e) => setEvidenceText(e.target.value)}
-                    rows={6}
-                    placeholder="Enter evidence details or URLs...\n\nExample:\n- https://drive.google.com/file/evidence1\n- https://docs.google.com/document/evidence2\n- Screenshots attached in comments\n- Source code: https://github.com/..."
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none text-gray-800 placeholder:text-gray-400 font-mono text-sm"
-                  />
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    Enter one URL or detail per line.{" "}
-                    {evidenceText.split("\n").filter((l) => l.trim()).length} items added
-                  </p>
+                {/* Uploaded File Item Preview (as seen in image) */}
+                <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xl">🖼️</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-emerald-800 truncate">
+                        completion_screenshot.png
+                      </p>
+                      <p className="text-[11px] text-emerald-600 font-medium">
+                        1.2 MB · Uploaded ✓
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setEvidenceText("")}
+                    className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                {/* Note input */}
+                <div>
+                  <input
+                    type="text"
+                    value={evidenceText}
+                    onChange={(e) => setEvidenceText(e.target.value)}
+                    placeholder="Add a note about this evidence (optional)"
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-xs text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={closeEvidenceModal}
+                    className="flex-1 py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold rounded-xl transition-all text-sm shadow-sm"
+                  >
+                    Cancel
+                  </button>
                   <button
                     onClick={handleSubmitWithEvidence}
-                    disabled={submittingEvidence || !evidenceText.trim()}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={submittingEvidence}
+                    className="flex-1 py-3 px-4 bg-[#1A60FF] hover:bg-blue-600 text-white font-semibold rounded-xl transition-all text-sm shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {submittingEvidence ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Submitting...
+                        Saving...
                       </>
                     ) : (
-                      <>
-                        <SendIcon className="w-4 h-4" />
-                        Submit & Complete
-                      </>
+                      "Save Evidence"
                     )}
-                  </button>
-                  <button
-                    onClick={closeEvidenceModal}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
-                  >
-                    Cancel
                   </button>
                 </div>
               </div>
