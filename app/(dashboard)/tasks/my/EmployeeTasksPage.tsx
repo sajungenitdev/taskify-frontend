@@ -35,12 +35,15 @@ import {
   Play,
   Pause,
   Square,
-  EyeIcon,
   Sparkles,
   Layers,
   Filter as FilterIcon,
   History,
   Timer as TimerIcon,
+  Check,
+  Text,
+  Send as SendIcon,
+  PlayIcon,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -103,53 +106,9 @@ const PRIORITY_CONFIG = {
   },
 } as const;
 
-const STATUS_CONFIG = {
-  pending: {
-    label: "Pending",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-700",
-  },
-  in_progress: {
-    label: "In Progress",
-    bg: "bg-sky-50",
-    border: "border-sky-200",
-    text: "text-sky-700",
-  },
-  submitted: {
-    label: "Submitted",
-    bg: "bg-purple-50",
-    border: "border-purple-200",
-    text: "text-purple-700",
-  },
-  completed: {
-    label: "Completed",
-    bg: "bg-emerald-50",
-    border: "border-emerald-200",
-    text: "text-emerald-700",
-  },
-  overdue: {
-    label: "Overdue",
-    bg: "bg-rose-50",
-    border: "border-rose-200",
-    text: "text-rose-700",
-  },
-  rejected: {
-    label: "Rejected",
-    bg: "bg-red-50",
-    border: "border-red-200",
-    text: "text-red-700",
-  },
-} as const;
-
 const getPriorityConfig = (priority: string) => {
   const key = priority as keyof typeof PRIORITY_CONFIG;
   return PRIORITY_CONFIG[key] || PRIORITY_CONFIG.normal;
-};
-
-const getStatusConfig = (status: string) => {
-  const key = status as keyof typeof STATUS_CONFIG;
-  return STATUS_CONFIG[key] || STATUS_CONFIG.pending;
 };
 
 export default function EmployeeTasksPage() {
@@ -162,7 +121,6 @@ export default function EmployeeTasksPage() {
     resumeTimer,
     stopTimer,
     stopTimerAutomatically,
-    formatTime,
     formatTimeShort,
     getDisplayTimeForTask,
     isTimerActiveForTask,
@@ -174,20 +132,20 @@ export default function EmployeeTasksPage() {
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<"list" | "grid">("list");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedPriority, setSelectedPriority] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [sortBy] = useState<"deadline" | "priority" | "title">("deadline");
   const [sortOrder] = useState<"asc" | "desc">("asc");
-  const [isCompleting, setIsCompleting] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<"all" | "today" | "overdue" | "done">("all");
-  const [showFilters, setShowFilters] = useState(false);
-  const [isReworking, setIsReworking] = useState<string | null>(null);
+
+  // Evidence Modal state
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [evidenceTask, setEvidenceTask] = useState<Task | null>(null);
+  const [evidenceText, setEvidenceText] = useState("");
+  const [submittingEvidence, setSubmittingEvidence] = useState(false);
 
   const itemsPerPage = 10;
 
@@ -247,167 +205,93 @@ export default function EmployeeTasksPage() {
     }
   };
 
-  const handleMarkComplete = async (taskId: string) => {
-    if (isCompleting === taskId) return;
-    const task = tasks.find(t => t._id === taskId);
-    if (!task) return;
+  const openEvidenceModal = (task: Task) => {
+    setEvidenceTask(task);
+    setEvidenceText("");
+    setShowEvidenceModal(true);
+  };
 
-    if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
-      toast.error("⚠️ Evidence required! Please upload evidence before completing this task.");
+  const closeEvidenceModal = () => {
+    setShowEvidenceModal(false);
+    setEvidenceTask(null);
+    setEvidenceText("");
+  };
+
+  const handleSubmitWithEvidence = async () => {
+    if (!evidenceTask) return;
+    if (!evidenceText.trim()) {
+      toast.error("Please provide evidence details");
       return;
     }
 
-    setIsCompleting(taskId);
+    setSubmittingEvidence(true);
     try {
-      let actualMinutes = task.actualMinutes || 0;
-      if (isTimerActiveForTask(taskId)) {
-        const timerResult = await stopTimerAutomatically(taskId);
-        if (timerResult.success && timerResult.minutes > 0) {
-          actualMinutes = timerResult.minutes;
+      const evidenceUrls = evidenceText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+
+      if (evidenceUrls.length === 0) {
+        toast.error("Please provide at least one evidence item");
+        setSubmittingEvidence(false);
+        return;
+      }
+
+      await api.post(`/tasks/${evidenceTask._id}/evidence`, {
+        evidenceUrls: evidenceUrls,
+      });
+
+      let actualMinutes = evidenceTask.actualMinutes || 0;
+
+      if (isTimerActiveForTask(evidenceTask._id)) {
+        try {
+          const timerResult = await stopTimerAutomatically(evidenceTask._id);
+          if (timerResult.success && timerResult.minutes > 0) {
+            actualMinutes = timerResult.minutes;
+          }
+        } catch (timerError) {
+          console.warn("Timer stop error:", timerError);
         }
       }
 
-      const response = await api.patch(`/tasks/${taskId}/status`, {
-        status: "completed",
+      const response = await api.patch(`/tasks/${evidenceTask._id}/complete`, {
         actualMinutes: actualMinutes,
-        approvalNote: "Task marked as complete by assignee",
+        approvalNote: "Task completed with evidence",
       });
 
       if (response.data.success) {
-        toast.success(`✅ Task completed!`);
+        toast.success("✅ Task completed with evidence!");
+        setShowEvidenceModal(false);
+        setEvidenceTask(null);
+        setEvidenceText("");
         await fetchMyTasks();
-        setSelectedTask(null);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to mark task as complete");
-    } finally {
-      setIsCompleting(null);
-    }
-  };
-
-  const handleSubmitForReview = async (taskId: string) => {
-    if (isSubmitting === taskId) return;
-    const task = tasks.find(t => t._id === taskId);
-    if (!task) return;
-
-    if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
-      toast.error("⚠️ Evidence required! Please upload evidence before submitting.");
-      return;
-    }
-
-    setIsSubmitting(taskId);
-    try {
-      if (isTimerActiveForTask(taskId)) {
-        await stopTimerAutomatically(taskId);
-      }
-
-      const response = await api.patch(`/tasks/${taskId}/status`, {
-        status: "submitted",
-      });
-
-      if (response.data.success) {
-        toast.success(`✅ Task submitted for review!`);
-        await fetchMyTasks();
-        setSelectedTask(null);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to submit task");
-    } finally {
-      setIsSubmitting(null);
-    }
-  };
-
-  const handleSendForRework = async (taskId: string) => {
-    if (isReworking === taskId) return;
-    if (!confirm("Send this task back for rework?")) return;
-
-    setIsReworking(taskId);
-    try {
-      const response = await api.patch(`/tasks/${taskId}/status`, {
-        status: "pending",
-      });
-
-      if (response.data.success) {
-        toast.success(`🔄 Task sent back for rework!`);
-        await fetchMyTasks();
-        setSelectedTask(null);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to send for rework");
-    } finally {
-      setIsReworking(null);
-    }
-  };
-
-  const handleStartTimer = async (taskId: string) => {
-    const task = tasks.find((t) => t._id === taskId);
-    if (!task) {
-      toast.error("Task not found");
-      return;
-    }
-
-    if (!isTaskAssignee(task)) {
-      toast.error("You don't have permission to start timer for this task");
-      return;
-    }
-
-    if (activeTimerTaskId && activeTimerTaskId !== taskId) {
-      if (isTimerValidForCurrentUser()) {
-        toast.error(
-          `⚠️ A timer is already running for another task. Please stop that timer first.`,
-          { duration: 4000 }
-        );
-        return;
       } else {
-        resetTimer();
+        throw new Error("Failed to complete task");
       }
-    }
-
-    const baselineSeconds = (task.actualMinutes || 0) * 60;
-    startTimer(taskId, baselineSeconds);
-    toast.success(`⏱️ Timer started for "${task.title}"`);
-  };
-
-  const handlePauseTimer = () => {
-    pauseTimer();
-    toast.success("⏸️ Timer paused");
-  };
-
-  const handleResumeTimer = () => {
-    resumeTimer();
-    toast.success("▶️ Timer resumed");
-  };
-
-  const handleStopTimer = async (taskId: string) => {
-    try {
-      const result = await stopTimer(taskId);
-      if (result.success && result.minutes > 0) {
-        toast.success(`⏱️ Time tracked: ${result.displayTime}`);
-        await fetchMyTasks();
-      } else if (result.success) {
-        toast.success("⏱️ Timer stopped");
-      }
-      return result;
-    } catch (error) {
-      toast.error("Failed to stop timer");
-      return { success: false, minutes: 0, displayTime: "0m" };
+    } catch (error: any) {
+      console.error("Error submitting evidence:", error);
+      toast.error(error.response?.data?.message || "Failed to complete task with evidence");
+    } finally {
+      setSubmittingEvidence(false);
     }
   };
 
-  const getTotalTimeForTask = useCallback((task: Task) => {
-    if (!task) return { minutes: 0, display: "0m" };
-    let totalMinutes = task.actualMinutes || 0;
-    if (isTimerActiveForTask(task._id)) {
-      const currentMinutes = Math.floor(timerState.elapsedSeconds / 60);
-      totalMinutes = (task.actualMinutes || 0) + currentMinutes;
-    }
-    return {
-      minutes: totalMinutes,
-      display: formatTimeShort(totalMinutes * 60)
-    };
-  }, [timerState, isTimerActiveForTask, formatTimeShort]);
+  const handleCheckboxClick = (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
 
-  // Helper functions for filtering
+    if (task.status === "completed") {
+      toast.info("Task is already completed");
+      return;
+    }
+
+    openEvidenceModal(task);
+  };
+
+  const handleTaskClick = (task: Task) => {
+    router.push(`/tasks/${task._id}`);
+  };
+
   const filterByType = useCallback((task: Task, filterType: string) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -548,121 +432,78 @@ export default function EmployeeTasksPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 w-full max-w-7xl">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm mb-6 text-gray-500">
-          <Link href="/dashboard" className="hover:text-gray-700 transition flex items-center gap-1">
-            <Home className="w-4 h-4" />
-            Dashboard
-          </Link>
-          <ChevronRight className="w-4 h-4 text-gray-300" />
-          <span className="text-gray-900 font-medium">My Tasks</span>
-        </nav>
-
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Manage and track tasks assigned to you</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-md"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2 transition shadow-sm"
             >
               <Plus className="w-4 h-4" />
               Add Task
-            </button>
-            <button
-              onClick={fetchMyTasks}
-              className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg transition shadow-sm"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex flex-wrap gap-1 mb-4 bg-white rounded-lg p-1 border border-gray-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <button
             onClick={() => setFilterType("all")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${filterType === "all"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-gray-600 hover:bg-gray-100"
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "all"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             All ({stats.total})
           </button>
           <button
             onClick={() => setFilterType("today")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${filterType === "today"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-gray-600 hover:bg-gray-100"
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "today"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             Today ({stats.pending + stats.inProgress})
           </button>
           <button
             onClick={() => setFilterType("overdue")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${filterType === "overdue"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-gray-600 hover:bg-gray-100"
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "overdue"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             Overdue ({stats.overdue})
           </button>
           <button
             onClick={() => setFilterType("done")}
-            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${filterType === "done"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "text-gray-600 hover:bg-gray-100"
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${filterType === "done"
+                ? "bg-gray-900 text-white shadow-sm"
+                : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-100"
               }`}
           >
             Done ({stats.completed})
           </button>
-          <div className="flex-1" />
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-1.5 rounded-md transition ${showFilters ? "bg-indigo-100 text-indigo-600" : "text-gray-400 hover:bg-gray-100"
-                }`}
-            >
-              <FilterIcon className="w-4 h-4" />
-            </button>
-            <div className="flex bg-gray-100 rounded-md p-0.5">
-              <button
-                onClick={() => setView("list")}
-                className={`p-1.5 rounded-md transition ${view === "list" ? "bg-white shadow-sm" : ""
-                  }`}
-              >
-                <List className="w-4 h-4 text-gray-600" />
-              </button>
-              <button
-                onClick={() => setView("grid")}
-                className={`p-1.5 rounded-md transition ${view === "grid" ? "bg-white shadow-sm" : ""
-                  }`}
-              >
-                <Grid className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <div className="flex-1 relative min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        {/* Search Bar & Dropdowns */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <div className="flex-1 relative min-w-[220px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition shadow-sm"
             />
           </div>
           <select
             value={selectedPriority}
             onChange={(e) => setSelectedPriority(e.target.value)}
-            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition shadow-sm"
           >
             <option value="">All priorities</option>
             <option value="low">Low</option>
@@ -673,46 +514,19 @@ export default function EmployeeTasksPage() {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
+            className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition shadow-sm"
           >
-            <option value="">All status</option>
+            <option value="">Deadline: any</option>
             <option value="pending">Pending</option>
-            <option value="in_progress">In Progress</option>
+            <option value="in_progress">Running</option>
             <option value="submitted">Submitted</option>
             <option value="completed">Completed</option>
             <option value="overdue">Overdue</option>
-            <option value="rejected">Rejected</option>
           </select>
         </div>
 
-        {/* Filters Expand */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden mb-4"
-            >
-              <div className="flex flex-wrap gap-2 bg-white rounded-lg p-3 border border-gray-200 shadow-sm">
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedPriority("");
-                    setSelectedStatus("");
-                    setFilterType("all");
-                  }}
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition"
-                >
-                  Reset Filters
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Tasks List View */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-100">
             {paginatedTasks.length === 0 ? (
               <div className="text-center py-12">
@@ -723,145 +537,99 @@ export default function EmployeeTasksPage() {
               paginatedTasks.map((task) => {
                 const isTimerActive = isTimerActiveForTask(task._id);
                 const isRunning = isTimerActive && timerState.isRunning;
-                const displayTime = getDisplayTimeForTask(task._id, task.actualMinutes);
-                const totalTime = getTotalTimeForTask(task);
-                const isAssignee = isTaskAssignee(task);
-                const isTaskTimerValid = isAssignee && isTimerValidForCurrentUser();
                 const isCompleted = task.status === "completed";
-                const isOverdue = task.status === "overdue";
+                const isSubmitted = task.status === "submitted";
+                // Only mark as overdue if NOT completed and NOT submitted
+                const isOverdue = !isCompleted && !isSubmitted && (task.status === "overdue" || new Date(task.deadline) < new Date());
                 const dueDateStr = formatDateFull(task.deadline);
+                const priorityConfig = getPriorityConfig(task.priority);
+                const hasEvidence = task.evidenceUrls && task.evidenceUrls.length > 0;
+                const needsEvidence = task.evidenceRequired && !hasEvidence;
 
                 return (
                   <div
                     key={task._id}
-                    className={`flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition cursor-pointer group ${isCompleted ? "bg-gray-50/50" : ""
-                      }`}
-                    onClick={() => setSelectedTask(task)}
+                    onClick={() => handleTaskClick(task)}
+                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50/80 transition cursor-pointer group"
                   >
-                    {/* Checkbox/Status indicator */}
-                    <div className="flex-shrink-0">
-                      {isCompleted ? (
-                        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                          <CheckCircle className="w-3 h-3 text-white" />
-                        </div>
-                      ) : (
-                        <div className="w-5 h-5 rounded-full border-2 border-gray-300 group-hover:border-indigo-400 transition" />
-                      )}
-                    </div>
-
-                    {/* Task Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-sm font-medium ${isCompleted ? "text-gray-400 line-through" : "text-gray-800"}`}>
+                    {/* Left: Checkbox & Title */}
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1 mr-4">
+                      <button
+                        type="button"
+                        onClick={(e) => handleCheckboxClick(task, e)}
+                        disabled={isCompleted}
+                        className="flex-shrink-0 focus:outline-none relative group/checkbox"
+                        title={isCompleted ? "Completed" : "Click to submit evidence and complete"}
+                      >
+                        {isCompleted ? (
+                          <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center transition shadow-sm">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                        ) : needsEvidence ? (
+                          <div className="w-5 h-5 rounded-full bg-amber-200 border-2 border-amber-400 flex items-center justify-center transition shadow-sm hover:bg-amber-300 cursor-pointer">
+                            <Paperclip className="w-2.5 h-2.5 text-amber-700" />
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 group-hover:border-blue-500 transition" />
+                        )}
+                        {needsEvidence && (
+                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
+                        )}
+                      </button>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p
+                          className={`text-sm font-medium truncate ${isCompleted ? "text-gray-400 line-through" : "text-gray-800"}`}
+                        >
                           {task.title}
                         </p>
-                        {isTimerActive && isTaskTimerValid && (
-                          <span className="text-xs text-emerald-600 flex items-center gap-1">
-                            <span className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-                            {displayTime}
-                          </span>
-                        )}
-                        {task.status === "in_progress" && (
-                          <span className="text-xs text-emerald-600 flex items-center gap-1">
-                            <Activity className="w-3 h-3" />
-                            Running
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border} ${getPriorityConfig(task.priority).text}`}>
-                          {task.priority}
-                        </span>
-                        {dueDateStr && (
-                          <span className={`text-xs ${isOverdue ? "text-rose-500" : isCompleted ? "text-gray-400" : "text-gray-500"}`}>
-                            {dueDateStr}
-                          </span>
-                        )}
-                        {task.evidenceRequired && (
-                          <span className="text-xs text-amber-600 flex items-center gap-1">
-                            <Paperclip className="w-3 h-3" />
+                        {needsEvidence && (
+                          <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 flex-shrink-0">
+                            <Paperclip className="w-2.5 h-2.5" />
                             Evidence
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {!isCompleted && isAssignee && (
-                        <>
-                          {isTimerActive && isTaskTimerValid ? (
-                            <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  isRunning ? handlePauseTimer() : handleResumeTimer();
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                              >
-                                {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleStopTimer(task._id);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                              >
-                                <Square className="w-4 h-4" />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStartTimer(task._id);
-                              }}
-                              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                              disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
-                            >
-                              <Play className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMarkComplete(task._id);
-                            }}
-                            disabled={isCompleting === task._id}
-                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-40"
-                          >
-                            {isCompleting === task._id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Check className="w-4 h-4" />
-                            )}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSubmitForReview(task._id);
-                            }}
-                            disabled={isSubmitting === task._id}
-                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition disabled:opacity-40"
-                          >
-                            {isSubmitting === task._id ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Send className="w-4 h-4" />
-                            )}
-                          </button>
-                        </>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTask(task);
-                        }}
-                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                    {/* Right: Running status/Due date & Priority Badge */}
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      {isCompleted ? (
+                        <span className="text-xs font-medium text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-md">
+                          <Check className="w-3 h-3" />
+                          Completed
+                        </span>
+                      ) : isSubmitted ? (
+                        <span className="text-xs font-medium text-purple-600 flex items-center gap-1.5 bg-purple-50 px-2.5 py-1 rounded-md">
+                          Submitted
+                        </span>
+                      ) : isRunning ? (
+                        <span className="text-xs font-medium text-blue-600 flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md">
+                          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                          Running
+                        </span>
+                      ) : isTimerActive ? (
+                        <span className="text-xs font-medium text-amber-600 flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-md">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          Paused
+                        </span>
+                      ) : task.status === "in_progress" ? (
+                        <span className="text-xs font-medium text-sky-600 flex items-center gap-1.5 bg-sky-50 px-2.5 py-1 rounded-md">
+                          <PlayIcon className="w-3 h-3" />
+                          Running
+                        </span>
+                      ) : task.status === "rejected" ? (
+                        <span className="text-xs font-medium text-rose-600 flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-md">
+                          Rejected
+                        </span>
+                      ) : dueDateStr ? (
+                        <span className={`text-xs font-medium ${isOverdue ? "text-rose-500" : "text-gray-500"}`}>
+                          {dueDateStr}
+                        </span>
+                      ) : null}
+
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-xl border ${priorityConfig.bg} ${priorityConfig.border} ${priorityConfig.text}`}>
+                        {priorityConfig.label}
+                      </span>
                     </div>
                   </div>
                 );
@@ -871,8 +639,8 @@ export default function EmployeeTasksPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-              <p className="text-sm text-gray-500">
+            <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+              <p className="text-xs text-gray-500">
                 Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
                 {Math.min(currentPage * itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
               </p>
@@ -894,8 +662,8 @@ export default function EmployeeTasksPage() {
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition ${currentPage === pageNum
-                          ? "bg-indigo-600 text-white shadow-md"
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${currentPage === pageNum
+                          ? "bg-blue-600 text-white shadow-sm"
                           : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
                         }`}
                     >
@@ -916,160 +684,88 @@ export default function EmployeeTasksPage() {
         </div>
       </div>
 
-      {/* Task Details Modal */}
+      {/* ============ EVIDENCE SUBMISSION MODAL ============ */}
       <AnimatePresence>
-        {selectedTask && (
+        {showEvidenceModal && evidenceTask && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0">
+              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-center">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    {selectedTask.title}
+                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <Text className="w-5 h-5 text-indigo-500" />
+                    Submit Evidence
                   </h2>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${getPriorityConfig(selectedTask.priority).bg} ${getPriorityConfig(selectedTask.priority).border} ${getPriorityConfig(selectedTask.priority).text}`}>
-                      {selectedTask.priority}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full border ${getStatusConfig(selectedTask.status).bg} ${getStatusConfig(selectedTask.status).border} ${getStatusConfig(selectedTask.status).text}`}>
-                      {selectedTask.status.replace("_", " ")}
-                    </span>
-                  </div>
+                  <p className="text-xs text-gray-500">Evidence is required to complete this task</p>
                 </div>
                 <button
-                  onClick={() => setSelectedTask(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
+                  onClick={closeEvidenceModal}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
                 >
-                  <X className="w-5 h-5" />
+                  <X size={20} className="text-gray-400" />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                  <p className="text-gray-600 text-sm">{selectedTask.description}</p>
+              <div className="p-6 space-y-6">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1">Task</p>
+                  <p className="text-sm font-medium text-gray-800">{evidenceTask.title}</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500">Project</p>
-                    <p className="text-sm font-medium text-gray-800 mt-1">
-                      {selectedTask.projectId?.name || "-"}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500">Deadline</p>
-                    <p className="text-sm font-medium text-gray-800 mt-1">
-                      {new Date(selectedTask.deadline).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500">Time Tracked</p>
-                    <p className="text-sm font-medium text-gray-800 mt-1">
-                      {getDisplayTimeForTask(selectedTask._id, selectedTask.actualMinutes)}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500">Assigned By</p>
-                    <p className="text-sm font-medium text-gray-800 mt-1">
-                      {selectedTask.assignedBy?.fullName || "-"}
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Evidence Required</p>
+                    <p className="text-xs text-amber-700">
+                      Please provide evidence details below. You can add URLs or describe the evidence.
                     </p>
                   </div>
                 </div>
 
-                {/* Timer Controls */}
-                {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" && (
-                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
-                    <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                      <TimerIcon className="w-4 h-4 text-indigo-600" />
-                      Time Tracking
-                    </p>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {isTimerActiveForTask(selectedTask._id) && isTimerValidForCurrentUser() ? (
-                        <>
-                          <div className="flex-1">
-                            <span className="text-2xl font-mono font-bold text-indigo-700">
-                              {formatTime(timerState.elapsedSeconds)}
-                            </span>
-                            <span className={`text-xs font-medium ml-2 ${isTimerRunning ? "text-emerald-600" : "text-amber-600"}`}>
-                              {isTimerRunning ? "● Running" : "● Paused"}
-                            </span>
-                          </div>
-                          <div className="flex gap-2">
-                            {isTimerRunning ? (
-                              <button onClick={handlePauseTimer} className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition">
-                                <Pause className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button onClick={handleResumeTimer} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition">
-                                <Play className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button onClick={() => handleStopTimer(selectedTask._id)} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition">
-                              <Square className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex-1">
-                            <span className="text-sm text-gray-500">
-                              {selectedTask.actualMinutes ? `${selectedTask.actualMinutes}m logged` : "No time tracked"}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleStartTimer(selectedTask._id)}
-                            disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition disabled:opacity-50"
-                          >
-                            <Play className="w-4 h-4" />
-                            Start Timer
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Evidence Details <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    value={evidenceText}
+                    onChange={(e) => setEvidenceText(e.target.value)}
+                    rows={6}
+                    placeholder="Enter evidence details or URLs...\n\nExample:\n- https://drive.google.com/file/evidence1\n- https://docs.google.com/document/evidence2\n- Screenshots attached in comments\n- Source code: https://github.com/..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none text-gray-800 placeholder:text-gray-400 font-mono text-sm"
+                  />
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Enter one URL or detail per line.{" "}
+                    {evidenceText.split("\n").filter((l) => l.trim()).length} items added
+                  </p>
+                </div>
 
-                <div className="flex gap-3 pt-4 border-t border-gray-200 flex-wrap">
-                  {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" && selectedTask.status !== "submitted" && selectedTask.status !== "rejected" && (
-                    <>
-                      <button
-                        onClick={() => handleSubmitForReview(selectedTask._id)}
-                        disabled={isSubmitting === selectedTask._id}
-                        className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {isSubmitting === selectedTask._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                        Submit Review
-                      </button>
-                      <button
-                        onClick={() => handleMarkComplete(selectedTask._id)}
-                        disabled={isCompleting === selectedTask._id}
-                        className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {isCompleting === selectedTask._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                        Complete
-                      </button>
-                    </>
-                  )}
-                  {selectedTask.status === "rejected" && isTaskAssignee(selectedTask) && (
-                    <button
-                      onClick={() => handleSendForRework(selectedTask._id)}
-                      disabled={isReworking === selectedTask._id}
-                      className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {isReworking === selectedTask._id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Send for Rework
-                    </button>
-                  )}
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <button
-                    onClick={() => setSelectedTask(null)}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl transition"
+                    onClick={handleSubmitWithEvidence}
+                    disabled={submittingEvidence || !evidenceText.trim()}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Close
+                    {submittingEvidence ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <SendIcon className="w-4 h-4" />
+                        Submit & Complete
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={closeEvidenceModal}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
                   </button>
                 </div>
               </div>
