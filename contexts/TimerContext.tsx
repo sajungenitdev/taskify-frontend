@@ -266,14 +266,19 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   // ============ FORMAT FUNCTIONS ============
   const formatTime = useCallback((seconds: number): string => {
-    const roundedSeconds = Math.round(seconds * 10) / 10;
-    const hrs = Math.floor(roundedSeconds / 3600);
-    const mins = Math.floor((roundedSeconds % 3600) / 60);
-    const secs = Math.floor(roundedSeconds % 60);
+    // Handle negative or invalid values
+    if (seconds < 0 || !isFinite(seconds)) {
+      return "0m 0s";
+    }
 
-    return hrs > 0
-      ? `${hrs}h ${mins.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`
-      : `${mins.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hrs > 0) {
+      return `${hrs}h ${mins.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
+    }
+    return `${mins.toString().padStart(2, "0")}m ${secs.toString().padStart(2, "0")}s`;
   }, []);
 
   const formatTimeShort = useCallback((seconds: number): string => {
@@ -315,14 +320,15 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       const now = Date.now();
 
+      // ✅ Start from 0 for the current session
       const newState: TimerState = {
         taskId,
         isRunning: true,
-        seconds: initialSeconds,
-        elapsedSeconds: initialSeconds,
-        startedAt: now - initialSeconds * 1000,
+        seconds: 0,  // ✅ Always start from 0
+        elapsedSeconds: 0,  // ✅ Always start from 0
+        startedAt: now,
         lastSavedTime: now,
-        lastSyncedMinutes: Math.floor(initialSeconds / 60),
+        lastSyncedMinutes: 0,
         userId,
       };
 
@@ -331,6 +337,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       saveTimerToStorage(newState);
 
+      // ✅ Update interval to 1000ms (1 second) for accurate counting
       timerIntervalRef.current = setInterval(() => {
         if (currentIntervalId !== intervalIdRef.current) {
           return;
@@ -344,6 +351,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // Calculate elapsed seconds from startedAt
         const elapsedSeconds = Math.floor(
           (Date.now() - timerStateRef.current.startedAt) / 1000
         );
@@ -356,15 +364,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           const updated = {
             ...prev,
             seconds: elapsedSeconds,
-            elapsedSeconds,
+            elapsedSeconds: elapsedSeconds,
             lastSavedTime: Date.now(),
           };
 
           timerStateRef.current = updated;
-
           return updated;
         });
-      }, 250);
+      }, 1000); // ✅ Use 1000ms for accurate 1-second increments
 
       // Backend sync every 30 seconds
       syncIntervalRef.current = setInterval(() => {
@@ -563,6 +570,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         isRunning: false,
         seconds: 0,
         elapsedSeconds: 0,
+        startedAt: null,
         lastSavedTime: Date.now(),
         lastSyncedMinutes: 0,
         userId: getCurrentUserId(),
