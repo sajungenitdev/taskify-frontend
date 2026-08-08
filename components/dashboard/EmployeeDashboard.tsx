@@ -288,7 +288,7 @@ export default function EmployeeDashboard() {
       setActiveTimer(task);
       setTimerSeconds(0);
       setIsTimerRunning(true);
-      toast.warning("Timer started locally. Syncing with server...");
+      toast.error("Timer started locally. Syncing with server...");
       // Try to sync after a moment
       setTimeout(async () => {
         try {
@@ -318,7 +318,7 @@ export default function EmployeeDashboard() {
       console.error("Pause timer error:", error);
       // Fallback: pause locally
       setIsTimerRunning(false);
-      toast.warning("Timer paused locally. Syncing with server...");
+      toast.error("Timer paused locally. Syncing with server...");
       setTimeout(async () => {
         try {
           await api.post(`/tasks/${activeTimer._id}/timer/pause`, {
@@ -347,7 +347,7 @@ export default function EmployeeDashboard() {
       console.error("Resume timer error:", error);
       // Fallback: resume locally
       setIsTimerRunning(true);
-      toast.warning("Timer resumed locally. Syncing with server...");
+      toast.error("Timer resumed locally. Syncing with server...");
       setTimeout(async () => {
         try {
           await api.post(`/tasks/${activeTimer._id}/timer/resume`);
