@@ -22,8 +22,7 @@ export default function DashboardLayout({
   const [isNavigating, setIsNavigating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // State for modals
-  const [showAssistant, setShowAssistant] = useState(false);
+  // State for notifications modal
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Set mounted state to prevent hydration issues
@@ -71,7 +70,7 @@ export default function DashboardLayout({
       );
   }, []);
 
-  // Handle authentication and show modals
+  // Handle authentication and show notifications modal
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
       // Check if this is first login
@@ -79,15 +78,14 @@ export default function DashboardLayout({
       const notificationsShown = localStorage.getItem("notificationsPageShown");
 
       if (!hasLoggedInBefore) {
-        // First time login - show Assistant first, then Notifications
-        setShowAssistant(true);
+        // First time login - show notifications
+        setShowNotifications(true);
         localStorage.setItem("hasLoggedInBefore", "true");
       } else if (!notificationsShown) {
         // Not first login but notifications not shown yet - show notifications
         setShowNotifications(true);
       } else {
         // Check if notifications were skipped but we want to show again
-        // Only show if notifications were never enabled
         const notificationsEnabled = localStorage.getItem("notificationsEnabled");
         if (!notificationsEnabled) {
           // Show notifications banner again (like cookie consent)
@@ -161,42 +159,22 @@ export default function DashboardLayout({
         />
       )}
 
-      {/* Assistant Wizard - Shows on first login */}
-      <AssistantWizard
-        isOpen={showAssistant}
-        onClose={() => {
-          setShowAssistant(false);
-          // After assistant closes, show notifications
-          setShowNotifications(true);
-        }}
-        onSkip={() => {
-          setShowAssistant(false);
-          setShowNotifications(true);
-        }}
-        onComplete={() => {
-          setShowAssistant(false);
-          setShowNotifications(true);
-        }}
-      />
+      {/* Assistant Wizard - Self-contained floating assistant */}
+      <AssistantWizard />
 
       {/* Enable Notifications Page - Shows as bottom banner */}
       <EnableNotificationsPage
         isOpen={showNotifications}
         onClose={() => {
           setShowNotifications(false);
-          // Mark notifications as shown
           localStorage.setItem("notificationsPageShown", "true");
-          // Also mark as enabled if they actually enabled it
-          // The onEnable callback will handle that
         }}
         onEnable={() => {
-          // User enabled notifications
           localStorage.setItem("notificationsEnabled", "true");
           localStorage.setItem("notificationsPageShown", "true");
           setShowNotifications(false);
         }}
         onSkip={() => {
-          // User skipped notifications
           localStorage.setItem("notificationsPageShown", "true");
           localStorage.setItem("notificationsSkipped", "true");
           setShowNotifications(false);
