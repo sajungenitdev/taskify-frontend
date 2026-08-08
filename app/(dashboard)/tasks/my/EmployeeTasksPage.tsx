@@ -146,7 +146,7 @@ export default function EmployeeTasksPage() {
   const [evidenceTask, setEvidenceTask] = useState<Task | null>(null);
   const [evidenceText, setEvidenceText] = useState("");
   const [submittingEvidence, setSubmittingEvidence] = useState(false);
-
+console.log(tasks, "tasks")
   const itemsPerPage = 10;
 
   const isTaskAssignee = useCallback((task: Task): boolean => {
@@ -615,7 +615,7 @@ export default function EmployeeTasksPage() {
                       ) : task.status === "in_progress" ? (
                         <span className="text-xs font-medium text-sky-600 flex items-center gap-1.5 bg-sky-50 px-2.5 py-1 rounded-md">
                           <PlayIcon className="w-3 h-3" />
-                          Running
+                          In Progress
                         </span>
                       ) : task.status === "rejected" ? (
                         <span className="text-xs font-medium text-rose-600 flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-md">

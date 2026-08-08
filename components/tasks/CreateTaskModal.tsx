@@ -258,10 +258,10 @@ const WorkloadBadge = ({
       <div className="mt-1.5 w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${workload.statusColor === "red"
-              ? "bg-red-500"
-              : workload.statusColor === "amber"
-                ? "bg-amber-500"
-                : "bg-emerald-500"
+            ? "bg-red-500"
+            : workload.statusColor === "amber"
+              ? "bg-amber-500"
+              : "bg-emerald-500"
             }`}
           style={{ width: `${Math.min(workload.capacityPercentage, 100)}%` }}
         />
@@ -305,6 +305,7 @@ export default function CreateTaskModal({
   const [workloadData, setWorkloadData] = useState<
     Record<string, WorkloadInfo>
   >({});
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -338,9 +339,8 @@ export default function CreateTaskModal({
     isLineManager;
 
   const canViewWorkload = useMemo(() => {
-    return isSuperAdmin || isAdmin || isHrManager || isDeptManager || isLineManager;
-  }, [isSuperAdmin, isAdmin, isHrManager, isDeptManager, isLineManager]);
-
+    return isSuperAdmin || isAdmin || isHrManager || isDeptManager || isLineManager || isProjectManager;
+  }, [isSuperAdmin, isAdmin, isHrManager, isDeptManager, isLineManager, isProjectManager]);
   // ============ FETCH WORKLOAD DATA ============
   const fetchWorkloadData = useCallback(async (usersList: User[]) => {
     if (!canViewWorkload || !usersList || usersList.length === 0) {
@@ -398,13 +398,48 @@ export default function CreateTaskModal({
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const response = await api.get("/users");
+
+      let endpoint = "/users";
+
+      // If project manager, fetch users from their department
+      if (isProjectManager) {
+        const deptId = getDepartmentId(user);
+        if (deptId) {
+          endpoint = `/users/department/${deptId}`;
+          console.log(`📥 Fetching users from department endpoint: ${endpoint}`);
+        }
+      }
+
+      const response = await api.get(endpoint);
 
       if (response.data.success) {
         const usersData = response.data.data || [];
+
+        console.log(`✅ Got ${usersData.length} users from API`);
+
         let filtered: User[] = usersData;
 
-        if (isDeptManager) {
+        // For project managers, the department endpoint already filters by department
+        // but we'll keep the filter logic for other roles
+        if (isProjectManager) {
+          // The department endpoint already returns only users in the department
+          // No need to filter again, but we'll keep the logic just in case
+          const managerDeptId = getDepartmentId(user);
+          if (managerDeptId) {
+            filtered = usersData.filter((u: User) => {
+              if (u.role === "super_admin") return false;
+              const userDeptId = getDepartmentId(u);
+              const userDeptName = getDepartmentName(u);
+              const managerDeptName = getDepartmentName(user);
+
+              // Match by ID or by name
+              return userDeptId === managerDeptId ||
+                (userDeptName && managerDeptName && userDeptName === managerDeptName);
+            });
+          } else {
+            filtered = usersData.filter((u: User) => u.role !== "super_admin");
+          }
+        } else if (isDeptManager) {
           const managerDeptId = getDepartmentId(user);
           filtered = usersData.filter((u: User) => {
             if (u.role === "super_admin") return false;
@@ -421,6 +456,7 @@ export default function CreateTaskModal({
           filtered = usersData.filter((u: User) => u._id === user?._id);
         }
 
+        console.log(`📊 After filtering: ${filtered.length} users`);
         setUsers(filtered);
         setFilteredUsers(filtered);
 
@@ -436,8 +472,25 @@ export default function CreateTaskModal({
     } finally {
       setLoadingUsers(false);
     }
-  }, [user, isDeptManager, isLineManager, isEmployee, canViewWorkload, fetchWorkloadData]);
+  }, [user, isProjectManager, isDeptManager, isLineManager, isEmployee, canViewWorkload, fetchWorkloadData]);
+  // Keep ONLY this one - remove the duplicate inside the component
+  const getDepartmentName = (user: User | null | undefined): string | null => {
+    if (!user) return null;
 
+    if (user.department) {
+      if (isDepartmentObject(user.department)) {
+        return user.department.name;
+      }
+    }
+
+    if (user.departmentId) {
+      if (isDepartmentObject(user.departmentId)) {
+        return user.departmentId.name;
+      }
+    }
+
+    return null;
+  };
   // ============ EFFECTS ============
   useEffect(() => {
     if (isOpen && !isDataLoaded) {
@@ -458,8 +511,40 @@ export default function CreateTaskModal({
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
-  // Filter users by selected department
+  // ============ AUTO-SELECT DEPARTMENT FOR PROJECT MANAGER ============
+  useEffect(() => {
+    if (isProjectManager && user && isOpen) {
+      const deptId = getDepartmentId(user);
+      if (deptId) {
+        setSelectedDepartment(deptId);
+      } else {
+        // If no department ID, try to find by name
+        const deptName = getDepartmentName(user);
+        if (deptName) {
+          const dept = departments.find(d => d.name === deptName);
+          if (dept) {
+            setSelectedDepartment(dept._id);
+          }
+        }
+      }
+    }
+  }, [isProjectManager, user, isOpen, departments]);
+
+  // Filter users by selected department - but for project managers, use the department filter
   const filteredUsersByDepartment = useMemo(() => {
+    if (isProjectManager && selectedDepartment) {
+      const filtered = users.filter((u) => {
+        const userDeptId = getDepartmentId(u);
+        const userDeptName = getDepartmentName(u);
+        const selectedDept = departments.find(d => d._id === selectedDepartment);
+
+        // Match by ID or by name
+        return userDeptId === selectedDepartment ||
+          (userDeptName && selectedDept && userDeptName === selectedDept.name);
+      });
+      return filtered;
+    }
+
     if (selectedDepartment && users.length > 0) {
       return users.filter((u) => {
         const userDeptId = getDepartmentId(u);
@@ -467,7 +552,7 @@ export default function CreateTaskModal({
       });
     }
     return users;
-  }, [selectedDepartment, users]);
+  }, [selectedDepartment, users, isProjectManager, departments]);
 
   useEffect(() => {
     setFilteredUsers(filteredUsersByDepartment);
@@ -686,6 +771,26 @@ export default function CreateTaskModal({
         }
       }
 
+      if (isProjectManager) {
+        const assignedUser = users.find((u) => u._id === formData.assignedTo);
+        if (assignedUser) {
+          const assignedUserDept = getDepartmentId(assignedUser);
+          const managerDept = getDepartmentId(user);
+          console.log("Project Manager Check:", {
+            assignedUser: assignedUser.fullName,
+            assignedUserDept,
+            managerDept,
+            match: assignedUserDept === managerDept
+          });
+          if (assignedUserDept !== managerDept) {
+            toast.error(
+              "You can only assign tasks to users in your department",
+            );
+            return;
+          }
+        }
+      }
+
       if (isLineManager) {
         const assignedUser = users.find((u) => u._id === formData.assignedTo);
         if (assignedUser) {
@@ -791,6 +896,9 @@ export default function CreateTaskModal({
 
   // ============ GET AVAILABLE USERS ============
   const getAvailableUsers = useCallback(() => {
+    console.log("Getting available users. Role:", user?.role);
+    console.log("Filtered users:", filteredUsers);
+
     if (isSuperAdmin || isAdmin || isHrManager) {
       return filteredUsers;
     }
@@ -806,6 +914,25 @@ export default function CreateTaskModal({
     }
 
     if (isProjectManager) {
+      const managerDeptId = getDepartmentId(user);
+      const managerDeptName = getDepartmentName(user);
+      console.log("Project Manager - Department ID:", managerDeptId, "Name:", managerDeptName);
+      console.log("All filtered users:", filteredUsers.map(u => ({
+        name: u.fullName,
+        deptId: getDepartmentId(u),
+        deptName: getDepartmentName(u)
+      })));
+
+      if (managerDeptId) {
+        return filteredUsers.filter((u) => {
+          if (u.role === "super_admin") return false;
+          const userDeptId = getDepartmentId(u);
+          const userDeptName = getDepartmentName(u);
+          // Match by ID or by name as fallback
+          return userDeptId === managerDeptId ||
+            (userDeptName && managerDeptName && userDeptName === managerDeptName);
+        });
+      }
       return filteredUsers.filter((u) => u.role !== "super_admin");
     }
 
@@ -935,10 +1062,13 @@ export default function CreateTaskModal({
             <div className="flex items-center gap-2 p-2.5 bg-purple-50 rounded-lg border border-purple-200">
               <Users className="w-4 h-4 text-purple-600" />
               <p className="text-xs text-purple-700">
-                You can assign tasks to team members.
+                You can assign tasks to team members in your department.
               </p>
             </div>
           )}
+
+          {/* Show debug info in development */}
+
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Title & Project Row */}
@@ -1013,11 +1143,17 @@ export default function CreateTaskModal({
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">
                     Department{" "}
-                    {!isQuickTask && <span className="text-rose-500">*</span>}
+                    {!isQuickTask && !isProjectManager && <span className="text-rose-500">*</span>}
                     {isQuickTask && (
                       <span className="text-gray-400 text-xs">
                         {" "}
                         (Auto-assigned)
+                      </span>
+                    )}
+                    {isProjectManager && !isQuickTask && (
+                      <span className="text-gray-400 text-xs">
+                        {" "}
+                        (Auto-set from your department)
                       </span>
                     )}
                   </label>
@@ -1027,8 +1163,8 @@ export default function CreateTaskModal({
                       value={selectedDepartment}
                       onChange={(e) => handleDepartmentChange(e.target.value)}
                       className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                      required={!isQuickTask}
-                      disabled={isQuickTask}
+                      required={!isQuickTask && !isProjectManager}
+                      disabled={isQuickTask || isProjectManager}
                     >
                       <option value="">Select Department</option>
                       {departments.map((dept) => (
@@ -1038,6 +1174,12 @@ export default function CreateTaskModal({
                       ))}
                     </select>
                   </div>
+                  {isProjectManager && selectedDepartment && (
+                    <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                      <Building2 className="w-3 h-3" />
+                      Department: {departments.find(d => d._id === selectedDepartment)?.name || 'Loading...'}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -1067,7 +1209,7 @@ export default function CreateTaskModal({
                           : loadingUsers
                             ? "Loading users..."
                             : availableUsers.length === 0
-                              ? isDeptManager
+                              ? isDeptManager || isProjectManager
                                 ? "No users in your department"
                                 : isLineManager
                                   ? "No direct reports found"
@@ -1118,6 +1260,13 @@ export default function CreateTaskModal({
 
                   {!isQuickTask && isDeptManager && (
                     <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      You can assign tasks to users in your department
+                    </p>
+                  )}
+
+                  {!isQuickTask && isProjectManager && (
+                    <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
                       <Users className="w-3 h-3" />
                       You can assign tasks to users in your department
                     </p>
@@ -1283,7 +1432,10 @@ export default function CreateTaskModal({
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Deadline{" "}
-                  {!isQuickTask && !isEmployee && <span className="text-rose-500">*</span>}
+                  {!isQuickTask && !isEmployee && !isProjectManager && <span className="text-rose-500">*</span>}
+                  {isProjectManager && !isQuickTask && (
+                    <span className="text-gray-400 text-xs"> (Required)</span>
+                  )}
                   {(isQuickTask || isEmployee) && (
                     <span className="text-gray-400 text-xs"> (Auto-set)</span>
                   )}

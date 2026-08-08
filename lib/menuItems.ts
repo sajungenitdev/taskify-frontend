@@ -1,5 +1,6 @@
 // @/lib/navigation/config.ts
 
+import TimerLogPage from "@/app/(dashboard)/tasks/timerlog/page";
 import {
   // Navigation & Layout
   LayoutDashboard,
@@ -412,6 +413,7 @@ export const MAIN_ITEMS = {
       description: "Manage and track all your tasks",
     },
   ),
+
 
   // Team
   team: createNavItem(
@@ -920,6 +922,15 @@ export const SUB_ITEMS = {
     "Tasks",
     [ROLES.ALL],
     { description: "Upload multiple tasks in bulk" },
+  ),
+  timerLog: createSubNavItem(
+    "timer-log",
+    "Timer Log",
+    "/tasks/timerlog",
+    Clock,
+    "Tasks",
+    [ROLES.ALL],
+    { description: "View and manage your timer logs" },
   ),
 
   // Team Sub-items

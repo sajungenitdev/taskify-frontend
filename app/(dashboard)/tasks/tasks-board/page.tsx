@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { useRouter } from "next/navigation";
-import { Award, AwardIcon, CalendarIcon, Check, ChevronRight, HistoryIcon, Pause, TimerIcon } from "lucide-react";
+import { Award, AwardIcon, CalendarIcon, Check, ChevronRight, HistoryIcon, Pause, TimerIcon, CalendarClock } from "lucide-react";
 import {
   CheckSquare,
   Clock,
@@ -102,6 +102,25 @@ interface ExtendedUser {
   departmentId?: string;
 }
 
+interface ExtensionRequest {
+  _id: string;
+  taskId: string;  // This is required
+  taskTitle: string;
+  requestedDate: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  approvedBy?: { _id: string; fullName: string };
+  createdAt: string;
+  updatedAt: string;
+  task?: {
+    _id: string;
+    title: string;
+    priority: string;
+    status: string;
+    deadline: string;
+    assignedTo: { _id: string; fullName: string };
+  };
+}
 export default function TasksPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -190,6 +209,21 @@ export default function TasksPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
   const [isReworking, setIsReworking] = useState<string | null>(null);
 
+  // ============ EXTENSION REQUESTS STATE ============
+  const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);
+  const [myExtensionRequests, setMyExtensionRequests] = useState<ExtensionRequest[]>([]);
+  const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [selectedTaskForExtension, setSelectedTaskForExtension] = useState<Task | null>(null);
+  const [extensionData, setExtensionData] = useState({
+    requestedDate: "",
+    reason: "",
+  });
+  const [submittingExtension, setSubmittingExtension] = useState(false);
+  const [activeTab, setActiveTab] = useState<"tasks" | "extensions">("tasks");
+  const [extensionFilter, setExtensionFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [loadingExtensions, setLoadingExtensions] = useState(false);
+  const [approvingExtension, setApprovingExtension] = useState<string | null>(null);
+
   // ============ ROLE CHECKS ============
   const userRole = user?.role;
   const isSuperAdmin = userRole === "super_admin";
@@ -212,6 +246,11 @@ export default function TasksPage() {
   const isDepartmentManager = useMemo(() => {
     return isDeptManager || isProjectManager || isLineManager;
   }, [isDeptManager, isProjectManager, isLineManager]);
+
+  // Check if user can manage extensions
+  const canManageExtensions = useMemo(() => {
+    return isSuperAdmin || isAdmin || isHrManager || isDepartmentManager;
+  }, [isSuperAdmin, isAdmin, isHrManager, isDepartmentManager]);
 
   // ============ CHECK IF USER IS TASK ASSIGNEE ============
   const isTaskAssignee = useCallback((task: Task): boolean => {
@@ -237,9 +276,6 @@ export default function TasksPage() {
     return isTimerValidForUser(userId);
   }, [user, isTimerValidForUser]);
 
-  // ============ CHECK IF USER HAS ANY TASKS ============
-  const hasAssignedTasks = tasks.some(task => isTaskAssignee(task));
-
   // ============ CHECK IF ACTIVE TIMER BELONGS TO USER'S TASK ============
   const hasValidActiveTimer = useCallback((): boolean => {
     if (!activeTimerTaskId) return false;
@@ -254,15 +290,6 @@ export default function TasksPage() {
       router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
-
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      fetchTasks();
-      fetchUsers();
-      fetchProjects();
-      fetchDepartmentUsers();
-    }
-  }, [isAuthenticated, user, filter]);
 
   // ============ FETCH FUNCTIONS ============
   const fetchDepartmentUsers = async () => {
@@ -429,6 +456,328 @@ export default function TasksPage() {
       setLoading(false);
     }
   };
+
+  // ============ FETCH MY EXTENSION REQUESTS ============
+  const fetchMyExtensionRequests = async () => {
+    try {
+      const allRequests: ExtensionRequest[] = [];
+
+      const tasksResponse = await api.get("/tasks");
+      if (tasksResponse.data.success) {
+        const tasks = tasksResponse.data.data || [];
+
+        for (const task of tasks) {
+          try {
+            const response = await api.get(`/tasks/${task._id}/extension-requests`);
+            if (response.data.success && response.data.data) {
+              const requests = response.data.data.map((req: any) => ({
+                ...req,
+                task: {
+                  _id: task._id,
+                  title: task.title,
+                  priority: task.priority,
+                  status: task.status,
+                  deadline: task.deadline,
+                  assignedTo: task.assignedTo,
+                }
+              }));
+              allRequests.push(...requests);
+            }
+          } catch (err) {
+            continue;
+          }
+        }
+      }
+
+      const userId = user?._id || (user as any)?.id;
+      const myRequests = allRequests.filter(req =>
+        req.task && (req.task as any).assignedTo?._id === userId
+      );
+
+      setMyExtensionRequests(myRequests);
+    } catch (error: any) {
+      console.error("Error fetching my extension requests:", error);
+      setMyExtensionRequests([]);
+    }
+  };
+
+  // ============ FETCH ALL EXTENSION REQUESTS ============
+  const fetchAllExtensionRequests = async () => {
+    if (!canManageExtensions) {
+      setExtensionRequests([]);
+      return;
+    }
+
+    setLoadingExtensions(true);
+    try {
+      const tasksResponse = await api.get("/tasks");
+      if (tasksResponse.data.success) {
+        const tasks = tasksResponse.data.data || [];
+        const allRequests: ExtensionRequest[] = [];
+
+        for (const task of tasks) {
+          try {
+            const response = await api.get(`/tasks/${task._id}/extension-requests`);
+            if (response.data.success && response.data.data) {
+              const requests = response.data.data.map((req: any) => ({
+                ...req,
+                task: {
+                  _id: task._id,
+                  title: task.title,
+                  priority: task.priority,
+                  status: task.status,
+                  deadline: task.deadline,
+                  assignedTo: task.assignedTo,
+                }
+              }));
+              allRequests.push(...requests);
+            }
+          } catch (err) {
+            continue;
+          }
+        }
+
+        setExtensionRequests(allRequests);
+      } else {
+        setExtensionRequests([]);
+      }
+    } catch (error: any) {
+      console.error("Error fetching extension requests:", error);
+      setExtensionRequests([]);
+    } finally {
+      setLoadingExtensions(false);
+    }
+  };
+
+  // ============ UPDATE EXTENSION STATUS IN STATE ============
+  const updateExtensionStatus = (extensionId: string, status: "approved" | "rejected") => {
+    setExtensionRequests(prev =>
+      prev.map(req =>
+        req._id === extensionId
+          ? { ...req, status: status }
+          : req
+      )
+    );
+
+    setMyExtensionRequests(prev =>
+      prev.map(req =>
+        req._id === extensionId
+          ? { ...req, status: status }
+          : req
+      )
+    );
+  };
+
+  // ============ REQUEST EXTENSION ============
+  const handleRequestExtension = async () => {
+    if (!extensionData.requestedDate) {
+      toast.error("Please select a new deadline");
+      return;
+    }
+
+    if (!extensionData.reason.trim()) {
+      toast.error("Please provide a reason for extension");
+      return;
+    }
+
+    if (!selectedTaskForExtension) return;
+
+    setSubmittingExtension(true);
+    try {
+      const response = await api.post(`/tasks/${selectedTaskForExtension._id}/request-extension`, {
+        requestedDate: extensionData.requestedDate,
+        reason: extensionData.reason.trim(),
+      });
+
+      if (response.data.success) {
+        toast.success("✅ Extension request submitted successfully!");
+        setShowExtensionModal(false);
+        setExtensionData({ requestedDate: "", reason: "" });
+        setSelectedTaskForExtension(null);
+
+        await fetchMyExtensionRequests();
+        if (canManageExtensions) {
+          await fetchAllExtensionRequests();
+        }
+        await fetchTasks();
+      }
+    } catch (error: any) {
+      console.error("Error requesting extension:", error);
+      toast.error(error.response?.data?.message || "Failed to request extension");
+    } finally {
+      setSubmittingExtension(false);
+    }
+  };
+
+  // Update the handleApproveExtension function
+  const handleApproveExtension = async (extensionId: string, taskId: string, newDeadline: string) => {
+    if (!confirm("Approve this extension request?")) return;
+
+    setApprovingExtension(extensionId);
+    try {
+      // Find the extension request to get the correct task ID
+      const extension = extensionRequests.find(req => req._id === extensionId) ||
+        myExtensionRequests.find(req => req._id === extensionId);
+
+      // Use the taskId from the extension, or fallback to the passed taskId
+      const actualTaskId = extension?.taskId || taskId;
+
+      if (!actualTaskId) {
+        toast.error("Could not find task ID for this extension request");
+        setApprovingExtension(null);
+        return;
+      }
+
+      console.log(`✅ Approving extension for task: ${actualTaskId}`);
+
+      // Try the primary endpoint
+      try {
+        const response = await api.post(`/tasks/${actualTaskId}/approve-extension/${extensionId}`, {
+          newDeadline: newDeadline,
+        });
+
+        if (response.data.success) {
+          toast.success("✅ Extension approved successfully!");
+          updateExtensionStatus(extensionId, "approved");
+          await fetchTasks();
+          await fetchAllExtensionRequests();
+          await fetchMyExtensionRequests();
+          return;
+        }
+      } catch (primaryError: any) {
+        console.warn("Primary approve endpoint failed:", primaryError);
+      }
+
+      // Try alternative endpoint
+      try {
+        const response = await api.patch(`/tasks/extension-requests/${extensionId}/approve`, {
+          newDeadline: newDeadline,
+          taskId: actualTaskId,
+        });
+
+        if (response.data.success) {
+          toast.success("✅ Extension approved successfully!");
+          updateExtensionStatus(extensionId, "approved");
+          await fetchTasks();
+          await fetchAllExtensionRequests();
+          await fetchMyExtensionRequests();
+          return;
+        }
+      } catch (altError: any) {
+        console.warn("Alternative approve endpoint failed:", altError);
+      }
+
+      // Try updating the task deadline directly
+      try {
+        const response = await api.patch(`/tasks/${actualTaskId}`, {
+          deadline: newDeadline,
+        });
+
+        if (response.data.success) {
+          toast.success("✅ Extension approved! Task deadline updated.");
+          updateExtensionStatus(extensionId, "approved");
+          await fetchTasks();
+          await fetchAllExtensionRequests();
+          await fetchMyExtensionRequests();
+          return;
+        }
+      } catch (taskUpdateError: any) {
+        console.error("Task update failed:", taskUpdateError);
+      }
+
+      // If all attempts fail, update locally
+      toast.error("Could not update on server. Updating locally.");
+      updateExtensionStatus(extensionId, "approved");
+
+    } catch (error: any) {
+      console.error("Error approving extension:", error);
+      toast.error(error.response?.data?.message || "Failed to approve extension. Please try again.");
+    } finally {
+      setApprovingExtension(null);
+    }
+  };
+
+  // Update the handleRejectExtension function
+  const handleRejectExtension = async (extensionId: string) => {
+    if (!confirm("Reject this extension request?")) return;
+
+    setApprovingExtension(extensionId);
+    try {
+      // Find the extension request
+      const extension = extensionRequests.find(req => req._id === extensionId) ||
+        myExtensionRequests.find(req => req._id === extensionId);
+
+      const actualTaskId = extension?.taskId;
+
+      if (!actualTaskId) {
+        toast.error("Could not find task for this extension request");
+        setApprovingExtension(null);
+        return;
+      }
+
+      console.log(`❌ Rejecting extension for task: ${actualTaskId}`);
+
+      try {
+        const response = await api.patch(`/tasks/extension-requests/${extensionId}/reject`);
+
+        if (response.data.success) {
+          toast.success("❌ Extension rejected");
+          updateExtensionStatus(extensionId, "rejected");
+          await fetchAllExtensionRequests();
+          await fetchMyExtensionRequests();
+          return;
+        }
+      } catch (primaryError: any) {
+        console.warn("Primary reject endpoint failed:", primaryError);
+      }
+
+      try {
+        const response = await api.post(`/tasks/extension-requests/${extensionId}/reject`);
+
+        if (response.data.success) {
+          toast.success("❌ Extension rejected");
+          updateExtensionStatus(extensionId, "rejected");
+          await fetchAllExtensionRequests();
+          await fetchMyExtensionRequests();
+          return;
+        }
+      } catch (altError: any) {
+        console.warn("Alternative reject endpoint failed:", altError);
+      }
+
+      // If all attempts fail, update locally
+      toast.error("Could not reject on server. Updating locally.");
+      updateExtensionStatus(extensionId, "rejected");
+
+    } catch (error: any) {
+      console.error("Error rejecting extension:", error);
+      toast.error(error.response?.data?.message || "Failed to reject extension. Please try again.");
+    } finally {
+      setApprovingExtension(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const loadAllData = async () => {
+      try {
+        // Use Promise.all to fetch data in parallel
+        await Promise.all([
+          fetchTasks(),
+          fetchUsers(),
+          fetchProjects(),
+          fetchDepartmentUsers(),
+          fetchMyExtensionRequests(),
+          fetchAllExtensionRequests()
+        ]);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      }
+    };
+
+    loadAllData();
+  }, [isAuthenticated, user, filter]); // Add all dependencies here
 
   // ============ FILTER USERS ============
   const getAvailableUsers = useMemo(() => {
@@ -718,6 +1067,7 @@ export default function TasksPage() {
     toast.success("▶️ Timer resumed");
   };
 
+  // Replace the handleStopTimer function with this:
   const handleStopTimer = useCallback(
     async (taskId: string) => {
       try {
@@ -842,62 +1192,30 @@ export default function TasksPage() {
     }
   };
 
-  // ============ EVIDENCE HANDLERS ============
-  const handleAddEvidence = () => {
-    if (newEvidenceUrl && newEvidenceUrl.trim()) {
-      setSelectedTask((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          evidenceUrls: [...(prev.evidenceUrls || []), newEvidenceUrl.trim()],
-        };
+  // Add this after your tasks state
+  useEffect(() => {
+    const calculateStats = () => {
+      const total = tasks.length;
+      const pending = tasks.filter(t => t.status === "pending").length;
+      const inProgress = tasks.filter(t => t.status === "in_progress").length;
+      const submitted = tasks.filter(t => t.status === "submitted").length;
+      const completed = tasks.filter(t => t.status === "completed").length;
+      const overdue = tasks.filter(t => t.status === "overdue").length;
+      const rejected = tasks.filter(t => t.status === "rejected").length;
+
+      setStats({
+        total,
+        pending,
+        inProgress,
+        completed,
+        overdue,
+        submitted,
+        rejected,
       });
-      setNewEvidenceUrl("");
-    }
-  };
+    };
 
-  const handleRemoveEvidence = (index: number) => {
-    setSelectedTask((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        evidenceUrls: prev.evidenceUrls?.filter((_, i) => i !== index) || [],
-      };
-    });
-  };
-
-  const handleSaveEvidence = async () => {
-    if (!selectedTask) return;
-
-    setUploadingEvidence(true);
-    try {
-      const response = await api.put(`/tasks/${selectedTask._id}/evidence`, {
-        evidenceUrls: selectedTask.evidenceUrls || [],
-      });
-
-      if (response.data.success) {
-        toast.success("Evidence updated successfully");
-        setShowEvidenceUpload(false);
-        setNewEvidenceUrl("");
-        fetchTasks();
-        setSelectedTask((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            evidenceUrls: response.data.data?.evidenceUrls || [],
-          };
-        });
-      } else {
-        toast.error(response.data.message || "Failed to update evidence");
-      }
-    } catch (error: any) {
-      console.error("Error updating evidence:", error);
-      toast.error(error.response?.data?.message || "Failed to update evidence");
-    } finally {
-      setUploadingEvidence(false);
-    }
-  };
-
+    calculateStats();
+  }, [tasks]);
   // ============ HELPERS ============
   const getPriorityConfig = (priority: string) => {
     const config = {
@@ -996,6 +1314,21 @@ export default function TasksPage() {
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Tomorrow";
     return `${diffDays} days left`;
+  };
+
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return "No date set";
+    try {
+      return new Date(dateString).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "Invalid date";
+    }
   };
 
   const getRelativeTime = (dateString: string) => {
@@ -1137,6 +1470,21 @@ export default function TasksPage() {
     },
   ];
 
+  // Extension stats
+  const extensionStats = {
+    total: extensionRequests.length,
+    pending: extensionRequests.filter(req => req.status === "pending").length,
+    approved: extensionRequests.filter(req => req.status === "approved").length,
+    rejected: extensionRequests.filter(req => req.status === "rejected").length,
+  };
+
+  const myExtensionStats = {
+    total: myExtensionRequests.length,
+    pending: myExtensionRequests.filter(req => req.status === "pending").length,
+    approved: myExtensionRequests.filter(req => req.status === "approved").length,
+    rejected: myExtensionRequests.filter(req => req.status === "rejected").length,
+  };
+
   // Show department info for project managers
   const departmentInfo = useMemo(() => {
     const extendedUser = user as ExtendedUser;
@@ -1197,7 +1545,7 @@ export default function TasksPage() {
             <span className="text-gray-700 font-medium">Tasks</span>
           </motion.div>
 
-          {/* Department Info Banner - For Project/Department Managers */}
+          {/* Department Info Banner */}
           {isDepartmentManager && departmentInfo && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
@@ -1329,380 +1677,699 @@ export default function TasksPage() {
             ))}
           </motion.div>
 
-          {/* Search and Filters */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-3"
-          >
-            <div className="flex flex-wrap gap-3">
-              <div className="flex-1 relative flex items-center">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10 pointer-events-none" />
-                <input
-                  type="text"
-                  placeholder="Search tasks by title, description, or assignee..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm hover:shadow-md"
-                />
-              </div>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all shadow-sm ${showFilters
-                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                  : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50/80"
-                  }`}
-              >
-                <Filter size={16} />
-                Filters
-              </button>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="px-4 py-2.5 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm hover:shadow-md"
-              >
-                <option value="createdAt">Sort by Date</option>
-                <option value="deadline">Sort by Deadline</option>
-                <option value="priority">Sort by Priority</option>
-              </select>
-              <button
-                onClick={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
-                className="px-4 py-2.5 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-gray-600 hover:text-gray-800 hover:bg-gray-50/80 transition-all shadow-sm hover:shadow-md"
-              >
-                {sortOrder === "asc" ? (
-                  <SortAsc size={16} />
-                ) : (
-                  <SortDesc size={16} />
-                )}
-              </button>
-            </div>
-
-            <AnimatePresence>
-              {showFilters && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="flex flex-wrap gap-2 overflow-hidden bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-gray-200 shadow-sm"
-                >
-                  {[
-                    "all",
-                    "pending",
-                    "in_progress",
-                    "submitted",
-                    "completed",
-                    "overdue",
-                    "rejected",
-                  ].map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setFilter(tab)}
-                      className={`px-3 py-1.5 text-xs rounded-lg capitalize transition-all ${filter === tab
-                        ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                        : "bg-gray-100/80 text-gray-600 hover:text-gray-800 hover:bg-gray-200/80"
-                        }`}
-                    >
-                      {tab.replace("_", " ")}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-
-          {/* Bulk Actions Bar */}
-          {selectedTasks.size > 0 && viewMode === "list" && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm border border-indigo-200/50 rounded-xl p-3 flex items-center justify-between shadow-lg shadow-indigo-500/10"
+          {/* Tabs */}
+          <div className="flex items-center gap-2 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab("tasks")}
+              className={`px-4 py-2.5 text-sm font-medium transition-all relative ${activeTab === "tasks"
+                ? "text-indigo-600"
+                : "text-gray-500 hover:text-gray-700"
+                }`}
             >
-              <div className="flex items-center gap-3">
-                <div className="bg-indigo-100 rounded-lg px-3 py-1.5">
-                  <span className="text-sm font-semibold text-indigo-700">
-                    {selectedTasks.size}
+              <div className="flex items-center gap-2">
+                <CheckSquare className="w-4 h-4" />
+                My Tasks
+                <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                  {stats.total}
+                </span>
+              </div>
+              {activeTab === "tasks" && (
+                <motion.div
+                  layoutId="tab-indicator"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-600 to-purple-600"
+                />
+              )}
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveTab("extensions");
+                fetchAllExtensionRequests();
+                fetchMyExtensionRequests();
+              }}
+              className={`px-4 py-2.5 text-sm font-medium transition-all relative ${activeTab === "extensions"
+                ? "text-indigo-600"
+                : "text-gray-500 hover:text-gray-700"
+                }`}
+            >
+              <div className="flex items-center gap-2">
+                <CalendarClock className="w-4 h-4" />
+                Extension Requests
+                {canManageExtensions && extensionStats.pending > 0 && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full animate-pulse">
+                    {extensionStats.pending}
                   </span>
-                  <span className="text-xs text-indigo-600 ml-1">
-                    task{selectedTasks.size > 1 ? "s" : ""} selected
+                )}
+                {!canManageExtensions && myExtensionStats.pending > 0 && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full animate-pulse">
+                    {myExtensionStats.pending}
                   </span>
+                )}
+              </div>
+              {activeTab === "extensions" && (
+                <motion.div
+                  layoutId="tab-indicator"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-600 to-purple-600"
+                />
+              )}
+            </button>
+          </div>
+
+          {activeTab === "tasks" ? (
+            <>
+              {/* Search & Filters - Tasks */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex-1 relative min-w-[200px]">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search your tasks..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition shadow-sm"
+                  />
                 </div>
                 <button
-                  onClick={toggleAllTasks}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-1 rounded-lg hover:bg-indigo-100/50 transition"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${showFilters
+                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+                    : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
+                    }`}
                 >
-                  {selectedTasks.size === filteredTasks.length
-                    ? "Deselect All"
-                    : "Select All"}
+                  <Filter className="w-4 h-4" />
+                  Filters
+                  {showFilters ? (
+                    <ChevronRight size={14} />
+                  ) : (
+                    <ChevronRight size={14} />
+                  )}
                 </button>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsBulkDeleteModalOpen(true)}
-                  className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-xs font-medium rounded-lg transition flex items-center gap-1 shadow-md shadow-rose-500/25"
-                >
-                  <Trash size={12} />
-                  Delete Selected
-                </button>
-                <button
-                  onClick={() => setSelectedTasks(new Set())}
-                  className="px-3 py-1.5 bg-white/80 hover:bg-gray-100 text-gray-600 text-xs font-medium rounded-lg transition flex items-center gap-1 border border-gray-200"
-                >
-                  <X size={12} />
-                  Clear
-                </button>
-              </div>
-            </motion.div>
-          )}
 
-          {/* Tasks Grid/List View */}
-          {filteredTasks.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm"
-            >
-              <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <CheckSquare className="w-10 h-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                No tasks found
-              </h3>
-              <p className="text-gray-500">
-                {isDepartmentManager && departmentInfo
-                  ? `No tasks found for ${departmentInfo.name} department. Try adjusting your filters or create a new task.`
-                  : "Try adjusting your filters or create a new task"}
-              </p>
-              {canManage && (
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="mt-4 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg inline-flex items-center gap-2 shadow-md hover:shadow-lg transition"
+              <AnimatePresence>
+                {showFilters && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: "auto", y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex flex-wrap gap-3 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
+                      <select
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="submitted">Submitted</option>
+                        <option value="completed">Completed</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as any)}
+                        className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="createdAt">Sort by Date</option>
+                        <option value="deadline">Sort by Deadline</option>
+                        <option value="priority">Sort by Priority</option>
+                      </select>
+                      <button
+                        onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                        className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition"
+                      >
+                        {sortOrder === "asc" ? "↑ Asc" : "↓ Desc"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSearchTerm("");
+                          setFilter("all");
+                        }}
+                        className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition"
+                      >
+                        Reset Filters
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Tasks Grid/List View */}
+              {filteredTasks.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm"
                 >
-                  <Plus size={16} />
-                  Create Task
-                </button>
-              )}
-            </motion.div>
-          ) : viewMode === "grid" ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-            >
-              {filteredTasks.map((task, idx) => (
-                <TaskCard
-                  key={task._id}
-                  task={task}
-                  idx={idx}
-                  user={user}
-                  canManage={canManage}
-                  canApprove={canApprove}
-                  updating={updating}
-                  approving={approving}
-                  rejecting={rejecting}
-                  onUpdateStatus={updateTaskStatus}
-                  onApprove={handleApprove}
-                  onRejectClick={() => {
-                    setSelectedTask(task);
-                    setShowRejectModal(true);
-                  }}
-                  onEdit={openEditModal}
-                  onDelete={(id: string) => setShowDeleteConfirm(id)}
-                  onStar={toggleStar}
-                  onViewDetails={setSelectedTask}
-                  getPriorityConfig={getPriorityConfig}
-                  getStatusConfig={getStatusConfig}
-                  formatDate={formatDate}
-                  getRelativeTime={getRelativeTime}
-                />
-              ))}
-            </motion.div>
-          ) : (
-            // List View - This is where the table is
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow"
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gradient-to-r from-gray-50/80 to-indigo-50/80 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-3">
-                        <button
-                          onClick={toggleAllTasks}
-                          className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-indigo-600 transition"
-                        >
-                          {selectedTasks.size === filteredTasks.length &&
-                            selectedTasks.size > 0 ? (
-                            <CheckSquare className="w-4 h-4 text-indigo-600" />
-                          ) : (
-                            <Square className="w-4 h-4" />
-                          )}
-                        </button>
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Task
-                      </th>
-                      <th className="w-36 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Priority
-                      </th>
-                      <th className="w-44 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="w-56 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Assignee
-                      </th>
-                      <th className="w-36 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Deadline
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredTasks.map((task) => {
-                      const isAssignee = isTaskAssignee(task);
-                      return (
-                        <tr
-                          key={task._id}
-                          className={`hover:bg-indigo-50/30 transition-colors duration-200 ${selectedTasks.has(task._id)
-                            ? "bg-indigo-50/50 border-l-4 border-indigo-500"
-                            : ""
-                            }`}
-                        >
-                          <td className="px-4 py-3">
+                  <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <CheckSquare className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                    No tasks found
+                  </h3>
+                  <p className="text-gray-500">
+                    {isDepartmentManager && departmentInfo
+                      ? `No tasks found for ${departmentInfo.name} department. Try adjusting your filters or create a new task.`
+                      : "Try adjusting your filters or create a new task"}
+                  </p>
+                  {canManage && (
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="mt-4 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg inline-flex items-center gap-2 shadow-md hover:shadow-lg transition"
+                    >
+                      <Plus size={16} />
+                      Create Task
+                    </button>
+                  )}
+                </motion.div>
+              ) : viewMode === "grid" ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+                >
+                  {filteredTasks.map((task, idx) => (
+                    <TaskCard
+                      key={task._id}
+                      task={task}
+                      idx={idx}
+                      user={user}
+                      canManage={canManage}
+                      canApprove={canApprove}
+                      updating={updating}
+                      approving={approving}
+                      rejecting={rejecting}
+                      onUpdateStatus={updateTaskStatus}
+                      onApprove={handleApprove}
+                      onRejectClick={() => {
+                        setSelectedTask(task);
+                        setShowRejectModal(true);
+                      }}
+                      onEdit={openEditModal}
+                      onDelete={(id: string) => setShowDeleteConfirm(id)}
+                      onStar={toggleStar}
+                      onViewDetails={setSelectedTask}
+                      getPriorityConfig={getPriorityConfig}
+                      getStatusConfig={getStatusConfig}
+                      formatDate={formatDate}
+                      getRelativeTime={getRelativeTime}
+                      onRequestExtension={() => {
+                        setSelectedTaskForExtension(task);
+                        setShowExtensionModal(true);
+                      }}
+                    />
+                  ))}
+                </motion.div>
+              ) : (
+                // List View
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-lg transition-shadow"
+                >
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-gray-50/80 to-indigo-50/80 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left px-4 py-3">
                             <button
-                              onClick={() => toggleTaskSelection(task._id)}
-                              className="p-1 rounded-lg hover:bg-indigo-100 transition"
+                              onClick={toggleAllTasks}
+                              className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-indigo-600 transition"
                             >
-                              {selectedTasks.has(task._id) ? (
+                              {selectedTasks.size === filteredTasks.length &&
+                                selectedTasks.size > 0 ? (
                                 <CheckSquare className="w-4 h-4 text-indigo-600" />
                               ) : (
-                                <Square className="w-4 h-4 text-gray-400" />
+                                <Square className="w-4 h-4" />
                               )}
                             </button>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <button
-                                onClick={() => toggleStar(task._id)}
-                                className="text-gray-400 hover:text-amber-400 transition"
-                              >
-                                <Star
-                                  size={14}
-                                  className={
-                                    task.isStarred
-                                      ? "fill-amber-400 text-amber-400"
-                                      : ""
-                                  }
-                                />
-                              </button>
-                              <div>
-                                <p className="text-gray-800 text-sm font-medium hover:text-indigo-600 transition">
-                                  {task.title}
-                                </p>
-                                <p className="text-gray-400 text-xs line-clamp-1">
-                                  {task.description}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color} shadow-sm`}
-                            >
-                              <span className="mr-1">
-                                {getPriorityConfig(task.priority).icon}
-                              </span>
-                              {task.priority}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${getStatusConfig(task.status).dot}`}
-                              />
-                              <span
-                                className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
-                              >
-                                {getStatusConfig(task.status).icon}{" "}
-                                {task.status.replace("_", " ")}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                                <span className="text-white text-[10px] font-bold">
-                                  {task.assignedTo?.fullName?.charAt(0) || "?"}
-                                </span>
-                              </div>
-                              <span className="text-sm text-gray-600">
-                                {task.assignedTo?.fullName ?? "Unassigned"}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`text-xs font-medium px-2.5 py-1 rounded-full ${new Date(task.deadline) < new Date() &&
-                                task.status !== "completed"
-                                ? "bg-rose-50 text-rose-600 border border-rose-200"
-                                : "bg-gray-50 text-gray-600 border border-gray-200"
+                          </th>
+                          <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Task
+                          </th>
+                          <th className="w-36 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Priority
+                          </th>
+                          <th className="w-44 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="w-56 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Assignee
+                          </th>
+                          <th className="w-36 text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Deadline
+                          </th>
+                          <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredTasks.map((task) => {
+                          const isAssignee = isTaskAssignee(task);
+                          return (
+                            <tr
+                              key={task._id}
+                              className={`hover:bg-indigo-50/30 transition-colors duration-200 ${selectedTasks.has(task._id)
+                                ? "bg-indigo-50/50 border-l-4 border-indigo-500"
+                                : ""
                                 }`}
                             >
-                              {formatDate(task.deadline)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => setSelectedTask(task)}
-                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                              >
-                                <Eye size={14} />
-                              </button>
-                              {canManage && (
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => toggleTaskSelection(task._id)}
+                                  className="p-1 rounded-lg hover:bg-indigo-100 transition"
+                                >
+                                  {selectedTasks.has(task._id) ? (
+                                    <CheckSquare className="w-4 h-4 text-indigo-600" />
+                                  ) : (
+                                    <Square className="w-4 h-4 text-gray-400" />
+                                  )}
+                                </button>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    onClick={() => toggleStar(task._id)}
+                                    className="text-gray-400 hover:text-amber-400 transition"
+                                  >
+                                    <Star
+                                      size={14}
+                                      className={
+                                        task.isStarred
+                                          ? "fill-amber-400 text-amber-400"
+                                          : ""
+                                      }
+                                    />
+                                  </button>
+                                  <div>
+                                    <p className="text-gray-800 text-sm font-medium hover:text-indigo-600 transition">
+                                      {task.title}
+                                    </p>
+                                    <p className="text-gray-400 text-xs line-clamp-1">
+                                      {task.description}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color} shadow-sm`}
+                                >
+                                  <span className="mr-1">
+                                    {getPriorityConfig(task.priority).icon}
+                                  </span>
+                                  {task.priority}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${getStatusConfig(task.status).dot}`}
+                                  />
+                                  <span
+                                    className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
+                                  >
+                                    {getStatusConfig(task.status).icon}{" "}
+                                    {task.status.replace("_", " ")}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                                    <span className="text-white text-[10px] font-bold">
+                                      {task.assignedTo?.fullName?.charAt(0) || "?"}
+                                    </span>
+                                  </div>
+                                  <span className="text-sm text-gray-600">
+                                    {task.assignedTo?.fullName ?? "Unassigned"}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`text-xs font-medium px-2.5 py-1 rounded-full ${new Date(task.deadline) < new Date() &&
+                                    task.status !== "completed"
+                                    ? "bg-rose-50 text-rose-600 border border-rose-200"
+                                    : "bg-gray-50 text-gray-600 border border-gray-200"
+                                    }`}
+                                >
+                                  {formatDate(task.deadline)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => setSelectedTask(task)}
+                                    className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                    title="View Details"
+                                  >
+                                    <Eye size={14} />
+                                  </button>
+                                  {canManage && (
+                                    <>
+                                      <button
+                                        onClick={() => openEditModal(task)}
+                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                        title="Edit"
+                                      >
+                                        <Edit2 size={14} />
+                                      </button>
+                                      {(isSuperAdmin || isAdmin) && (
+                                        <button
+                                          onClick={() => setShowDeleteConfirm(task._id)}
+                                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                          title="Delete"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                  {isAssignee && task.status !== "completed" &&
+                                    task.status !== "submitted" &&
+                                    task.status !== "rejected" && (
+                                      <button
+                                        onClick={() => handleStartTimer(task._id)}
+                                        className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                        title="Start Timer"
+                                      >
+                                        <Play size={14} />
+                                      </button>
+                                    )}
+                                  <button
+                                    onClick={() => {
+                                      setSelectedTaskForExtension(task);
+                                      setShowExtensionModal(true);
+                                    }}
+                                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                    title="Request Extension"
+                                  >
+                                    <CalendarClock size={14} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </motion.div>
+              )}
+            </>
+          ) : (
+            // ============ EXTENSION REQUESTS TAB ============
+            <div className="space-y-6">
+              {/* Extension Stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
+                  <p className="text-xs text-gray-500 font-medium">Total Requests</p>
+                  <p className="text-2xl font-bold text-indigo-700">
+                    {canManageExtensions ? extensionStats.total : myExtensionStats.total}
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-4 border border-amber-200 shadow-sm">
+                  <p className="text-xs text-gray-500 font-medium">Pending</p>
+                  <p className="text-2xl font-bold text-amber-700">
+                    {canManageExtensions ? extensionStats.pending : myExtensionStats.pending}
+                  </p>
+                  {(canManageExtensions ? extensionStats.pending : myExtensionStats.pending) > 0 && (
+                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse mt-1" />
+                  )}
+                </div>
+                <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-4 border border-emerald-200 shadow-sm">
+                  <p className="text-xs text-gray-500 font-medium">Approved</p>
+                  <p className="text-2xl font-bold text-emerald-700">
+                    {canManageExtensions ? extensionStats.approved : myExtensionStats.approved}
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-rose-50 to-red-50 rounded-2xl p-4 border border-rose-200 shadow-sm">
+                  <p className="text-xs text-gray-500 font-medium">Rejected</p>
+                  <p className="text-2xl font-bold text-rose-700">
+                    {canManageExtensions ? extensionStats.rejected : myExtensionStats.rejected}
+                  </p>
+                </div>
+              </div>
+
+              {/* Extension Filters */}
+              {canManageExtensions && (
+                <div className="flex flex-wrap gap-3 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
+                  <button
+                    onClick={() => setExtensionFilter("all")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${extensionFilter === "all"
+                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                      : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
+                  >
+                    All ({extensionStats.total})
+                  </button>
+                  <button
+                    onClick={() => setExtensionFilter("pending")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${extensionFilter === "pending"
+                      ? "bg-amber-500 text-white shadow-md"
+                      : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
+                  >
+                    Pending ({extensionStats.pending})
+                  </button>
+                  <button
+                    onClick={() => setExtensionFilter("approved")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${extensionFilter === "approved"
+                      ? "bg-emerald-500 text-white shadow-md"
+                      : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
+                  >
+                    Approved ({extensionStats.approved})
+                  </button>
+                  <button
+                    onClick={() => setExtensionFilter("rejected")}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${extensionFilter === "rejected"
+                      ? "bg-rose-500 text-white shadow-md"
+                      : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
+                  >
+                    Rejected ({extensionStats.rejected})
+                  </button>
+                  <button
+                    onClick={fetchAllExtensionRequests}
+                    className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-lg transition flex items-center gap-2"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingExtensions ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                </div>
+              )}
+
+              {/* Extension Requests List */}
+              {loadingExtensions && canManageExtensions ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                  <span className="ml-3 text-gray-500">Loading extension requests...</span>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(() => {
+                    const requestsToShow = canManageExtensions
+                      ? extensionFilter === "all"
+                        ? extensionRequests
+                        : extensionRequests.filter(req => req.status === extensionFilter)
+                      : myExtensionRequests;
+
+                    if (requestsToShow.length === 0) {
+                      return (
+                        <div className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm">
+                          <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                            <CalendarClock className="w-12 h-12 text-gray-400" />
+                          </div>
+                          <h3 className="text-xl font-semibold text-gray-800 mb-2">
+                            No extension requests found
+                          </h3>
+                          <p className="text-gray-500 text-sm max-w-md mx-auto">
+                            {canManageExtensions && extensionFilter !== "all"
+                              ? `No ${extensionFilter} extension requests at the moment.`
+                              : "You haven't submitted any extension requests yet."}
+                          </p>
+                          {!canManageExtensions && (
+                            <button
+                              onClick={() => setActiveTab("tasks")}
+                              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Request Extension
+                            </button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return requestsToShow.map((request, index) => {
+                      const task = tasks.find(t => t._id === request.taskId) || request.task;
+                      const isPending = request.status === "pending";
+                      const isApproved = request.status === "approved";
+                      const isRejected = request.status === "rejected";
+                      const isProcessing = approvingExtension === request._id;
+
+                      return (
+                        <motion.div
+                          key={request._id}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`bg-white/80 backdrop-blur-sm rounded-xl p-5 border shadow-sm hover:shadow-md transition-all ${isPending
+                            ? "border-amber-200 hover:border-amber-300"
+                            : isApproved
+                              ? "border-emerald-200 hover:border-emerald-300"
+                              : "border-rose-200 hover:border-rose-300"
+                            }`}
+                        >
+                          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border-2 ${isPending
+                                    ? "bg-amber-50 border-amber-200 text-amber-700"
+                                    : isApproved
+                                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                      : "bg-rose-50 border-rose-200 text-rose-700"
+                                    }`}
+                                >
+                                  {isPending ? (
+                                    <ClockIcon className="w-3 h-3" />
+                                  ) : isApproved ? (
+                                    <Check className="w-3 h-3" />
+                                  ) : (
+                                    <X className="w-3 h-3" />
+                                  )}
+                                  {request.status.toUpperCase()}
+                                </span>
+                                {task && (
+                                  <>
+                                    <span
+                                      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border-2 ${getPriorityConfig((task as any).priority || "normal").bg} ${getPriorityConfig((task as any).priority || "normal").border}`}
+                                    >
+                                      {getPriorityConfig((task as any).priority || "normal").icon}
+                                      {((task as any).priority || "NORMAL").toUpperCase()}
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full border-2 ${getStatusConfig((task as any).status || "pending").color}`}
+                                    >
+                                      {(task as any).status?.replace("_", " ") || "PENDING"}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+
+                              <h4 className="text-lg font-semibold text-gray-800">
+                                {task ? (task as any).title || "Unknown Task" : "Unknown Task"}
+                              </h4>
+
+                              <div className="mt-2 space-y-1">
+                                <p className="text-sm text-gray-600">
+                                  <span className="font-medium">Reason:</span> {request.reason}
+                                </p>
+                                <div className="flex flex-wrap gap-4 text-sm">
+                                  <span className="text-gray-500">
+                                    <span className="font-medium">Current Deadline:</span> {task ? formatDate((task as any).deadline) : "N/A"}
+                                  </span>
+                                  <span className="text-gray-500">
+                                    <span className="font-medium">Requested:</span> {formatDate(request.requestedDate)}
+                                  </span>
+                                  <span className="text-gray-500">
+                                    <span className="font-medium">Submitted:</span> {formatDateTime(request.createdAt)}
+                                  </span>
+                                  {request.approvedBy && (
+                                    <span className="text-gray-500">
+                                      <span className="font-medium">Approved By:</span> {request.approvedBy.fullName}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {task && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <span className="text-sm text-gray-500">
+                                    Assigned to: <span className="font-medium">{(task as any).assignedTo?.fullName || "Unassigned"}</span>
+                                  </span>
+                                  <Link
+                                    href={`/tasks/${(task as any)._id}`}
+                                    className="text-indigo-600 hover:text-indigo-800 text-sm font-medium hover:underline"
+                                  >
+                                    View Task →
+                                  </Link>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {isPending && canManageExtensions && (
                                 <>
                                   <button
-                                    onClick={() => openEditModal(task)}
-                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                    onClick={() => {
+                                      const taskId = request.taskId || request.task?._id || '';
+                                      if (taskId) {
+                                        handleApproveExtension(request._id, taskId, request.requestedDate);
+                                      } else {
+                                        toast.error("Could not find task ID for this request");
+                                      }
+                                    }}
+                                    disabled={isProcessing}
+                                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2"
                                   >
-                                    <Edit2 size={14} />
+                                    {isProcessing ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Check className="w-4 h-4" />
+                                    )}
+                                    Approve
                                   </button>
                                   <button
-                                    onClick={() => setShowDeleteConfirm(task._id)}
-                                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                    onClick={() => handleRejectExtension(request._id)}
+                                    disabled={isProcessing}
+                                    className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 flex items-center gap-2"
                                   >
-                                    <Trash2 size={14} />
+                                    {isProcessing ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <X className="w-4 h-4" />
+                                    )}
+                                    Reject
                                   </button>
                                 </>
                               )}
-                              {isAssignee && task.status !== "completed" &&
-                                task.status !== "submitted" &&
-                                task.status !== "rejected" && (
-                                  <button
-                                    onClick={() => handleStartTimer(task._id)}
-                                    className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                    title="Start Timer"
-                                  >
-                                    <Play size={14} />
-                                  </button>
-                                )}
+                              {isPending && !canManageExtensions && (
+                                <span className="text-sm text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
+                                  ⏳ Awaiting Approval
+                                </span>
+                              )}
+                              {isApproved && (
+                                <span className="text-sm text-emerald-600 font-medium bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200 flex items-center gap-1">
+                                  <Check className="w-4 h-4" />
+                                  Approved
+                                </span>
+                              )}
+                              {isRejected && (
+                                <span className="text-sm text-rose-600 font-medium bg-rose-50 px-3 py-2 rounded-lg border border-rose-200 flex items-center gap-1">
+                                  <X className="w-4 h-4" />
+                                  Rejected
+                                </span>
+                              )}
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                        </motion.div>
                       );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </motion.div>
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -1753,7 +2420,6 @@ export default function TasksPage() {
                         {selectedTask.status.replace("_", " ").toUpperCase()}
                       </span>
 
-                      {/* Evidence Required Badge */}
                       {selectedTask.evidenceRequired && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
                           <Paperclip className="w-3 h-3" />
@@ -1761,7 +2427,6 @@ export default function TasksPage() {
                         </span>
                       )}
 
-                      {/* Evidence Submitted Badge */}
                       {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-emerald-50 border-emerald-200 text-emerald-700">
                           <Paperclip className="w-3 h-3" />
@@ -1769,7 +2434,6 @@ export default function TasksPage() {
                         </span>
                       )}
 
-                      {/* Time Logged Badge */}
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-gray-50 border-gray-200 text-gray-600">
                         <HistoryIcon className="w-3 h-3" />
                         {getDisplayTimeForTask(
@@ -1778,7 +2442,6 @@ export default function TasksPage() {
                         )}
                       </span>
 
-                      {/* Timer Active Badge */}
                       {isTimerActiveForTask(selectedTask._id) && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
                           <TimerIcon className="w-3 h-3" />
@@ -1804,7 +2467,7 @@ export default function TasksPage() {
                   <p className="text-gray-600 text-sm leading-relaxed">{selectedTask.description}</p>
                 </div>
 
-                {/* Rejection Reason - Show when task is rejected */}
+                {/* Rejection Reason */}
                 {selectedTask.status === "rejected" && selectedTask.rejectionReason && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -1830,7 +2493,7 @@ export default function TasksPage() {
                   </motion.div>
                 )}
 
-                {/* Approval Note - Show when task is completed */}
+                {/* Approval Note */}
                 {selectedTask.status === "completed" && selectedTask.approvalNote && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -1853,7 +2516,7 @@ export default function TasksPage() {
                   </motion.div>
                 )}
 
-                {/* Evidence Section - Show when evidence exists */}
+                {/* Evidence Section */}
                 {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
                   <div>
                     <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
@@ -1912,7 +2575,7 @@ export default function TasksPage() {
                   </div>
                 )}
 
-                {/* Evidence Required Message - Show when evidence is required but none provided */}
+                {/* Evidence Required Message */}
                 {selectedTask.evidenceRequired && (!selectedTask.evidenceUrls || selectedTask.evidenceUrls.length === 0) && (
                   <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                     <div className="flex items-start gap-2">
@@ -1929,26 +2592,18 @@ export default function TasksPage() {
 
                 {/* Task Details Grid */}
                 <div className="grid grid-cols-2 gap-3 pt-2">
-                  {/* Project */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Project</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {selectedTask.projectId?.name || "-"}
                     </p>
-                    {selectedTask.projectId?.code && (
-                      <p className="text-xs text-gray-400">{selectedTask.projectId.code}</p>
-                    )}
                   </div>
-
-                  {/* Assigned By */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Assigned By</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {selectedTask.assignedBy?.fullName || "-"}
                     </p>
                   </div>
-
-                  {/* Assigned To - Detailed */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Assigned To</p>
                     <div className="flex items-center gap-2 mt-1">
@@ -1961,108 +2616,101 @@ export default function TasksPage() {
                         {selectedTask.assignedTo?.fullName || "Unassigned"}
                       </p>
                     </div>
-                    {selectedTask.assignedTo?.email && (
-                      <p className="text-xs text-gray-400 mt-0.5">{selectedTask.assignedTo.email}</p>
-                    )}
                   </div>
-
-                  {/* Deadline */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Deadline</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
                       <CalendarIcon size={14} className="text-gray-400" />
                       {new Date(selectedTask.deadline).toLocaleDateString()}
                     </p>
-                    {/* {isOverdue && (
-                      <p className="text-xs text-rose-500 mt-0.5">⚠️ Overdue</p>
-                    )} */}
                   </div>
-
-                  {/* Estimated Hours */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Estimated Hours</p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
-                      <Clock size={14} className="text-gray-400" />
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {selectedTask.estimatedHours}h
                     </p>
                   </div>
-
-                  {/* Time Logged */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Time Logged</p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
-                      <HistoryIcon size={14} className="text-gray-400" />
-                      {getDisplayTimeForTask(
-                        selectedTask._id,
-                        selectedTask.actualMinutes,
-                      )}
+                    <p className="text-gray-800 text-sm mt-1 font-semibold">
+                      {getDisplayTimeForTask(selectedTask._id, selectedTask.actualMinutes)}
                     </p>
                   </div>
-
-                  {/* Created */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Created</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {new Date(selectedTask.createdAt || "").toLocaleDateString()}
                     </p>
                   </div>
-
-                  {/* Updated */}
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Last Updated</p>
                     <p className="text-gray-800 text-sm mt-1 font-semibold">
                       {new Date(selectedTask.updatedAt || "").toLocaleDateString()}
                     </p>
                   </div>
-
-                  {/* Comments Count */}
-                  {selectedTask.commentsCount !== undefined && (
-                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                      <p className="text-xs text-gray-500 font-medium">Comments</p>
-                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
-                        <MessageSquare size={14} className="text-gray-400" />
-                        {selectedTask.commentsCount}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Attachments Count */}
-                  {selectedTask.attachmentsCount !== undefined && (
-                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                      <p className="text-xs text-gray-500 font-medium">Attachments</p>
-                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
-                        <Paperclip size={14} className="text-gray-400" />
-                        {selectedTask.attachmentsCount}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Reviews Count */}
-                  {selectedTask.reviewsCount !== undefined && selectedTask.reviewsCount > 0 && (
-                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                      <p className="text-xs text-gray-500 font-medium">Reviews</p>
-                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-2">
-                        <AwardIcon size={14} className="text-gray-400" />
-                        {selectedTask.reviewsCount}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Average Rating */}
-                  {selectedTask.averageRating !== undefined && selectedTask.averageRating > 0 && (
-                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                      <p className="text-xs text-gray-500 font-medium">Average Rating</p>
-                      <p className="text-gray-800 text-sm mt-1 font-semibold flex items-center gap-1">
-                        <Star size={14} className="fill-amber-400 text-amber-400" />
-                        {selectedTask.averageRating.toFixed(1)}
-                      </p>
-                    </div>
-                  )}
                 </div>
 
-                {/* ============================================================
-              TIMER CONTROLS IN MODAL
-              ============================================================ */}
+                {/* Extension Requests for this task */}
+                {(() => {
+                  const taskExtensions = extensionRequests.filter(req => req.taskId === selectedTask._id);
+                  if (taskExtensions.length > 0) {
+                    return (
+                      <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                        <div className="flex items-center gap-2 mb-3">
+                          <CalendarClock className="w-4 h-4 text-blue-600" />
+                          <p className="text-sm font-medium text-blue-800">
+                            Extension Requests ({taskExtensions.length})
+                          </p>
+                        </div>
+                        <div className="space-y-2 max-h-[150px] overflow-y-auto">
+                          {taskExtensions.map((req) => (
+                            <div key={req._id} className="bg-white rounded-lg p-3 border border-blue-100">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs text-gray-500">
+                                    Requested: {formatDate(req.requestedDate)}
+                                  </p>
+                                  <p className="text-xs text-gray-700 mt-1">{req.reason}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : req.status === "rejected"
+                                        ? "bg-rose-100 text-rose-700"
+                                        : "bg-amber-100 text-amber-700"
+                                      }`}
+                                  >
+                                    {req.status.toUpperCase()}
+                                  </span>
+                                  // In the task details modal, update the Approve button:
+                                  {canApprove && req.status === "pending" && (
+                                    <button
+                                      onClick={() => {
+                                        const taskId = req.taskId || selectedTask?._id || '';
+                                        if (taskId) {
+                                          handleApproveExtension(req._id, taskId, req.requestedDate);
+                                        } else {
+                                          toast.error("Could not find task ID for this request");
+                                        }
+                                      }}
+                                      className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] rounded transition"
+                                    >
+                                      Approve
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Timer Controls */}
                 {(() => {
                   const isAssignee = isTaskAssignee(selectedTask);
                   const canShowTimer = isAssignee &&
@@ -2162,55 +2810,8 @@ export default function TasksPage() {
                   ) : null;
                 })()}
 
-                {/* ============================================================
-              EXTENSION REQUESTS (if any)
-              ============================================================ */}
-                {/* {extensionRequests.length > 0 && (
-                  <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CalendarClock className="w-4 h-4 text-blue-600" />
-                      <p className="text-sm font-medium text-blue-800">Extension Requests ({extensionRequests.length})</p>
-                    </div>
-                    <div className="space-y-2 max-h-[150px] overflow-y-auto">
-                      {extensionRequests.map((req) => (
-                        <div key={req._id} className="bg-white rounded-lg p-3 border border-blue-100">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs text-gray-500">Requested: {formatDate(req.requestedDate)}</p>
-                              <p className="text-sm text-gray-700 mt-1">{req.reason}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : req.status === "rejected"
-                                    ? "bg-rose-100 text-rose-700"
-                                    : "bg-amber-100 text-amber-700"
-                                  }`}
-                              >
-                                {req.status.toUpperCase()}
-                              </span>
-                              {canApprove && req.status === "pending" && (
-                                <button
-                                  onClick={() => handleApproveExtension(req._id, req.requestedDate)}
-                                  className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] rounded transition"
-                                >
-                                  Approve
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )} */}
-
-                {/* ============================================================
-              ACTION BUTTONS
-              ============================================================ */}
+                {/* Action Buttons */}
                 <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200">
-                  {/* Status dropdown */}
                   <select
                     value={selectedTask.status}
                     onChange={(e) => {
@@ -2232,7 +2833,6 @@ export default function TasksPage() {
                     <option value="rejected">Rejected</option>
                   </select>
 
-                  {/* Send for Rework - for rejected tasks */}
                   {selectedTask.status === "rejected" && isTaskAssignee(selectedTask) && (
                     <button
                       onClick={() => {
@@ -2251,7 +2851,6 @@ export default function TasksPage() {
                     </button>
                   )}
 
-                  {/* Submit Review & Complete - for active tasks */}
                   {isTaskAssignee(selectedTask) &&
                     selectedTask.status !== "completed" &&
                     selectedTask.status !== "submitted" &&
@@ -2290,7 +2889,6 @@ export default function TasksPage() {
                       </>
                     )}
 
-                  {/* Approve & Reject - for submitted tasks */}
                   {selectedTask.status === "submitted" && canApprove && (
                     <>
                       <button
@@ -2321,7 +2919,23 @@ export default function TasksPage() {
                     </>
                   )}
 
-                  {/* Close button */}
+                  {isTaskAssignee(selectedTask) &&
+                    selectedTask.status !== "completed" &&
+                    selectedTask.status !== "submitted" &&
+                    selectedTask.status !== "rejected" && (
+                      <button
+                        onClick={() => {
+                          setSelectedTaskForExtension(selectedTask);
+                          setShowExtensionModal(true);
+                          setSelectedTask(null);
+                        }}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition shadow-md hover:shadow-lg flex items-center gap-2"
+                      >
+                        <CalendarClock size={16} />
+                        Request Extension
+                      </button>
+                    )}
+
                   <button
                     onClick={() => setSelectedTask(null)}
                     className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition flex-1 min-w-[80px]"
@@ -2329,7 +2943,6 @@ export default function TasksPage() {
                     Close
                   </button>
 
-                  {/* View Full Details link */}
                   <Link
                     href={`/tasks/${selectedTask._id}`}
                     onClick={(e) => e.stopPropagation()}
@@ -2338,6 +2951,96 @@ export default function TasksPage() {
                     <Eye size={16} />
                     View Full Details
                   </Link>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Extension Request Modal */}
+      <AnimatePresence>
+        {showExtensionModal && selectedTaskForExtension && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
+            >
+              <div className="p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
+                    <CalendarClock className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800">Request Deadline Extension</h3>
+                    <p className="text-xs text-gray-500">{selectedTaskForExtension.title}</p>
+                  </div>
+                </div>
+
+                <p className="text-gray-500 text-sm mb-4">
+                  Request a new deadline for this task. Your manager will review the request.
+                </p>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Deadline <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={extensionData.requestedDate}
+                    onChange={(e) =>
+                      setExtensionData({
+                        ...extensionData,
+                        requestedDate: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    min={new Date().toISOString().split("T")[0]}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Current deadline: {formatDate(selectedTaskForExtension.deadline)}
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={extensionData.reason}
+                    onChange={(e) =>
+                      setExtensionData({
+                        ...extensionData,
+                        reason: e.target.value,
+                      })
+                    }
+                    placeholder="Explain why you need an extension..."
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRequestExtension}
+                    disabled={submittingExtension}
+                    className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    {submittingExtension ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock size={14} />}
+                    Submit Request
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowExtensionModal(false);
+                      setExtensionData({ requestedDate: "", reason: "" });
+                      setSelectedTaskForExtension(null);
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -2768,6 +3471,7 @@ function TaskCard({
   onDelete,
   onStar,
   onViewDetails,
+  onRequestExtension,
   getPriorityConfig,
   getStatusConfig,
   formatDate,
@@ -2848,12 +3552,15 @@ function TaskCard({
                 >
                   <Edit2 size={12} />
                 </button>
-                <button
-                  onClick={() => onDelete(task._id)}
-                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
-                >
-                  <Trash2 size={12} />
-                </button>
+                {/* Delete button - Only for Super Admin and Admin */}
+                {user?.role === "super_admin" || user?.role === "admin" ? (
+                  <button
+                    onClick={() => onDelete(task._id)}
+                    className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                ) : null}
               </>
             )}
           </div>
@@ -2946,8 +3653,7 @@ function TaskCard({
               className="flex-1 py-1.5 bg-gradient-to-r from-indigo-50 to-indigo-100/50 hover:from-indigo-600 hover:to-indigo-700 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
             >
               <Play size={12} />
-              Start
-            </button>
+              Start            </button>
           )}
 
           {task.status === "in_progress" && (
@@ -3006,6 +3712,17 @@ function TaskCard({
             <ExternalLink size={12} />
             Details
           </Link>
+          {isAssignee && task.status !== "completed" &&
+            task.status !== "submitted" &&
+            task.status !== "rejected" && (
+              <button
+                onClick={() => onRequestExtension(task)}
+                className="py-1.5 px-3 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+              >
+                <CalendarClock size={12} />
+                Extend
+              </button>
+            )}
         </div>
       </div>
     </motion.div>

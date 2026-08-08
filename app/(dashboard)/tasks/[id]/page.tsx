@@ -1,7 +1,7 @@
 // app/(dashboard)/tasks/[id]/page.tsx
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTimer } from "@/contexts/TimerContext";
 import { useParams, useRouter } from "next/navigation";
@@ -254,6 +254,7 @@ export default function TaskDetailPage() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [isStoppingTimer, setIsStoppingTimer] = useState(false);
   const [reviewStats, setReviewStats] = useState({
     total: 0,
     averageRating: 0,
@@ -331,23 +332,44 @@ export default function TaskDetailPage() {
     );
   };
 
-  // Get total time including current session
+  // In TaskDetailPage.tsx - Updated getTotalTime
+
   const getTotalTime = useCallback(() => {
     if (!task) return { minutes: 0, display: "0m" };
 
-    let totalMinutes = task.actualMinutes || 0;
-
-    if (isTimerActiveForTask(task._id)) {
+    // ✅ If timer is active and running, show task time + current session time
+    if (isTimerActiveForTask(task._id) && isTimerRunning) {
       const currentSeconds = timerState.elapsedSeconds;
-      const currentMinutes = Math.floor(currentSeconds / 60);
-      totalMinutes = (task.actualMinutes || 0) + currentMinutes;
+      const currentMinutes = currentSeconds / 60;
+      const totalMinutes = (task.actualMinutes || 0) + currentMinutes;
+      return {
+        minutes: totalMinutes,
+        display: formatTimeShort(totalMinutes * 60),
+      };
     }
 
+    // ✅ If timer is paused but active, show task time only (the paused time is already saved)
+    if (isTimerActiveForTask(task._id) && !isTimerRunning) {
+      // The timer is paused, but the elapsed time is not yet saved
+      // We should show task time + paused time
+      const currentSeconds = timerState.elapsedSeconds;
+      const currentMinutes = currentSeconds / 60;
+      const totalMinutes = (task.actualMinutes || 0) + currentMinutes;
+      return {
+        minutes: totalMinutes,
+        display: formatTimeShort(totalMinutes * 60),
+      };
+    }
+
+    // ✅ If timer is not active, show only the task's saved time
     return {
-      minutes: totalMinutes,
-      display: formatTimeShort(totalMinutes * 60),
+      minutes: task.actualMinutes || 0,
+      display: formatTimeShort((task.actualMinutes || 0) * 60),
     };
-  }, [task, timerState, isTimerActiveForTask, formatTimeShort]);
+  }, [task, timerState.elapsedSeconds, isTimerActiveForTask, isTimerRunning, formatTimeShort]);
+
+  // ✅ Keep ONLY this version
+  const totalTime = useMemo(() => getTotalTime(), [getTotalTime]);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -357,83 +379,100 @@ export default function TaskDetailPage() {
 
 
 
-// Fetch Task - with better error handling
-const fetchTask = async () => {
-  try {
-    setLoading(true);
-    setError(null);
+  // Fetch Task - with better error handling
+  const fetchTask = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    const response = await api.get(`/tasks/${id}`);
+      const response = await api.get(`/tasks/${id}`);
 
-    let taskData;
-    if (response.data.success) {
-      taskData = response.data.data;
-    } else if (response.data.task) {
-      taskData = response.data.task;
-    } else {
-      taskData = response.data;
-    }
-
-    if (taskData && taskData._id) {
-      const formattedTask = {
-        ...taskData,
-        priority: taskData.priority || "normal",
-        status: taskData.status || "pending",
-        title: taskData.title || "Untitled Task",
-        description: taskData.description || "",
-        estimatedHours: taskData.estimatedHours || 0,
-        assignedTo: taskData.assignedTo || {
-          _id: "",
-          fullName: "Unassigned",
-          email: "",
-        },
-        assignedBy: taskData.assignedBy || { _id: "", fullName: "Unknown" },
-        createdAt: taskData.createdAt || new Date().toISOString(),
-        updatedAt: taskData.updatedAt || new Date().toISOString(),
-        commentsCount: taskData.commentsCount || 0,
-        attachmentsCount: taskData.attachmentsCount || 0,
-        reviewsCount: taskData.reviewsCount || 0,
-        averageRating: taskData.averageRating || 0,
-        rejectionReason: taskData.rejectionReason || "",
-        approvalNote: taskData.approvalNote || "",
-        evidenceRequired: taskData.evidenceRequired || false,
-        evidenceUrls: taskData.evidenceUrls || [],
-        evidenceSubmitted: taskData.evidenceSubmitted || false,
-        evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
-      };
-
-      setTask(formattedTask);
-
-      if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
-        setHasSubmittedEvidence(true);
+      let taskData;
+      if (response.data.success) {
+        taskData = response.data.data;
+      } else if (response.data.task) {
+        taskData = response.data.task;
+      } else {
+        taskData = response.data;
       }
-    } else {
-      throw new Error("Invalid task data received");
-    }
-  } catch (error: any) {
-    console.error("Error fetching task:", error);
-    const errorMessage = error.response?.data?.message || "Failed to fetch task";
-    setError(errorMessage);
-    
-    // Don't show toast for 403 (handled by the parent)
-    if (error.response?.status !== 403) {
-      toast.error(errorMessage);
-    }
 
-    if (error.response?.status === 404) {
-      setTimeout(() => router.push("/tasks/task-board"), 2000);
+      if (taskData && taskData._id) {
+        const formattedTask = {
+          ...taskData,
+          priority: taskData.priority || "normal",
+          status: taskData.status || "pending",
+          title: taskData.title || "Untitled Task",
+          description: taskData.description || "",
+          estimatedHours: taskData.estimatedHours || 0,
+          assignedTo: taskData.assignedTo || {
+            _id: "",
+            fullName: "Unassigned",
+            email: "",
+          },
+          assignedBy: taskData.assignedBy || { _id: "", fullName: "Unknown" },
+          createdAt: taskData.createdAt || new Date().toISOString(),
+          updatedAt: taskData.updatedAt || new Date().toISOString(),
+          commentsCount: taskData.commentsCount || 0,
+          attachmentsCount: taskData.attachmentsCount || 0,
+          reviewsCount: taskData.reviewsCount || 0,
+          averageRating: taskData.averageRating || 0,
+          rejectionReason: taskData.rejectionReason || "",
+          approvalNote: taskData.approvalNote || "",
+          evidenceRequired: taskData.evidenceRequired || false,
+          evidenceUrls: taskData.evidenceUrls || [],
+          evidenceSubmitted: taskData.evidenceSubmitted || false,
+          evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
+        };
+
+        setTask(formattedTask);
+
+        if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
+          setHasSubmittedEvidence(true);
+        }
+      } else {
+        throw new Error("Invalid task data received");
+      }
+    } catch (error: any) {
+      console.error("Error fetching task:", error);
+      const errorMessage = error.response?.data?.message || "Failed to fetch task";
+      setError(errorMessage);
+
+      // Don't show toast for 403 (handled by the parent)
+      if (error.response?.status !== 403) {
+        toast.error(errorMessage);
+      }
+
+      if (error.response?.status === 404) {
+        setTimeout(() => router.push("/tasks/task-board"), 2000);
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+  // Replace the problematic useEffect with this:
+
+  useEffect(() => {
+    // ✅ Only check if task is completed/submitted on mount
+    if (task && isTimerActiveForTask(task._id)) {
+      if (task.status === "completed" || task.status === "submitted") {
+        console.log("⚠️ Timer active but task is completed/submitted, resetting");
+        stopTimer(task._id).then(() => {
+          console.log("✅ Timer reset due to task status");
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ✅ Empty dependency array
 
   // Fetch Extension Requests - with proper 403 handling
+
   const fetchExtensionRequests = async () => {
     try {
       const response = await api.get(`/tasks/${id}/extension-requests`);
       if (response.data.success) {
         setExtensionRequests(response.data.data || []);
+      } else {
+        setExtensionRequests([]);
       }
     } catch (error: any) {
       // Handle 403 gracefully - user doesn't have permission
@@ -447,6 +486,7 @@ const fetchTask = async () => {
       if (error.response?.status !== 403) {
         toast.error(error.response?.data?.message || "Failed to fetch extension requests");
       }
+      setExtensionRequests([]);
     }
   };
 
@@ -676,10 +716,37 @@ const fetchTask = async () => {
     }
   };
 
-  // Task Status Updates
+  // In TaskDetailPage.tsx - Fixed updateTaskStatus
+
   const updateTaskStatus = async (newStatus: string, data?: any) => {
     setUpdating(true);
     try {
+      // ✅ If status is changing to submitted or completed, stop timer
+      if ((newStatus === "submitted" || newStatus === "completed") && task) {
+        // Check if timer is active for this task
+        const isActive = isTimerActiveForTask(task._id);
+        console.log(`🔍 Timer active for task ${task._id}:`, isActive);
+        console.log(`🔍 isTimerRunning:`, isTimerRunning);
+        console.log(`🔍 activeTimerTaskId:`, activeTimerTaskId);
+
+        if (isActive) {
+          const result = await stopTimer(task._id);
+          console.log(`⏹️ Timer stop result:`, result);
+          if (result.success && result.minutes > 0) {
+            toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+          }
+          // Update actualMinutes in the payload
+          data = { ...data, actualMinutes: result.minutes || task.actualMinutes || 0 };
+        } else if (activeTimerTaskId === task._id) {
+          // Fallback: stop using activeTimerTaskId
+          const result = await stopTimer(task._id);
+          if (result.success && result.minutes > 0) {
+            toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+          }
+          data = { ...data, actualMinutes: result.minutes || task.actualMinutes || 0 };
+        }
+      }
+
       const payload = { status: newStatus, ...data };
       const response = await api.patch(`/tasks/${id}/status`, payload);
 
@@ -692,7 +759,12 @@ const fetchTask = async () => {
           rejected: "❌ Task rejected",
         };
         toast.success(statusMessages[newStatus] || "Task status updated");
-        fetchTask();
+
+        // ✅ Force refresh task data
+        await fetchTask();
+
+        // ✅ Also refresh timer state from context
+        // The stopTimer should already reset the timer state
       }
     } catch (error: any) {
       console.error("Error updating status:", error);
@@ -703,11 +775,13 @@ const fetchTask = async () => {
   };
 
   // Mark Complete
+  // In TaskDetailPage - Updated handleMarkComplete
+
   const handleMarkComplete = async () => {
     if (!task) return;
 
-    // Stop timer first if running
-    if (isTimerActiveForTask(task._id) && isTimerRunning) {
+    // ✅ Stop timer first if running
+    if (isTimerActiveForTask(task._id)) {
       const result = await stopTimer(task._id);
       if (result.success && result.minutes > 0) {
         toast.success(`⏱️ Time tracked: ${result.displayTime}`);
@@ -741,7 +815,7 @@ const fetchTask = async () => {
 
       if (response.data.success) {
         toast.success(`✅ Task marked as complete!`);
-        fetchTask();
+        await fetchTask();
       }
     } catch (error: any) {
       console.error("Error marking task complete:", error);
@@ -814,8 +888,16 @@ const fetchTask = async () => {
       toast.error("Please upload evidence before submitting for review");
       return;
     }
+
+    // ✅ If there's an active timer, show info message
+    if (isTimerActiveForTask(task!._id) && isTimerRunning) {
+      toast.error("⏹️ Timer will be stopped before submission");
+    }
+
     setShowEvidenceModal(true);
   };
+
+  // In TaskDetailPage - Updated handleSubmitWithEvidence
 
   const handleSubmitWithEvidence = async () => {
     if (!evidenceText.trim()) {
@@ -836,9 +918,20 @@ const fetchTask = async () => {
         return;
       }
 
+      // ✅ STOP THE TIMER FIRST if it's running
+      let actualMinutes = task?.actualMinutes || 0;
+      if (isTimerActiveForTask(task!._id)) {
+        const timerResult = await stopTimer(task!._id);
+        if (timerResult.success && timerResult.minutes > 0) {
+          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
+          actualMinutes = timerResult.minutes;
+        }
+      }
+
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "submitted",
         evidenceUrls: evidenceUrls,
+        actualMinutes: actualMinutes,
       });
 
       if (response.data.success) {
@@ -846,8 +939,10 @@ const fetchTask = async () => {
         setShowEvidenceModal(false);
         setEvidenceText("");
         setHasSubmittedEvidence(true);
-        fetchTask();
-        fetchAttachments();
+
+        // ✅ Refetch task to get updated data
+        await fetchTask();
+        await fetchAttachments();
       } else {
         throw new Error("Failed to submit task");
       }
@@ -1021,6 +1116,8 @@ const fetchTask = async () => {
     }
   };
 
+  // In TaskDetailPage - Updated handleStopTimer
+
   const handleStopTimer = async () => {
     if (!task) {
       toast.error("Task not found");
@@ -1037,19 +1134,29 @@ const fetchTask = async () => {
       return;
     }
 
+    setIsStoppingTimer(true);
+
     try {
       const result = await stopTimer(task._id);
 
       if (result.success) {
-        toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+        const trackedMinutes = result.minutes;
+        const displayTime = result.displayTime;
+
+        if (trackedMinutes > 0) {
+          toast.success(`⏱️ Time tracked: ${displayTime}`);
+        } else {
+          toast.success("⏱️ Timer stopped.");
+        }
+
         await fetchTask();
       } else {
-        // This happens when the timer wasn't active
         toast.error("Timer was not active. Please try again.");
       }
     } catch (error: any) {
-      console.error("Error stopping timer:", error);
       toast.error(error?.message || "Failed to stop timer. Please try again.");
+    } finally {
+      setIsStoppingTimer(false);
     }
   };
 
@@ -1078,29 +1185,16 @@ const fetchTask = async () => {
       handleCopyLink();
     }
   };
-// app/(dashboard)/tasks/[id]/page.tsx - Fixed useEffect
 
-// app/(dashboard)/tasks/[id]/page.tsx - Updated useEffect
-
-useEffect(() => {
-  if (isAuthenticated && id) {
-    const fetchAllData = async () => {
-      try {
-        // Fetch task first
-        await fetchTask();
-      } catch (error: any) {
-        // If task fetch fails with 403, redirect to tasks page
-        if (error.response?.status === 403) {
-          toast.error("You don't have permission to view this task");
-          setTimeout(() => router.push("/tasks/task-board"), 1500);
-          return;
-        }
-        console.error("Error fetching task:", error);
-      }
-      
-      // Only fetch other data if task was successfully loaded
-      if (task) {
+  useEffect(() => {
+    if (isAuthenticated && id) {
+      const fetchAllData = async () => {
         try {
+          // Fetch task first
+          await fetchTask();
+
+          // Always fetch other data after task is fetched
+          // Don't check if (task) - just fetch everything
           await Promise.all([
             fetchComments(),
             fetchAttachments(),
@@ -1110,15 +1204,20 @@ useEffect(() => {
               return [];
             })
           ]);
-        } catch (error) {
-          console.error("Error fetching additional data:", error);
+        } catch (error: any) {
+          // If task fetch fails with 403, redirect to tasks page
+          if (error.response?.status === 403) {
+            toast.error("You don't have permission to view this task");
+            setTimeout(() => router.push("/tasks/task-board"), 1500);
+            return;
+          }
+          console.error("Error fetching data:", error);
         }
-      }
-    };
-    
-    fetchAllData();
-  }
-}, [isAuthenticated, id]);
+      };
+
+      fetchAllData();
+    }
+  }, [isAuthenticated, id]); // ✅ Dependencies are correct
 
   const getPriorityConfig = (priority: string) => {
     const config = {
@@ -1224,7 +1323,8 @@ useEffect(() => {
     );
   };
 
-  // Render extension requests - only show if there are requests
+  // Replace the renderExtensionRequests function with this:
+
   const renderExtensionRequests = () => {
     if (extensionRequests.length === 0) return null;
 
@@ -1232,36 +1332,49 @@ useEffect(() => {
       <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
         <div className="flex items-center gap-2 mb-3">
           <CalendarClock className="w-4 h-4 text-blue-600" />
-          <p className="text-sm font-medium text-blue-800">Extension Requests</p>
+          <p className="text-sm font-medium text-blue-800">Extension Requests ({extensionRequests.length})</p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {extensionRequests.map((req) => (
-            <div key={req._id} className="bg-white rounded-lg p-3 border border-blue-100">
+            <div key={req._id} className="bg-white rounded-lg p-3 border border-blue-100 shadow-sm">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-500">Requested: {formatDate(req.requestedDate)}</p>
-                  <p className="text-sm text-gray-700 mt-1">{req.reason}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : req.status === "rejected"
-                        ? "bg-rose-100 text-rose-700"
-                        : "bg-amber-100 text-amber-700"
-                      }`}
-                  >
-                    {req.status.toUpperCase()}
-                  </span>
-                  {canApprove && req.status === "pending" && (
-                    <button
-                      onClick={() => handleApproveExtension(req._id, req.requestedDate)}
-                      className="px-2 py-0.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded transition"
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : req.status === "rejected"
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-amber-100 text-amber-700 animate-pulse"
+                        }`}
                     >
-                      Approve
-                    </button>
+                      {req.status.toUpperCase()}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Requested: {formatDateTime(req.createdAt)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700 font-medium">
+                    New Deadline: {formatDate(req.requestedDate)}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1 bg-gray-50 p-2 rounded-lg">
+                    <span className="text-gray-400 text-xs font-medium">Reason:</span> {req.reason}
+                  </p>
+                  {req.approvedBy && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Approved by: {req.approvedBy.fullName}
+                    </p>
                   )}
                 </div>
+                {canApprove && req.status === "pending" && (
+                  <button
+                    onClick={() => handleApproveExtension(req._id, req.requestedDate)}
+                    className="ml-3 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg transition shadow-sm flex items-center gap-1"
+                  >
+                    <Check size={12} />
+                    Approve
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -1346,7 +1459,6 @@ useEffect(() => {
   const isTimerRunningForTask = isTimerActive && isTimerRunning;
   const displayTime = getDisplayTimeForTask(task._id, task.actualMinutes);
   const timerDisplay = isTimerActive ? timerState.elapsedSeconds : 0;
-  const totalTime = getTotalTime();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1513,11 +1625,12 @@ useEffect(() => {
                           <TimerIcon size={16} className="text-indigo-500" />
                           <span className="text-sm font-medium text-gray-700">Time Tracking</span>
                         </div>
+                        {/* Time Tracking section - Update this part */}
                         <div className="flex-1">
                           {isTimerActive ? (
                             <div className="flex items-center gap-2">
                               <span className="text-lg font-mono font-semibold text-indigo-700 tabular-nums">
-                                {formatTime(timerDisplay)}
+                                {formatTime(timerState.elapsedSeconds)}
                               </span>
                               <span
                                 className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"
@@ -1527,13 +1640,18 @@ useEffect(() => {
                               </span>
                               {task.actualMinutes && task.actualMinutes > 0 && (
                                 <span className="text-[10px] text-gray-400 ml-2">
-                                  (Saved: {task.actualMinutes}m)
+                                  (Saved: {task.actualMinutes.toFixed(2)}m)
+                                </span>
+                              )}
+                              {isTimerRunningForTask && (
+                                <span className="text-[10px] text-indigo-500 ml-2">
+                                  Total: {((task.actualMinutes || 0) + (timerState.elapsedSeconds / 60)).toFixed(2)}m
                                 </span>
                               )}
                             </div>
                           ) : (
                             <span className="text-sm text-gray-400">
-                              {task.actualMinutes ? `${task.actualMinutes}m logged` : "No time tracked"}
+                              {task.actualMinutes ? `${task.actualMinutes.toFixed(2)}m logged` : "No time tracked"}
                             </span>
                           )}
                         </div>
@@ -2098,6 +2216,7 @@ useEffect(() => {
               </motion.div>
 
               {/* Timer Status Card */}
+              {/* Timer Status Card - Replace the entire card with this */}
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -2119,16 +2238,26 @@ useEffect(() => {
                     </span>
                   )}
                 </div>
+
+                {/* Timer Status Card */}
                 <div className="text-center py-4">
                   {isTimerActive ? (
                     <>
                       <div className="text-3xl font-mono font-bold text-indigo-700 tabular-nums">
-                        {formatTime(timerDisplay)}
+                        {formatTime(timerState.elapsedSeconds)}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
                         {isTimerRunningForTask ? "Timer is running" : "Timer is paused"}
                         {task.actualMinutes && task.actualMinutes > 0 && (
-                          <span className="text-[10px] text-gray-400 ml-2">(Saved: {task.actualMinutes}m)</span>
+                          <span className="text-[10px] text-gray-400 ml-2">
+                            (Saved: {task.actualMinutes.toFixed(2)}m)
+                          </span>
+                        )}
+                        {/* Show total with current session */}
+                        {isTimerRunningForTask && (
+                          <span className="text-[10px] text-indigo-500 ml-2">
+                            Total: {((task.actualMinutes || 0) + (timerState.elapsedSeconds / 60)).toFixed(2)}m
+                          </span>
                         )}
                       </p>
                     </>
@@ -2138,7 +2267,7 @@ useEffect(() => {
                         {task.actualMinutes ? formatTime(task.actualMinutes * 60) : "--:--:--"}
                       </div>
                       <p className="text-xs text-gray-400 mt-1">
-                        {task.actualMinutes ? `${task.actualMinutes}m tracked` : "No timer active"}
+                        {task.actualMinutes ? `${task.actualMinutes.toFixed(2)}m tracked` : "No timer active"}
                       </p>
                     </>
                   )}
