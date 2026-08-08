@@ -41,12 +41,12 @@ export default function EnableNotificationsPage({
                     onEnable?.();
                     onClose();
                 } else {
-                    toast.info("Notifications disabled. You can enable them later from settings.");
+                    toast.error("Notifications disabled. You can enable them later from settings.");
                     onSkip?.();
                     onClose();
                 }
             } else {
-                toast.info("Notifications are not supported in this browser.");
+                toast.error("Notifications are not supported in this browser.");
                 onEnable?.();
                 onClose();
             }
