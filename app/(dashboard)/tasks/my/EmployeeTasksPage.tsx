@@ -281,7 +281,7 @@ export default function EmployeeTasksPage() {
     e.preventDefault();
 
     if (task.status === "completed") {
-      toast.info("Task is already completed");
+      toast.error("Task is already completed");
       return;
     }
 
