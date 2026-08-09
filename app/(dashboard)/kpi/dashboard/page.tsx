@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -70,8 +70,8 @@ export default function KPIDashboardPage() {
     tasksDone: 0,
     totalEmployees: 0,
   });
-  const [selectedMonth, setSelectedMonth] = useState("July");
-  const [selectedYear, setSelectedYear] = useState(2025);
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -84,28 +84,100 @@ export default function KPIDashboardPage() {
     "project_manager", "employee",
   ]);
 
+  const currentMonth = months[new Date().getMonth()];
+
   const getDepartmentName = (dept: any): string => {
-    if (!dept) return "Software & Commercial";
+    if (!dept) return "Unassigned";
     if (typeof dept === 'string') return dept;
     if (dept.name) return dept.name;
     if (dept._id) return dept._id;
-    return "Software & Commercial";
+    return "Unassigned";
   };
 
-  useEffect(() => {
-    fetchData();
+  const getRoleDisplayName = (role: string): string => {
+    const roleMap: Record<string, string> = {
+      super_admin: "Super Admin",
+      admin: "Admin",
+      hr_manager: "HR Manager",
+      dept_manager: "Department Manager",
+      project_manager: "Project Manager",
+      line_manager: "Line Manager",
+      employee: "Employee",
+    };
+    return roleMap[role] || role.replace(/_/g, " ");
+  };
+
+  // ============================================================
+  // CALCULATE KPI SCORE FROM TASKS (Same as detail page)
+  // ============================================================
+  const calculateKPIFromTasks = useCallback((userTasks: any[]): number => {
+    const totalTasks = userTasks.length;
+    const completedTasks = userTasks.filter((t: any) => t.status === "completed").length;
+    const overdueTasks = userTasks.filter((t: any) =>
+      t.status === "overdue" ||
+      (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
+    ).length;
+    const inProgressTasks = userTasks.filter((t: any) => t.status === "in_progress").length;
+
+    if (totalTasks === 0) return 0;
+
+    // Calculate component scores (matching detail page)
+    const taskCompletion = Math.min(100, Math.round((completedTasks / totalTasks) * 100));
+    const qualityScore = Math.min(100, Math.round(((completedTasks - overdueTasks * 0.3) / totalTasks) * 100));
+    const efficiency = Math.min(100, Math.round(((completedTasks + inProgressTasks * 0.5) / totalTasks) * 100));
+    const collaboration = Math.min(100, Math.round(50 + Math.random() * 40));
+    const innovation = Math.min(100, Math.round(45 + Math.random() * 45));
+    const attendance = Math.min(100, Math.round(80 + Math.random() * 20));
+
+    // Calculate total score with weights (matching detail page)
+    const totalScore = Math.round(
+      taskCompletion * 0.25 +
+      qualityScore * 0.2 +
+      efficiency * 0.2 +
+      collaboration * 0.15 +
+      innovation * 0.1 +
+      attendance * 0.1
+    );
+
+    return totalScore;
   }, []);
 
-  const fetchData = async () => {
+  // ============================================================
+  // FETCH DATA
+  // ============================================================
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const monthIndex = months.indexOf(selectedMonth) + 1;
+
+      // 1. Fetch users
       const usersRes = await api.get("/users");
       const users = usersRes.data?.data || [];
 
+      // 2. Fetch tasks
       const tasksRes = await api.get("/tasks");
       const tasks = tasksRes.data?.data || [];
 
+      // 3. Fetch KPI scores if available
+      let kpiScores: any[] = [];
+      try {
+        const kpiRes = await api.get(`/kpi/report/monthly`, {
+          params: { month: monthIndex, year: selectedYear }
+        });
+        if (kpiRes.data.success) {
+          kpiScores = kpiRes.data.data?.allScores || [];
+          console.log(`✅ Found ${kpiScores.length} KPI scores from API`);
+        }
+      } catch (e) {
+        console.log("No KPI data found, calculating from tasks");
+      }
+
+      // 4. Build employee data
       const employeeData: EmployeeKPI[] = users.map((user: any) => {
+        // Find KPI score for this user from API
+        const kpi = kpiScores.find((k: any) => k.userId?._id === user._id);
+
+        // Get user's tasks
         const userTasks = tasks.filter((t: any) => {
           const assignedTo = typeof t.assignedTo === 'string' ? t.assignedTo : t.assignedTo?._id;
           return assignedTo === user._id;
@@ -113,21 +185,31 @@ export default function KPIDashboardPage() {
 
         const total = userTasks.length;
         const completed = userTasks.filter((t: any) => t.status === "completed").length;
-        const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-        const score = total > 0
-          ? Math.min(100, Math.round(completionRate * 0.8 + 20 + Math.random() * 10))
-          : Math.round(50 + Math.random() * 30);
+        // PRIORITY 1: Use KPI score from API (if available)
+        let score = kpi?.totalScore || 0;
+
+        // PRIORITY 2: Calculate from tasks if no KPI score exists
+        if (score === 0 && total > 0) {
+          score = calculateKPIFromTasks(userTasks);
+          console.log(`📊 Calculated KPI for ${user.fullName}: ${score}% from ${total} tasks`);
+        }
+        // PRIORITY 3: Default score if no tasks
+        else if (score === 0) {
+          score = 0;
+        }
 
         const performanceLevel = score >= 85 ? "excellent"
           : score >= 70 ? "good"
             : score >= 55 ? "average"
-              : "needs_improvement";
+              : score < 55 && score > 0 ? "needs_improvement"
+                : "not_calculated";
 
         const status = score >= 85 ? "promotion_ready"
           : score >= 70 ? "on_track"
             : score >= 55 ? "training_needed"
-              : "warning_review";
+              : score < 55 && score > 0 ? "warning_review"
+                : "not_calculated";
 
         const deptName = getDepartmentName(user.departmentId || user.department);
 
@@ -145,25 +227,28 @@ export default function KPIDashboardPage() {
         };
       });
 
+      // Sort by score (higher first)
       const sorted = [...employeeData].sort((a, b) => b.totalScore - a.totalScore);
       setEmployees(sorted);
 
+      // Calculate stats
       const totalEmployees = sorted.length;
-      const avgScore = totalEmployees > 0
-        ? Math.round(sorted.reduce((sum, e) => sum + e.totalScore, 0) / totalEmployees)
+      const employeesWithScores = sorted.filter(e => e.totalScore > 0);
+      const avgScore = employeesWithScores.length > 0
+        ? Math.round(employeesWithScores.reduce((sum, e) => sum + e.totalScore, 0) / employeesWithScores.length)
         : 0;
-      const top = sorted[0] || null;
-      const needsAttention = sorted[sorted.length - 1] || null;
-      const totalTasks = tasks.length > 0 ? tasks.length : 186;
+      const top = sorted.find(e => e.totalScore > 0) || null;
+      const needsAttention = [...sorted].filter(e => e.totalScore > 0).pop() || null;
+      const totalTasks = tasks.length;
 
       setStats({
-        deptAvg: avgScore || 78,
-        topPerformer: top?.fullName || "Tanvir",
-        topScore: top?.totalScore || 91,
-        needsAttention: needsAttention?.fullName || "Karim",
-        needsScore: needsAttention?.totalScore || 52,
+        deptAvg: avgScore,
+        topPerformer: top?.fullName || "N/A",
+        topScore: top?.totalScore || 0,
+        needsAttention: needsAttention?.fullName || "N/A",
+        needsScore: needsAttention?.totalScore || 0,
         tasksDone: totalTasks,
-        totalEmployees: totalEmployees || 5,
+        totalEmployees: totalEmployees,
       });
 
     } catch (error) {
@@ -172,17 +257,39 @@ export default function KPIDashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMonth, selectedYear, calculateKPIFromTasks]);
 
   // ============================================================
-  // PDF EXPORT FUNCTION
+  // INITIALIZE MONTH
+  // ============================================================
+  useEffect(() => {
+    if (!selectedMonth) {
+      setSelectedMonth(currentMonth);
+    }
+  }, [selectedMonth, currentMonth]);
+
+  // ============================================================
+  // FETCH DATA ON MOUNT AND FILTER CHANGE
+  // ============================================================
+  useEffect(() => {
+    if (selectedMonth) {
+      fetchData();
+    }
+  }, [selectedMonth, selectedYear, fetchData]);
+
+  // ============================================================
+  // PDF EXPORT
   // ============================================================
   const handleExportPDF = () => {
+    if (employees.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
     try {
       const doc = new jsPDF("p", "mm", "a4");
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      // Header
       doc.setFontSize(22);
       doc.setTextColor(15, 81, 50);
       doc.text("KPI Dashboard", pageWidth / 2, 20, { align: "center" });
@@ -196,7 +303,6 @@ export default function KPIDashboardPage() {
         { align: "center" }
       );
 
-      // Stats Summary
       doc.setFontSize(10);
       doc.setTextColor(51, 65, 85);
       const statsY = 40;
@@ -205,12 +311,11 @@ export default function KPIDashboardPage() {
       doc.text(`Needs Attention: ${stats.needsAttention} (${stats.needsScore}%)`, 20, statsY + 12);
       doc.text(`Tasks Completed: ${stats.tasksDone}`, 20, statsY + 18);
 
-      // Employee Table
       const tableData = employees.map((emp) => [
         emp.fullName,
         emp.department,
-        emp.role.replace(/_/g, " "),
-        `${emp.totalScore}%`,
+        getRoleDisplayName(emp.role),
+        emp.totalScore > 0 ? `${emp.totalScore}%` : "N/A",
         emp.status.replace(/_/g, " ").toUpperCase(),
         emp.tasksCompleted.toString(),
       ]);
@@ -240,7 +345,6 @@ export default function KPIDashboardPage() {
         margin: { left: 15, right: 15 },
       });
 
-      // Footer
       const finalY = (doc as any).lastAutoTable?.finalY || 250;
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
@@ -251,7 +355,6 @@ export default function KPIDashboardPage() {
         { align: "center" }
       );
 
-      // Save
       doc.save(`KPI_Dashboard_${selectedMonth}_${selectedYear}.pdf`);
       toast.success("PDF exported successfully!");
 
@@ -287,15 +390,22 @@ export default function KPIDashboardPage() {
         bg: "bg-red-50/80",
         icon: AlertCircle,
       },
+      not_calculated: {
+        label: "Not Calculated",
+        color: "text-gray-500",
+        bg: "bg-gray-50/80",
+        icon: AlertCircle,
+      },
     };
-    return configs[status] || configs.on_track;
+    return configs[status] || configs.not_calculated;
   };
 
   const getCircleColor = (score: number) => {
     if (score >= 85) return { border: "border-emerald-400", text: "text-emerald-600" };
     if (score >= 70) return { border: "border-blue-400", text: "text-blue-600" };
     if (score >= 55) return { border: "border-amber-400", text: "text-amber-500" };
-    return { border: "border-red-300", text: "text-red-500" };
+    if (score > 0) return { border: "border-red-300", text: "text-red-500" };
+    return { border: "border-gray-300", text: "text-gray-400" };
   };
 
   if (!canManage) {
@@ -330,35 +440,42 @@ export default function KPIDashboardPage() {
                 KPI Dashboard — {selectedMonth} {selectedYear}
               </h1>
               <p className="text-gray-500 text-sm mt-0.5">
-                Software & Commercial · {stats.totalEmployees} employees
+                {stats.totalEmployees} employees · {stats.deptAvg}% average score
               </p>
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap">
-              <button
-                onClick={() => setSelectedMonth("June")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition border ${selectedMonth === "June"
-                  ? "bg-white text-gray-800 border-gray-200 shadow-sm"
-                  : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                  }`}
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               >
-                June
-              </button>
-              <button
-                onClick={() => setSelectedMonth("July")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${selectedMonth === "July"
-                  ? "bg-[#0f5132] text-white shadow-sm"
-                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                  }`}
+                {months.map((month) => (
+                  <option key={month} value={month}>{month}</option>
+                ))}
+              </select>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               >
-                July
-              </button>
+                {years.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
               <button
                 onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2 bg-[#0f5132] hover:bg-[#0a3622] text-white rounded-lg text-sm font-medium shadow-sm transition"
+                disabled={employees.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-[#0f5132] hover:bg-[#0a3622] text-white rounded-lg text-sm font-medium shadow-sm transition disabled:opacity-50"
               >
                 <FileText size={16} />
                 Export PDF
+              </button>
+              <button
+                onClick={fetchData}
+                className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+              >
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               </button>
             </div>
           </div>
@@ -371,7 +488,6 @@ export default function KPIDashboardPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* DEPT AVG */}
                 <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                   <div className="flex justify-between items-start">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">DEPT AVG</span>
@@ -382,7 +498,6 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                {/* TOP PERFORMER */}
                 <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                   <div className="flex justify-between items-start">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">TOP PERFORMER</span>
@@ -394,7 +509,6 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                {/* NEEDS ATTENTION */}
                 <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                   <div className="flex justify-between items-start">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">NEEDS ATTENTION</span>
@@ -406,7 +520,6 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                {/* TASKS DONE */}
                 <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
                   <div className="flex justify-between items-start">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">TASKS DONE</span>
@@ -421,14 +534,14 @@ export default function KPIDashboardPage() {
               {/* Main Employee Score Section */}
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-6">
 
-                {/* Section Header */}
                 <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                   <h2 className="text-base font-bold text-gray-900">
                     Employee KPI Scores — {selectedMonth} {selectedYear}
                   </h2>
                   <button
                     onClick={handleExportPDF}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+                    disabled={employees.length === 0}
+                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
                   >
                     <FileText size={13} />
                     Export All
@@ -437,36 +550,30 @@ export default function KPIDashboardPage() {
 
                 {/* Employee Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                  {employees.map((employee, idx) => {
+                  {employees.map((employee) => {
                     const statusConfig = getStatusConfig(employee.status);
                     const circle = getCircleColor(employee.totalScore);
-
-                    const displayName = employee.fullName || [
-                      "Tanvir Ahmed", "Nasrin Akter", "Sultana Begum", "Rahim Uddin", "Karim Hassan"
-                    ][idx % 5];
-
-                    const displayRole = employee.role !== "employee" && employee.role
-                      ? employee.role.replace(/_/g, " ")
-                      : ["Software Dev", "Sales Exec", "HR Executive", "Accounts", "Commercial"][idx % 5];
+                    const displayRole = getRoleDisplayName(employee.role);
+                    const hasScore = employee.totalScore > 0;
 
                     return (
                       <div
                         key={employee._id}
-                        onClick={() => router.push(`/kpi/employee/${employee._id}`)}
-                        className="bg-white rounded-xl border border-gray-200/90 p-5 flex flex-col items-center text-center hover:shadow-md transition cursor-pointer relative group justify-between"
+                        onClick={() => hasScore && router.push(`/kpi/employee/${employee._id}`)}
+                        className={`bg-white rounded-xl border border-gray-200/90 p-5 flex flex-col items-center text-center hover:shadow-md transition relative group justify-between ${hasScore ? 'cursor-pointer' : 'cursor-default opacity-60'}`}
                       >
                         <div className="flex flex-col items-center w-full">
                           <div className={`w-16 h-16 rounded-full border-2 ${circle.border} flex items-center justify-center mb-3 bg-white shadow-inner`}>
                             <span className={`text-base font-extrabold ${circle.text}`}>
-                              {employee.totalScore}%
+                              {hasScore ? `${employee.totalScore}%` : '—'}
                             </span>
                           </div>
 
                           <h3 className="font-bold text-gray-900 text-sm truncate w-full mb-0.5">
-                            {displayName}
+                            {employee.fullName}
                           </h3>
                           <p className="text-xs text-gray-400 font-medium truncate w-full mb-4">
-                            {displayRole}
+                            {displayRole} · {employee.department}
                           </p>
                         </div>
 

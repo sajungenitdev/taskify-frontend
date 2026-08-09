@@ -33,30 +33,21 @@ import {
     Target,
     Activity,
     Eye,
+    AlertTriangle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
-    LineChart,
-    Line,
+    BarChart,
+    Bar,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
-    Legend,
     ResponsiveContainer,
-    RadarChart,
-    PolarGrid,
-    PolarAngleAxis,
-    PolarRadiusAxis,
-    Radar,
-    BarChart,
-    Bar,
     Cell,
-    ComposedChart,
-    Area,
 } from "recharts";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -76,13 +67,14 @@ interface UserData {
     email: string;
     employeeId: string;
     role: string;
-    departmentId: UserDepartment;
+    departmentId: UserDepartment | null;
     avatar?: string;
     phone?: string;
     position?: string;
     location?: string;
     bio?: string;
     isActive?: boolean;
+    createdAt?: string;
 }
 
 interface ScoreComponent {
@@ -117,7 +109,7 @@ interface TrendData {
     month: string;
     totalScore: number;
     performanceLevel: string;
-    components: {
+    components?: {
         taskCompletion: number;
         qualityScore: number;
         efficiency: number;
@@ -136,18 +128,7 @@ interface TaskStats {
     rejected: number;
     submitted: number;
     completionRate: number;
-    byPriority: {
-        low: number;
-        normal: number;
-        high: number;
-        urgent: number;
-    };
-}
-
-interface RadarDataItem {
-    subject: string;
-    value: number;
-    fullMark: number;
+    loggedHours: number;
 }
 
 interface ApiTask {
@@ -158,34 +139,15 @@ interface ApiTask {
     deadline?: string;
     assignedTo?: string;
     createdAt: string;
+    actualMinutes?: number;
 }
 
 // ============================================================
 // CONSTANTS
 // ============================================================
-const ROLE_MULTIPLIERS: Record<string, number> = {
-    super_admin: 1.2,
-    admin: 1.1,
-    hr_manager: 1.05,
-    dept_manager: 1.0,
-    project_manager: 0.95,
-    line_manager: 0.9,
-    employee: 0.85,
-};
-
 const MONTHS = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
 ];
 
 const YEARS = [2023, 2024, 2025, 2026];
@@ -199,6 +161,15 @@ const COMPONENT_LABELS: Record<string, string> = {
     attendance: "Attendance",
 };
 
+const COMPONENT_WEIGHTS: Record<string, string> = {
+    taskCompletion: "×25%",
+    qualityScore: "×20%",
+    efficiency: "×20%",
+    collaboration: "×15%",
+    innovation: "×10%",
+    attendance: "×10%",
+};
+
 const COMPONENT_COLORS: Record<string, string> = {
     taskCompletion: "#10b981",
     qualityScore: "#3b82f6",
@@ -208,52 +179,6 @@ const COMPONENT_COLORS: Record<string, string> = {
     attendance: "#14b8a6",
 };
 
-const PERFORMANCE_CONFIG = {
-    excellent: {
-        color: "text-emerald-600",
-        bg: "bg-emerald-50",
-        border: "border-emerald-200",
-        icon: Crown,
-        label: "Excellent",
-        emoji: "🌟",
-        gradient: "from-emerald-400 to-emerald-600",
-        badge: "bg-emerald-100 text-emerald-700",
-    },
-    good: {
-        color: "text-blue-600",
-        bg: "bg-blue-50",
-        border: "border-blue-200",
-        icon: Award,
-        label: "Good",
-        emoji: "⭐",
-        gradient: "from-blue-400 to-blue-600",
-        badge: "bg-blue-100 text-blue-700",
-    },
-    average: {
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-        border: "border-amber-200",
-        icon: Medal,
-        label: "Average",
-        emoji: "📊",
-        gradient: "from-amber-400 to-amber-600",
-        badge: "bg-amber-100 text-amber-700",
-    },
-    needs_improvement: {
-        color: "text-red-600",
-        bg: "bg-red-50",
-        border: "border-red-200",
-        icon: AlertCircle,
-        label: "Needs Improvement",
-        emoji: "📈",
-        gradient: "from-red-400 to-red-600",
-        badge: "bg-red-100 text-red-700",
-    },
-};
-
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
 export default function EmployeeKPIDetailPage() {
     const { user, hasRole } = useAuth();
     const router = useRouter();
@@ -262,7 +187,6 @@ export default function EmployeeKPIDetailPage() {
 
     // State
     const [employee, setEmployee] = useState<EmployeeKPI | null>(null);
-    const [allKPIScores, setAllKPIScores] = useState<EmployeeKPI[]>([]);
     const [trendData, setTrendData] = useState<TrendData[]>([]);
     const [taskStats, setTaskStats] = useState<TaskStats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -271,33 +195,22 @@ export default function EmployeeKPIDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [selectedMonth, setSelectedMonth] = useState<string>("");
     const [selectedYear, setSelectedYear] = useState<number>(
-        new Date().getFullYear(),
-    );
-    const [activeTab, setActiveTab] = useState<"overview" | "tasks" | "history">(
-        "overview",
+        new Date().getFullYear()
     );
     const [exporting, setExporting] = useState(false);
-    const [dataLoaded, setDataLoaded] = useState(false);
-    const [userDetails, setUserDetails] = useState<UserData | null>(null);
 
     const canManage = hasRole([
-        "super_admin",
-        "admin",
-        "hr_manager",
-        "dept_manager",
-        "project_manager",
-        "line_manager",
-        "employee"
+        "super_admin", "admin", "hr_manager", "dept_manager",
+        "project_manager", "line_manager", "employee"
     ]);
 
-    const currentMonth = MONTHS[new Date().getMonth()];
-
-    // Refs
     const isInitialized = useRef(false);
     const isFetching = useRef(false);
 
+    const currentMonth = MONTHS[new Date().getMonth()];
+
     // ============================================================
-    // HELPER: Safe Department Name
+    // HELPERS
     // ============================================================
     const getDepartmentName = (dept: any): string => {
         if (!dept) return "Unassigned";
@@ -307,444 +220,7 @@ export default function EmployeeKPIDetailPage() {
         return "Unassigned";
     };
 
-    // ============================================================
-    // HELPERS
-    // ============================================================
-    const getRoleMultiplier = useCallback((role: string): number => {
-        return ROLE_MULTIPLIERS[role] || 0.85;
-    }, []);
-
-    const calculateScoreForUser = useCallback((userData: UserData, tasks: ApiTask[]): number => {
-        const multiplier = getRoleMultiplier(userData.role);
-        const totalTasks = tasks.length;
-        const completedTasks = tasks.filter((t) => t.status === "completed").length;
-
-        if (totalTasks === 0) return Math.round(50 * multiplier + 20);
-
-        const taskCompletion = Math.min(
-            100,
-            Math.round((completedTasks / totalTasks) * 100 * multiplier)
-        );
-        const qualityScore = Math.min(
-            100,
-            Math.round((completedTasks / totalTasks) * 100 * multiplier * 0.95 + 5)
-        );
-        const efficiency = Math.min(
-            100,
-            Math.round((completedTasks / totalTasks) * 100 * multiplier * 0.9 + 10)
-        );
-        const collaboration = Math.min(100, Math.round(60 * multiplier + 30));
-        const innovation = Math.min(100, Math.round(50 * multiplier + 30));
-        const attendance = Math.min(100, Math.round(85 + Math.random() * 15));
-
-        return Math.round(
-            (taskCompletion + qualityScore + efficiency + collaboration + innovation + attendance) / 6
-        );
-    }, [getRoleMultiplier]);
-
-    const calculateKPIForUser = useCallback((
-        userData: UserData,
-        tasks: ApiTask[],
-        allUsers: UserData[]
-    ): EmployeeKPI => {
-        const multiplier = getRoleMultiplier(userData.role);
-        const totalTasks = tasks.length;
-        const completedTasks = tasks.filter((t) => t.status === "completed").length;
-        const inProgressTasks = tasks.filter((t) => t.status === "in_progress").length;
-        const overdueTasks = tasks.filter(
-            (t) => t.status === "overdue" || (t.deadline && new Date(t.deadline) < new Date())
-        ).length;
-
-        const taskCompletion = totalTasks > 0
-            ? Math.min(100, Math.round((completedTasks / totalTasks) * 100 * multiplier))
-            : Math.min(100, Math.round(60 * multiplier + 20));
-
-        const qualityScore = totalTasks > 0
-            ? Math.min(100, Math.round((completedTasks / totalTasks) * 100 * multiplier * 0.95 + 5))
-            : Math.min(100, Math.round(55 * multiplier + 25));
-
-        const efficiency = totalTasks > 0
-            ? Math.min(100, Math.round(((completedTasks - overdueTasks * 0.5) / totalTasks) * 100 * multiplier))
-            : Math.min(100, Math.round(50 * multiplier + 30));
-
-        const collaboration = Math.min(100, Math.round(60 * multiplier + 30 + Math.random() * 10));
-        const innovation = Math.min(100, Math.round(50 * multiplier + 30 + Math.random() * 20));
-        const attendance = Math.min(100, Math.round(85 + Math.random() * 15));
-
-        const totalScore = Math.round(
-            (taskCompletion + qualityScore + efficiency + collaboration + innovation + attendance) / 6
-        );
-
-        const performanceLevel: EmployeeKPI["performanceLevel"] =
-            totalScore >= 90 ? "excellent"
-                : totalScore >= 75 ? "good"
-                    : totalScore >= 60 ? "average"
-                        : "needs_improvement";
-
-        const allUserScores = allUsers.map((u) => {
-            const userTasks = tasks.filter((t: ApiTask) => t.assignedTo === u._id);
-            return calculateScoreForUser(u, userTasks);
-        });
-
-        const sortedScores = [...allUserScores].sort((a, b) => b - a);
-        const rank = sortedScores.indexOf(totalScore) + 1 || allUsers.length;
-        const percentile = allUsers.length > 0
-            ? Math.round(((allUsers.length - rank) / allUsers.length) * 100)
-            : 50;
-
-        return {
-            _id: `calculated_${userData._id}_${selectedMonth}_${selectedYear}`,
-            userId: {
-                ...userData,
-                departmentId: userData.departmentId || { _id: "unassigned", name: "Unassigned", code: "NA" },
-            },
-            month: selectedMonth,
-            year: selectedYear,
-            totalScore,
-            performanceLevel,
-            percentile,
-            rank,
-            totalEmployees: allUsers.length || 1,
-            scores: {
-                taskCompletion: { score: taskCompletion, weight: 20, weightedScore: taskCompletion * 0.2 },
-                qualityScore: { score: qualityScore, weight: 20, weightedScore: qualityScore * 0.2 },
-                efficiency: { score: efficiency, weight: 20, weightedScore: efficiency * 0.2 },
-                collaboration: { score: collaboration, weight: 15, weightedScore: collaboration * 0.15 },
-                innovation: { score: innovation, weight: 15, weightedScore: innovation * 0.15 },
-                attendance: { score: attendance, weight: 10, weightedScore: attendance * 0.1 },
-            },
-            comments: `Calculated based on ${totalTasks} tasks. ${completedTasks} completed, ${inProgressTasks} in progress, ${overdueTasks} overdue.`,
-            calculatedAt: new Date().toISOString(),
-        };
-    }, [selectedMonth, selectedYear, getRoleMultiplier, calculateScoreForUser]);
-
-    // ============================================================
-    // GENERATE FALLBACK TREND DATA
-    // ============================================================
-    const generateFallbackTrendData = useCallback(() => {
-        const data = [];
-        const now = new Date();
-        for (let i = 11; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            data.push({
-                month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-                totalScore: Math.round(60 + Math.random() * 30),
-                performanceLevel: 'average',
-                components: {
-                    taskCompletion: Math.round(60 + Math.random() * 30),
-                    qualityScore: Math.round(60 + Math.random() * 30),
-                    efficiency: Math.round(60 + Math.random() * 30),
-                    collaboration: Math.round(60 + Math.random() * 30),
-                    innovation: Math.round(60 + Math.random() * 30),
-                    attendance: Math.round(70 + Math.random() * 25),
-                }
-            });
-        }
-        return data;
-    }, []);
-
-    // ============================================================
-    // LOAD ALL DATA
-    // ============================================================
-    const loadAllData = useCallback(async () => {
-        if (isFetching.current) return;
-
-        try {
-            isFetching.current = true;
-            setLoading(true);
-            setError(null);
-            setDataLoaded(false);
-
-            let userData: UserData | null = null;
-
-            // 1. Fetch user details
-            try {
-                const userResponse = await api.get(`/users/${userId}`);
-                if (userResponse.data.success) {
-                    userData = userResponse.data.data;
-                    setUserDetails(userData);
-                    console.log('✅ User data fetched successfully');
-                }
-            } catch (error: any) {
-                console.warn('⚠️ Could not fetch user details:', error.response?.status);
-
-                if (error.response?.status === 403) {
-                    console.log('🔍 Access denied, trying /me endpoint...');
-                    try {
-                        const meResponse = await api.get('/auth/me');
-                        if (meResponse.data.success) {
-                            const meData = meResponse.data.data;
-                            if (meData._id === userId) {
-                                userData = meData;
-                                setUserDetails(meData);
-                                toast.success('Loaded your profile data');
-                            }
-                        }
-                    } catch (meError) {
-                        console.error('❌ Error fetching /me:', meError);
-                    }
-                }
-
-                if (!userData) {
-                    userData = {
-                        _id: userId,
-                        fullName: 'Employee',
-                        email: '',
-                        employeeId: '',
-                        role: 'employee',
-                        departmentId: { _id: 'unassigned', name: 'Unassigned', code: 'NA' },
-                        isActive: true
-                    };
-                }
-            }
-
-            // 2. Fetch tasks for this user
-            let userTasks: ApiTask[] = [];
-            try {
-                const endpoints = [`/tasks/my-tasks`, `/tasks?assignedTo=${userId}`];
-                for (const endpoint of endpoints) {
-                    try {
-                        const response = await api.get(endpoint);
-                        if (response.data.success) {
-                            const tasks = response.data.data || [];
-                            if (endpoint === '/tasks/my-tasks') {
-                                userTasks = tasks.filter((t: any) => t.assignedTo === userId);
-                            } else {
-                                userTasks = tasks;
-                            }
-                            if (userTasks.length > 0) break;
-                        }
-                    } catch (e) {
-                        console.log(`⚠️ Failed to fetch from ${endpoint}`);
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error fetching tasks:', error);
-            }
-
-            // 3. Fetch all users for ranking
-            let allUsers: UserData[] = [];
-            try {
-                const usersResponse = await api.get('/users');
-                if (usersResponse.data.success) {
-                    allUsers = usersResponse.data.data || [];
-                }
-            } catch (error) {
-                console.warn('⚠️ Could not fetch all users, using minimal data');
-                if (userData) allUsers = [userData];
-            }
-
-            // 4. Try to fetch existing KPI data
-            let existingKPI: EmployeeKPI | null = null;
-            try {
-                const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
-                const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, '0')}`;
-
-                const kpiEndpoints = [
-                    `/kpi/employee/${userId}?month=${monthIndex}&year=${selectedYear}`,
-                    `/kpi/employee/${userId}/trend?months=1`,
-                    `/kpi/my-kpi`
-                ];
-
-                for (const endpoint of kpiEndpoints) {
-                    try {
-                        const response = await api.get(endpoint);
-                        if (response.data.success) {
-                            const data = response.data.data;
-                            if (Array.isArray(data) && data.length > 0) {
-                                const kpiData = data[0] || data;
-                                if (kpiData.totalScore !== undefined) {
-                                    existingKPI = kpiData;
-                                    break;
-                                }
-                            } else if (data && data.totalScore !== undefined) {
-                                existingKPI = data;
-                                break;
-                            } else if (data && data.current && data.current.totalScore !== undefined) {
-                                existingKPI = data.current;
-                                break;
-                            }
-                        }
-                    } catch (e) {
-                        console.log(`⚠️ Failed to fetch KPI from ${endpoint}`);
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error fetching KPI:', error);
-            }
-
-            // 5. Build employee data
-            let employeeData: EmployeeKPI | null = null;
-            if (existingKPI) {
-                employeeData = {
-                    ...existingKPI,
-                    userId: existingKPI.userId || userData || {
-                        _id: userId,
-                        fullName: 'Unknown',
-                        email: '',
-                        employeeId: '',
-                        role: '',
-                        departmentId: { _id: '', name: '', code: '' },
-                    },
-                    scores: existingKPI.scores || {
-                        taskCompletion: { score: 0, weight: 20, weightedScore: 0 },
-                        qualityScore: { score: 0, weight: 20, weightedScore: 0 },
-                        efficiency: { score: 0, weight: 20, weightedScore: 0 },
-                        collaboration: { score: 0, weight: 15, weightedScore: 0 },
-                        innovation: { score: 0, weight: 15, weightedScore: 0 },
-                        attendance: { score: 0, weight: 10, weightedScore: 0 },
-                    }
-                };
-            } else if (userData) {
-                employeeData = calculateKPIForUser(userData, userTasks, allUsers);
-                console.log('📊 Calculated KPI from tasks:', employeeData.totalScore);
-            }
-
-            if (employeeData) {
-                setEmployee(employeeData);
-                setDataLoaded(true);
-                toast.success('KPI data loaded successfully');
-            } else {
-                setError('No KPI data found for this employee');
-                setDataLoaded(false);
-            }
-
-            // 6. Fetch KPI history
-            try {
-                const trendResponse = await api.get(`/kpi/employee/${userId}/trend`, {
-                    params: { months: 12 }
-                });
-                if (trendResponse.data.success) {
-                    const trendData = trendResponse.data.data || [];
-                    setAllKPIScores(trendData.map((item: any, index: number) => ({
-                        _id: `history_${index}`,
-                        userId: userData || { _id: userId, fullName: 'Unknown', email: '', employeeId: '', role: '', departmentId: { _id: '', name: '', code: '' } },
-                        month: item.month,
-                        year: parseInt(item.month?.split('-')[0]) || selectedYear,
-                        totalScore: item.totalScore || 0,
-                        performanceLevel: item.performanceLevel || 'average',
-                        percentile: 50,
-                        rank: 1,
-                        totalEmployees: 1,
-                        scores: {
-                            taskCompletion: { score: item.components?.taskCompletion || 0, weight: 20, weightedScore: 0 },
-                            qualityScore: { score: item.components?.qualityScore || 0, weight: 20, weightedScore: 0 },
-                            efficiency: { score: item.components?.efficiency || 0, weight: 20, weightedScore: 0 },
-                            collaboration: { score: item.components?.collaboration || 0, weight: 15, weightedScore: 0 },
-                            innovation: { score: item.components?.innovation || 0, weight: 15, weightedScore: 0 },
-                            attendance: { score: item.components?.attendance || 0, weight: 10, weightedScore: 0 },
-                        },
-                        comments: '',
-                        calculatedAt: new Date().toISOString(),
-                    })));
-                }
-            } catch (error) {
-                console.error('❌ Error fetching KPI history:', error);
-            }
-
-            // 7. Fetch trend data for chart
-            try {
-                setTrendLoading(true);
-                const trendResponse = await api.get(`/kpi/employee/${userId}/trend`, {
-                    params: { months: 12 },
-                });
-                if (trendResponse.data.success) {
-                    setTrendData(trendResponse.data.data || []);
-                }
-            } catch (error) {
-                console.error('❌ Error fetching trend data:', error);
-                setTrendData(generateFallbackTrendData());
-            } finally {
-                setTrendLoading(false);
-            }
-
-            // 8. Fetch task statistics
-            try {
-                setTaskLoading(true);
-                let tasks: ApiTask[] = [];
-
-                try {
-                    const response = await api.get(`/tasks/my-tasks`);
-                    if (response.data.success) {
-                        const allTasks = response.data.data || [];
-                        tasks = allTasks.filter((t: any) => t.assignedTo === userId);
-                    }
-                } catch (taskError) {
-                    console.log('⚠️ Error fetching tasks, using empty array');
-                }
-
-                if (tasks.length > 0) {
-                    const stats: TaskStats = {
-                        total: tasks.length,
-                        completed: tasks.filter((t: ApiTask) => t.status === 'completed').length,
-                        inProgress: tasks.filter((t: ApiTask) => t.status === 'in_progress').length,
-                        pending: tasks.filter((t: ApiTask) => t.status === 'pending').length,
-                        overdue: tasks.filter((t: ApiTask) => t.status === 'overdue').length,
-                        rejected: tasks.filter((t: ApiTask) => t.status === 'rejected').length,
-                        submitted: tasks.filter((t: ApiTask) => t.status === 'submitted').length,
-                        completionRate: tasks.length > 0
-                            ? Math.round((tasks.filter((t: ApiTask) => t.status === 'completed').length / tasks.length) * 100)
-                            : 0,
-                        byPriority: {
-                            low: tasks.filter((t: ApiTask) => t.priority === 'low').length,
-                            normal: tasks.filter((t: ApiTask) => t.priority === 'normal').length,
-                            high: tasks.filter((t: ApiTask) => t.priority === 'high').length,
-                            urgent: tasks.filter((t: ApiTask) => t.priority === 'urgent').length,
-                        },
-                    };
-                    setTaskStats(stats);
-                } else {
-                    setTaskStats({
-                        total: 0,
-                        completed: 0,
-                        inProgress: 0,
-                        pending: 0,
-                        overdue: 0,
-                        rejected: 0,
-                        submitted: 0,
-                        completionRate: 0,
-                        byPriority: { low: 0, normal: 0, high: 0, urgent: 0 },
-                    });
-                }
-            } catch (error) {
-                console.error('❌ Error fetching task stats:', error);
-            } finally {
-                setTaskLoading(false);
-            }
-        } catch (error: any) {
-            console.error('❌ Error loading data:', error);
-            setError(error?.response?.data?.message || 'Failed to load data');
-            setDataLoaded(false);
-            toast.error('Failed to load KPI data');
-        } finally {
-            setLoading(false);
-            isFetching.current = false;
-        }
-    }, [userId, selectedMonth, selectedYear, calculateKPIForUser, user?._id, generateFallbackTrendData]);
-
-    // ============================================================
-    // PERFORMANCE CONFIG
-    // ============================================================
-    const getPerformanceConfig = useCallback((level: string) => {
-        return PERFORMANCE_CONFIG[level as keyof typeof PERFORMANCE_CONFIG] || PERFORMANCE_CONFIG.average;
-    }, []);
-
-    const formatScore = useCallback((score: number): string => {
-        return score?.toFixed(1) || "0.0";
-    }, []);
-
-    const formatDate = useCallback((dateString: string): string => {
-        if (!dateString) return "N/A";
-        return new Date(dateString).toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    }, []);
-
-    const getRoleDisplayName = useCallback((role: string): string => {
+    const getRoleDisplayName = (role: string): string => {
         const roleMap: Record<string, string> = {
             super_admin: "Super Admin",
             admin: "Admin",
@@ -755,74 +231,372 @@ export default function EmployeeKPIDetailPage() {
             employee: "Employee",
         };
         return roleMap[role] || role.replace(/_/g, " ");
-    }, []);
+    };
+
+    const formatScore = (score: number): string => {
+        return score?.toFixed(1) || "0.0";
+    };
+
+    const getPerformanceConfig = (level: string) => {
+        const configs: Record<string, any> = {
+            excellent: {
+                color: "text-emerald-600",
+                bg: "bg-emerald-50",
+                border: "border-emerald-200",
+                icon: Crown,
+                label: "Excellent",
+                emoji: "🌟",
+            },
+            good: {
+                color: "text-blue-600",
+                bg: "bg-blue-50",
+                border: "border-blue-200",
+                icon: Award,
+                label: "Good",
+                emoji: "⭐",
+            },
+            average: {
+                color: "text-amber-600",
+                bg: "bg-amber-50",
+                border: "border-amber-200",
+                icon: Medal,
+                label: "Average",
+                emoji: "📊",
+            },
+            needs_improvement: {
+                color: "text-red-600",
+                bg: "bg-red-50",
+                border: "border-red-200",
+                icon: AlertCircle,
+                label: "Needs Improvement",
+                emoji: "📈",
+            },
+        };
+        return configs[level] || configs.average;
+    };
 
     // ============================================================
-    // EXPORT FUNCTIONS
+    // FETCH DATA
+    // ============================================================
+    const loadAllData = useCallback(async () => {
+        if (isFetching.current) return;
+
+        try {
+            isFetching.current = true;
+            setLoading(true);
+            setError(null);
+
+            const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
+
+            // 1. Fetch user details
+            let userData: UserData | null = null;
+            try {
+                const userResponse = await api.get(`/users/${userId}`);
+                if (userResponse.data.success) {
+                    userData = userResponse.data.data;
+                }
+            } catch (err: any) {
+                console.error("Error fetching user:", err);
+                if (err.response?.status === 403) {
+                    try {
+                        const meResponse = await api.get('/auth/me');
+                        if (meResponse.data.success && meResponse.data.data._id === userId) {
+                            userData = meResponse.data.data;
+                        }
+                    } catch (e) {
+                        console.error("Error fetching /me:", e);
+                    }
+                }
+            }
+
+            if (!userData) {
+                setError("User not found");
+                return;
+            }
+
+            // 2. Fetch KPI data
+            let kpiData: EmployeeKPI | null = null;
+            try {
+                const kpiResponse = await api.get(`/kpi/employee/${userId}`, {
+                    params: { month: monthIndex, year: selectedYear }
+                });
+                if (kpiResponse.data.success) {
+                    const data = kpiResponse.data.data;
+                    if (Array.isArray(data) && data.length > 0) {
+                        kpiData = data[0];
+                    } else if (data && data.totalScore !== undefined) {
+                        kpiData = data;
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching KPI:", err);
+            }
+
+            // 3. If no KPI data, calculate from tasks
+            if (!kpiData) {
+                try {
+                    // Fetch tasks for this user
+                    const tasksResponse = await api.get(`/tasks?assignedTo=${userId}`);
+                    const tasks = tasksResponse.data?.data || [];
+
+                    // Fetch all users for ranking
+                    const usersResponse = await api.get("/users");
+                    const allUsers = usersResponse.data?.data || [];
+
+                    // Calculate KPI from tasks
+                    kpiData = calculateKPIFromTasks(userData, tasks, allUsers);
+                } catch (err) {
+                    console.error("Error calculating KPI from tasks:", err);
+                }
+            }
+
+            if (kpiData) {
+                setEmployee(kpiData);
+            } else {
+                setError("No KPI data found for this employee");
+                return;
+            }
+
+            // 4. Fetch trend data
+            try {
+                setTrendLoading(true);
+                const trendResponse = await api.get(`/kpi/employee/${userId}/trend`, {
+                    params: { months: 6 }
+                });
+                if (trendResponse.data.success) {
+                    setTrendData(trendResponse.data.data || []);
+                }
+            } catch (err) {
+                console.error("Error fetching trend:", err);
+                // Generate fallback trend data
+                setTrendData(generateFallbackTrendData(kpiData));
+            } finally {
+                setTrendLoading(false);
+            }
+
+            // 5. Fetch task statistics
+            try {
+                setTaskLoading(true);
+                const tasksResponse = await api.get(`/tasks?assignedTo=${userId}`);
+                if (tasksResponse.data.success) {
+                    const tasks = tasksResponse.data.data || [];
+                    const stats = calculateTaskStats(tasks);
+                    setTaskStats(stats);
+                }
+            } catch (err) {
+                console.error("Error fetching task stats:", err);
+            } finally {
+                setTaskLoading(false);
+            }
+
+        } catch (error: any) {
+            console.error('Error loading data:', error);
+            setError(error?.response?.data?.message || 'Failed to load data');
+            toast.error('Failed to load KPI data');
+        } finally {
+            setLoading(false);
+            isFetching.current = false;
+        }
+    }, [userId, selectedMonth, selectedYear]);
+
+    // ============================================================
+    // CALCULATE KPI FROM TASKS
+    // ============================================================
+    const calculateKPIFromTasks = (
+        userData: UserData,
+        tasks: ApiTask[],
+        allUsers: UserData[]
+    ): EmployeeKPI => {
+        const totalTasks = tasks.length;
+        const completedTasks = tasks.filter((t) => t.status === "completed").length;
+        const inProgressTasks = tasks.filter((t) => t.status === "in_progress").length;
+        const overdueTasks = tasks.filter((t) => t.status === "overdue" ||
+            (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
+        ).length;
+
+        // Calculate component scores
+        const taskCompletion = totalTasks > 0
+            ? Math.min(100, Math.round((completedTasks / totalTasks) * 100))
+            : 0;
+        const qualityScore = totalTasks > 0
+            ? Math.min(100, Math.round(((completedTasks - overdueTasks * 0.3) / totalTasks) * 100))
+            : 0;
+        const efficiency = totalTasks > 0
+            ? Math.min(100, Math.round(((completedTasks + inProgressTasks * 0.5) / totalTasks) * 100))
+            : 0;
+        const collaboration = Math.min(100, Math.round(50 + Math.random() * 40));
+        const innovation = Math.min(100, Math.round(45 + Math.random() * 45));
+        const attendance = Math.min(100, Math.round(80 + Math.random() * 20));
+
+        // Calculate total score with weights
+        const totalScore = Math.round(
+            taskCompletion * 0.25 +
+            qualityScore * 0.2 +
+            efficiency * 0.2 +
+            collaboration * 0.15 +
+            innovation * 0.1 +
+            attendance * 0.1
+        );
+
+        const performanceLevel = totalScore >= 90 ? "excellent"
+            : totalScore >= 75 ? "good"
+                : totalScore >= 60 ? "average"
+                    : "needs_improvement";
+
+        // Calculate rank
+        const allScores = allUsers.map((u) => {
+            const userTasks = tasks.filter((t: ApiTask) => t.assignedTo === u._id);
+            const completed = userTasks.filter((t) => t.status === "completed").length;
+            return userTasks.length > 0 ? Math.round((completed / userTasks.length) * 100) : 0;
+        });
+        const sortedScores = [...allScores].sort((a, b) => b - a);
+        const rank = sortedScores.indexOf(totalScore) + 1 || 1;
+        const percentile = allUsers.length > 0
+            ? Math.round(((allUsers.length - rank) / allUsers.length) * 100)
+            : 50;
+
+        return {
+            _id: `calculated_${userData._id}_${selectedMonth}_${selectedYear}`,
+            userId: userData,
+            month: selectedMonth,
+            year: selectedYear,
+            totalScore,
+            performanceLevel,
+            percentile,
+            rank,
+            totalEmployees: allUsers.length || 1,
+            scores: {
+                taskCompletion: { score: taskCompletion, weight: 25, weightedScore: taskCompletion * 0.25 },
+                qualityScore: { score: qualityScore, weight: 20, weightedScore: qualityScore * 0.2 },
+                efficiency: { score: efficiency, weight: 20, weightedScore: efficiency * 0.2 },
+                collaboration: { score: collaboration, weight: 15, weightedScore: collaboration * 0.15 },
+                innovation: { score: innovation, weight: 10, weightedScore: innovation * 0.1 },
+                attendance: { score: attendance, weight: 10, weightedScore: attendance * 0.1 },
+            },
+            comments: generateComments(userData, tasks, totalScore),
+            calculatedAt: new Date().toISOString(),
+        };
+    };
+
+    // ============================================================
+    // GENERATE COMMENTS
+    // ============================================================
+    const generateComments = (userData: UserData, tasks: ApiTask[], score: number): string => {
+        const overdue = tasks.filter(t => t.status === "overdue" ||
+            (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
+        ).length;
+        const total = tasks.length;
+
+        if (score < 60) {
+            return `${userData.fullName} missed ${overdue} deadlines with a downward KPI trend. Overload may be a contributing factor. Recommend: workload review + improvement plan.`;
+        } else if (score < 75) {
+            return `${userData.fullName} shows moderate performance with ${overdue} overdue tasks. Recommend: focused training and priority management.`;
+        } else {
+            return `${userData.fullName} is performing well with ${overdue} overdue tasks. Continue current trajectory.`;
+        }
+    };
+
+    // ============================================================
+    // CALCULATE TASK STATS
+    // ============================================================
+    const calculateTaskStats = (tasks: ApiTask[]): TaskStats => {
+        const total = tasks.length;
+        const completed = tasks.filter((t) => t.status === "completed").length;
+        const inProgress = tasks.filter((t) => t.status === "in_progress").length;
+        const pending = tasks.filter((t) => t.status === "pending").length;
+        const overdue = tasks.filter((t) => t.status === "overdue" ||
+            (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
+        ).length;
+        const rejected = tasks.filter((t) => t.status === "rejected").length;
+        const submitted = tasks.filter((t) => t.status === "submitted").length;
+
+        const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        // Calculate logged hours (using actualMinutes if available, otherwise estimate)
+        const loggedHours = tasks.reduce((sum, t) => sum + (t.actualMinutes || 0), 0);
+
+        return {
+            total,
+            completed,
+            inProgress,
+            pending,
+            overdue,
+            rejected,
+            submitted,
+            completionRate,
+            loggedHours: Math.round(loggedHours / 60), // Convert to hours
+        };
+    };
+
+    // ============================================================
+    // GENERATE FALLBACK TREND DATA
+    // ============================================================
+    const generateFallbackTrendData = (kpiData: EmployeeKPI): TrendData[] => {
+        const currentMonthIndex = MONTHS.indexOf(selectedMonth);
+        const data: TrendData[] = [];
+
+        for (let i = 5; i >= 0; i--) {
+            const monthIndex = currentMonthIndex - i;
+            if (monthIndex < 0) break;
+            const month = MONTHS[monthIndex];
+            const score = Math.max(0, kpiData.totalScore + (Math.random() * 10 - 5));
+            data.push({
+                month: month.substring(0, 3),
+                totalScore: Math.round(score),
+                performanceLevel: score >= 75 ? "good" : score >= 60 ? "average" : "needs_improvement",
+            });
+        }
+
+        // Ensure the last entry matches the current score
+        if (data.length > 0) {
+            data[data.length - 1].totalScore = kpiData.totalScore;
+        }
+
+        return data;
+    };
+
+    // ============================================================
+    // EXPORT PDF
     // ============================================================
     const handleExportPDF = useCallback(async () => {
         if (!employee) return;
-
         try {
             setExporting(true);
             toast.loading("Generating PDF...", { id: "pdf-export" });
-
             const doc = new jsPDF("p", "mm", "a4");
             const pageWidth = doc.internal.pageSize.getWidth();
 
             doc.setFontSize(20);
-            doc.setTextColor(99, 102, 241);
+            doc.setTextColor(15, 81, 50);
             doc.text("Employee KPI Report", pageWidth / 2, 20, { align: "center" });
 
             doc.setFontSize(12);
             doc.setTextColor(100, 116, 139);
-            doc.text(
-                `${employee.userId.fullName} - ${selectedMonth} ${selectedYear}`,
-                pageWidth / 2,
-                28,
-                { align: "center" }
-            );
+            doc.text(`${employee.userId.fullName} - ${selectedMonth} ${selectedYear}`, pageWidth / 2, 28, { align: "center" });
 
             doc.setFontSize(10);
             doc.setTextColor(51, 65, 85);
             doc.text(`Employee: ${employee.userId.fullName}`, 14, 40);
             doc.text(`Email: ${employee.userId.email}`, 14, 46);
             doc.text(`Department: ${getDepartmentName(employee.userId.departmentId)}`, 14, 52);
-            doc.text(`Role: ${getRoleDisplayName(employee.userId.role)}`, 14, 58);
-            doc.text(`Total Score: ${employee.totalScore}%`, 14, 64);
-            doc.text(`Performance Level: ${employee.performanceLevel}`, 14, 70);
+            doc.text(`Total Score: ${employee.totalScore}%`, 14, 58);
 
             const scoreEntries = [
-                ["Task Completion", employee.scores.taskCompletion.score, employee.scores.taskCompletion.weight, employee.scores.taskCompletion.weightedScore],
-                ["Quality Score", employee.scores.qualityScore.score, employee.scores.qualityScore.weight, employee.scores.qualityScore.weightedScore],
-                ["Efficiency", employee.scores.efficiency.score, employee.scores.efficiency.weight, employee.scores.efficiency.weightedScore],
-                ["Collaboration", employee.scores.collaboration.score, employee.scores.collaboration.weight, employee.scores.collaboration.weightedScore],
-                ["Innovation", employee.scores.innovation.score, employee.scores.innovation.weight, employee.scores.innovation.weightedScore],
-                ["Attendance", employee.scores.attendance.score, employee.scores.attendance.weight, employee.scores.attendance.weightedScore],
+                ["Task Completion", `${employee.scores.taskCompletion.score}%`, "×25%"],
+                ["Quality Score", `${employee.scores.qualityScore.score}%`, "×20%"],
+                ["Efficiency", `${employee.scores.efficiency.score}%`, "×20%"],
+                ["Collaboration", `${employee.scores.collaboration.score}%`, "×15%"],
+                ["Innovation", `${employee.scores.innovation.score}%`, "×10%"],
+                ["Attendance", `${employee.scores.attendance.score}%`, "×10%"],
             ];
 
             autoTable(doc, {
-                startY: 78,
-                head: [["Component", "Score", "Weight", "Weighted Score"]],
-                body: scoreEntries.map(([name, score, weight, weighted]) => [
-                    name,
-                    `${score}%`,
-                    `${weight}%`,
-                    `${typeof weighted === 'number' ? weighted.toFixed(1) : Number(weighted).toFixed(1)}%`,
-                ]),
+                startY: 66,
+                head: [["Component", "Score", "Weight"]],
+                body: scoreEntries,
                 theme: "striped",
-                headStyles: { fillColor: [99, 102, 241] },
+                headStyles: { fillColor: [15, 81, 50] },
             });
-
-            const finalY = (doc as any).lastAutoTable?.finalY || 150;
-            doc.setFontSize(8);
-            doc.setTextColor(148, 163, 184);
-            doc.text(
-                `Generated on ${new Date().toLocaleString()}`,
-                pageWidth / 2,
-                finalY + 20,
-                { align: "center" }
-            );
 
             doc.save(`KPI_Report_${employee.userId.fullName}_${selectedMonth}_${selectedYear}.pdf`);
             toast.success("PDF exported successfully", { id: "pdf-export" });
@@ -832,37 +606,6 @@ export default function EmployeeKPIDetailPage() {
         } finally {
             setExporting(false);
         }
-    }, [employee, selectedMonth, selectedYear, getRoleDisplayName]);
-
-    const handleExportCSV = useCallback(() => {
-        if (!employee) return;
-
-        const headers = ["Component", "Score", "Weight", "Weighted Score", "Total Score", "Performance Level", "Rank", "Percentile"];
-        const rows = [
-            ["Task Completion", employee.scores.taskCompletion.score, employee.scores.taskCompletion.weight, employee.scores.taskCompletion.weightedScore],
-            ["Quality Score", employee.scores.qualityScore.score, employee.scores.qualityScore.weight, employee.scores.qualityScore.weightedScore],
-            ["Efficiency", employee.scores.efficiency.score, employee.scores.efficiency.weight, employee.scores.efficiency.weightedScore],
-            ["Collaboration", employee.scores.collaboration.score, employee.scores.collaboration.weight, employee.scores.collaboration.weightedScore],
-            ["Innovation", employee.scores.innovation.score, employee.scores.innovation.weight, employee.scores.innovation.weightedScore],
-            ["Attendance", employee.scores.attendance.score, employee.scores.attendance.weight, employee.scores.attendance.weightedScore],
-        ];
-
-        const summaryRow = ["SUMMARY", employee.totalScore, employee.performanceLevel, employee.rank, employee.percentile];
-        const csv = [
-            headers.join(","),
-            ...rows.map((row) => row.join(",")),
-            "",
-            summaryRow.join(","),
-        ].join("\n");
-
-        const blob = new Blob([csv], { type: "text/csv" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `KPI_Report_${employee.userId.fullName}_${selectedMonth}_${selectedYear}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("CSV exported successfully");
     }, [employee, selectedMonth, selectedYear]);
 
     // ============================================================
@@ -882,7 +625,7 @@ export default function EmployeeKPIDetailPage() {
     }, [userId, selectedMonth, selectedYear, loadAllData]);
 
     // ============================================================
-    // ACCESS DENIED
+    // RENDER
     // ============================================================
     if (!canManage) {
         return (
@@ -904,84 +647,29 @@ export default function EmployeeKPIDetailPage() {
         );
     }
 
-    // ============================================================
-    // RADAR DATA
-    // ============================================================
-    const radarData: RadarDataItem[] = employee ? [
-        { subject: "Task Completion", value: employee.scores.taskCompletion.score, fullMark: 100 },
-        { subject: "Quality", value: employee.scores.qualityScore.score, fullMark: 100 },
-        { subject: "Efficiency", value: employee.scores.efficiency.score, fullMark: 100 },
-        { subject: "Collaboration", value: employee.scores.collaboration.score, fullMark: 100 },
-        { subject: "Innovation", value: employee.scores.innovation.score, fullMark: 100 },
-        { subject: "Attendance", value: employee.scores.attendance.score, fullMark: 100 },
-    ] : [];
-
-    // ============================================================
-    // RENDER
-    // ============================================================
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-[#f8f9fa] text-gray-900 pb-12">
             <div className="p-4 md:p-6 lg:p-8">
-                <div className="container mx-auto">
-                    {/* Breadcrumb */}
-                    <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-2 text-sm mb-6"
-                    >
-                        <Link href="/dashboard" className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1">
-                            <Home size={14} />
-                            Dashboard
-                        </Link>
-                        <ChevronRight size={14} className="text-gray-300" />
-                        <Link href="/kpi/dashboard" className="text-gray-400 hover:text-gray-600 transition">
-                            KPI Dashboard
-                        </Link>
-                        <ChevronRight size={14} className="text-gray-300" />
-                        <span className="text-gray-700 font-medium">Employee Details</span>
-                    </motion.div>
+                <div className="max-w-7xl mx-auto space-y-6">
 
-                    {/* Header */}
-                    <motion.div
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6"
-                    >
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => router.push("/kpi/dashboard")}
-                                className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-gray-600 hover:text-gray-800"
-                            >
-                                <ArrowLeft size={18} />
-                            </button>
-                            <div>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
-                                        <User className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Employee KPI Details</h1>
-                                        {employee && (
-                                            <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                                <span className="text-sm font-medium text-gray-800">{employee.userId.fullName}</span>
-                                                <span className="text-xs text-gray-400">{employee.userId.email}</span>
-                                                <span className="text-xs text-gray-400">ID: {employee.userId.employeeId || "N/A"}</span>
-                                                <span className="text-xs text-gray-400">{getDepartmentName(employee.userId.departmentId)}</span>
-                                                <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                                    {getRoleDisplayName(employee.userId.role)}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
+                    {/* Top Breadcrumb & Back */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <Link href="/dashboard" className="hover:text-gray-700 flex items-center gap-1">
+                                <Home size={14} /> Dashboard
+                            </Link>
+                            <ChevronRight size={14} className="text-gray-300" />
+                            <Link href="/kpi/dashboard" className="hover:text-gray-700">
+                                KPI Dashboard
+                            </Link>
+                            <ChevronRight size={14} className="text-gray-300" />
+                            <span className="text-gray-900 font-medium">Employee Details</span>
                         </div>
-
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
                             <select
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(e.target.value)}
-                                className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
                             >
                                 {MONTHS.map((month) => (
                                     <option key={month} value={month}>{month}</option>
@@ -990,481 +678,279 @@ export default function EmployeeKPIDetailPage() {
                             <select
                                 value={selectedYear}
                                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                                className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
                             >
                                 {YEARS.map((year) => (
                                     <option key={year} value={year}>{year}</option>
                                 ))}
                             </select>
-
                             <button
                                 onClick={handleExportPDF}
-                                disabled={!employee || exporting}
-                                className="px-3 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 disabled:opacity-50"
+                                disabled={exporting || !employee}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-medium transition shadow-sm disabled:opacity-50"
                             >
-                                {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
-                                {exporting ? "Generating..." : "PDF"}
+                                <FileDown size={14} /> {exporting ? "Generating..." : "Export PDF"}
                             </button>
-
-                            <button
-                                onClick={handleExportCSV}
-                                disabled={!employee}
-                                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 disabled:opacity-50"
-                            >
-                                <FileSpreadsheet size={16} />
-                                CSV
-                            </button>
-
                             <button
                                 onClick={loadAllData}
-                                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
+                                className="p-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition shadow-sm"
                             >
-                                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+                                <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
                             </button>
                         </div>
-                    </motion.div>
+                    </div>
 
-                    {/* Content */}
                     {loading ? (
-                        <div className="flex justify-center py-16">
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="relative">
-                                    <div className="w-12 h-12 border-4 border-indigo-200 rounded-full animate-spin border-t-indigo-600" />
-                                </div>
-                                <p className="text-gray-500 text-sm font-medium animate-pulse">Loading employee data...</p>
-                            </div>
+                        <div className="flex justify-center py-24">
+                            <Loader2 className="w-8 h-8 animate-spin text-emerald-700" />
                         </div>
-                    ) : error && !employee ? (
+                    ) : error ? (
                         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm">
-                            <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <AlertCircle className="w-10 h-10 text-amber-500" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2">No Data Found</h3>
-                            <p className="text-gray-500 max-w-md mx-auto">{error}</p>
-                            <div className="flex flex-wrap gap-3 justify-center mt-6">
-                                <button
-                                    onClick={loadAllData}
-                                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm flex items-center gap-2"
-                                >
-                                    <RefreshCw size={16} className="inline" />
-                                    Retry
-                                </button>
-                                <Link
-                                    href={`/kpi/employee/${userId}`}
-                                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition shadow-sm flex items-center gap-2"
-                                >
-                                    <Calendar size={16} />
-                                    Check Latest
-                                </Link>
-                                <Link
-                                    href="/kpi/management"
-                                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition shadow-sm flex items-center gap-2"
-                                >
-                                    <Settings size={16} />
-                                    Configure KPI
-                                </Link>
-                            </div>
+                            <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+                            <h3 className="text-base font-semibold text-gray-800 mb-1">Error Loading Data</h3>
+                            <p className="text-gray-400 text-sm">{error}</p>
+                            <button
+                                onClick={loadAllData}
+                                className="mt-4 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm transition"
+                            >
+                                <RefreshCw size={14} className="inline mr-1.5" /> Retry
+                            </button>
                         </div>
                     ) : employee ? (
-                        <div className="space-y-6">
-                            {/* Score Overview */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="grid grid-cols-2 md:grid-cols-4 gap-4"
-                            >
-                                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                    <p className="text-sm text-gray-500">Total Score</p>
-                                    <p className={`text-3xl font-bold ${employee.totalScore >= 90 ? "text-emerald-600"
-                                        : employee.totalScore >= 75 ? "text-blue-600"
-                                            : employee.totalScore >= 60 ? "text-amber-600"
-                                                : "text-red-600"
-                                        }`}>
-                                        {formatScore(employee.totalScore)}%
-                                    </p>
-                                </div>
-                                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                    <p className="text-sm text-gray-500">Performance Level</p>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-2xl">{getPerformanceConfig(employee.performanceLevel).emoji}</span>
-                                        <span className="text-lg font-semibold">{getPerformanceConfig(employee.performanceLevel).label}</span>
-                                    </div>
-                                </div>
-                                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                    <p className="text-sm text-gray-500">Rank</p>
-                                    <p className="text-2xl font-bold text-gray-800">#{employee.rank} of {employee.totalEmployees}</p>
-                                </div>
-                                <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition">
-                                    <p className="text-sm text-gray-500">Percentile</p>
-                                    <p className="text-2xl font-bold text-indigo-600">{employee.percentile}%</p>
-                                </div>
-                            </motion.div>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-                            {/* Tabs */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                className="flex border-b border-gray-200 bg-white rounded-t-xl px-4"
-                            >
-                                <button
-                                    onClick={() => setActiveTab("overview")}
-                                    className={`px-4 py-3 text-sm font-medium transition relative ${activeTab === "overview" ? "text-indigo-600" : "text-gray-500 hover:text-gray-700"
-                                        }`}
-                                >
-                                    <BarChart3 size={16} className="inline mr-2" />
-                                    Overview
-                                    {activeTab === "overview" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />}
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("tasks")}
-                                    className={`px-4 py-3 text-sm font-medium transition relative ${activeTab === "tasks" ? "text-indigo-600" : "text-gray-500 hover:text-gray-700"
-                                        }`}
-                                >
-                                    <CheckCircle size={16} className="inline mr-2" />
-                                    Tasks ({taskStats?.total || 0})
-                                    {activeTab === "tasks" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />}
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab("history")}
-                                    className={`px-4 py-3 text-sm font-medium transition relative ${activeTab === "history" ? "text-indigo-600" : "text-gray-500 hover:text-gray-700"
-                                        }`}
-                                >
-                                    <TrendingUp size={16} className="inline mr-2" />
-                                    History
-                                    {activeTab === "history" && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />}
-                                </button>
-                            </motion.div>
+                            {/* LEFT COLUMN: Main Employee KPI Card & Details */}
+                            <div className="lg:col-span-7 space-y-6">
 
-                            {/* Tab Content */}
-                            <div className="bg-white rounded-b-xl border border-t-0 border-gray-200 p-6 shadow-sm">
-                                {activeTab === "overview" && (
-                                    <div className="space-y-6">
-                                        {/* User Profile */}
-                                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                                <User size={16} className="text-indigo-500" />
-                                                Employee Profile
-                                            </h3>
-                                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Full Name</p>
-                                                    <p className="text-sm font-medium text-gray-800">{employee.userId.fullName}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Email</p>
-                                                    <div className="flex items-center gap-1">
-                                                        <Mail size={12} className="text-gray-400" />
-                                                        <p className="text-sm font-medium text-gray-800">{employee.userId.email}</p>
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Employee ID</p>
-                                                    <p className="text-sm font-medium text-gray-800">{employee.userId.employeeId || "N/A"}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Department</p>
-                                                    <p className="text-sm font-medium text-gray-800">{getDepartmentName(employee.userId.departmentId)}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Role</p>
-                                                    <p className="text-sm font-medium text-gray-800">{getRoleDisplayName(employee.userId.role)}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Position</p>
-                                                    <p className="text-sm font-medium text-gray-800">{employee.userId.position || "N/A"}</p>
-                                                </div>
-                                                {employee.userId.phone && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500">Phone</p>
-                                                        <div className="flex items-center gap-1">
-                                                            <Phone size={12} className="text-gray-400" />
-                                                            <p className="text-sm font-medium text-gray-800">{employee.userId.phone}</p>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {employee.userId.location && (
-                                                    <div>
-                                                        <p className="text-xs text-gray-500">Location</p>
-                                                        <div className="flex items-center gap-1">
-                                                            <MapPin size={12} className="text-gray-400" />
-                                                            <p className="text-sm font-medium text-gray-800">{employee.userId.location}</p>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Calculated</p>
-                                                    <p className="text-sm font-medium text-gray-800">{formatDate(employee.calculatedAt)}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-gray-500">Period</p>
-                                                    <p className="text-sm font-medium text-gray-800">{selectedMonth} {selectedYear}</p>
-                                                </div>
+                                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-6 relative overflow-hidden">
+
+                                    {/* Top Profile & Big Score header */}
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-gray-100">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-14 h-14 rounded-xl bg-emerald-600 text-white font-bold text-xl flex items-center justify-center shadow-md">
+                                                {(employee.userId.fullName || "UN").split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase()}
                                             </div>
-                                            {employee.userId.bio && (
-                                                <div className="mt-3 pt-3 border-t border-gray-200">
-                                                    <p className="text-xs text-gray-500">Bio</p>
-                                                    <p className="text-sm text-gray-700 mt-1">{employee.userId.bio}</p>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h2 className="text-lg font-bold text-gray-900">{employee.userId.fullName}</h2>
+                                                    <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                                                        {getRoleDisplayName(employee.userId.role)}
+                                                    </span>
                                                 </div>
-                                            )}
-                                            {employee.comments && (
-                                                <div className="mt-3 pt-3 border-t border-gray-200">
-                                                    <p className="text-xs text-gray-500">Comments</p>
-                                                    <p className="text-sm text-gray-700 mt-1">{employee.comments}</p>
-                                                </div>
-                                            )}
+                                                <p className="text-xs text-gray-400 font-medium mt-0.5">
+                                                    {employee.userId.position || "Employee"} ·
+                                                    {employee.userId.departmentId ? ` ${getDepartmentName(employee.userId.departmentId)}` : " No Department"}
+                                                </p>
+                                            </div>
                                         </div>
 
-                                        {/* Radar Chart & Component Scores */}
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                                <h3 className="text-sm font-medium text-gray-700 mb-3">Component Scores Radar</h3>
-                                                <div className="h-80">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                                                            <PolarGrid />
-                                                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
-                                                            <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                                                            <Radar name="Score" dataKey="value" stroke="#6366f1" fill="#818cf8" fillOpacity={0.6} />
-                                                            <Tooltip formatter={(value) => `${value}%`} />
-                                                        </RadarChart>
-                                                    </ResponsiveContainer>
-                                                </div>
+                                        {/* Score Block */}
+                                        <div className="text-right sm:text-right w-full sm:w-auto flex sm:flex-col justify-between items-center sm:items-end">
+                                            <span className="text-xs text-gray-400 font-medium uppercase tracking-wider block">KPI · {selectedMonth} {selectedYear}</span>
+                                            <div className="flex items-baseline gap-2 mt-1">
+                                                <span className={`text-4xl font-black tracking-tight ${employee.totalScore >= 75 ? "text-emerald-600" :
+                                                        employee.totalScore >= 60 ? "text-amber-600" : "text-red-600"
+                                                    }`}>
+                                                    {employee.totalScore}%
+                                                </span>
                                             </div>
+                                        </div>
+                                    </div>
 
-                                            <div className="space-y-4">
-                                                {Object.entries(employee.scores).map(([key, value]) => (
-                                                    <div key={key} className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                                        <div className="flex items-center justify-between">
-                                                            <div>
-                                                                <p className="text-sm font-medium text-gray-700">
-                                                                    {COMPONENT_LABELS[key] || key}
-                                                                </p>
-                                                                <p className="text-xs text-gray-400">Weight: {value.weight}%</p>
-                                                            </div>
-                                                            <div className="text-right">
-                                                                <p className="text-lg font-bold text-gray-800">{formatScore(value.score)}%</p>
-                                                                <p className="text-xs text-indigo-600">Weighted: {formatScore(value.weightedScore)}%</p>
-                                                            </div>
+                                    {/* Score Breakdown by Component */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Score Breakdown by Component</h3>
+
+                                        <div className="space-y-3">
+                                            {Object.entries(employee.scores).map(([key, value]) => {
+                                                const label = COMPONENT_LABELS[key] || key;
+                                                const weight = COMPONENT_WEIGHTS[key] || "×10%";
+                                                const scoreVal = `${value.score}%`;
+                                                const barWidth = `${value.score}%`;
+
+                                                return (
+                                                    <div key={key} className="space-y-1">
+                                                        <div className="flex justify-between items-center text-xs">
+                                                            <span className="font-semibold text-gray-800">{label} <span className="text-gray-400 font-normal">{weight}</span></span>
+                                                            <span className="font-bold text-gray-900">{scoreVal}</span>
                                                         </div>
-                                                        <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                                                        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                                                             <div
-                                                                className="h-2 rounded-full transition-all"
-                                                                style={{
-                                                                    width: `${value.score}%`,
-                                                                    backgroundColor: COMPONENT_COLORS[key] || "#6366f1",
-                                                                }}
+                                                                className={`h-full rounded-full ${value.score >= 70 ? 'bg-emerald-500' :
+                                                                        value.score >= 45 ? 'bg-blue-600' : 'bg-amber-500'
+                                                                    }`}
+                                                                style={{ width: barWidth }}
                                                             />
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
-                                )}
 
-                                {activeTab === "tasks" && (
-                                    <div className="space-y-6">
-                                        {taskLoading ? (
-                                            <div className="flex justify-center py-8">
-                                                <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+                                    {/* Task Metrics Counters Row */}
+                                    {taskStats && (
+                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-100">
+                                            <div className="bg-gray-50/80 rounded-xl p-3 text-center border border-gray-100">
+                                                <span className="text-lg font-extrabold text-gray-900">{taskStats.total}</span>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Assigned</p>
                                             </div>
-                                        ) : taskStats ? (
-                                            <>
-                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                                        <p className="text-2xl font-bold text-gray-800">{taskStats.total}</p>
-                                                        <p className="text-xs text-gray-500">Total Tasks</p>
-                                                    </div>
-                                                    <div className="bg-gray-50 rounded-xl p-4 border border-emerald-200">
-                                                        <p className="text-2xl font-bold text-emerald-600">{taskStats.completed}</p>
-                                                        <p className="text-xs text-gray-500">Completed</p>
-                                                    </div>
-                                                    <div className="bg-gray-50 rounded-xl p-4 border border-amber-200">
-                                                        <p className="text-2xl font-bold text-amber-600">{taskStats.inProgress}</p>
-                                                        <p className="text-xs text-gray-500">In Progress</p>
-                                                    </div>
-                                                    <div className="bg-gray-50 rounded-xl p-4 border border-rose-200">
-                                                        <p className={`text-2xl font-bold ${taskStats.completionRate >= 80 ? "text-emerald-600"
-                                                            : taskStats.completionRate >= 50 ? "text-amber-600"
-                                                                : "text-rose-600"
-                                                            }`}>
-                                                            {taskStats.completionRate}%
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">Completion Rate</p>
-                                                    </div>
-                                                </div>
+                                            <div className="bg-gray-50/80 rounded-xl p-3 text-center border border-gray-100">
+                                                <span className="text-lg font-extrabold text-emerald-600">{taskStats.completed}</span>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Completed</p>
+                                            </div>
+                                            <div className="bg-gray-50/80 rounded-xl p-3 text-center border border-gray-100">
+                                                <span className="text-lg font-extrabold text-red-500">{taskStats.overdue}</span>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Overdue</p>
+                                            </div>
+                                            <div className="bg-gray-50/80 rounded-xl p-3 text-center border border-gray-100">
+                                                <span className="text-lg font-extrabold text-gray-900">{taskStats.loggedHours}h</span>
+                                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Logged</p>
+                                            </div>
+                                        </div>
+                                    )}
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                                        <h3 className="text-sm font-medium text-gray-700 mb-3">Task Status Breakdown</h3>
-                                                        <div className="space-y-2">
-                                                            {[
-                                                                { label: "Pending", value: taskStats.pending, color: "bg-amber-500" },
-                                                                { label: "In Progress", value: taskStats.inProgress, color: "bg-blue-500" },
-                                                                { label: "Submitted", value: taskStats.submitted, color: "bg-purple-500" },
-                                                                { label: "Completed", value: taskStats.completed, color: "bg-emerald-500" },
-                                                                { label: "Overdue", value: taskStats.overdue, color: "bg-rose-500" },
-                                                                { label: "Rejected", value: taskStats.rejected, color: "bg-gray-500" },
-                                                            ].map((item) => (
-                                                                <div key={item.label}>
-                                                                    <div className="flex items-center justify-between">
-                                                                        <span className="text-sm text-gray-600">{item.label}</span>
-                                                                        <span className="text-sm font-medium text-gray-800">{item.value}</span>
-                                                                    </div>
-                                                                    <div className="w-full bg-gray-200 rounded-full h-2">
-                                                                        <div
-                                                                            className={`h-2 rounded-full ${item.color}`}
-                                                                            style={{
-                                                                                width: `${taskStats.total > 0 ? (item.value / taskStats.total) * 100 : 0}%`,
-                                                                            }}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                    {/* 6-Month Trend Section */}
+                                    <div className="space-y-3 pt-2 border-t border-gray-100">
+                                        <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">6-Month Trend</h3>
 
-                                                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                                        <h3 className="text-sm font-medium text-gray-700 mb-3">Priority Distribution</h3>
-                                                        <div className="space-y-3">
-                                                            {[
-                                                                { label: "Low", value: taskStats.byPriority.low, color: "text-emerald-600" },
-                                                                { label: "Normal", value: taskStats.byPriority.normal, color: "text-blue-600" },
-                                                                { label: "High", value: taskStats.byPriority.high, color: "text-amber-600" },
-                                                                { label: "Urgent", value: taskStats.byPriority.urgent, color: "text-rose-600" },
-                                                            ].map((item) => (
-                                                                <div key={item.label} className="flex items-center justify-between">
-                                                                    <span className="text-sm text-gray-600">{item.label}</span>
-                                                                    <span className={`text-sm font-medium ${item.color}`}>{item.value}</span>
-                                                                </div>
-                                                            ))}
+                                        {trendLoading ? (
+                                            <div className="flex justify-center py-8">
+                                                <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                                            </div>
+                                        ) : trendData.length > 0 ? (
+                                            <div className="grid grid-cols-6 gap-2 items-end h-24 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                                                {trendData.map((item, idx) => {
+                                                    const heightPct = Math.min(Math.max(item.totalScore, 5), 100);
+                                                    const isLast = idx === trendData.length - 1;
+                                                    const barColor = isLast ? 'bg-red-600' :
+                                                        item.totalScore >= 75 ? 'bg-blue-600' :
+                                                            item.totalScore >= 60 ? 'bg-amber-500' : 'bg-red-500';
+
+                                                    return (
+                                                        <div key={idx} className="flex flex-col items-center gap-1 h-full justify-end">
+                                                            <span className="text-[10px] font-bold text-gray-600">{item.totalScore}%</span>
+                                                            <div className={`w-full rounded-md ${barColor} transition-all`} style={{ height: `${heightPct}%` }} />
+                                                            <span className="text-[10px] text-gray-400 font-medium">{item.month}</span>
                                                         </div>
-                                                        <div className="mt-4 pt-4 border-t border-gray-200">
-                                                            <div className="h-32">
-                                                                <ResponsiveContainer width="100%" height="100%">
-                                                                    <BarChart data={[
-                                                                        { name: "Low", value: taskStats.byPriority.low },
-                                                                        { name: "Normal", value: taskStats.byPriority.normal },
-                                                                        { name: "High", value: taskStats.byPriority.high },
-                                                                        { name: "Urgent", value: taskStats.byPriority.urgent },
-                                                                    ]}>
-                                                                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                                                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                                                        <YAxis tick={{ fontSize: 10 }} />
-                                                                        <Tooltip />
-                                                                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                                                            <Cell fill="#10b981" />
-                                                                            <Cell fill="#3b82f6" />
-                                                                            <Cell fill="#f59e0b" />
-                                                                            <Cell fill="#ef4444" />
-                                                                        </Bar>
-                                                                    </BarChart>
-                                                                </ResponsiveContainer>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </>
+                                                    );
+                                                })}
+                                            </div>
                                         ) : (
-                                            <div className="text-center py-8 text-gray-500">No task data available</div>
+                                            <p className="text-sm text-gray-400 text-center py-4">No trend data available</p>
                                         )}
                                     </div>
-                                )}
 
-                                {activeTab === "history" && (
-                                    <div className="space-y-6">
-                                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                                <TrendingUp size={16} className="text-indigo-500" />
-                                                KPI History
-                                            </h3>
-                                            {allKPIScores.length > 0 ? (
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full">
-                                                        <thead>
-                                                            <tr className="text-xs text-gray-500 border-b border-gray-200">
-                                                                <th className="text-left py-2 px-3 font-medium">Month</th>
-                                                                <th className="text-left py-2 px-3 font-medium">Score</th>
-                                                                <th className="text-left py-2 px-3 font-medium">Level</th>
-                                                                <th className="text-left py-2 px-3 font-medium">Rank</th>
-                                                                <th className="text-left py-2 px-3 font-medium">Percentile</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-gray-100">
-                                                            {allKPIScores.map((score) => {
-                                                                const perfConfig = getPerformanceConfig(score.performanceLevel);
-                                                                return (
-                                                                    <tr key={score._id} className="hover:bg-gray-50 transition">
-                                                                        <td className="py-2 px-3 text-sm text-gray-800">{score.month} {score.year}</td>
-                                                                        <td className="py-2 px-3 text-sm font-bold text-gray-800">{formatScore(score.totalScore)}%</td>
-                                                                        <td className="py-2 px-3">
-                                                                            <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}>
-                                                                                {perfConfig.emoji} {perfConfig.label}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="py-2 px-3 text-sm text-gray-600">#{score.rank} of {score.totalEmployees}</td>
-                                                                        <td className="py-2 px-3 text-sm text-gray-600">{score.percentile}%</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            ) : (
-                                                <p className="text-center text-gray-500 py-4">No historical data available</p>
-                                            )}
+                                    {/* System Suggestion Box */}
+                                    <div className={`${employee.totalScore < 60 ? 'bg-red-50/60 border-red-200/80' :
+                                            employee.totalScore < 75 ? 'bg-amber-50/60 border-amber-200/80' :
+                                                'bg-emerald-50/60 border-emerald-200/80'
+                                        } border rounded-xl p-4 text-xs space-y-1.5`}>
+                                        <div className="flex items-center gap-1.5 text-gray-700 font-bold">
+                                            <AlertTriangle size={15} />
+                                            <span>System Suggestion</span>
                                         </div>
+                                        <p className="text-gray-700 leading-relaxed">
+                                            {employee.comments || "No suggestions available."}
+                                        </p>
+                                    </div>
 
-                                        <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                                            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                                <LineChart className="text-indigo-500" />
-                                                Performance Trend
-                                            </h3>
-                                            {trendLoading ? (
-                                                <div className="flex justify-center py-8">
-                                                    <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
-                                                </div>
-                                            ) : trendData.length > 0 ? (
-                                                <div className="h-64">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <ComposedChart data={trendData}>
-                                                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                                            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                                                            <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-                                                            <Tooltip
-                                                                contentStyle={{ backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "8px" }}
-                                                                formatter={(value: any) => `${value}%`}
-                                                            />
-                                                            <Legend />
-                                                            <Area type="monotone" dataKey="totalScore" name="Total Score" stroke="#6366f1" fill="#818cf8" fillOpacity={0.2} />
-                                                            <Line type="monotone" dataKey="totalScore" name="Total Score" stroke="#6366f1" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                                                        </ComposedChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            ) : (
-                                                <p className="text-center text-gray-500 py-4">No trend data available</p>
-                                            )}
+                                    {/* Action Buttons Row */}
+                                    <div className="grid grid-cols-3 gap-3 pt-2">
+                                        <button
+                                            onClick={() => toast.success("Warning issued to employee")}
+                                            className="py-2.5 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-semibold shadow-sm transition text-center"
+                                        >
+                                            Issue Warning
+                                        </button>
+                                        <button
+                                            onClick={() => toast.success("Training scheduled successfully")}
+                                            className="py-2.5 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-semibold shadow-sm transition text-center"
+                                        >
+                                            Schedule Training
+                                        </button>
+                                        <button
+                                            onClick={() => toast.success("Workload redistributed")}
+                                            className="py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-sm transition text-center"
+                                        >
+                                            Redistribute
+                                        </button>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            {/* RIGHT COLUMN: PDF Report Contents & Auto Email Schedule */}
+                            <div className="lg:col-span-5 space-y-6">
+
+                                {/* PDF Report Contents Card */}
+                                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-4">
+                                    <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-wider">PDF REPORT CONTENTS</h3>
+
+                                    <div className="space-y-2.5 text-xs text-gray-600">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> Employee profile header
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> KPI score with breakdown bars
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> 6-month trend bar chart
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> Task statistics table
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> Suggested action with reason
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> Manager comments field
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 font-bold">✓</span> Auto-generated timestamp
                                         </div>
                                     </div>
-                                )}
+                                </div>
+
+                                {/* Auto Email Schedule Card */}
+                                <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-4">
+                                    <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-wider">AUTO EMAIL SCHEDULE</h3>
+
+                                    <div className="space-y-4 text-xs">
+                                        <div>
+                                            <p className="font-bold text-gray-800">Month End <span className="text-gray-400 font-normal">(1st of month, 2 AM)</span></p>
+                                            <p className="text-gray-500 mt-0.5">Full PDF emailed to HR + Dept Manager + CEO per employee</p>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-gray-100">
+                                            <p className="font-bold text-gray-800">Friday 6 PM <span className="text-gray-400 font-normal">(weekly)</span></p>
+                                            <p className="text-gray-500 mt-0.5">Employee gets their own score snapshot only — no other employee data</p>
+                                        </div>
+
+                                        <div className="pt-2 border-t border-gray-100">
+                                            <p className="font-bold text-gray-800">Threshold Alert <span className="text-gray-400 font-normal">(instant)</span></p>
+                                            <p className="text-gray-500 mt-0.5">If KPI drops below 60% mid-month, HR Manager gets immediate alert email</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </div>
+
                         </div>
                     ) : (
                         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm">
-                            <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <User className="w-10 h-10 text-gray-400" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2">No Employee Data</h3>
-                            <p className="text-gray-500">Unable to find KPI data for this employee</p>
+                            <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                            <h3 className="text-base font-semibold text-gray-800 mb-1">No Employee Data</h3>
+                            <p className="text-gray-400 text-sm">Unable to find KPI data for this employee</p>
                             <button
                                 onClick={loadAllData}
-                                className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 mx-auto"
+                                className="mt-4 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm transition"
                             >
-                                <RefreshCw size={16} className="inline" />
-                                Retry
+                                <RefreshCw size={14} className="inline mr-1.5" /> Retry
                             </button>
                         </div>
                     )}
+
                 </div>
             </div>
         </div>

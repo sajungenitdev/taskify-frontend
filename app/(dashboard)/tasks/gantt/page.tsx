@@ -1,7 +1,7 @@
 // app/(dashboard)/tasks/gantt/page.tsx
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -37,11 +37,14 @@ import {
     UserCheck,
     UserPlus,
     ChevronDown,
+    FileText,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // ============ TYPES ============
 interface Task {
@@ -331,6 +334,7 @@ export default function GanttChartPage() {
     const [projects, setProjects] = useState<{ _id: string; name: string }[]>([]);
     const [viewTab, setViewTab] = useState<"all" | "employee">("all");
     const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
+    const [exportingPDF, setExportingPDF] = useState(false);
 
     // Redirect if not authenticated
     useEffect(() => {
@@ -371,7 +375,7 @@ export default function GanttChartPage() {
             setLoading(false);
         }
     }, []);
-    
+
     // Fetch data
     useEffect(() => {
         if (isAuthenticated) {
@@ -556,8 +560,115 @@ export default function GanttChartPage() {
         return tasks.filter(t => t.assignedTo?._id === employeeId).length;
     };
 
+    // ============================================================
+    // PDF EXPORT FUNCTION
+    // ============================================================
+    const handleExportPDF = useCallback(async () => {
+        try {
+            setExportingPDF(true);
+            toast.loading("Generating PDF...", { id: "pdf-export" });
+
+            const doc = new jsPDF("l", "mm", "a4");
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+
+            // Header
+            doc.setFontSize(24);
+            doc.setTextColor(99, 102, 241);
+            doc.text("Gantt Chart", pageWidth / 2, 20, { align: "center" });
+
+            doc.setFontSize(12);
+            doc.setTextColor(100, 116, 139);
+            const dateStr = new Date().toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+            });
+            doc.text(`Generated on ${dateStr}`, pageWidth / 2, 28, { align: "center" });
+
+            // Stats
+            doc.setFontSize(10);
+            doc.setTextColor(51, 65, 85);
+            const totalTasks = ganttData.tasks.length;
+            const completedTasks = ganttData.tasks.filter(t => t.status === "completed" || t.status === "done").length;
+            const inProgressTasks = ganttData.tasks.filter(t => t.status === "in_progress").length;
+            const overdueTasks = ganttData.tasks.filter(t => t.isOverdue).length;
+            const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+            doc.text(`Total Tasks: ${totalTasks}`, 20, 40);
+            doc.text(`Completed: ${completedTasks}`, 20, 46);
+            doc.text(`In Progress: ${inProgressTasks}`, 20, 52);
+            doc.text(`Overdue: ${overdueTasks}`, 20, 58);
+            doc.text(`Overall Progress: ${progress}%`, 20, 64);
+
+            // Task Table
+            const tableData = ganttData.tasks.map((task) => [
+                task.title,
+                task.projectId?.name || "N/A",
+                getStatusLabel(task.status),
+                getPriorityLabel(task.priority),
+                formatDate(task.start),
+                formatDate(task.end),
+                `${task.duration}d`,
+                `${task.progressPercent}%`,
+                task.assignedTo?.fullName || "Unassigned",
+            ]);
+
+            autoTable(doc, {
+                startY: 72,
+                head: [["Task", "Project", "Status", "Priority", "Start", "Deadline", "Duration", "Progress", "Assigned To"]],
+                body: tableData,
+                theme: "striped",
+                headStyles: {
+                    fillColor: [99, 102, 241],
+                    textColor: [255, 255, 255],
+                    fontSize: 8,
+                    fontStyle: "bold",
+                },
+                bodyStyles: {
+                    fontSize: 7,
+                },
+                columnStyles: {
+                    0: { cellWidth: 35 },
+                    1: { cellWidth: 25 },
+                    2: { cellWidth: 18 },
+                    3: { cellWidth: 15 },
+                    4: { cellWidth: 20 },
+                    5: { cellWidth: 20 },
+                    6: { cellWidth: 12 },
+                    7: { cellWidth: 15 },
+                    8: { cellWidth: 25 },
+                },
+                margin: { left: 10, right: 10 },
+                didDrawPage: function (data) {
+                    // Footer
+                    const pageCount = doc.getNumberOfPages();
+                    const currentPage = data.pageNumber || 1;
+                    doc.setFontSize(8);
+                    doc.setTextColor(148, 163, 184);
+                    doc.text(
+                        `Page ${currentPage} of ${pageCount} • Generated on ${new Date().toLocaleString()}`,
+                        pageWidth / 2,
+                        pageHeight - 10,
+                        { align: "center" }
+                    );
+                },
+            });
+
+            // Save
+            doc.save(`Gantt_Chart_${new Date().toISOString().split("T")[0]}.pdf`);
+            toast.success("PDF exported successfully!", { id: "pdf-export" });
+
+        } catch (error) {
+            console.error("Error exporting PDF:", error);
+            toast.error("Failed to export PDF", { id: "pdf-export" });
+        } finally {
+            setExportingPDF(false);
+        }
+    }, [ganttData.tasks]);
+
     // Export CSV
-    const handleExport = () => {
+    const handleExportCSV = () => {
         try {
             const headers = [
                 "Task",
@@ -593,9 +704,9 @@ export default function GanttChartPage() {
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            toast.success("Export started");
+            toast.success("CSV exported successfully");
         } catch (error) {
-            toast.error("Failed to export data");
+            toast.error("Failed to export CSV");
         }
     };
 
@@ -635,7 +746,7 @@ export default function GanttChartPage() {
         );
     }
 
-    // ============= MAIN RENDER =============
+    // ============= MAIN RENDER ============
     return (
         <div className="min-h-screen bg-gray-50">
             <div className="p-4 md:p-6 lg:p-8">
@@ -674,11 +785,19 @@ export default function GanttChartPage() {
                                 Refresh
                             </button>
                             <button
-                                onClick={handleExport}
+                                onClick={handleExportCSV}
                                 className="px-3 py-2 bg-white border border-gray-200 hover:border-indigo-300 rounded-lg transition flex items-center gap-2 text-gray-700 hover:text-indigo-600"
                             >
                                 <Download size={16} />
-                                Export
+                                CSV
+                            </button>
+                            <button
+                                onClick={handleExportPDF}
+                                disabled={exportingPDF}
+                                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 shadow-sm disabled:opacity-50"
+                            >
+                                <FileText size={16} className={exportingPDF ? "animate-spin" : ""} />
+                                {exportingPDF ? "Generating..." : "PDF"}
                             </button>
                         </div>
                     </motion.div>
