@@ -387,6 +387,7 @@ export const MAIN_ITEMS = {
       ROLES.DEPT_MANAGER,
       ROLES.HR_MANAGER,
       ROLES.PROJECT_MANAGER,
+      // ROLES.EMPLOYEE
     ],
     { section: "kpi", description: "Define and track Key Performance Indicators" },
   ),
@@ -397,7 +398,7 @@ export const MAIN_ITEMS = {
     "Projects",
     "/projects",
     FolderKanban,
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER, ROLES.EMPLOYEE],
     { section: "projects", description: "Manage projects, portfolios, and deliverables" },
   ),
 
@@ -520,6 +521,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Manage your account preferences" },
   ),
@@ -550,6 +552,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "View your performance metrics and reviews" },
   ),
@@ -565,6 +568,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "View your performance metrics and reviews" },
   ),
@@ -607,10 +611,9 @@ export const SUB_ITEMS = {
       ROLES.SUPER_ADMIN,
       ROLES.ADMIN,
       ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE
+      // ROLES.EMPLOYEE
     ],
     { description: "View KPI performance overview" },
   ),
@@ -624,10 +627,8 @@ export const SUB_ITEMS = {
       ROLES.SUPER_ADMIN,
       ROLES.ADMIN,
       ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE
     ],
     { description: "Configure and manage KPIs" },
   ),
@@ -644,7 +645,7 @@ export const SUB_ITEMS = {
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE
+      // ROLES.EMPLOYEE
     ],
     { description: "View performance rankings and achievements" },
   ),
@@ -658,10 +659,8 @@ export const SUB_ITEMS = {
       ROLES.SUPER_ADMIN,
       ROLES.ADMIN,
       ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE
     ],
     { description: "Generate and export KPI reports" },
   ),
@@ -675,7 +674,6 @@ export const SUB_ITEMS = {
       ROLES.SUPER_ADMIN,
       ROLES.ADMIN,
       ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
@@ -691,7 +689,6 @@ export const SUB_ITEMS = {
       ROLES.SUPER_ADMIN,
       ROLES.ADMIN,
       ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
     ],
@@ -776,7 +773,7 @@ export const SUB_ITEMS = {
     "/departments/all",
     Building2,
     "Departments",
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER],
+    [ROLES.ALL],
     { description: "View and manage all departments" },
   ),
   departmentHierarchy: createSubNavItem(
@@ -805,7 +802,7 @@ export const SUB_ITEMS = {
     "/projects/active",
     FolderOpen,
     "Projects",
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
+    [ROLES.ALL],
     { description: "View and manage active projects" },
   ),
   completedProjects: createSubNavItem(
@@ -832,7 +829,7 @@ export const SUB_ITEMS = {
     "/projects/templates",
     Layers,
     "Projects",
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    [ROLES.ALL],
     { description: "Manage and reuse project templates" },
   ),
 

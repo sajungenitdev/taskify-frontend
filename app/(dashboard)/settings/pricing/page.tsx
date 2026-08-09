@@ -43,6 +43,8 @@ import {
 import { apiService } from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
+import { IoShieldCheckmarkOutline } from "react-icons/io5";
+import { RiFileCloseLine } from "react-icons/ri";
 
 interface PricingPlan {
     _id: string;
@@ -644,16 +646,16 @@ export default function PricingAdminPage() {
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
                                                 onClick={() => handleToggleStatus(plan._id)}
-                                                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                className="p-1.5 text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                                                 title={isActive ? "Deactivate" : "Activate"}
                                             >
-                                                {isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                                {isActive ? <IoShieldCheckmarkOutline className="w-4 h-4" /> : <RiFileCloseLine  className="w-4 h-4" />}
                                             </motion.button>
                                             <motion.button
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
                                                 onClick={() => handleOpenModal(plan)}
-                                                className="p-1.5 text-gray-400 hover:text-blue-600 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                className="p-1.5 text-gray-400 cursor-pointer hover:text-blue-600 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                                             >
                                                 <Edit className="w-4 h-4" />
                                             </motion.button>
@@ -661,7 +663,7 @@ export default function PricingAdminPage() {
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}
                                                 onClick={() => handleDelete(plan._id)}
-                                                className="p-1.5 text-gray-400 hover:text-red-600 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                className="p-1.5 text-gray-400 cursor-pointer hover:text-red-600 transition rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
                                             >
                                                 <Trash2 className="w-4 h-4" />
                                             </motion.button>
