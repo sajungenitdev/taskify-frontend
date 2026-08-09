@@ -1230,11 +1230,11 @@ export default function ProjectsPage() {
                         </div>
                       </div>
 
-                      {project.description && (
+                      {/* {project.description && (
                         <p className="text-xs text-gray-500 line-clamp-2 mb-3">
                           {project.description}
                         </p>
-                      )}
+                      )} */}
 
                       <div className="flex items-center gap-2 mb-3">
                         <span
@@ -1257,21 +1257,35 @@ export default function ProjectsPage() {
 
                       {/* Progress Bar */}
                       <div className="mb-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className={`font-semibold ${isComplete ? 'text-emerald-600' : 'text-gray-700'
-                            }`}>
-                            {progress}%
-                          </span>
-                          <span className="text-gray-300">·</span>
-                          <span className="text-xs text-gray-500">
-                            {project.completedTasks}/{project.tasksCount} tasks
-                          </span>
-                          {isComplete && (
-                            <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                              <CheckCircle size={10} className="text-emerald-500" />
-                              Done
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <div>
+                            <span className={`font-semibold ${isComplete ? 'text-emerald-600' : 'text-gray-700'
+                              }`}>
+                              {progress}%
                             </span>
-                          )}
+                            <span className="text-gray-300">·</span>
+                            <span className="text-xs text-gray-500">
+                              {project.completedTasks}/{project.tasksCount} tasks
+                            </span>
+                            {isComplete && (
+                              <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                                <CheckCircle size={10} className="text-emerald-500" />
+                                Done
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-1">
+                              <Calendar size={12} />
+                              <span>{formatDate(project.startDate)}</span>
+                            </div>
+                            <div className="flex items-center gap-1 ps-2">
+                              {/* <DollarSign size={12} className="text-emerald-500" /> */}
+                              <span>
+                                {formatCurrency(project.budget?.allocated || 0)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1.5 overflow-hidden">
                           <motion.div
@@ -1288,19 +1302,6 @@ export default function ProjectsPage() {
                               }
                             }}
                           />
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Calendar size={12} />
-                          <span>{formatDate(project.startDate)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <DollarSign size={12} className="text-emerald-500" />
-                          <span>
-                            {formatCurrency(project.budget?.allocated || 0)}
-                          </span>
                         </div>
                       </div>
 

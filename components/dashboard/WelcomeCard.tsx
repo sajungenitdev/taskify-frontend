@@ -273,26 +273,26 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
     }
   };
 
-  const getDashboardDescription = () => {
-    switch (user.role) {
-      case "super_admin":
-        return "View system-wide analytics and command center";
-      case "admin":
-        return "Manage users, departments, and system settings";
-      case "hr_manager":
-        return "Manage employees, attendance, and KPI reviews";
-      case "dept_manager":
-        return "Monitor department performance and team tasks";
-      case "project_manager":
-        return "Track project progress and team productivity";
-      case "line_manager":
-        return "Manage daily tasks and team performance";
-      case "employee":
-        return "Track your personal performance and tasks";
-      default:
-        return "View your personalized dashboard";
-    }
-  };
+  // const getDashboardDescription = () => {
+  //   switch (user.role) {
+  //     case "super_admin":
+  //       return "View system-wide analytics and command center";
+  //     case "admin":
+  //       return "Manage users, departments, and system settings";
+  //     case "hr_manager":
+  //       return "Manage employees, attendance, and KPI reviews";
+  //     case "dept_manager":
+  //       return "Monitor department performance and team tasks";
+  //     case "project_manager":
+  //       return "Track project progress and team productivity";
+  //     case "line_manager":
+  //       return "Manage daily tasks and team performance";
+  //     case "employee":
+  //       return "Track your personal performance and tasks";
+  //     default:
+  //       return "View your personalized dashboard";
+  //   }
+  // };
 
   const getDashboardIcon = () => {
     switch (user.role) {
@@ -689,8 +689,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <Link
-                  href={getDashboardRoute()}
+                <div
                   className="group relative inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-700 hover:via-indigo-700 hover:to-purple-700 text-white text-xs font-bold rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/30 hover:shadow-xl hover:shadow-indigo-600/40 overflow-hidden"
                 >
                   <span className="relative z-10 flex items-center gap-2">
@@ -709,7 +708,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
                       ease: "easeInOut",
                     }}
                   />
-                </Link>
+                </div>
               </motion.div>
               <motion.span
                 initial={{ opacity: 0 }}
@@ -717,7 +716,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
                 transition={{ delay: 0.5 }}
                 className="text-xs text-slate-400 font-medium"
               >
-                {getDashboardDescription()}
+                {/* {getDashboardDescription()} */}
               </motion.span>
             </div>
 
