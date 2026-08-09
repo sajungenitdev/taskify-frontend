@@ -25,6 +25,14 @@ import {
     FileSpreadsheet,
     FileDown,
     Settings,
+    Building2,
+    Briefcase,
+    Clock,
+    Star,
+    Zap,
+    Target,
+    Activity,
+    Eye,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -200,6 +208,49 @@ const COMPONENT_COLORS: Record<string, string> = {
     attendance: "#14b8a6",
 };
 
+const PERFORMANCE_CONFIG = {
+    excellent: {
+        color: "text-emerald-600",
+        bg: "bg-emerald-50",
+        border: "border-emerald-200",
+        icon: Crown,
+        label: "Excellent",
+        emoji: "🌟",
+        gradient: "from-emerald-400 to-emerald-600",
+        badge: "bg-emerald-100 text-emerald-700",
+    },
+    good: {
+        color: "text-blue-600",
+        bg: "bg-blue-50",
+        border: "border-blue-200",
+        icon: Award,
+        label: "Good",
+        emoji: "⭐",
+        gradient: "from-blue-400 to-blue-600",
+        badge: "bg-blue-100 text-blue-700",
+    },
+    average: {
+        color: "text-amber-600",
+        bg: "bg-amber-50",
+        border: "border-amber-200",
+        icon: Medal,
+        label: "Average",
+        emoji: "📊",
+        gradient: "from-amber-400 to-amber-600",
+        badge: "bg-amber-100 text-amber-700",
+    },
+    needs_improvement: {
+        color: "text-red-600",
+        bg: "bg-red-50",
+        border: "border-red-200",
+        icon: AlertCircle,
+        label: "Needs Improvement",
+        emoji: "📈",
+        gradient: "from-red-400 to-red-600",
+        badge: "bg-red-100 text-red-700",
+    },
+};
+
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
@@ -244,6 +295,17 @@ export default function EmployeeKPIDetailPage() {
     // Refs
     const isInitialized = useRef(false);
     const isFetching = useRef(false);
+
+    // ============================================================
+    // HELPER: Safe Department Name
+    // ============================================================
+    const getDepartmentName = (dept: any): string => {
+        if (!dept) return "Unassigned";
+        if (typeof dept === 'string') return dept;
+        if (dept.name) return dept.name;
+        if (dept._id) return dept._id;
+        return "Unassigned";
+    };
 
     // ============================================================
     // HELPERS
@@ -357,10 +419,33 @@ export default function EmployeeKPIDetailPage() {
     }, [selectedMonth, selectedYear, getRoleMultiplier, calculateScoreForUser]);
 
     // ============================================================
-    // API CALLS
+    // GENERATE FALLBACK TREND DATA
     // ============================================================
-    // Replace your loadAllData function with this complete version
+    const generateFallbackTrendData = useCallback(() => {
+        const data = [];
+        const now = new Date();
+        for (let i = 11; i >= 0; i--) {
+            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            data.push({
+                month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+                totalScore: Math.round(60 + Math.random() * 30),
+                performanceLevel: 'average',
+                components: {
+                    taskCompletion: Math.round(60 + Math.random() * 30),
+                    qualityScore: Math.round(60 + Math.random() * 30),
+                    efficiency: Math.round(60 + Math.random() * 30),
+                    collaboration: Math.round(60 + Math.random() * 30),
+                    innovation: Math.round(60 + Math.random() * 30),
+                    attendance: Math.round(70 + Math.random() * 25),
+                }
+            });
+        }
+        return data;
+    }, []);
 
+    // ============================================================
+    // LOAD ALL DATA
+    // ============================================================
     const loadAllData = useCallback(async () => {
         if (isFetching.current) return;
 
@@ -370,13 +455,10 @@ export default function EmployeeKPIDetailPage() {
             setError(null);
             setDataLoaded(false);
 
-            // Get current user info for self-detection
-            let currentUserId = user?._id;
-
-            // 1. Fetch user details - handle 403 gracefully
             let userData: UserData | null = null;
+
+            // 1. Fetch user details
             try {
-                // Try to get user data
                 const userResponse = await api.get(`/users/${userId}`);
                 if (userResponse.data.success) {
                     userData = userResponse.data.data;
@@ -386,16 +468,12 @@ export default function EmployeeKPIDetailPage() {
             } catch (error: any) {
                 console.warn('⚠️ Could not fetch user details:', error.response?.status);
 
-                // If 403, check if this is the current user
                 if (error.response?.status === 403) {
-                    console.log('🔍 Access denied to /users/:id, trying /me endpoint...');
-
+                    console.log('🔍 Access denied, trying /me endpoint...');
                     try {
-                        // Try to get current user's data
                         const meResponse = await api.get('/auth/me');
                         if (meResponse.data.success) {
                             const meData = meResponse.data.data;
-                            // If this is the same user, use the data
                             if (meData._id === userId) {
                                 userData = meData;
                                 setUserDetails(meData);
@@ -407,7 +485,6 @@ export default function EmployeeKPIDetailPage() {
                     }
                 }
 
-                // If we still don't have user data, create minimal data
                 if (!userData) {
                     userData = {
                         _id: userId,
@@ -424,25 +501,18 @@ export default function EmployeeKPIDetailPage() {
             // 2. Fetch tasks for this user
             let userTasks: ApiTask[] = [];
             try {
-                // Try multiple endpoints for tasks
-                const endpoints = [
-                    `/tasks/my-tasks`, // For current user's tasks
-                    `/tasks?assignedTo=${userId}` // For specific user's tasks
-                ];
-
+                const endpoints = [`/tasks/my-tasks`, `/tasks?assignedTo=${userId}`];
                 for (const endpoint of endpoints) {
                     try {
                         const response = await api.get(endpoint);
                         if (response.data.success) {
                             const tasks = response.data.data || [];
-                            // If using /tasks?assignedTo, tasks are already filtered
-                            // If using /my-tasks, filter by userId if needed
                             if (endpoint === '/tasks/my-tasks') {
                                 userTasks = tasks.filter((t: any) => t.assignedTo === userId);
                             } else {
                                 userTasks = tasks;
                             }
-                            if (userTasks.length > 0) break; // Found tasks
+                            if (userTasks.length > 0) break;
                         }
                     } catch (e) {
                         console.log(`⚠️ Failed to fetch from ${endpoint}`);
@@ -461,9 +531,7 @@ export default function EmployeeKPIDetailPage() {
                 }
             } catch (error) {
                 console.warn('⚠️ Could not fetch all users, using minimal data');
-                if (userData) {
-                    allUsers = [userData];
-                }
+                if (userData) allUsers = [userData];
             }
 
             // 4. Try to fetch existing KPI data
@@ -472,7 +540,6 @@ export default function EmployeeKPIDetailPage() {
                 const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
                 const monthStr = `${selectedYear}-${String(monthIndex).padStart(2, '0')}`;
 
-                // Try multiple KPI endpoints
                 const kpiEndpoints = [
                     `/kpi/employee/${userId}?month=${monthIndex}&year=${selectedYear}`,
                     `/kpi/employee/${userId}/trend?months=1`,
@@ -485,7 +552,6 @@ export default function EmployeeKPIDetailPage() {
                         if (response.data.success) {
                             const data = response.data.data;
                             if (Array.isArray(data) && data.length > 0) {
-                                // If it's an array, take the first item
                                 const kpiData = data[0] || data;
                                 if (kpiData.totalScore !== undefined) {
                                     existingKPI = kpiData;
@@ -495,7 +561,6 @@ export default function EmployeeKPIDetailPage() {
                                 existingKPI = data;
                                 break;
                             } else if (data && data.current && data.current.totalScore !== undefined) {
-                                // For /my-kpi response format
                                 existingKPI = data.current;
                                 break;
                             }
@@ -511,7 +576,6 @@ export default function EmployeeKPIDetailPage() {
             // 5. Build employee data
             let employeeData: EmployeeKPI | null = null;
             if (existingKPI) {
-                // Use existing KPI data
                 employeeData = {
                     ...existingKPI,
                     userId: existingKPI.userId || userData || {
@@ -532,7 +596,6 @@ export default function EmployeeKPIDetailPage() {
                     }
                 };
             } else if (userData) {
-                // Calculate KPI from tasks
                 employeeData = calculateKPIForUser(userData, userTasks, allUsers);
                 console.log('📊 Calculated KPI from tasks:', employeeData.totalScore);
             }
@@ -546,7 +609,7 @@ export default function EmployeeKPIDetailPage() {
                 setDataLoaded(false);
             }
 
-            // 6. Fetch KPI history (trend)
+            // 6. Fetch KPI history
             try {
                 const trendResponse = await api.get(`/kpi/employee/${userId}/trend`, {
                     params: { months: 12 }
@@ -590,7 +653,6 @@ export default function EmployeeKPIDetailPage() {
                 }
             } catch (error) {
                 console.error('❌ Error fetching trend data:', error);
-                // Use fallback trend data
                 setTrendData(generateFallbackTrendData());
             } finally {
                 setTrendLoading(false);
@@ -601,7 +663,6 @@ export default function EmployeeKPIDetailPage() {
                 setTaskLoading(true);
                 let tasks: ApiTask[] = [];
 
-                // Try to get tasks
                 try {
                     const response = await api.get(`/tasks/my-tasks`);
                     if (response.data.success) {
@@ -633,7 +694,6 @@ export default function EmployeeKPIDetailPage() {
                     };
                     setTaskStats(stats);
                 } else {
-                    // Set default empty stats
                     setTaskStats({
                         total: 0,
                         completed: 0,
@@ -660,82 +720,13 @@ export default function EmployeeKPIDetailPage() {
             setLoading(false);
             isFetching.current = false;
         }
-    }, [userId, selectedMonth, selectedYear, calculateKPIForUser, user?._id]);
-
-    // Helper function to generate fallback trend data
-    const generateFallbackTrendData = () => {
-        const data = [];
-        const now = new Date();
-        for (let i = 11; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            data.push({
-                month: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-                totalScore: Math.round(60 + Math.random() * 30),
-                performanceLevel: 'average',
-                components: {
-                    taskCompletion: Math.round(60 + Math.random() * 30),
-                    qualityScore: Math.round(60 + Math.random() * 30),
-                    efficiency: Math.round(60 + Math.random() * 30),
-                    collaboration: Math.round(60 + Math.random() * 30),
-                    innovation: Math.round(60 + Math.random() * 30),
-                    attendance: Math.round(70 + Math.random() * 25),
-                }
-            });
-        }
-        return data;
-    };
+    }, [userId, selectedMonth, selectedYear, calculateKPIForUser, user?._id, generateFallbackTrendData]);
 
     // ============================================================
     // PERFORMANCE CONFIG
     // ============================================================
     const getPerformanceConfig = useCallback((level: string) => {
-        const configs: Record<string, {
-            color: string;
-            bg: string;
-            border: string;
-            icon: any;
-            label: string;
-            emoji: string;
-            gradient: string;
-        }> = {
-            excellent: {
-                color: "text-emerald-600",
-                bg: "bg-emerald-50",
-                border: "border-emerald-200",
-                icon: Crown,
-                label: "Excellent",
-                emoji: "🌟",
-                gradient: "from-emerald-400 to-emerald-600",
-            },
-            good: {
-                color: "text-blue-600",
-                bg: "bg-blue-50",
-                border: "border-blue-200",
-                icon: Award,
-                label: "Good",
-                emoji: "⭐",
-                gradient: "from-blue-400 to-blue-600",
-            },
-            average: {
-                color: "text-amber-600",
-                bg: "bg-amber-50",
-                border: "border-amber-200",
-                icon: Medal,
-                label: "Average",
-                emoji: "📊",
-                gradient: "from-amber-400 to-amber-600",
-            },
-            needs_improvement: {
-                color: "text-red-600",
-                bg: "bg-red-50",
-                border: "border-red-200",
-                icon: AlertCircle,
-                label: "Needs Improvement",
-                emoji: "📈",
-                gradient: "from-red-400 to-red-600",
-            },
-        };
-        return configs[level] || configs.average;
+        return PERFORMANCE_CONFIG[level as keyof typeof PERFORMANCE_CONFIG] || PERFORMANCE_CONFIG.average;
     }, []);
 
     const formatScore = useCallback((score: number): string => {
@@ -796,7 +787,7 @@ export default function EmployeeKPIDetailPage() {
             doc.setTextColor(51, 65, 85);
             doc.text(`Employee: ${employee.userId.fullName}`, 14, 40);
             doc.text(`Email: ${employee.userId.email}`, 14, 46);
-            doc.text(`Department: ${employee.userId.departmentId.name}`, 14, 52);
+            doc.text(`Department: ${getDepartmentName(employee.userId.departmentId)}`, 14, 52);
             doc.text(`Role: ${getRoleDisplayName(employee.userId.role)}`, 14, 58);
             doc.text(`Total Score: ${employee.totalScore}%`, 14, 64);
             doc.text(`Performance Level: ${employee.performanceLevel}`, 14, 70);
@@ -888,7 +879,7 @@ export default function EmployeeKPIDetailPage() {
         if (userId && selectedMonth && selectedYear && !isFetching.current) {
             loadAllData();
         }
-    }, [userId, selectedMonth, selectedYear]);
+    }, [userId, selectedMonth, selectedYear, loadAllData]);
 
     // ============================================================
     // ACCESS DENIED
@@ -965,8 +956,8 @@ export default function EmployeeKPIDetailPage() {
                             </button>
                             <div>
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                                        <User className="w-5 h-5 text-white" />
+                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                                        <User className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
                                         <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Employee KPI Details</h1>
@@ -975,7 +966,7 @@ export default function EmployeeKPIDetailPage() {
                                                 <span className="text-sm font-medium text-gray-800">{employee.userId.fullName}</span>
                                                 <span className="text-xs text-gray-400">{employee.userId.email}</span>
                                                 <span className="text-xs text-gray-400">ID: {employee.userId.employeeId || "N/A"}</span>
-                                                <span className="text-xs text-gray-400">{employee.userId.departmentId.name}</span>
+                                                <span className="text-xs text-gray-400">{getDepartmentName(employee.userId.departmentId)}</span>
                                                 <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
                                                     {getRoleDisplayName(employee.userId.role)}
                                                 </span>
@@ -1172,7 +1163,7 @@ export default function EmployeeKPIDetailPage() {
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-gray-500">Department</p>
-                                                    <p className="text-sm font-medium text-gray-800">{employee.userId.departmentId.name}</p>
+                                                    <p className="text-sm font-medium text-gray-800">{getDepartmentName(employee.userId.departmentId)}</p>
                                                 </div>
                                                 <div>
                                                     <p className="text-xs text-gray-500">Role</p>

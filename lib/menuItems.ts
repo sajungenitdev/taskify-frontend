@@ -1253,6 +1253,19 @@ export const SUB_ITEMS = {
       rel: "noopener noreferrer" 
     },
   ),
+  featurePage: createSubNavItem(
+    "feature-page",
+    "Feature Page",
+    "https://sajungenitdev.github.io/taskify-feature-page/",
+    BookOpen,
+    "Help & Support",
+    [ROLES.ALL],
+    {
+      description: "Read full system documentation",
+      target: "_blank",      
+      rel: "noopener noreferrer" 
+    },
+  ),
   apiDocs: createSubNavItem(
     "api-docs",
     "API Documentation",
