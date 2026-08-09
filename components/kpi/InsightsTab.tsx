@@ -202,7 +202,7 @@ function InsightsTab({
   if (!analyticsData || !hasAnyData) {
     return (
       <div className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm">
-        <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+        <div className="w-20 h-20 bg-linear-to-br from-indigo-50 to-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
           <Lightbulb className="w-10 h-10 text-indigo-400" />
         </div>
         <h3 className="text-lg font-semibold text-gray-800 mb-2">
@@ -287,7 +287,7 @@ function InsightsTab({
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-2xl border border-indigo-200"
+          className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-linear-to-r from-indigo-50/80 to-purple-50/80 rounded-2xl border border-indigo-200"
         >
           <div className="text-center">
             <p className="text-2xl font-bold text-gray-800">
@@ -338,7 +338,7 @@ function InsightsTab({
                 className={`p-4 rounded-xl border ${getImpactColor(insight.impact)}`}
               >
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 mt-0.5">
+                  <div className="shrink-0 mt-0.5">
                     {insight.type === "success" && (
                       <CheckCircle size={20} className="text-emerald-500" />
                     )}
@@ -397,10 +397,10 @@ function InsightsTab({
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="p-4 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-xl border border-indigo-200 hover:shadow-md transition-shadow"
+                  className="p-4 bg-linear-to-r from-indigo-50/80 to-purple-50/80 rounded-xl border border-indigo-200 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 mt-0.5">
+                    <div className="shrink-0 mt-0.5">
                       <Target size={20} className="text-indigo-500" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -496,7 +496,7 @@ function InsightsTab({
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                            <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
                               {anomaly.employeeName.charAt(0).toUpperCase()}
                             </div>
                             <div>

@@ -485,12 +485,12 @@ export default function EmployeesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Users className="w-7 h-7 text-indigo-500" />
               Employees
             </h1>
@@ -502,7 +502,7 @@ export default function EmployeesPage() {
           {isHR && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all duration-200 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 font-medium"
+              className="group flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all duration-200 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 font-medium"
             >
               <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
               Add Employee
@@ -514,7 +514,7 @@ export default function EmployeesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="group bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 hover:shadow-md hover:border-indigo-200/50 transition-all duration-200">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
+              <div className="p-2.5 bg-linear-to-br from-indigo-50 to-indigo-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
                 <Users className="w-5 h-5 text-indigo-600" />
               </div>
               <div>
@@ -527,7 +527,7 @@ export default function EmployeesPage() {
           </div>
           <div className="group bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 hover:shadow-md hover:border-emerald-200/50 transition-all duration-200">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
+              <div className="p-2.5 bg-linear-to-br from-emerald-50 to-emerald-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
                 <UserCheck className="w-5 h-5 text-emerald-600" />
               </div>
               <div>
@@ -540,7 +540,7 @@ export default function EmployeesPage() {
           </div>
           <div className="group bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 hover:shadow-md hover:border-rose-200/50 transition-all duration-200">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
+              <div className="p-2.5 bg-linear-to-br from-rose-50 to-rose-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
                 <UserX className="w-5 h-5 text-rose-600" />
               </div>
               <div>
@@ -553,7 +553,7 @@ export default function EmployeesPage() {
           </div>
           <div className="group bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 hover:shadow-md hover:border-purple-200/50 transition-all duration-200">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
+              <div className="p-2.5 bg-linear-to-br from-purple-50 to-purple-100/50 rounded-xl group-hover:scale-110 transition-transform duration-200">
                 <Building2 className="w-5 h-5 text-purple-600" />
               </div>
               <div>
@@ -671,7 +671,7 @@ export default function EmployeesPage() {
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="relative">
-                            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-lg font-bold flex-shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-lg font-bold shrink-0">
                               {getInitials(employee.fullName)}
                             </div>
                             {employee.isActive ? (
@@ -695,7 +695,7 @@ export default function EmployeesPage() {
                           </div>
                         </div>
                         <span
-                          className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1 flex-shrink-0 ${roleColor}`}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1 shrink-0 ${roleColor}`}
                         >
                           <RoleIcon className="w-3 h-3" />
                           {roleLabels[employee.role] || employee.role}
@@ -771,7 +771,7 @@ export default function EmployeesPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
+                    <tr className="bg-linear-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Employee
                       </th>
@@ -807,7 +807,7 @@ export default function EmployeesPage() {
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">
+                              <div className="w-9 h-9 rounded-xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold shrink-0">
                                 {getInitials(employee.fullName)}
                               </div>
                               <div>
@@ -910,7 +910,7 @@ export default function EmployeesPage() {
           )
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900">
@@ -942,7 +942,7 @@ export default function EmployeesPage() {
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                <h2 className="text-xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                   Add New Employee
                 </h2>
                 <button
@@ -1096,7 +1096,7 @@ export default function EmployeesPage() {
                 <div className="flex gap-3 mt-6">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
                   >
                     Create Employee
                   </button>
@@ -1123,7 +1123,7 @@ export default function EmployeesPage() {
           <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+                <h2 className="text-xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
                   Edit Employee
                 </h2>
                 <button
@@ -1297,7 +1297,7 @@ export default function EmployeesPage() {
                 <div className="flex gap-3 mt-6">
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
                   >
                     Update Employee
                   </button>
@@ -1325,7 +1325,7 @@ export default function EmployeesPage() {
           <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="p-2.5 bg-gradient-to-br from-rose-50 to-rose-100 rounded-xl">
+                <div className="p-2.5 bg-linear-to-br from-rose-50 to-rose-100 rounded-xl">
                   <Trash2 className="w-6 h-6 text-rose-600" />
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">
@@ -1340,7 +1340,7 @@ export default function EmployeesPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleDeleteEmployee}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 text-white rounded-xl hover:from-rose-700 hover:to-rose-600 transition-colors font-medium shadow-lg shadow-rose-500/25"
+                  className="flex-1 px-4 py-2.5 bg-linear-to-r from-rose-600 to-rose-500 text-white rounded-xl hover:from-rose-700 hover:to-rose-600 transition-colors font-medium shadow-lg shadow-rose-500/25"
                 >
                   Delete
                 </button>
@@ -1366,7 +1366,7 @@ export default function EmployeesPage() {
             <div className="p-6">
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-2xl font-bold flex-shrink-0">
+                  <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-2xl font-bold shrink-0">
                     {getInitials(selectedEmployee.fullName)}
                   </div>
                   <div>
@@ -1528,7 +1528,7 @@ export default function EmployeesPage() {
                       setShowEmployeeDetail(false);
                       openEditModal(selectedEmployee);
                     }}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
                   >
                     <Edit className="w-4 h-4 inline mr-1" />
                     Edit Employee

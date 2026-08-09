@@ -443,7 +443,7 @@ export default function EmailSettingsPage() {
     // RENDER
     // ============================================================
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/20">
+        <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/20">
             <div className="p-4 md:p-6 lg:p-8">
                 <div className="container mx-auto">
                     {/* Breadcrumb */}
@@ -477,11 +477,11 @@ export default function EmailSettingsPage() {
                         className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6"
                     >
                         <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
+                            <div className="w-12 h-12 bg-linear-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25">
                                 <Mail className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                                <h1 className="text-2xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                                     Email Settings
                                 </h1>
                                 <p className="text-gray-500 text-sm">
@@ -500,7 +500,7 @@ export default function EmailSettingsPage() {
                             <button
                                 onClick={handleSaveSettings}
                                 disabled={saving}
-                                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/25 hover:shadow-xl disabled:opacity-50"
+                                className="px-6 py-2.5 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/25 hover:shadow-xl disabled:opacity-50"
                             >
                                 {saving ? (
                                     <Loader2 size={18} className="animate-spin" />
@@ -539,7 +539,7 @@ export default function EmailSettingsPage() {
                                     <Icon size={16} className="inline mr-2" />
                                     {tab.label}
                                     {isActive && (
-                                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-indigo-500" />
+                                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-500 to-indigo-500" />
                                     )}
                                 </button>
                             );
@@ -742,7 +742,7 @@ function SmtpTab({
                     <button
                         onClick={handleTestEmail}
                         disabled={testing || !settings.testEmailRecipient}
-                        className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                        className="px-6 py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-emerald-500/20 disabled:opacity-50"
                     >
                         {testing ? (
                             <Loader2 size={18} className="animate-spin" />
@@ -855,7 +855,7 @@ function TemplatesTab({
                                 key={template.id}
                                 onClick={() => setSelectedTemplate(template.id)}
                                 className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 flex items-center justify-between ${selectedTemplate === template.id
-                                    ? "bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200"
+                                    ? "bg-linear-to-r from-indigo-50 to-purple-50 border border-indigo-200"
                                     : "bg-gray-50/80 border border-gray-200 hover:bg-gray-100"
                                     }`}
                             >

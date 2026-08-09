@@ -667,7 +667,7 @@ export default function LeaveManagementPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Breadcrumb */}
         <motion.div
@@ -696,7 +696,7 @@ export default function LeaveManagementPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Calendar className="w-7 h-7 text-indigo-500" />
               Leave Management
             </h1>
@@ -929,7 +929,7 @@ export default function LeaveManagementPage() {
                     <div className="p-5">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-sm font-bold flex-shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-sm font-bold shrink-0">
                             {getInitials(employeeName)}
                           </div>
                           <div className="min-w-0">
@@ -947,7 +947,7 @@ export default function LeaveManagementPage() {
                           </div>
                         </div>
                         <span
-                          className={`px-2 py-0.5 text-xs font-medium rounded-full border flex items-center gap-1 flex-shrink-0 ${statusColor}`}
+                          className={`px-2 py-0.5 text-xs font-medium rounded-full border flex items-center gap-1 shrink-0 ${statusColor}`}
                         >
                           <StatusIcon className="w-3 h-3" />
                           {getStatusLabel(leave.status)}
@@ -996,7 +996,7 @@ export default function LeaveManagementPage() {
                         {leave.rejectionReason && (
                           <div className="mt-1 p-2 bg-rose-50 border border-rose-200 rounded-lg">
                             <p className="text-xs text-rose-600 flex items-start gap-1">
-                              <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
                               <span>Rejection: {leave.rejectionReason}</span>
                             </p>
                           </div>
@@ -1051,7 +1051,7 @@ export default function LeaveManagementPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
+                    <tr className="bg-linear-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
                       <th className="px-4 py-3 text-center">
                         <input
                           type="checkbox"
@@ -1106,7 +1106,7 @@ export default function LeaveManagementPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold shrink-0">
                                 {getInitials(employeeName)}
                               </div>
                               <div>
@@ -1193,7 +1193,7 @@ export default function LeaveManagementPage() {
           )
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900">
@@ -1272,8 +1272,8 @@ export default function LeaveManagementPage() {
                   }
                   className={`flex-1 px-4 py-2.5 text-white rounded-xl transition-colors font-medium shadow-lg ${
                     statusAction === "approved"
-                      ? "bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 shadow-emerald-500/25"
-                      : "bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-700 hover:to-rose-600 shadow-rose-500/25"
+                      ? "bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 shadow-emerald-500/25"
+                      : "bg-linear-to-r from-rose-600 to-rose-500 hover:from-rose-700 hover:to-rose-600 shadow-rose-500/25"
                   }`}
                 >
                   {statusAction === "approved" ? "Approve" : "Reject"} Request
@@ -1391,9 +1391,9 @@ export default function LeaveManagementPage() {
               </div>
 
               {/* Employee Info */}
-              <div className="bg-gradient-to-r from-gray-50 to-indigo-50/50 rounded-xl p-4 mb-6">
+              <div className="bg-linear-to-r from-gray-50 to-indigo-50/50 rounded-xl p-4 mb-6">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-lg font-bold flex-shrink-0">
+                  <div className="w-14 h-14 rounded-full bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-lg font-bold shrink-0">
                     {getInitials(getEmployeeName(selectedLeave.employeeId))}
                   </div>
                   <div className="flex-1">
@@ -1562,7 +1562,7 @@ export default function LeaveManagementPage() {
                         setStatusAction("approved");
                         setShowStatusModal(true);
                       }}
-                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white rounded-xl hover:from-emerald-700 hover:to-emerald-600 transition-colors font-medium shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
+                      className="flex-1 px-4 py-2.5 bg-linear-to-r from-emerald-600 to-emerald-500 text-white rounded-xl hover:from-emerald-700 hover:to-emerald-600 transition-colors font-medium shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2"
                     >
                       <Check className="w-4 h-4" />
                       Approve
@@ -1573,7 +1573,7 @@ export default function LeaveManagementPage() {
                         setStatusAction("rejected");
                         setShowStatusModal(true);
                       }}
-                      className="flex-1 px-4 py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 text-white rounded-xl hover:from-rose-700 hover:to-rose-600 transition-colors font-medium shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2"
+                      className="flex-1 px-4 py-2.5 bg-linear-to-r from-rose-600 to-rose-500 text-white rounded-xl hover:from-rose-700 hover:to-rose-600 transition-colors font-medium shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2"
                     >
                       <X className="w-4 h-4" />
                       Reject

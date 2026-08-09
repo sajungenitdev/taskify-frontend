@@ -144,7 +144,7 @@ export default function PredictionsTab({
       </div>
 
       {/* Summary */}
-      <div className="bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-2xl p-4 border border-indigo-200 text-center text-sm">
+      <div className="bg-linear-to-r from-indigo-50/80 to-purple-50/80 rounded-2xl p-4 border border-indigo-200 text-center text-sm">
         <p className="text-gray-600">
           Based on historical data, the predicted performance trend is{" "}
           <span className="font-semibold text-indigo-600">

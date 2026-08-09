@@ -707,11 +707,11 @@ export default function KPLeaderboardPage() {
 
   const getRankBadge = (rank: number) => {
     if (rank === 1)
-      return "bg-gradient-to-r from-amber-400 to-amber-600 text-white";
+      return "bg-linear-to-r from-amber-400 to-amber-600 text-white";
     if (rank === 2)
-      return "bg-gradient-to-r from-gray-300 to-gray-400 text-white";
+      return "bg-linear-to-r from-gray-300 to-gray-400 text-white";
     if (rank === 3)
-      return "bg-gradient-to-r from-amber-600 to-amber-700 text-white";
+      return "bg-linear-to-r from-amber-600 to-amber-700 text-white";
     return "bg-gray-100 text-gray-600";
   };
 
@@ -855,7 +855,7 @@ export default function KPLeaderboardPage() {
           >
             <div>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 bg-linear-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-md">
                   <Trophy className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -1011,7 +1011,7 @@ export default function KPLeaderboardPage() {
               <div className="flex flex-col md:flex-row items-end justify-center gap-4 md:gap-8">
                 {/* 2nd Place */}
                 <div className="flex flex-col items-center order-2 md:order-1">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  <div className="w-20 h-20 rounded-full bg-linear-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                     {topThree[1]?.userId?.fullName?.charAt(0)?.toUpperCase() ??
                       "?"}
                   </div>
@@ -1029,14 +1029,14 @@ export default function KPLeaderboardPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2 w-24 h-12 bg-gradient-to-b from-gray-300 to-gray-200 rounded-t-lg flex items-center justify-center">
+                  <div className="mt-2 w-24 h-12 bg-linear-to-b from-gray-300 to-gray-200 rounded-t-lg flex items-center justify-center">
                     <span className="text-sm font-bold text-gray-600">2nd</span>
                   </div>
                 </div>
 
                 {/* 1st Place */}
                 <div className="flex flex-col items-center order-1 md:order-2 transform scale-110">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-amber-500/30">
+                  <div className="w-24 h-24 rounded-full bg-linear-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-amber-500/30">
                     {topThree[0]?.userId?.fullName?.charAt(0)?.toUpperCase() ??
                       "?"}
                   </div>
@@ -1054,14 +1054,14 @@ export default function KPLeaderboardPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2 w-28 h-14 bg-gradient-to-b from-amber-400 to-amber-500 rounded-t-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
+                  <div className="mt-2 w-28 h-14 bg-linear-to-b from-amber-400 to-amber-500 rounded-t-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
                     <span className="text-sm font-bold text-white">🥇 1st</span>
                   </div>
                 </div>
 
                 {/* 3rd Place */}
                 <div className="flex flex-col items-center order-3">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-700 to-amber-800 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                  <div className="w-20 h-20 rounded-full bg-linear-to-br from-amber-700 to-amber-800 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                     {topThree[2]?.userId?.fullName?.charAt(0)?.toUpperCase() ??
                       "?"}
                   </div>
@@ -1079,7 +1079,7 @@ export default function KPLeaderboardPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-2 w-24 h-10 bg-gradient-to-b from-amber-700 to-amber-800 rounded-t-lg flex items-center justify-center">
+                  <div className="mt-2 w-24 h-10 bg-linear-to-b from-amber-700 to-amber-800 rounded-t-lg flex items-center justify-center">
                     <span className="text-sm font-bold text-white">3rd</span>
                   </div>
                 </div>
@@ -1222,7 +1222,7 @@ export default function KPLeaderboardPage() {
                             key={score._id || index}
                             className={`hover:bg-gray-50 transition cursor-pointer ${
                               isTopThree
-                                ? "bg-gradient-to-r from-amber-50/50 to-transparent"
+                                ? "bg-linear-to-r from-amber-50/50 to-transparent"
                                 : ""
                             }`}
                             onClick={() =>
@@ -1238,7 +1238,7 @@ export default function KPLeaderboardPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                                <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
                                   {score.userId.fullName
                                     .charAt(0)
                                     .toUpperCase()}
@@ -1381,7 +1381,7 @@ export default function KPLeaderboardPage() {
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-xs font-bold">
+                                <div className="w-8 h-8 rounded-full bg-linear-to-br from-gray-400 to-gray-500 flex items-center justify-center text-white text-xs font-bold">
                                   {user.fullName?.charAt(0)?.toUpperCase() ??
                                     "?"}
                                 </div>

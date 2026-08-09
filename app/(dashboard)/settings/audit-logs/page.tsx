@@ -538,7 +538,7 @@ const AuditLogsPage: React.FC = () => {
     return (
         <div className="p-4 md:p-6 container mx-auto">
             {/* Header */}
-            <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
+            <div className="bg-linear-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">

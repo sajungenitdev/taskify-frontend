@@ -260,7 +260,7 @@ export default function InactiveUsersPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-rose-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md">
                   <UserX className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -471,7 +471,7 @@ export default function InactiveUsersPage() {
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                                <div className="w-10 h-10 bg-linear-to-br from-rose-400 to-pink-500 rounded-lg flex items-center justify-center shadow-sm shrink-0">
                                   <span className="text-white text-sm font-bold">
                                     {user.fullName.charAt(0).toUpperCase()}
                                   </span>
@@ -638,10 +638,10 @@ export default function InactiveUsersPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
-            <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-rose-50 to-pink-50">
+            <div className="p-5 border-b border-gray-200 bg-linear-to-r from-rose-50 to-pink-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center shadow-md">
+                  <div className="w-10 h-10 bg-linear-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center shadow-md">
                     <span className="text-white font-bold text-lg">
                       {selectedUser.fullName.charAt(0).toUpperCase()}
                     </span>

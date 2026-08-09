@@ -771,7 +771,7 @@ export default function ProjectsPage() {
           <motion.div
             className={`h-2 rounded-full ${isComplete
               ? "bg-emerald-500"
-              : "bg-gradient-to-r from-indigo-500 to-purple-600"
+              : "bg-linear-to-r from-indigo-500 to-purple-600"
               }`}
             initial={{ width: 0 }}
             animate={{
@@ -786,7 +786,7 @@ export default function ProjectsPage() {
             }}
           />
           {progress > 0 && progress < 100 && (
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer pointer-events-none" />
+            <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/20 to-transparent animate-shimmer pointer-events-none" />
           )}
         </div>
         <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1">
@@ -861,7 +861,7 @@ export default function ProjectsPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <FolderKanban className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -891,7 +891,7 @@ export default function ProjectsPage() {
                   resetForm();
                   setShowCreateModal(true);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+                className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
               >
                 <Plus size={16} />
                 Create Project
@@ -1258,7 +1258,7 @@ export default function ProjectsPage() {
                       {/* Progress Bar */}
                       <div className="mb-3">
                         <div className="flex items-center justify-between gap-2 text-sm">
-                          <div>
+                          <div className="flex items-center gap-1">
                             <span className={`font-semibold ${isComplete ? 'text-emerald-600' : 'text-gray-700'
                               }`}>
                               {progress}%
@@ -1291,7 +1291,7 @@ export default function ProjectsPage() {
                           <motion.div
                             className={`h-1.5 rounded-full ${isComplete
                               ? "bg-emerald-500"
-                              : "bg-gradient-to-r from-indigo-500 to-purple-600"
+                              : "bg-linear-to-r from-indigo-500 to-purple-600"
                               }`}
                             initial={{ width: 0 }}
                             animate={{
@@ -1537,7 +1537,7 @@ export default function ProjectsPage() {
                                   <motion.div
                                     className={`h-2 rounded-full ${isComplete
                                       ? "bg-emerald-500"
-                                      : "bg-gradient-to-r from-indigo-500 to-purple-600"
+                                      : "bg-linear-to-r from-indigo-500 to-purple-600"
                                       }`}
                                     initial={{ width: 0 }}
                                     animate={{
@@ -1735,7 +1735,7 @@ export default function ProjectsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50 sticky top-0">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     {editingProject ? "Edit Project" : "Create New Project"}
@@ -1943,7 +1943,7 @@ export default function ProjectsPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
                   >
                     {submitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1981,7 +1981,7 @@ export default function ProjectsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-4xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 sticky top-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50 sticky top-0">
                 <div>
                   <div className="flex items-center gap-2">
                     <FolderKanban size={20} className="text-indigo-500" />
@@ -2077,7 +2077,7 @@ export default function ProjectsPage() {
                                 ? "bg-emerald-500"
                                 : selectedProject.status === "archived"
                                   ? "bg-gray-400"
-                                  : "bg-gradient-to-r from-indigo-500 to-purple-600"
+                                  : "bg-linear-to-r from-indigo-500 to-purple-600"
                                 }`}
                               initial={{ width: 0 }}
                               animate={{
@@ -2271,7 +2271,7 @@ export default function ProjectsPage() {
                       setShowViewModal(false);
                       setShowUnarchiveConfirm(selectedProject._id);
                     }}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
                   >
                     <ArchiveRestore size={16} />
                     Restore from Archive
@@ -2283,7 +2283,7 @@ export default function ProjectsPage() {
                         setShowViewModal(false);
                         openEditModal(selectedProject);
                       }}
-                      className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                      className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
                     >
                       <Edit2 size={16} />
                       Edit Project
@@ -2332,7 +2332,7 @@ export default function ProjectsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh]"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 sticky top-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50 sticky top-0">
                 <div>
                   <div className="flex items-center gap-2">
                     <Users size={20} className="text-emerald-500" />
@@ -2482,7 +2482,7 @@ export default function ProjectsPage() {
                   <button
                     onClick={handleAssignUsers}
                     disabled={assignSubmitting}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
                   >
                     {assignSubmitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -2521,7 +2521,7 @@ export default function ProjectsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-yellow-50">
+              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-linear-to-r from-amber-50 to-yellow-50">
                 <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
                   <Archive className="w-4 h-4 text-amber-600" />
                 </div>
@@ -2544,7 +2544,7 @@ export default function ProjectsPage() {
                   <button
                     onClick={() => handleArchiveProject(showArchiveConfirm)}
                     disabled={submitting}
-                    className="flex-1 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-amber-600 to-yellow-600 hover:from-amber-700 hover:to-yellow-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
                   >
                     {submitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -2576,7 +2576,7 @@ export default function ProjectsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-green-50">
+              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-green-50">
                 <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
                   <ArchiveRestore className="w-4 h-4 text-emerald-600" />
                 </div>
@@ -2598,7 +2598,7 @@ export default function ProjectsPage() {
                   <button
                     onClick={() => handleUnarchiveProject(showUnarchiveConfirm)}
                     disabled={submitting}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
                   >
                     {submitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -2630,7 +2630,7 @@ export default function ProjectsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-gradient-to-r from-rose-50 to-red-50">
+              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-linear-to-r from-rose-50 to-red-50">
                 <div className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center">
                   <AlertTriangle className="w-4 h-4 text-rose-600" />
                 </div>
@@ -2651,7 +2651,7 @@ export default function ProjectsPage() {
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={() => handleDeleteProject(showDeleteConfirm)}
-                    className="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition shadow-sm"
+                    className="flex-1 bg-linear-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition shadow-sm"
                   >
                     Delete
                   </button>

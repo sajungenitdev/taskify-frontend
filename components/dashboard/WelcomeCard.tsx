@@ -515,7 +515,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -20, scale: 0.95 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-white to-indigo-50/30 backdrop-blur-md border border-slate-200/80 shadow-xl shadow-indigo-500/5 p-6 md:p-8"
+        className="relative overflow-hidden rounded-3xl bg-linear-to-br from-white via-white to-indigo-50/30 backdrop-blur-md border border-slate-200/80 shadow-xl shadow-indigo-500/5 p-6 md:p-8"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -539,7 +539,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
               scale: isHovered ? 1.1 : 1,
             }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="absolute -top-32 -right-32 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl"
+            className="absolute -top-32 -right-32 w-96 h-96 bg-linear-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-3xl"
           />
           <motion.div
             animate={{
@@ -548,7 +548,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
               scale: isHovered ? 1.05 : 1,
             }}
             transition={{ duration: 0.9, ease: "easeOut", delay: 0.1 }}
-            className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl"
+            className="absolute -bottom-40 -left-40 w-96 h-96 bg-linear-to-tr from-emerald-500/5 to-cyan-500/5 rounded-full blur-3xl"
           />
         </div>
 
@@ -559,7 +559,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
               <motion.div
                 whileHover={{ scale: 1.05, rotate: -5 }}
                 whileTap={{ scale: 0.95 }}
-                className={`relative w-16 h-16 rounded-2xl bg-gradient-to-br ${getRoleGradient()} flex items-center justify-center shadow-lg shadow-indigo-500/20 flex-shrink-0 text-white transition-all duration-300`}
+                className={`relative w-16 h-16 rounded-2xl bg-linear-to-br ${getRoleGradient()} flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0 text-white transition-all duration-300`}
               >
                 {getRoleIcon()}
                 <motion.div
@@ -590,7 +590,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                    className="text-xl md:text-2xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
+                    className="text-xl md:text-2xl font-black bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent"
                   >
                     {user.fullName.split(" ")[0]}
                   </motion.span>
@@ -653,7 +653,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
           >
             <motion.div
               whileHover={{ scale: 1.05 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-indigo-200/60 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 text-indigo-900 shadow-sm backdrop-blur-sm"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold border border-indigo-200/60 bg-linear-to-r from-indigo-50/80 to-purple-50/80 text-indigo-900 shadow-sm backdrop-blur-sm"
             >
               <motion.span
                 animate={{
@@ -690,7 +690,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
                 whileTap={{ scale: 0.98 }}
               >
                 <div
-                  className="group relative inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-700 hover:via-indigo-700 hover:to-purple-700 text-white text-xs font-bold rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/30 hover:shadow-xl hover:shadow-indigo-600/40 overflow-hidden"
+                  className="group relative inline-flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-700 hover:via-indigo-700 hover:to-purple-700 text-white text-xs font-bold rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/30 hover:shadow-xl hover:shadow-indigo-600/40 overflow-hidden"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     {getDashboardIcon()}
@@ -698,7 +698,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </span>
                   <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                    className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent"
                     animate={{
                       x: ["-100%", "100%"],
                     }}
@@ -757,7 +757,7 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
               opacity: isHovered ? 0.6 : 0.2,
             }}
             transition={{ duration: 0.5 }}
-            className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-indigo-400/50 to-transparent"
+            className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-indigo-400/50 to-transparent"
           />
         </div>
       </motion.div>

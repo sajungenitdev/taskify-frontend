@@ -169,7 +169,7 @@ export default function BillingPage() {
     return (
         <div className="p-4 md:p-6 container mx-auto container">
             {/* Header */}
-            <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
+            <div className="bg-linear-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
@@ -260,7 +260,7 @@ export default function BillingPage() {
                                     <tr key={account.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                                                <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
                                                     {account.name?.charAt(0).toUpperCase() || '?'}
                                                 </div>
                                                 <div>

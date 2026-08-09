@@ -563,7 +563,7 @@ useEffect(() => {
         className="bg-white rounded-2xl shadow-sm border border-gray-100/80 p-5 hover:shadow-md transition-all duration-200"
       >
         <div className="flex items-center gap-3">
-          <div className={`p-2.5 bg-gradient-to-br ${color} rounded-xl`}>
+          <div className={`p-2.5 bg-linear-to-br ${color} rounded-xl`}>
             {icon}
           </div>
           <div>
@@ -589,7 +589,7 @@ useEffect(() => {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0 shadow-lg"
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-bold shrink-0 shadow-lg"
                 style={{ backgroundColor: team.color || "#6366f1" }}
               >
                 {getInitials(team.name)}
@@ -599,7 +599,7 @@ useEffect(() => {
                   {team.name}
                 </h3>
                 <p className="text-sm text-gray-500 flex items-center gap-1">
-                  <Building className="w-3 h-3 flex-shrink-0" />
+                  <Building className="w-3 h-3 shrink-0" />
                   <span className="truncate">
                     {getDepartmentName(team.department)}
                   </span>
@@ -607,7 +607,7 @@ useEffect(() => {
               </div>
             </div>
             <span
-              className={`px-2.5 py-1 text-xs font-medium rounded-full flex-shrink-0 border ${getStatusColor(
+              className={`px-2.5 py-1 text-xs font-medium rounded-full shrink-0 border ${getStatusColor(
                 team.status,
               )}`}
             >
@@ -635,7 +635,7 @@ useEffect(() => {
             </div>
             {team.lead && typeof team.lead === "object" && (
               <div className="flex items-center gap-1.5 text-gray-600 bg-gray-50/80 px-3 py-1.5 rounded-xl min-w-0">
-                <UserCheck className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                <UserCheck className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                 <span className="truncate">
                   {team.lead.fullName || "Unknown"}
                 </span>
@@ -703,7 +703,7 @@ useEffect(() => {
         <td className="px-6 py-4">
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
               style={{ backgroundColor: team.color || "#6366f1" }}
             >
               {getInitials(team.name)}
@@ -837,7 +837,7 @@ useEffect(() => {
 
   // ===== MAIN RENDER =====
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <motion.div
@@ -846,7 +846,7 @@ useEffect(() => {
           className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8"
         >
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Teams
             </h1>
             <p className="text-gray-500 mt-1 flex items-center gap-2">
@@ -856,7 +856,7 @@ useEffect(() => {
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="group flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all duration-200 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 font-medium"
+            className="group flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all duration-200 shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 font-medium"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
             Create Team
@@ -1038,7 +1038,7 @@ useEffect(() => {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
+                      <tr className="bg-linear-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           Team
                         </th>
@@ -1074,7 +1074,7 @@ useEffect(() => {
               exit={{ opacity: 0 }}
               className="text-center py-16 bg-white rounded-2xl border border-gray-100/80"
             >
-              <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-10 h-10 text-gray-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900">
@@ -1285,7 +1285,7 @@ function Modal({
       >
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            <h2 className="text-xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               {title}
             </h2>
             <button
@@ -1302,7 +1302,7 @@ function Modal({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <Loader2 className="w-5 h-5 animate-spin mx-auto" />
@@ -1662,7 +1662,7 @@ function MembersModal({
       >
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
+            <h2 className="text-xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
               Manage Members
             </h2>
             <button
@@ -1690,7 +1690,7 @@ function MembersModal({
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-medium flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-medium shrink-0">
                         {getInitials(member.fullName || "Unknown")}
                       </div>
                       <div className="min-w-0">
@@ -1774,7 +1774,7 @@ function MembersModal({
                         </p>
                       </div>
                       {user.role && (
-                        <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full flex-shrink-0">
+                        <span className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded-full shrink-0">
                           {user.role.replace("_", " ").toUpperCase()}
                         </span>
                       )}
@@ -1802,7 +1802,7 @@ function MembersModal({
             <button
               onClick={onAddMembers}
               disabled={selectedMembers.length === 0}
-              className="w-full mt-3 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg shadow-indigo-500/25"
+              className="w-full mt-3 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-lg shadow-indigo-500/25"
             >
               Add Selected Members ({selectedMembers.length})
             </button>
@@ -1876,7 +1876,7 @@ function ConfirmModal({
         <div className="p-6">
           <div className="flex items-center gap-3 mb-4">
             <div
-              className={`p-2.5 bg-gradient-to-br ${colors.iconBg} rounded-xl`}
+              className={`p-2.5 bg-linear-to-br ${colors.iconBg} rounded-xl`}
             >
               <Trash2 className={`w-6 h-6 ${colors.iconColor}`} />
             </div>
@@ -1886,7 +1886,7 @@ function ConfirmModal({
           <div className="flex gap-3">
             <button
               onClick={onConfirm}
-              className={`flex-1 px-4 py-2.5 bg-gradient-to-r ${colors.buttonBg} text-white rounded-xl hover:${colors.buttonHover} transition-colors font-medium shadow-lg ${colors.shadow}`}
+              className={`flex-1 px-4 py-2.5 bg-linear-to-r ${colors.buttonBg} text-white rounded-xl hover:${colors.buttonHover} transition-colors font-medium shadow-lg ${colors.shadow}`}
             >
               {confirmLabel}
             </button>

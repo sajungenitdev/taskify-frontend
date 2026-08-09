@@ -656,7 +656,7 @@ export default function KPIManagementPage() {
   // RENDER
   // ============================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/30">
       <div className="p-4 md:p-6 lg:p-8">
         <div className="container mx-auto space-y-6">
           {/* Breadcrumb */}
@@ -684,11 +684,11 @@ export default function KPIManagementPage() {
           >
             <div>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                <div className="w-12 h-12 bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
                   <BarChart3 className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                     KPI Management
                   </h1>
                   <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2">
@@ -781,7 +781,7 @@ export default function KPIManagementPage() {
                 <button
                   onClick={handleCalculateKPI}
                   disabled={calculating}
-                  className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-emerald-500/20 hover:shadow-lg disabled:opacity-50"
+                  className="px-6 py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-emerald-500/20 hover:shadow-lg disabled:opacity-50"
                 >
                   {calculating ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -810,7 +810,7 @@ export default function KPIManagementPage() {
               <Settings size={16} className="inline mr-2" />
               Weights Configuration
               {activeTab === "weights" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-indigo-500 to-purple-500" />
               )}
             </button>
             <button
@@ -823,7 +823,7 @@ export default function KPIManagementPage() {
               <BarChart3 size={16} className="inline mr-2" />
               Monthly Report
               {activeTab === "report" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-indigo-500 to-purple-500" />
               )}
             </button>
           </motion.div>
@@ -956,7 +956,7 @@ function WeightsTab({
         {canEditWeights && (
           <button
             onClick={() => setShowWeightEditor(!showWeightEditor)}
-            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20"
+            className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20"
           >
             {showWeightEditor ? <X size={16} /> : <Edit2 size={16} />}
             {showWeightEditor ? "Cancel" : "Edit Weights"}
@@ -1018,7 +1018,7 @@ function WeightsTab({
                 <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
                   <div
                     className={`h-1.5 rounded-full transition-all ${editingWeights[key] > 0
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500"
+                      ? "bg-linear-to-r from-indigo-500 to-purple-500"
                       : "bg-gray-300"
                       }`}
                     style={{
@@ -1056,7 +1056,7 @@ function WeightsTab({
                 <button
                   onClick={handleSaveWeights}
                   disabled={savingWeights || !isValid}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20 disabled:opacity-50"
+                  className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20 disabled:opacity-50"
                 >
                   {savingWeights ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -1078,7 +1078,7 @@ function WeightsTab({
               return (
                 <div
                   key={key}
-                  className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 group"
+                  className="bg-linear-to-br from-gray-50 to-white rounded-xl p-5 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 group"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -1100,7 +1100,7 @@ function WeightsTab({
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-1.5 mt-3">
                     <div
-                      className="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                      className="h-1.5 rounded-full bg-linear-to-r from-indigo-500 to-purple-500"
                       style={{ width: `${value}%` }}
                     />
                   </div>
@@ -1119,7 +1119,7 @@ function WeightsTab({
             </div>
           )}
           {kpiWeights && (
-            <div className="col-span-3 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-200">
+            <div className="col-span-3 bg-linear-to-r from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-200">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-indigo-700 font-medium flex items-center gap-2">
                   <Shield size={14} />
@@ -1428,7 +1428,7 @@ function ReportTab({
 
       {/* Top Performers */}
       {filteredScores.length > 0 && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-amber-50/80 to-orange-50/80 rounded-xl border border-amber-200">
+        <div className="mb-6 p-4 bg-linear-to-r from-amber-50/80 to-orange-50/80 rounded-xl border border-amber-200">
           <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
             <Crown size={16} className="text-amber-500" />
             Top Performers in {departmentName}
@@ -1444,7 +1444,7 @@ function ReportTab({
                   className="bg-white rounded-lg p-3 border border-gray-200 flex items-center gap-3 shadow-sm hover:shadow-md transition cursor-pointer"
                   onClick={() => onViewEmployee(performer.userId._id)}
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-linear-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0">
                     {index + 1}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -1541,7 +1541,7 @@ function ReportTab({
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
                           {score.userId.fullName.charAt(0).toUpperCase()}
                         </div>
                         <div>

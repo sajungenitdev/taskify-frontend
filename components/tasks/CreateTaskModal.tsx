@@ -966,9 +966,9 @@ export default function CreateTaskModal({
         className="relative w-full max-w-3xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white flex-shrink-0">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-gray-50 to-white shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+            <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
@@ -1009,7 +1009,7 @@ export default function CreateTaskModal({
 
           {/* Quick Task Toggle */}
           {(isSuperAdmin || isAdmin) && !isEmployee && (
-            <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
+            <div className="p-4 bg-linear-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-indigo-100 rounded-lg flex items-center justify-center">
@@ -1604,7 +1604,7 @@ export default function CreateTaskModal({
               <button
                 type="submit"
                 disabled={loading || isCreatingProject}
-                className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading || isCreatingProject ? (
                   <>

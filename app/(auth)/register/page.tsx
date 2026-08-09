@@ -166,7 +166,7 @@ const GlowingOrbs = () => {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       <motion.div
-        className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-gradient-to-r from-emerald-500/10 to-teal-500/10 blur-[120px]"
+        className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-linear-to-r from-emerald-500/10 to-teal-500/10 blur-[120px]"
         animate={{
           x: [0, 50, -30, 20, 0],
           y: [0, -30, 40, -20, 0],
@@ -179,7 +179,7 @@ const GlowingOrbs = () => {
         }}
       />
       <motion.div
-        className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 blur-[120px]"
+        className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-linear-to-r from-cyan-500/10 to-emerald-500/10 blur-[120px]"
         animate={{
           x: [0, -40, 30, -20, 0],
           y: [0, 30, -40, 20, 0],
@@ -572,7 +572,7 @@ export default function RegisterPage() {
 
   if (loadingPlans) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-900 via-emerald-950 to-slate-900">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-emerald-200/20 rounded-full"></div>
@@ -586,7 +586,7 @@ export default function RegisterPage() {
 
   if (fetchError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-900 via-emerald-950 to-slate-900 p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -609,7 +609,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900">
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-linear-to-br from-slate-900 via-emerald-950 to-slate-900">
       <FloatingParticles />
       <GlowingOrbs />
 
@@ -620,7 +620,7 @@ export default function RegisterPage() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="relative bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl overflow-hidden"
         >
-          <div className="absolute inset-0 rounded-2xl p-[1px] bg-gradient-to-r from-emerald-500/30 via-teal-500/30 to-cyan-500/30 pointer-events-none" />
+          <div className="absolute inset-0 rounded-2xl p-[1px] bg-linear-to-r from-emerald-500/30 via-teal-500/30 to-cyan-500/30 pointer-events-none" />
 
           <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
           <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl" />
@@ -633,7 +633,7 @@ export default function RegisterPage() {
               transition={{ delay: 0.1 }}
               className="text-center mb-6"
             >
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25 mb-3">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-linear-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25 mb-3">
                 <Rocket className="w-7 h-7 text-white" />
               </div>
               <h1 className="text-2xl font-bold text-white">
@@ -659,7 +659,7 @@ export default function RegisterPage() {
                   <div className="flex flex-col items-center flex-1">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${index <= currentStepIndex
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
+                        ? "bg-linear-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30"
                         : "bg-white/10 text-white/40"
                         }`}
                     >
@@ -681,7 +681,7 @@ export default function RegisterPage() {
                   {index < steps.length - 1 && (
                     <div
                       className={`flex-1 h-0.5 mx-2 ${index < currentStepIndex
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                        ? "bg-linear-to-r from-emerald-500 to-teal-500"
                         : "bg-white/10"
                         }`}
                     />
@@ -699,7 +699,7 @@ export default function RegisterPage() {
                   exit={{ opacity: 0, y: -10 }}
                   className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2"
                 >
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
                   <p className="text-sm text-red-400">{registrationError}</p>
                 </motion.div>
               )}
@@ -808,7 +808,7 @@ export default function RegisterPage() {
                     </div>
                     <button
                       onClick={handleNextStep}
-                      className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-linear-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                     >
                       Continue
                       <ArrowRight className="w-4 h-4" />
@@ -863,12 +863,12 @@ export default function RegisterPage() {
                                 }`}
                             >
                               {plan.isPopular && (
-                                <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full text-[10px] font-bold text-white">
+                                <div className="absolute -top-2 -right-2 px-2 py-0.5 bg-linear-to-r from-yellow-500 to-orange-500 rounded-full text-[10px] font-bold text-white">
                                   POPULAR
                                 </div>
                               )}
                               {plan.badge && (
-                                <div className="absolute -top-2 -left-2 px-2 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full text-[10px] font-bold text-white">
+                                <div className="absolute -top-2 -left-2 px-2 py-0.5 bg-linear-to-r from-purple-500 to-pink-500 rounded-full text-[10px] font-bold text-white">
                                   {plan.badge.toUpperCase()}
                                 </div>
                               )}
@@ -964,7 +964,7 @@ export default function RegisterPage() {
                       </button>
                       <button
                         onClick={handleNextStep}
-                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                       >
                         Continue to Registration
                         <ArrowRight className="w-4 h-4" />
@@ -1251,7 +1251,7 @@ export default function RegisterPage() {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        className="flex-1 py-3 bg-linear-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                       >
                         {isSubmitting ? (
                           <>

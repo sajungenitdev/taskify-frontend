@@ -792,7 +792,7 @@ export default function BulkUploadPage() {
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition shadow-sm"
+              className="inline-flex items-center gap-2 px-6 py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition shadow-sm"
             >
               <FileText className="w-4 h-4" />
               Choose File
@@ -807,7 +807,7 @@ export default function BulkUploadPage() {
         {validationErrors.length > 0 && !showSuccess && (
           <div className="mt-4 bg-amber-50 rounded-xl border border-amber-200 p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <div>
                 <h3 className="text-sm font-semibold text-amber-700">
                   Validation Errors ({validationErrors.length})
@@ -1185,7 +1185,7 @@ export default function BulkUploadPage() {
                   <button
                     onClick={handleBulkUpload}
                     disabled={uploading}
-                    className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
+                    className="px-6 py-2.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm"
                   >
                     {uploading ? (
                       <>
@@ -1250,7 +1250,7 @@ export default function BulkUploadPage() {
         {/* Help Section */}
         <div className="mt-6 bg-blue-50 rounded-xl p-4 border border-blue-200">
           <div className="flex items-start gap-3">
-            <HelpCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <HelpCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-medium text-blue-700">
                 💡 Tips for bulk upload

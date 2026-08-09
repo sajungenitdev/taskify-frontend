@@ -956,7 +956,7 @@ export default function EmployeeKPIDetailPage() {
                             </button>
                             <div>
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                                    <div className="w-12 h-12 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
                                         <User className="w-6 h-6 text-white" />
                                     </div>
                                     <div>
@@ -1000,7 +1000,7 @@ export default function EmployeeKPIDetailPage() {
                             <button
                                 onClick={handleExportPDF}
                                 disabled={!employee || exporting}
-                                className="px-3 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 disabled:opacity-50"
+                                className="px-3 py-2 bg-linear-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 disabled:opacity-50"
                             >
                                 {exporting ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
                                 {exporting ? "Generating..." : "PDF"}
@@ -1009,7 +1009,7 @@ export default function EmployeeKPIDetailPage() {
                             <button
                                 onClick={handleExportCSV}
                                 disabled={!employee}
-                                className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 disabled:opacity-50"
+                                className="px-3 py-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg transition shadow-sm flex items-center gap-2 disabled:opacity-50"
                             >
                                 <FileSpreadsheet size={16} />
                                 CSV

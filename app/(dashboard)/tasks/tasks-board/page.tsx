@@ -1507,7 +1507,7 @@ export default function TasksPage() {
   // ============ LOADING STATE ============
   if (isLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 to-indigo-50/30">
+      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-gray-50 to-indigo-50/30">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
             <div className="w-16 h-16 border-4 border-indigo-200 rounded-full animate-spin border-t-indigo-600"></div>
@@ -1525,7 +1525,7 @@ export default function TasksPage() {
 
   // ============ RENDER ============
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/20">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/20">
       <div className="p-4 md:p-6 lg:p-8">
         <div className="w-full mx-auto space-y-6">
           {/* Breadcrumb */}
@@ -1550,10 +1550,10 @@ export default function TasksPage() {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm border border-indigo-200/50 rounded-xl p-4 flex items-center justify-between shadow-sm"
+              className="bg-linear-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm border border-indigo-200/50 rounded-xl p-4 flex items-center justify-between shadow-sm"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/25">
+                <div className="p-2 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/25">
                   <Building2 size={18} className="text-white" />
                 </div>
                 <div>
@@ -1583,13 +1583,13 @@ export default function TasksPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                <div className="w-10 h-10 bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
                   <CheckSquare className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                   Task Workspace
                 </h1>
-                <span className="ml-2 px-3 py-0.5 text-xs font-medium bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-full border border-indigo-200 shadow-sm">
+                <span className="ml-2 px-3 py-0.5 text-xs font-medium bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-700 rounded-full border border-indigo-200 shadow-sm">
                   {stats.total}
                 </span>
               </div>
@@ -1612,7 +1612,7 @@ export default function TasksPage() {
                 <button
                   onClick={() => setViewMode("grid")}
                   className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${viewMode === "grid"
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                    ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
                     : "text-gray-500 hover:text-gray-700"
                     }`}
                 >
@@ -1622,7 +1622,7 @@ export default function TasksPage() {
                 <button
                   onClick={() => setViewMode("list")}
                   className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${viewMode === "list"
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                    ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
                     : "text-gray-500 hover:text-gray-700"
                     }`}
                 >
@@ -1633,7 +1633,7 @@ export default function TasksPage() {
               {canManage && (
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30"
+                  className="px-4 py-2 bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30"
                 >
                   <Plus size={16} />
                   Create Task
@@ -1659,7 +1659,7 @@ export default function TasksPage() {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                    <p className="text-2xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                       {stat.value}
                     </p>
                     <p className="text-[10px] text-gray-500 mt-0.5 font-medium uppercase tracking-wider">
@@ -1672,7 +1672,7 @@ export default function TasksPage() {
                     <stat.icon className={`w-4 h-4 ${stat.color}`} />
                   </div>
                 </div>
-                <div className="mt-2 h-0.5 w-full bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+                <div className="mt-2 h-0.5 w-full bg-linear-to-r opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
               </motion.div>
             ))}
           </motion.div>
@@ -1696,7 +1696,7 @@ export default function TasksPage() {
               {activeTab === "tasks" && (
                 <motion.div
                   layoutId="tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-600 to-purple-600"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-indigo-600 to-purple-600"
                 />
               )}
             </button>
@@ -1729,7 +1729,7 @@ export default function TasksPage() {
               {activeTab === "extensions" && (
                 <motion.div
                   layoutId="tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-indigo-600 to-purple-600"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-indigo-600 to-purple-600"
                 />
               )}
             </button>
@@ -1752,7 +1752,7 @@ export default function TasksPage() {
                 <button
                   onClick={() => setShowFilters(!showFilters)}
                   className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${showFilters
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+                    ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white"
                     : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
                     }`}
                 >
@@ -1824,7 +1824,7 @@ export default function TasksPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm"
                 >
-                  <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <CheckSquare className="w-10 h-10 text-gray-400" />
                   </div>
                   <h3 className="text-xl font-semibold text-gray-800 mb-2">
@@ -1838,7 +1838,7 @@ export default function TasksPage() {
                   {canManage && (
                     <button
                       onClick={() => setShowCreateModal(true)}
-                      className="mt-4 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg inline-flex items-center gap-2 shadow-md hover:shadow-lg transition"
+                      className="mt-4 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-lg inline-flex items-center gap-2 shadow-md hover:shadow-lg transition"
                     >
                       <Plus size={16} />
                       Create Task
@@ -1894,7 +1894,7 @@ export default function TasksPage() {
                 >
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-gradient-to-r from-gray-50/80 to-indigo-50/80 border-b border-gray-200">
+                      <thead className="bg-linear-to-r from-gray-50/80 to-indigo-50/80 border-b border-gray-200">
                         <tr>
                           <th className="text-left px-4 py-3">
                             <button
@@ -2002,7 +2002,7 @@ export default function TasksPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
-                                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                                  <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                                     <span className="text-white text-[10px] font-bold">
                                       {task.assignedTo?.fullName?.charAt(0) || "?"}
                                     </span>
@@ -2089,13 +2089,13 @@ export default function TasksPage() {
             <div className="space-y-6">
               {/* Extension Stats */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
+                <div className="bg-linear-to-br from-indigo-50 to-purple-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">Total Requests</p>
                   <p className="text-2xl font-bold text-indigo-700">
                     {canManageExtensions ? extensionStats.total : myExtensionStats.total}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-4 border border-amber-200 shadow-sm">
+                <div className="bg-linear-to-br from-amber-50 to-yellow-50 rounded-2xl p-4 border border-amber-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">Pending</p>
                   <p className="text-2xl font-bold text-amber-700">
                     {canManageExtensions ? extensionStats.pending : myExtensionStats.pending}
@@ -2104,13 +2104,13 @@ export default function TasksPage() {
                     <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse mt-1" />
                   )}
                 </div>
-                <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-4 border border-emerald-200 shadow-sm">
+                <div className="bg-linear-to-br from-emerald-50 to-green-50 rounded-2xl p-4 border border-emerald-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">Approved</p>
                   <p className="text-2xl font-bold text-emerald-700">
                     {canManageExtensions ? extensionStats.approved : myExtensionStats.approved}
                   </p>
                 </div>
-                <div className="bg-gradient-to-br from-rose-50 to-red-50 rounded-2xl p-4 border border-rose-200 shadow-sm">
+                <div className="bg-linear-to-br from-rose-50 to-red-50 rounded-2xl p-4 border border-rose-200 shadow-sm">
                   <p className="text-xs text-gray-500 font-medium">Rejected</p>
                   <p className="text-2xl font-bold text-rose-700">
                     {canManageExtensions ? extensionStats.rejected : myExtensionStats.rejected}
@@ -2124,7 +2124,7 @@ export default function TasksPage() {
                   <button
                     onClick={() => setExtensionFilter("all")}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${extensionFilter === "all"
-                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                      ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
                       : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
                       }`}
                   >
@@ -2185,7 +2185,7 @@ export default function TasksPage() {
                     if (requestsToShow.length === 0) {
                       return (
                         <div className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm">
-                          <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                          <div className="w-24 h-24 bg-linear-to-br from-gray-100 to-gray-200 rounded-3xl flex items-center justify-center mx-auto mb-4">
                             <CalendarClock className="w-12 h-12 text-gray-400" />
                           </div>
                           <h3 className="text-xl font-semibold text-gray-800 mb-2">
@@ -2199,7 +2199,7 @@ export default function TasksPage() {
                           {!canManageExtensions && (
                             <button
                               onClick={() => setActiveTab("tasks")}
-                              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg"
+                              className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg"
                             >
                               <Plus className="w-4 h-4" />
                               Request Extension
@@ -2308,7 +2308,7 @@ export default function TasksPage() {
                             </div>
 
                             {/* Action Buttons */}
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="flex items-center gap-2 shrink-0">
                               {isPending && canManageExtensions && (
                                 <>
                                   <button
@@ -2397,10 +2397,10 @@ export default function TasksPage() {
               className="w-full max-w-3xl bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm z-10">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 sticky top-0 bg-linear-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 backdrop-blur-sm z-10">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2.5 rounded-xl bg-gradient-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
+                    className={`p-2.5 rounded-xl bg-linear-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
                   >
                     {getPriorityConfig(selectedTask.priority).icon}
                   </div>
@@ -2544,7 +2544,7 @@ export default function TasksPage() {
                           key={index}
                           className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-emerald-200 transition group"
                         >
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
                             <Link2 size={14} className="text-emerald-600" />
                           </div>
                           <a
@@ -2579,7 +2579,7 @@ export default function TasksPage() {
                 {selectedTask.evidenceRequired && (!selectedTask.evidenceUrls || selectedTask.evidenceUrls.length === 0) && (
                   <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
                     <div className="flex items-start gap-2">
-                      <AlertCircle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                      <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium text-amber-700">Evidence Required</p>
                         <p className="text-xs text-amber-600">
@@ -2607,7 +2607,7 @@ export default function TasksPage() {
                   <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                     <p className="text-xs text-gray-500 font-medium">Assigned To</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                         <span className="text-white text-[10px] font-bold">
                           {selectedTask.assignedTo?.fullName?.charAt(0) || "?"}
                         </span>
@@ -2719,7 +2719,7 @@ export default function TasksPage() {
                     selectedTask.status !== "rejected";
 
                   return canShowTimer ? (
-                    <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
+                    <div className="bg-linear-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
                       <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                         <TimerIcon className="w-4 h-4 text-indigo-600" />
                         Time Tracking
@@ -2791,7 +2791,7 @@ export default function TasksPage() {
                               }}
                               className={`px-4 py-2 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== selectedTask._id
                                 ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                : "bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                 }`}
                               disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
                               title={
@@ -3434,7 +3434,7 @@ export default function TasksPage() {
                 <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
                   <button
                     onClick={handleUpdateTask}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition shadow-md"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition shadow-md"
                   >
                     Update Task
                   </button>
@@ -3494,10 +3494,10 @@ function TaskCard({
         : "border-gray-200 hover:border-indigo-300"
         }`}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-700 pointer-events-none" />
+      <div className="absolute inset-0 bg-linear-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-700 pointer-events-none" />
 
       <div
-        className={`h-1 bg-gradient-to-r ${isRejected
+        className={`h-1 bg-linear-to-r ${isRejected
           ? "from-red-400 to-red-600"
           : getPriorityConfig(task.priority).gradient
           }`}
@@ -3578,7 +3578,7 @@ function TaskCard({
             <div className="flex items-start gap-2">
               <AlertCircle
                 size={14}
-                className="text-red-500 flex-shrink-0 mt-0.5"
+                className="text-red-500 shrink-0 mt-0.5"
               />
               <div>
                 <p className="text-xs font-medium text-red-700">
@@ -3594,7 +3594,7 @@ function TaskCard({
 
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {task.projectId && (
-            <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/50">
+            <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/50">
               <Briefcase size={10} />
               <span>{task.projectId.name}</span>
             </div>
@@ -3616,7 +3616,7 @@ function TaskCard({
         <div className="flex items-center justify-between pt-3 border-t border-gray-100/80">
           <div className="flex items-center gap-2.5">
             <div className="relative">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-500/25">
+              <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-500/25">
                 <span className="text-white text-[10px] font-bold">
                   {task.assignedTo?.fullName?.charAt(0) || "?"}
                 </span>
@@ -3650,7 +3650,7 @@ function TaskCard({
             <button
               onClick={() => onUpdateStatus(task._id, "in_progress")}
               disabled={updating}
-              className="flex-1 py-1.5 bg-gradient-to-r from-indigo-50 to-indigo-100/50 hover:from-indigo-600 hover:to-indigo-700 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+              className="flex-1 py-1.5 bg-linear-to-r from-indigo-50 to-indigo-100/50 hover:from-indigo-600 hover:to-indigo-700 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
             >
               <Play size={12} />
               Start            </button>
@@ -3660,7 +3660,7 @@ function TaskCard({
             <button
               onClick={() => onUpdateStatus(task._id, "submitted")}
               disabled={updating}
-              className="flex-1 py-1.5 bg-gradient-to-r from-purple-50 to-purple-100/50 hover:from-purple-600 hover:to-purple-700 text-purple-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-purple-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+              className="flex-1 py-1.5 bg-linear-to-r from-purple-50 to-purple-100/50 hover:from-purple-600 hover:to-purple-700 text-purple-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-purple-200/50 hover:border-transparent shadow-sm hover:shadow-md"
             >
               <Send size={12} />
               Submit
@@ -3672,14 +3672,14 @@ function TaskCard({
               <button
                 onClick={() => onApprove(task._id)}
                 disabled={approving}
-                className="flex-1 py-1.5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-600 hover:to-emerald-700 text-emerald-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-emerald-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                className="flex-1 py-1.5 bg-linear-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-600 hover:to-emerald-700 text-emerald-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-emerald-200/50 hover:border-transparent shadow-sm hover:shadow-md"
               >
                 <ThumbsUp size={12} />
                 Approve
               </button>
               <button
                 onClick={() => onRejectClick(task)}
-                className="flex-1 py-1.5 bg-gradient-to-r from-rose-50 to-rose-100/50 hover:from-rose-600 hover:to-rose-700 text-rose-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-rose-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                className="flex-1 py-1.5 bg-linear-to-r from-rose-50 to-rose-100/50 hover:from-rose-600 hover:to-rose-700 text-rose-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-rose-200/50 hover:border-transparent shadow-sm hover:shadow-md"
               >
                 <ThumbsDown size={12} />
                 Reject
@@ -3691,7 +3691,7 @@ function TaskCard({
             <button
               onClick={() => onUpdateStatus(task._id, "pending")}
               disabled={updating}
-              className="flex-1 py-1.5 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+              className="flex-1 py-1.5 bg-linear-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
             >
               <RefreshCw size={12} />
               Rework
@@ -3700,14 +3700,14 @@ function TaskCard({
 
           <button
             onClick={() => onViewDetails(task)}
-            className="py-1.5 px-3 bg-gradient-to-r from-gray-50 to-gray-100/50 hover:from-gray-200 hover:to-gray-300 text-gray-700 text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-gray-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+            className="py-1.5 px-3 bg-linear-to-r from-gray-50 to-gray-100/50 hover:from-gray-200 hover:to-gray-300 text-gray-700 text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-gray-200/50 hover:border-transparent shadow-sm hover:shadow-md"
           >
             <Eye size={12} />
             View
           </button>
           <Link
             href={`/tasks/${task._id}`}
-            className="py-1.5 px-3 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-600 hover:to-purple-600 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+            className="py-1.5 px-3 bg-linear-to-r from-indigo-50 to-purple-50 hover:from-indigo-600 hover:to-purple-600 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
           >
             <ExternalLink size={12} />
             Details
@@ -3717,7 +3717,7 @@ function TaskCard({
             task.status !== "rejected" && (
               <button
                 onClick={() => onRequestExtension(task)}
-                className="py-1.5 px-3 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                className="py-1.5 px-3 bg-linear-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
               >
                 <CalendarClock size={12} />
                 Extend

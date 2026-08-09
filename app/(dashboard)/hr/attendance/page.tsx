@@ -543,7 +543,7 @@ export default function AttendancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ============================================================
             BREADCRUMB
@@ -576,7 +576,7 @@ export default function AttendancePage() {
             ============================================================ */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Calendar className="w-7 h-7 text-indigo-500" />
               Attendance
             </h1>
@@ -620,7 +620,7 @@ export default function AttendancePage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-6 mb-6 text-white"
+          className="bg-linear-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-lg p-6 mb-6 text-white"
         >
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-4">
@@ -790,7 +790,7 @@ export default function AttendancePage() {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-md p-4 text-white">
+          <div className="bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-md p-4 text-white">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-white/20 rounded-xl">
                 <Activity className="w-5 h-5" />
@@ -944,7 +944,7 @@ export default function AttendancePage() {
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-sm font-bold flex-shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-sm font-bold shrink-0">
                             {getInitials(employeeName)}
                           </div>
                           <div className="min-w-0">
@@ -1028,7 +1028,7 @@ export default function AttendancePage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gradient-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
+                    <tr className="bg-linear-to-r from-gray-50 to-gray-100/50 border-b border-gray-200">
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                         Employee
                       </th>
@@ -1068,7 +1068,7 @@ export default function AttendancePage() {
                         >
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold flex-shrink-0">
+                              <div className="w-8 h-8 rounded-lg bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xs font-bold shrink-0">
                                 {getInitials(employeeName)}
                               </div>
                               <div>
@@ -1137,7 +1137,7 @@ export default function AttendancePage() {
           )
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900">
@@ -1172,7 +1172,7 @@ export default function AttendancePage() {
               <div className="p-6">
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xl font-bold flex-shrink-0">
+                    <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xl font-bold shrink-0">
                       {getInitials(getEmployeeName(selectedEmployee))}
                     </div>
                     <div>

@@ -329,10 +329,10 @@ export default function AssistantWizard() {
       >
         <div className="relative">
           {/* Pulse Animation */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 opacity-30 animate-ping" />
+          <div className="absolute inset-0 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 opacity-30 animate-ping" />
           
           {/* Button */}
-          <div className="relative w-14 h-14 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 flex items-center justify-center hover:shadow-xl hover:shadow-indigo-500/40 transition-all duration-300">
+          <div className="relative w-14 h-14 rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 flex items-center justify-center hover:shadow-xl hover:shadow-indigo-500/40 transition-all duration-300">
             <Sparkles className="w-6 h-6 text-white" />
             
             {/* Notification Badge */}
@@ -374,7 +374,7 @@ export default function AssistantWizard() {
             className="fixed bottom-24 right-6 z-50 w-96 max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-4 flex items-center justify-between">
+            <div className="bg-linear-to-r from-indigo-500 to-purple-600 px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
                   <Sparkles className="w-4 h-4 text-white" />
@@ -404,8 +404,8 @@ export default function AssistantWizard() {
             {/* Body */}
             <div className="p-4 space-y-4 max-h-[calc(80vh-120px)] overflow-y-auto custom-scrollbar">
               {/* User Greeting */}
-              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-indigo-50/30 rounded-xl border border-gray-100">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
+              <div className="flex items-center gap-3 p-3 bg-linear-to-r from-gray-50 to-indigo-50/30 rounded-xl border border-gray-100">
+                <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0">
                   <span className="text-white text-sm font-bold">
                     {data?.user.fullName?.charAt(0) || "U"}
                   </span>

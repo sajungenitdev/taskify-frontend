@@ -667,7 +667,7 @@ export default function PerformanceReportPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md">
                   <BarChart3 className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -1066,7 +1066,7 @@ export default function PerformanceReportPage() {
                           >
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
+                                <div className="w-8 h-8 rounded-full bg-linear-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
                                   <span className="text-white text-xs font-bold">
                                     {employee.fullName.charAt(0).toUpperCase()}
                                   </span>
@@ -1162,7 +1162,7 @@ export default function PerformanceReportPage() {
             >
               <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
+                  <div className="w-12 h-12 rounded-full bg-linear-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-sm">
                     <span className="text-white text-xl font-bold">
                       {selectedEmployee.fullName.charAt(0).toUpperCase()}
                     </span>
@@ -1263,7 +1263,7 @@ export default function PerformanceReportPage() {
                   </button>
                   <button
                     onClick={handleExport}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
                   >
                     <Download size={16} />
                     Export Report

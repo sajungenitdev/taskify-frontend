@@ -77,7 +77,7 @@ export default function ChatAssistant({ taskContext }: ChatAssistantProps) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-50 p-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-full shadow-lg shadow-indigo-500/30 transition-all hover:scale-105"
+        className="fixed bottom-4 right-4 z-50 p-3 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-full shadow-lg shadow-indigo-500/30 transition-all hover:scale-105"
       >
         <Sparkles size={20} />
       </button>
@@ -89,7 +89,7 @@ export default function ChatAssistant({ taskContext }: ChatAssistantProps) {
       isMinimized ? 'w-72 h-14' : 'w-96 h-[500px]'
     }`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-slate-700 bg-gradient-to-r from-slate-800 to-slate-900 rounded-t-2xl">
+      <div className="flex items-center justify-between p-3 border-b border-slate-700 bg-linear-to-r from-slate-800 to-slate-900 rounded-t-2xl">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-indigo-400" />
           <span className="text-sm font-medium text-white">AI Assistant</span>

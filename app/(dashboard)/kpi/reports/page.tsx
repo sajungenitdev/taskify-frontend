@@ -1285,7 +1285,7 @@ export default function KPIReportsPage() {
   // RENDER
   // ============================================================
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-indigo-50/30">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-indigo-50/30">
       <div className="p-4 md:p-6 lg:p-8">
         <div className="container mx-auto space-y-6">
           {/* Breadcrumb */}
@@ -1313,11 +1313,11 @@ export default function KPIReportsPage() {
           >
             <div>
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                <div className="w-12 h-12 bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
                   <FileText className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-2xl lg:text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
                     KPI Reports
                   </h1>
                   <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2">
@@ -1332,7 +1332,7 @@ export default function KPIReportsPage() {
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
                   disabled={!reportData || exportLoading}
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition text-sm flex items-center gap-2 shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50"
+                  className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition text-sm flex items-center gap-2 shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50"
                 >
                   {exportLoading ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -1403,7 +1403,7 @@ export default function KPIReportsPage() {
                   key={tab.type}
                   onClick={() => setReportType(tab.type as ReportType)}
                   className={`px-4 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2 ${reportType === tab.type
-                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                    ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-100/80"
                     }`}
                 >
@@ -1557,7 +1557,7 @@ export default function KPIReportsPage() {
                   fetchReportData();
                 }}
                 disabled={loading}
-                className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50"
+                className="px-6 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md shadow-indigo-500/20 hover:shadow-lg disabled:opacity-50"
               >
                 <RefreshCw
                   size={16}
@@ -1598,7 +1598,7 @@ export default function KPIReportsPage() {
                   fetchReportData();
                 }}
                 disabled={loading}
-                className="mt-4 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 shadow-md shadow-indigo-500/20 disabled:opacity-50"
+                className="mt-4 px-6 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all duration-200 shadow-md shadow-indigo-500/20 disabled:opacity-50"
               >
                 Retry
               </button>
@@ -1667,7 +1667,7 @@ export default function KPIReportsPage() {
                         <stat.icon className={`w-5 h-5 ${stat.color}`} />
                       </div>
                     </div>
-                    <div className="mt-2 h-0.5 w-full bg-gradient-to-r from-transparent via-current to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+                    <div className="mt-2 h-0.5 w-full bg-linear-to-r from-transparent via-current to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                   </motion.div>
                 ))}
               </motion.div>
@@ -1932,7 +1932,7 @@ export default function KPIReportsPage() {
                                 initial={{ width: 0 }}
                                 animate={{ width: `${dept.averageScore}%` }}
                                 transition={{ duration: 0.8, delay: 0.1 }}
-                                className="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                                className="h-1.5 rounded-full bg-linear-to-r from-indigo-500 to-purple-500"
                               />
                             </div>
                           </motion.div>
@@ -1972,7 +1972,7 @@ export default function KPIReportsPage() {
                               initial={{ opacity: 0, scale: 0.9 }}
                               animate={{ opacity: 1, scale: 1 }}
                               transition={{ delay: index * 0.05 }}
-                              className="flex items-center gap-3 p-3 bg-gradient-to-r from-amber-50/50 to-transparent rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition-all duration-200 group"
+                              className="flex items-center gap-3 p-3 bg-linear-to-r from-amber-50/50 to-transparent rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition-all duration-200 group"
                               onClick={() => {
                                 const userId =
                                   performer.userId?._id || performer.userId;
@@ -1981,7 +1981,7 @@ export default function KPIReportsPage() {
                                 }
                               }}
                             >
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+                              <div className="w-10 h-10 rounded-full bg-linear-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white font-bold text-sm shadow-md shrink-0">
                                 {index + 1}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -2007,7 +2007,7 @@ export default function KPIReportsPage() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-r from-gray-50/80 to-indigo-50/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 text-center text-sm"
+                className="bg-linear-to-r from-gray-50/80 to-indigo-50/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 text-center text-sm"
               >
                 <p className="text-gray-500 flex items-center justify-center gap-2 flex-wrap">
                   <FileText size={14} className="text-indigo-400" />

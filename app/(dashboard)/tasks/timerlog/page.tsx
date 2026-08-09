@@ -454,14 +454,14 @@ export default function TimerLogPage() {
 
             // Determine color based on duration
             let color = "bg-gray-200";
-            if (totalDuration > 6 * 3600) color = "bg-gradient-to-t from-emerald-500 to-emerald-400";
+            if (totalDuration > 6 * 3600) color = "bg-linear-to-t from-emerald-500 to-emerald-400";
             else if (totalDuration > 4 * 3600) color = "bg-[#1A60FF]";
             else if (totalDuration > 2 * 3600) color = "bg-blue-400";
             else if (totalDuration > 0) color = "bg-amber-400";
 
             // If it's today and timer is running, highlight it
             if (isTodayDate && activeTimerEntry) {
-                color = "bg-gradient-to-t from-indigo-500 to-purple-500";
+                color = "bg-linear-to-t from-indigo-500 to-purple-500";
             }
 
             return {
@@ -554,7 +554,7 @@ export default function TimerLogPage() {
                 {/* Error Banner */}
                 {error && (
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                         <p className="text-sm text-amber-700">{error}</p>
                         <button
                             onClick={fetchTimerData}
@@ -648,7 +648,7 @@ export default function TimerLogPage() {
                             <span className="text-[10px] text-gray-500">4-6h</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded bg-gradient-to-t from-emerald-500 to-emerald-400"></div>
+                            <div className="w-3 h-3 rounded bg-linear-to-t from-emerald-500 to-emerald-400"></div>
                             <span className="text-[10px] text-gray-500">6h+</span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -661,7 +661,7 @@ export default function TimerLogPage() {
                         </div>
                         {activeTimerEntry && (
                             <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded bg-gradient-to-t from-indigo-500 to-purple-500"></div>
+                                <div className="w-3 h-3 rounded bg-linear-to-t from-indigo-500 to-purple-500"></div>
                                 <span className="text-[10px] text-indigo-600 font-medium">● Running</span>
                             </div>
                         )}
@@ -670,7 +670,7 @@ export default function TimerLogPage() {
 
                 {/* Active Timer Banner */}
                 {hasActiveTimer && (
-                    <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="bg-linear-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white border border-white/30">
                                 <Timer className="w-6 h-6 animate-pulse" />

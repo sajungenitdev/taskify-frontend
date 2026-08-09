@@ -96,7 +96,7 @@ const PRIORITY_CONFIG = {
     label: "Urgent",
     color: "rose",
     gradient: "from-rose-500 to-pink-600",
-    bg: "bg-gradient-to-br from-rose-50 to-pink-50",
+    bg: "bg-linear-to-br from-rose-50 to-pink-50",
     border: "border-rose-200",
     icon: AlertTriangle,
   },
@@ -104,7 +104,7 @@ const PRIORITY_CONFIG = {
     label: "High",
     color: "amber",
     gradient: "from-amber-500 to-orange-600",
-    bg: "bg-gradient-to-br from-amber-50 to-orange-50",
+    bg: "bg-linear-to-br from-amber-50 to-orange-50",
     border: "border-amber-200",
     icon: Flag,
   },
@@ -112,7 +112,7 @@ const PRIORITY_CONFIG = {
     label: "Normal",
     color: "blue",
     gradient: "from-blue-500 to-indigo-600",
-    bg: "bg-gradient-to-br from-blue-50 to-indigo-50",
+    bg: "bg-linear-to-br from-blue-50 to-indigo-50",
     border: "border-blue-200",
     icon: Flag,
   },
@@ -120,7 +120,7 @@ const PRIORITY_CONFIG = {
     label: "Low",
     color: "emerald",
     gradient: "from-emerald-500 to-teal-600",
-    bg: "bg-gradient-to-br from-emerald-50 to-teal-50",
+    bg: "bg-linear-to-br from-emerald-50 to-teal-50",
     border: "border-emerald-200",
     icon: Flag,
   },
@@ -131,7 +131,7 @@ const STATUS_CONFIG = {
     label: "Pending",
     color: "amber",
     gradient: "from-amber-500 to-yellow-600",
-    bg: "bg-gradient-to-br from-amber-50 to-yellow-50",
+    bg: "bg-linear-to-br from-amber-50 to-yellow-50",
     border: "border-amber-200",
     icon: Clock,
   },
@@ -139,7 +139,7 @@ const STATUS_CONFIG = {
     label: "In Progress",
     color: "sky",
     gradient: "from-sky-500 to-blue-600",
-    bg: "bg-gradient-to-br from-sky-50 to-blue-50",
+    bg: "bg-linear-to-br from-sky-50 to-blue-50",
     border: "border-sky-200",
     icon: Activity,
   },
@@ -147,7 +147,7 @@ const STATUS_CONFIG = {
     label: "Submitted",
     color: "purple",
     gradient: "from-purple-500 to-violet-600",
-    bg: "bg-gradient-to-br from-purple-50 to-violet-50",
+    bg: "bg-linear-to-br from-purple-50 to-violet-50",
     border: "border-purple-200",
     icon: Send,
   },
@@ -155,7 +155,7 @@ const STATUS_CONFIG = {
     label: "Completed",
     color: "emerald",
     gradient: "from-emerald-500 to-green-600",
-    bg: "bg-gradient-to-br from-emerald-50 to-green-50",
+    bg: "bg-linear-to-br from-emerald-50 to-green-50",
     border: "border-emerald-200",
     icon: Award,
   },
@@ -163,7 +163,7 @@ const STATUS_CONFIG = {
     label: "Overdue",
     color: "rose",
     gradient: "from-rose-500 to-red-600",
-    bg: "bg-gradient-to-br from-rose-50 to-red-50",
+    bg: "bg-linear-to-br from-rose-50 to-red-50",
     border: "border-rose-200",
     icon: AlertCircle,
   },
@@ -171,7 +171,7 @@ const STATUS_CONFIG = {
     label: "Rejected",
     color: "red",
     gradient: "from-red-500 to-rose-600",
-    bg: "bg-gradient-to-br from-red-50 to-rose-50",
+    bg: "bg-linear-to-br from-red-50 to-rose-50",
     border: "border-red-200",
     icon: X,
   },
@@ -210,7 +210,7 @@ const StatCard = ({
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, duration: 0.4, type: "spring", stiffness: 100 }}
-    className={`relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br ${gradient} shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}
+    className={`relative overflow-hidden rounded-2xl p-5 bg-linear-to-br ${gradient} shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}
   >
     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-500" />
     <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
@@ -739,10 +739,10 @@ export default function MyTasksPage() {
   // ============ LOADING STATE ============
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
+      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 animate-pulse" />
+            <div className="w-16 h-16 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 animate-pulse" />
             <Loader2 className="absolute inset-0 w-16 h-16 animate-spin text-white/80 p-3" />
           </div>
           <p className="text-gray-500 text-sm font-medium animate-pulse">
@@ -755,7 +755,7 @@ export default function MyTasksPage() {
 
   // ============ RENDER ============
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/20 to-purple-50/20">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/20 to-purple-50/20">
       <div className="container mx-auto px-4 py-6 md:py-8 w-full">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm mb-6 text-gray-500">
@@ -773,13 +773,13 @@ export default function MyTasksPage() {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl md:text-4xl font-bold bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               My Tasks
             </h1>
             <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-400" />
               View and manage all tasks assigned to you
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-xs font-semibold border border-indigo-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-linear-to-r from-indigo-100 to-purple-100 text-indigo-700 text-xs font-semibold border border-indigo-200">
                 {stats.total} total
               </span>
             </p>
@@ -806,7 +806,7 @@ export default function MyTasksPage() {
               <button
                 onClick={() => setView("grid")}
                 className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "grid"
-                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                  ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
                   : "text-gray-500 hover:text-gray-700"
                   }`}
               >
@@ -816,7 +816,7 @@ export default function MyTasksPage() {
               <button
                 onClick={() => setView("list")}
                 className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "list"
-                  ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                  ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
                   : "text-gray-500 hover:text-gray-700"
                   }`}
               >
@@ -825,14 +825,14 @@ export default function MyTasksPage() {
               </button>
             </div>
             <Link href="/tasks/bulk-upload">
-              <button className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-lg hover:scale-105">
+              <button className="px-3 py-2 bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md hover:shadow-lg hover:scale-105">
                 <Upload className="w-4 h-4" />
                 Bulk Upload
               </button>
             </Link>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md shadow-indigo-500/25 hover:shadow-lg hover:scale-105"
+              className="px-3 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md shadow-indigo-500/25 hover:shadow-lg hover:scale-105"
             >
               <Plus className="w-4 h-4" />
               Create Task
@@ -952,7 +952,7 @@ export default function MyTasksPage() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${showFilters
-              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+              ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white"
               : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
               }`}
           >
@@ -1048,7 +1048,7 @@ export default function MyTasksPage() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3"
           >
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
             <div className="flex-1">
               <p className="text-sm text-amber-800">
                 <strong>Timer Active:</strong> A timer is currently running for a task.
@@ -1080,7 +1080,7 @@ export default function MyTasksPage() {
               animate={{ opacity: 1, scale: 1 }}
               className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm"
             >
-              <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
+              <div className="w-24 h-24 bg-linear-to-br from-indigo-100 to-purple-100 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
                 <CheckSquare className="w-12 h-12 text-indigo-400" />
               </div>
               <h3 className="text-xl font-semibold text-gray-800 mb-2">
@@ -1094,13 +1094,13 @@ export default function MyTasksPage() {
               <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
                 <button
                   onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105"
                 >
                   <Plus className="w-4 h-4" />
                   Create Single Task
                 </button>
                 <Link href="/tasks/bulk-upload">
-                  <button className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105">
+                  <button className="inline-flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105">
                     <Upload className="w-4 h-4" />
                     Bulk Upload Tasks
                   </button>
@@ -1147,9 +1147,9 @@ export default function MyTasksPage() {
                         }`}
                       onClick={() => setSelectedTask(task)}
                     >
-                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                      <div className="absolute inset-0 rounded-2xl bg-linear-to-br from-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                       <div
-                        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-gradient-to-r ${getPriorityConfig(task.priority).gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
+                        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-linear-to-r ${getPriorityConfig(task.priority).gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
                       />
 
                       <div className="relative z-10">
@@ -1227,7 +1227,7 @@ export default function MyTasksPage() {
 
                         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                           <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                            <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
                               <span className="text-white text-[10px] font-bold">
                                 {task.assignedBy?.fullName?.charAt(0) || "?"}
                               </span>
@@ -1329,7 +1329,7 @@ export default function MyTasksPage() {
                                       e.stopPropagation();
                                       handleStartTimer(task._id);
                                     }}
-                                    className={`px-3 py-1 bg-gradient-to-r cursor-pointer flex items-center text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== task._id
+                                    className={`px-3 py-1 bg-linear-to-r cursor-pointer flex items-center text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== task._id
                                       ? "from-gray-400 to-gray-500 cursor-not-allowed"
                                       : "from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
                                       }`}
@@ -1440,7 +1440,7 @@ export default function MyTasksPage() {
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
                           className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${currentPage === pageNum
-                            ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md"
+                            ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
                             : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:bg-gray-50"
                             }`}
                         >
@@ -1471,7 +1471,7 @@ export default function MyTasksPage() {
           >
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-indigo-50/50 border-b border-gray-200">
+                <thead className="bg-linear-to-r from-gray-50 to-indigo-50/50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Task
@@ -1745,10 +1745,10 @@ export default function MyTasksPage() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="w-full max-w-2xl bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 sticky top-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50/80 to-purple-50/80 sticky top-0">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2.5 rounded-xl bg-gradient-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
+                    className={`p-2.5 rounded-xl bg-linear-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
                   >
                     {getPriorityIcon(selectedTask.priority)}
                   </div>
@@ -1791,7 +1791,7 @@ export default function MyTasksPage() {
                 </button>
               </div>
               <div className="p-5 space-y-4">
-                <div className="bg-gradient-to-br from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-100">
+                <div className="bg-linear-to-br from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-100">
                   <p className="text-gray-500 text-sm mb-2 font-medium">
                     Description
                   </p>
@@ -1866,7 +1866,7 @@ export default function MyTasksPage() {
                 {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
                   selectedTask.status !== "submitted" &&
                   selectedTask.status !== "rejected" && (
-                    <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
+                    <div className="bg-linear-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
                       <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                         <TimerIcon className="w-4 h-4 text-indigo-600" />
                         Time Tracking
@@ -1935,7 +1935,7 @@ export default function MyTasksPage() {
                               }}
                               className={`px-4 py-2 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== selectedTask._id
                                 ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
+                                : "bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                                 }`}
                               disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
                               title={

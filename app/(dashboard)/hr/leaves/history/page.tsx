@@ -539,7 +539,7 @@ export default function LeaveHistoryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ============================================================
             BREADCRUMB
@@ -572,7 +572,7 @@ export default function LeaveHistoryPage() {
             ============================================================ */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Users className="w-7 h-7 text-indigo-500" />
               Employee Leave History
             </h1>
@@ -600,7 +600,7 @@ export default function LeaveHistoryPage() {
             </button>
             <button
               onClick={() => toast.success("Exporting employee leave data...")}
-              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl transition-all text-sm font-medium shadow-md shadow-indigo-500/25 flex items-center gap-2"
+              className="px-4 py-2 bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl transition-all text-sm font-medium shadow-md shadow-indigo-500/25 flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
               Export
@@ -678,7 +678,7 @@ export default function LeaveHistoryPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.15 }}
-            className="bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl p-4 shadow-md text-white"
+            className="bg-linear-to-br from-emerald-600 to-teal-600 rounded-2xl p-4 shadow-md text-white"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -758,7 +758,7 @@ export default function LeaveHistoryPage() {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                   {/* Employee Info */}
                   <div className="flex items-start gap-4 min-w-[200px]">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-base font-bold flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-base font-bold shrink-0">
                       {getInitials(employee.employeeName)}
                     </div>
                     <div>
@@ -871,7 +871,7 @@ export default function LeaveHistoryPage() {
           </div>
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900">
@@ -900,7 +900,7 @@ export default function LeaveHistoryPage() {
             >
               <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start z-10">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-lg font-bold">
+                  <div className="w-12 h-12 rounded-full bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-lg font-bold">
                     {getInitials(selectedEmployee.employeeName)}
                   </div>
                   <div>

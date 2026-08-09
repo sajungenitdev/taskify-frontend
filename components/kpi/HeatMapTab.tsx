@@ -125,7 +125,7 @@ function HeatMapTab({
                   >
                     <td className="px-4 py-3 sticky left-0 bg-white">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
                           {employee.employeeName.charAt(0).toUpperCase()}
                         </div>
                         <div>

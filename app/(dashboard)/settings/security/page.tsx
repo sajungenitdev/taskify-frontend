@@ -517,7 +517,7 @@ const SecuritySettingsPage: React.FC = () => {
         <div className="min-h-screen bg-gray-50  p-4 md:p-6">
             <div className="container mx-auto">
                 {/* Modern Header with Gradient */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-blue-600 via-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
+                <div className="relative overflow-hidden bg-linear-to-br from-blue-600 via-blue-500 to-indigo-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
                     <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
                     <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
 
@@ -741,7 +741,7 @@ const SecuritySettingsPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
+                                <div className="bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
                                     <div className="flex items-center gap-2 mb-4">
                                         <Sparkles className="h-4 w-4 text-yellow-500" />
                                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Password must meet the following requirements:</p>
@@ -1086,7 +1086,7 @@ const SecuritySettingsPage: React.FC = () => {
                                             <button
                                                 onClick={handleTestLockout}
                                                 disabled={testing}
-                                                className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
+                                                className="px-4 py-2.5 bg-linear-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 disabled:opacity-50 flex items-center gap-2"
                                             >
                                                 {testing ? (
                                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -1189,7 +1189,7 @@ const SecuritySettingsPage: React.FC = () => {
                                         />
                                         <button
                                             onClick={handleAddIP}
-                                            className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                                            className="px-4 py-2.5 bg-linear-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add
@@ -1244,7 +1244,7 @@ const SecuritySettingsPage: React.FC = () => {
                                         />
                                         <button
                                             onClick={handleAddDomain}
-                                            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                                            className="px-4 py-2.5 bg-linear-to-r from-green-500 to-green-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
                                         >
                                             <Plus className="h-4 w-4" />
                                             Add
@@ -1292,7 +1292,7 @@ const SecuritySettingsPage: React.FC = () => {
                                     </div>
                                     <button
                                         onClick={() => setOpenQuestionDialog(true)}
-                                        className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                                        className="px-4 py-2 bg-linear-to-r from-orange-500 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
                                     >
                                         <Plus className="h-4 w-4" />
                                         Add Question
@@ -1416,7 +1416,7 @@ const SecuritySettingsPage: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
+                                <div className="bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-600">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center">
                                             <p className="text-xs text-gray-500 dark:text-gray-400">Status</p>
@@ -1630,7 +1630,7 @@ const SecuritySettingsPage: React.FC = () => {
                                 </button>
                                 <button
                                     onClick={handleAddQuestion}
-                                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                                    className="px-4 py-2 bg-linear-to-r from-orange-500 to-orange-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2"
                                 >
                                     <Plus className="h-4 w-4" />
                                     Add Question
@@ -1645,12 +1645,12 @@ const SecuritySettingsPage: React.FC = () => {
                     <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-5 duration-300">
                         <div
                             className={`px-6 py-3 rounded-xl shadow-lg text-white flex items-center gap-3 min-w-[300px] ${snackbar.severity === "success"
-                                ? "bg-gradient-to-r from-green-500 to-green-600"
+                                ? "bg-linear-to-r from-green-500 to-green-600"
                                 : snackbar.severity === "error"
-                                    ? "bg-gradient-to-r from-red-500 to-red-600"
+                                    ? "bg-linear-to-r from-red-500 to-red-600"
                                     : snackbar.severity === "warning"
-                                        ? "bg-gradient-to-r from-yellow-500 to-yellow-600"
-                                        : "bg-gradient-to-r from-blue-500 to-blue-600"
+                                        ? "bg-linear-to-r from-yellow-500 to-yellow-600"
+                                        : "bg-linear-to-r from-blue-500 to-blue-600"
                                 }`}
                         >
                             <span className="flex-1">{snackbar.message}</span>

@@ -752,7 +752,7 @@ export default function MyLeavesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ============================================================
             BREADCRUMB
@@ -785,7 +785,7 @@ export default function MyLeavesPage() {
             ============================================================ */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Calendar className="w-7 h-7 text-indigo-500" />
               My Leaves
             </h1>
@@ -802,7 +802,7 @@ export default function MyLeavesPage() {
           </div>
           <button
             onClick={() => setShowApplyModal(true)}
-            className="cursor-pointer px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl transition-all text-sm font-medium shadow-md shadow-indigo-500/25 flex items-center gap-2"
+            className="cursor-pointer px-4 py-2 bg-linear-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl transition-all text-sm font-medium shadow-md shadow-indigo-500/25 flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Apply Leave
@@ -896,7 +896,7 @@ export default function MyLeavesPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
-            className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-4 shadow-md text-white"
+            className="bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl p-4 shadow-md text-white"
           >
             <div className="flex items-center justify-between">
               <div>
@@ -1004,7 +1004,7 @@ export default function MyLeavesPage() {
             SUMMARY CARDS
             ============================================================ */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200">
+          <div className="bg-linear-to-r from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-200/50 rounded-lg">
                 <CalendarDays className="w-5 h-5 text-blue-700" />
@@ -1017,7 +1017,7 @@ export default function MyLeavesPage() {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200">
+          <div className="bg-linear-to-r from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-200/50 rounded-lg">
                 <Clock className="w-5 h-5 text-amber-700" />
@@ -1030,7 +1030,7 @@ export default function MyLeavesPage() {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200">
+          <div className="bg-linear-to-r from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-200/50 rounded-lg">
                 <CheckCircle className="w-5 h-5 text-emerald-700" />
@@ -1185,7 +1185,7 @@ export default function MyLeavesPage() {
                         {leave.rejectionReason && (
                           <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg">
                             <p className="text-xs text-rose-600 flex items-start gap-1">
-                              <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                              <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
                               <span>
                                 Rejection Reason: {leave.rejectionReason}
                               </span>
@@ -1194,7 +1194,7 @@ export default function MyLeavesPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       {isPending && (
                         <button
                           onClick={() => {
@@ -1221,7 +1221,7 @@ export default function MyLeavesPage() {
           </div>
         ) : (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-10 h-10 text-gray-400" />
             </div>
             <h3 className="text-lg font-medium text-gray-900">
@@ -1780,7 +1780,7 @@ export default function MyLeavesPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {isSubmitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1836,7 +1836,7 @@ export default function MyLeavesPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={handleDeleteLeave}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-rose-600 to-rose-500 text-white rounded-xl hover:from-rose-700 hover:to-rose-600 transition-colors font-medium shadow-lg shadow-rose-500/25"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-rose-600 to-rose-500 text-white rounded-xl hover:from-rose-700 hover:to-rose-600 transition-colors font-medium shadow-lg shadow-rose-500/25"
                   >
                     Delete
                   </button>

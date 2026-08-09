@@ -48,7 +48,7 @@ export function MenuItemWithBadge({
   const getBadgeColor = () => {
     if (item.badgeColor) return item.badgeColor;
     if ("isNew" in item && item.isNew)
-      return "bg-gradient-to-r from-indigo-500 to-purple-500";
+      return "bg-linear-to-r from-indigo-500 to-purple-500";
     return "bg-red-500"; // Default color
   };
 
@@ -76,7 +76,7 @@ export function MenuItemWithBadge({
       {/* Icon */}
       <item.icon
         className={`
-          w-5 h-5 flex-shrink-0
+          w-5 h-5 shrink-0
           ${isItemActive ? "text-indigo-600" : "text-gray-400 group-hover:text-gray-600"}
           transition-colors duration-200
         `}

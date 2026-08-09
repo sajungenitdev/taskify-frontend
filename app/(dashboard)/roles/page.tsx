@@ -393,7 +393,7 @@ export default function RolesPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Shield className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -419,7 +419,7 @@ export default function RolesPage() {
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-emerald-500/20"
+                className="px-4 py-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-emerald-500/20"
               >
                 <Plus size={16} />
                 Create Role
@@ -747,7 +747,7 @@ export default function RolesPage() {
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition group border border-gray-100"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                           <span className="text-white text-xs font-bold">
                             {user.fullName.charAt(0).toUpperCase()}
                           </span>
@@ -795,7 +795,7 @@ export default function RolesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-rose-50 to-red-50">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-rose-50 to-red-50">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center">
                     <AlertCircle className="w-4 h-4 text-rose-600" />
@@ -822,7 +822,7 @@ export default function RolesPage() {
               <div className="p-5 space-y-4">
                 <div className="bg-rose-50 rounded-lg p-4 border border-rose-200">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                     <div>
                       <p className="text-sm text-rose-700 font-medium">
                         Warning: Permanent Action
@@ -868,7 +868,7 @@ export default function RolesPage() {
                       deletingRole ||
                       deleteConfirmName !== showDeleteConfirm.name
                     }
-                    className="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 bg-linear-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
                   >
                     {deletingRole ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -902,7 +902,7 @@ export default function RolesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     Create New Role
@@ -993,7 +993,7 @@ export default function RolesPage() {
                   <button
                     onClick={handleCreateRole}
                     disabled={creatingRole}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
                   >
                     {creatingRole ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1024,7 +1024,7 @@ export default function RolesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     Edit Role
@@ -1098,7 +1098,7 @@ export default function RolesPage() {
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleUpdateRole}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm"
+                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm"
                   >
                     Save Changes
                   </button>

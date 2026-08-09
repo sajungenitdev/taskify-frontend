@@ -1787,7 +1787,7 @@ export default function TaskDetailPage() {
                 {showComments && (
                   <div className="p-5 pt-0 space-y-5">
                     <div className="flex gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm">
                         <span className="text-white text-sm font-bold">
                           {getInitials(user?.fullName || "?")}
                         </span>
@@ -1989,7 +1989,7 @@ export default function TaskDetailPage() {
                         <div key={review._id} className="bg-gray-50 rounded-lg p-4 border border-gray-100">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
+                              <div className="w-10 h-10 rounded-full bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-sm">
                                 <span className="text-white text-sm font-bold">
                                   {getInitials(review.reviewer?.fullName)}
                                 </span>
@@ -2159,7 +2159,7 @@ export default function TaskDetailPage() {
                   {canReview && !reviews.some((r) => r.reviewer?._id === user?._id) && task.status === "completed" && (
                     <button
                       onClick={() => setShowReviewModal(true)}
-                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                      className="w-full py-2.5 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
                     >
                       <Star size={16} />
                       Leave a Review
@@ -2221,7 +2221,7 @@ export default function TaskDetailPage() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.2 }}
-                className={`bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${isTimerRunningForTask ? "border-indigo-300" : "border-gray-200"
+                className={`bg-linear-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${isTimerRunningForTask ? "border-indigo-300" : "border-gray-200"
                   }`}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -2416,7 +2416,7 @@ export default function TaskDetailPage() {
 
               <div className="p-6 space-y-6">
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-                  <AlertTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <AlertTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">Evidence Required</p>
                     <p className="text-xs text-amber-700">
@@ -2446,7 +2446,7 @@ export default function TaskDetailPage() {
                   <button
                     onClick={handleSubmitWithEvidence}
                     disabled={submittingEvidence || !evidenceText.trim()}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submittingEvidence ? (
                       <>
@@ -2785,7 +2785,7 @@ function CommentItem({
     <div className={`${depth > 0 ? "ml-8 mt-3" : "mb-4"}`}>
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-100">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm">
             <span className="text-white text-xs font-bold">{getInitials(comment.author?.fullName)}</span>
           </div>
           <div className="flex-1 min-w-0">

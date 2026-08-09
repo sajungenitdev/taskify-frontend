@@ -360,7 +360,7 @@ export default function EditProjectPage() {
               </Link>
               <div>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                  <div className="w-10 h-10 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                     <FolderKanban className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -404,7 +404,7 @@ export default function EditProjectPage() {
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
                   <Archive
                     size={18}
-                    className="text-amber-600 flex-shrink-0 mt-0.5"
+                    className="text-amber-600 shrink-0 mt-0.5"
                   />
                   <div>
                     <p className="text-sm font-medium text-amber-800">
@@ -656,7 +656,7 @@ export default function EditProjectPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-indigo-500/20"
+                  className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-3 rounded-lg transition disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-indigo-500/20"
                 >
                   {saving ? (
                     <>

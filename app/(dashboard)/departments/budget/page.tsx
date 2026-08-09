@@ -252,7 +252,7 @@ export default function BudgetPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
                   <DollarSign className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">

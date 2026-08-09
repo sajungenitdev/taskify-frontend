@@ -147,7 +147,7 @@ export default function RecentTasks({ tasks = [] }: RecentTasksProps) {
               </div>
               <ArrowRight
                 size={16}
-                className="text-gray-300 group-hover:text-indigo-500 transition-colors flex-shrink-0 ml-2"
+                className="text-gray-300 group-hover:text-indigo-500 transition-colors shrink-0 ml-2"
               />
             </div>
           </div>

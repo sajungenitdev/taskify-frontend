@@ -486,7 +486,7 @@ const ChangelogPage: React.FC = () => {
     return (
         <div className="p-4 md:p-6 container mx-auto container">
             {/* Header */}
-            <div className="bg-gradient-to-br from-green-600 via-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
+            <div className="bg-linear-to-br from-green-600 via-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
@@ -843,7 +843,7 @@ const ChangelogPage: React.FC = () => {
                                 <ul className="space-y-1">
                                     {selectedRelease.highlights.map((highlight, index) => (
                                         <li key={index} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                                            <Sparkles className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                            <Sparkles className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                                             {highlight}
                                         </li>
                                     ))}
@@ -856,7 +856,7 @@ const ChangelogPage: React.FC = () => {
                                     <ul className="space-y-1">
                                         {selectedRelease.features.new.map((feature, index) => (
                                             <li key={index} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                                                <Plus className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                                <Plus className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
                                                 {feature}
                                             </li>
                                         ))}
@@ -870,7 +870,7 @@ const ChangelogPage: React.FC = () => {
                                     <ul className="space-y-1">
                                         {selectedRelease.features.improved.map((improvement, index) => (
                                             <li key={index} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                                                <TrendingUp className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                <TrendingUp className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
                                                 {improvement}
                                             </li>
                                         ))}
@@ -884,7 +884,7 @@ const ChangelogPage: React.FC = () => {
                                     <ul className="space-y-1">
                                         {selectedRelease.features.fixed.map((fix, index) => (
                                             <li key={index} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                                                <Bug className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                                <Bug className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                                                 {fix}
                                             </li>
                                         ))}
@@ -898,7 +898,7 @@ const ChangelogPage: React.FC = () => {
                                     <ul className="space-y-1">
                                         {selectedRelease.features.deprecated.map((item, index) => (
                                             <li key={index} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
-                                                <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                                                <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
                                                 {item}
                                             </li>
                                         ))}

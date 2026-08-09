@@ -218,9 +218,9 @@ export default function HelpPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-950">
       {/* Hero Section */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-600/20 via-purple-600/10 to-transparent">
+      <div className="relative overflow-hidden bg-linear-to-br from-indigo-600/20 via-purple-600/10 to-transparent">
         <div className="absolute inset-0 bg-grid-white/5 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
         <div className="relative container mx-auto px-6 lg:px-8 py-16 lg:py-24">
           <div className="text-center">
@@ -228,7 +228,7 @@ export default function HelpPage() {
               <LifeBuoy className="w-4 h-4 text-indigo-400" />
               <span className="text-xs font-medium text-indigo-400">Help Center</span>
             </div>
-            <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent mb-4">
+            <h1 className="text-4xl lg:text-5xl font-bold bg-linear-to-r from-white to-slate-400 bg-clip-text text-transparent mb-4">
               How can we help you?
             </h1>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
@@ -287,7 +287,7 @@ export default function HelpPage() {
                   <Link
                     key={index}
                     href={guide.link}
-                    className="group bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 p-4 hover:border-indigo-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10"
+                    className="group bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 p-4 hover:border-indigo-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-indigo-500/10"
                   >
                     <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                       <Icon size={18} className="text-indigo-400" />
@@ -331,7 +331,7 @@ export default function HelpPage() {
                 return (
                   <div
                     key={index}
-                    className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 overflow-hidden transition-all duration-200 hover:border-indigo-500/30"
+                    className="bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 overflow-hidden transition-all duration-200 hover:border-indigo-500/30"
                   >
                     <button
                       onClick={() => toggleFAQ(index)}
@@ -346,9 +346,9 @@ export default function HelpPage() {
                         <h3 className="text-sm font-medium text-white">{faq.question}</h3>
                       </div>
                       {isExpanded ? (
-                        <ChevronDown size={18} className="text-slate-500 flex-shrink-0" />
+                        <ChevronDown size={18} className="text-slate-500 shrink-0" />
                       ) : (
-                        <ChevronRight size={18} className="text-slate-500 flex-shrink-0" />
+                        <ChevronRight size={18} className="text-slate-500 shrink-0" />
                       )}
                     </button>
                     {isExpanded && (
@@ -368,7 +368,7 @@ export default function HelpPage() {
         </div>
 
         {/* Contact Support Section */}
-        <div className="mt-16 p-8 bg-gradient-to-br from-indigo-600/10 to-purple-600/10 rounded-2xl border border-indigo-500/20 text-center">
+        <div className="mt-16 p-8 bg-linear-to-br from-indigo-600/10 to-purple-600/10 rounded-2xl border border-indigo-500/20 text-center">
           <div className="max-w-2xl mx-auto">
             <div className="w-12 h-12 rounded-full bg-indigo-500/20 flex items-center justify-center mx-auto mb-4">
               <MessageCircle className="w-6 h-6 text-indigo-400" />
@@ -439,7 +439,7 @@ export default function HelpPage() {
               return (
                 <button
                   key={index}
-                  className="group bg-gradient-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 p-4 text-left hover:border-indigo-500/30 transition-all"
+                  className="group bg-linear-to-br from-slate-800/50 to-slate-900/50 rounded-xl border border-slate-800 p-4 text-left hover:border-indigo-500/30 transition-all"
                 >
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -451,7 +451,7 @@ export default function HelpPage() {
                     </div>
                   </div>
                   <div className="relative rounded-lg overflow-hidden bg-slate-800 h-24 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/20 to-purple-600/20" />
+                    <div className="absolute inset-0 bg-linear-to-br from-indigo-600/20 to-purple-600/20" />
                     <Play className="w-8 h-8 text-white/50 group-hover:text-white/80 transition-colors" />
                   </div>
                 </button>

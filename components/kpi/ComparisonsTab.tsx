@@ -140,7 +140,7 @@ export default function ComparisonsTab({
               </div>
               <div className="w-full bg-gray-200 rounded-full h-1.5 mb-3">
                 <div
-                  className="h-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+                  className="h-1.5 rounded-full bg-linear-to-r from-indigo-500 to-purple-500"
                   style={{ width: `${dept.averageScore}%` }}
                 />
               </div>

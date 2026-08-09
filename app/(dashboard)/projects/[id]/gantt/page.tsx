@@ -472,7 +472,7 @@ export default function ProjectGanttPage() {
               </Link>
               <div>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                  <div className="w-10 h-10 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                     <GanttChartSquare className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -720,7 +720,7 @@ export default function ProjectGanttPage() {
                   <div className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                     <div className="flex">
                       {/* Task Name Column */}
-                      <div className="w-64 flex-shrink-0 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
+                      <div className="w-64 shrink-0 px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
                         Task Name
                       </div>
                       {/* Timeline Header */}
@@ -776,7 +776,7 @@ export default function ProjectGanttPage() {
                       >
                         {/* Task Name */}
                         <div
-                          className="w-64 flex-shrink-0 px-4 py-3 border-r border-gray-200 cursor-pointer"
+                          className="w-64 shrink-0 px-4 py-3 border-r border-gray-200 cursor-pointer"
                           onClick={() => toggleTaskExpand(task._id)}
                         >
                           <div className="flex items-center gap-2">
@@ -996,7 +996,7 @@ export default function ProjectGanttPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <GanttChartSquare className="w-5 h-5 text-indigo-500" />

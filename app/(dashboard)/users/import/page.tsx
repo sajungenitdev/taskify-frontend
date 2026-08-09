@@ -394,7 +394,7 @@ export default function ImportPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Upload className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -425,7 +425,7 @@ export default function ImportPage() {
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm transition ${
                     step >= s
-                      ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md"
+                      ? "bg-linear-to-br from-indigo-500 to-purple-600 text-white shadow-md"
                       : "bg-gray-200 text-gray-400"
                   }`}
                 >
@@ -522,7 +522,7 @@ export default function ImportPage() {
 
               <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                 <div className="flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <Info className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-blue-700">
                       Column Requirements
@@ -559,7 +559,7 @@ export default function ImportPage() {
               className="space-y-6"
             >
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+                <div className="p-4 border-b border-gray-200 bg-linear-to-r from-gray-50 to-white">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h3 className="text-gray-800 font-semibold">
@@ -688,7 +688,7 @@ export default function ImportPage() {
                 <button
                   onClick={handleImport}
                   disabled={importing || validCount === 0}
-                  className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium transition shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium transition shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {importing ? (
                     <div className="flex items-center justify-center gap-2">
@@ -809,7 +809,7 @@ export default function ImportPage() {
                 </button>
                 <Link
                   href="/users/all"
-                  className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-center transition shadow-md shadow-indigo-500/20"
+                  className="flex-1 py-3 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-center transition shadow-md shadow-indigo-500/20"
                 >
                   <div className="flex items-center justify-center gap-2">
                     <Users size={16} />

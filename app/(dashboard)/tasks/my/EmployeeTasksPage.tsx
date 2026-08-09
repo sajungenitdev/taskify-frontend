@@ -558,7 +558,7 @@ console.log(tasks, "tasks")
                         type="button"
                         onClick={(e) => handleCheckboxClick(task, e)}
                         disabled={isCompleted}
-                        className="flex-shrink-0 focus:outline-none relative group/checkbox"
+                        className="shrink-0 focus:outline-none relative group/checkbox"
                         title={isCompleted ? "Completed" : "Click to submit evidence and complete"}
                       >
                         {isCompleted ? (
@@ -583,7 +583,7 @@ console.log(tasks, "tasks")
                           {task.title}
                         </p>
                         {needsEvidence && (
-                          <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 flex-shrink-0">
+                          <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
                             <Paperclip className="w-2.5 h-2.5" />
                             Evidence
                           </span>
@@ -592,7 +592,7 @@ console.log(tasks, "tasks")
                     </div>
 
                     {/* Right: Running status/Due date & Priority Badge */}
-                    <div className="flex items-center gap-4 flex-shrink-0">
+                    <div className="flex items-center gap-4 shrink-0">
                       {isCompleted ? (
                         <span className="text-xs font-medium text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-md">
                           <Check className="w-3 h-3" />
@@ -697,7 +697,7 @@ console.log(tasks, "tasks")
             >
               {/* Header */}
               <div className="flex items-start gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0 text-xl font-bold">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-xl font-bold">
                   📎
                 </div>
                 <div>
@@ -746,7 +746,7 @@ console.log(tasks, "tasks")
                   </div>
                   <button
                     onClick={() => setEvidenceText("")}
-                    className="text-gray-400 hover:text-gray-600 p-1 flex-shrink-0"
+                    className="text-gray-400 hover:text-gray-600 p-1 shrink-0"
                   >
                     <X size={16} />
                   </button>

@@ -594,7 +594,7 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
     {
       badge: "New",
-      badgeColor: "bg-gradient-to-r from-indigo-500 to-purple-500",
+      badgeColor: "bg-linear-to-r from-indigo-500 to-purple-500",
       description: "Get intelligent assistance from AI",
     },
   ),

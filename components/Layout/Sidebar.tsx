@@ -452,7 +452,7 @@ export default function Sidebar({
                     onClose?.();
                   }}
                   className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
-                      ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                      ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white"
                       : "text-gray-300 hover:text-white hover:bg-white/10"
                     }`}
                 >
@@ -487,7 +487,7 @@ export default function Sidebar({
                     </span>
                   )}
                   {isSubActive && (
-                    <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400" />
+                    <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400" />
                   )}
                 </a>
               );
@@ -503,7 +503,7 @@ export default function Sidebar({
                   onClose?.();
                 }}
                 className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
-                    ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                    ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white"
                     : "text-gray-300 hover:text-white hover:bg-white/10"
                   }`}
               >
@@ -537,7 +537,7 @@ export default function Sidebar({
                   </span>
                 )}
                 {isSubActive && (
-                  <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400" />
+                  <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400" />
                 )}
               </Link>
             );
@@ -571,7 +571,7 @@ export default function Sidebar({
       <div className="absolute inset-0 pointer-events-none main-sidebar">
         {/* Dark overlay for readability */}
         <div className="absolute inset-0 bg-[#0f2444]/80 backdrop-blur-sm" />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0f2444]/60 via-[#0f2444]/40 to-transparent" />
+        <div className="absolute inset-0 bg-linear-to-br from-[#0f2444]/60 via-[#0f2444]/40 to-transparent" />
       </div>
 
       {/* Mandala Pattern */}
@@ -591,13 +591,13 @@ export default function Sidebar({
       </div>
 
       {/* Animated gradient border */}
-      <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-purple-400 via-50% to-transparent animate-shimmer z-10" />
+      <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-transparent via-indigo-400 to-purple-400 via-50% to-transparent animate-shimmer z-10" />
 
       {/* Content - Flex column with proper height management */}
       <div className="relative z-10 flex flex-col h-full overflow-hidden">
         {/* Header with Toggle Button - Fixed height */}
         <div
-          className={`flex-shrink-0 px-4 py-[12px] bg-transparent transition-all duration-300 sticky top-0 z-10 ${scrolled
+          className={`shrink-0 px-4 py-[12px] bg-transparent transition-all duration-300 sticky top-0 z-10 ${scrolled
               ? "bg-[#0f2444]/90 backdrop-blur-md"
               : "bg-[#0f2444]/60 backdrop-blur-sm"
             }`}
@@ -608,7 +608,7 @@ export default function Sidebar({
                 }`}
             >
               <div className="relative group">
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-300" />
+                <div className="absolute inset-0 bg-linear-to-r from-indigo-400 to-purple-400 rounded-xl blur-md opacity-40 group-hover:opacity-70 transition-opacity duration-300" />
                 <div className="relative w-10 h-10 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl flex items-center justify-center group-hover:scale-105 transition-all duration-300 shadow-md">
                   <CheckSquare className="w-5 h-5 text-white group-hover:text-indigo-300" />
                 </div>
@@ -639,7 +639,7 @@ export default function Sidebar({
         <button
           onClick={toggleCollapse}
           className="hidden lg:flex fixed top-1/12 -translate-y-1/2 z-[999] w-7 h-7 bg-[#0f2444] 
-          hover:bg-gradient-to-r hover:from-indigo-500 hover:to-purple-500 border-2 border-white/20 
+          hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 border-2 border-white/20 
           hover:border-transparent rounded-full items-center justify-center transition-all duration-300 shadow-xl group"
         >
           {isCollapsed ? (
@@ -684,7 +684,7 @@ export default function Sidebar({
                       onClick={onClose}
                       className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${isCollapsed ? "justify-center" : ""
                         } ${active
-                          ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
+                          ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
                           : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
                         }`}
                       title={isCollapsed ? item.name : ""}
@@ -721,7 +721,7 @@ export default function Sidebar({
                         </>
                       )}
                       {active && !isCollapsed && (
-                        <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                        <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
                       )}
                     </a>
                   );
@@ -735,7 +735,7 @@ export default function Sidebar({
                     onClick={onClose}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${isCollapsed ? "justify-center" : ""
                       } ${active
-                        ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
+                        ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm border border-white/10"
                         : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
                       }`}
                     title={isCollapsed ? item.name : ""}
@@ -771,7 +771,7 @@ export default function Sidebar({
                       </>
                     )}
                     {active && !isCollapsed && (
-                      <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                      <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
                     )}
                   </Link>
                 );
@@ -823,7 +823,7 @@ export default function Sidebar({
                         <div
                           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
                             } ${isParentActiveFlag || (isHovered && hasSubmenu)
-                              ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
+                              ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
                               : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
                             }`}
                           title={isCollapsed ? item.name : ""}
@@ -868,7 +868,7 @@ export default function Sidebar({
                           {(isParentActiveFlag ||
                             (isActive(item.href) && !hasSubmenu)) &&
                             !isCollapsed && (
-                              <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                              <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
                             )}
                         </div>
 
@@ -889,7 +889,7 @@ export default function Sidebar({
                         onClick={onClose}
                         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
                           } ${isActive(item.href)
-                            ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
+                            ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
                             : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
                           }`}
                         title={isCollapsed ? item.name : ""}
@@ -926,7 +926,7 @@ export default function Sidebar({
                           </>
                         )}
                         {isActive(item.href) && !isCollapsed && (
-                          <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                          <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
                         )}
                       </a>
                     );
@@ -940,7 +940,7 @@ export default function Sidebar({
                       onClick={onClose}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative cursor-pointer ${isCollapsed ? "justify-center" : ""
                         } ${isActive(item.href)
-                          ? "bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
+                          ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white backdrop-blur-sm"
                           : "text-gray-300 hover:text-white hover:bg-white/10 backdrop-blur-sm"
                         }`}
                       title={isCollapsed ? item.name : ""}
@@ -976,7 +976,7 @@ export default function Sidebar({
                         </>
                       )}
                       {isActive(item.href) && !isCollapsed && (
-                        <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-purple-400 absolute right-0" />
+                        <div className="w-1 h-6 rounded-full bg-linear-to-b from-indigo-400 to-purple-400 absolute right-0" />
                       )}
                     </Link>
                   );
@@ -987,15 +987,15 @@ export default function Sidebar({
         </nav>
 
         {/* Footer - Fixed at bottom */}
-        <div className="flex-shrink-0 p-4 border-t border-white/10 bg-gradient-to-t from-[#0f2444]/90 via-[#0f2444]/60 to-transparent backdrop-blur-sm">
+        <div className="shrink-0 p-4 border-t border-white/10 bg-linear-to-t from-[#0f2444]/90 via-[#0f2444]/60 to-transparent backdrop-blur-sm">
           <button
             onClick={logout}
             className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
               }`}
             title={isCollapsed ? "Logout" : ""}
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-rose-500/5 rounded-xl" />
+            <div className="absolute inset-0 bg-linear-to-r from-red-500/10 to-rose-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute inset-0 bg-linear-to-r from-red-500/5 to-rose-500/5 rounded-xl" />
             <div className="absolute inset-0 rounded-xl border border-red-500/20 group-hover:border-red-400/40 transition-all duration-300" />
 
             <div

@@ -79,7 +79,7 @@ export function DynamicBadge({
         className={`
           inline-flex items-center justify-center
           font-semibold leading-none text-white
-          bg-gradient-to-r from-red-500 to-red-600
+          bg-linear-to-r from-red-500 to-red-600
           rounded-full shadow-lg
           ${sizeClasses[size]}
           ${className}

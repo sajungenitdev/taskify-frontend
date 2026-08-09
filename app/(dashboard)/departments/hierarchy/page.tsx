@@ -283,7 +283,7 @@ export default function HierarchyPage() {
       >
         <div
           className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer hover:shadow-md group ${level === 0
-              ? "bg-gradient-to-r from-indigo-50/80 to-purple-50/80 border-indigo-200 shadow-sm"
+              ? "bg-linear-to-r from-indigo-50/80 to-purple-50/80 border-indigo-200 shadow-sm"
               : "bg-white border-gray-200 hover:bg-gray-50"
             }`}
           style={{ marginLeft: `${level * 20}px` }}
@@ -310,7 +310,7 @@ export default function HierarchyPage() {
 
           <div
             className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${level === 0
-                ? "bg-gradient-to-br from-indigo-500 to-purple-500"
+                ? "bg-linear-to-br from-indigo-500 to-purple-500"
                 : "bg-gray-100 border border-gray-200"
               }`}
           >
@@ -439,7 +439,7 @@ export default function HierarchyPage() {
         >
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                 <FolderTree className="w-4 h-4 text-white" />
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -1002,7 +1002,7 @@ export default function HierarchyPage() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${dept.level === 0
-                                ? "bg-gradient-to-br from-indigo-500 to-purple-500"
+                                ? "bg-linear-to-br from-indigo-500 to-purple-500"
                                 : "bg-gray-100"
                               }`}
                           >

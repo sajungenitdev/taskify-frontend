@@ -206,7 +206,7 @@ export default function ExportPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
                   <Download className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -310,7 +310,7 @@ export default function ExportPage() {
                       onClick={() => setExportType("users")}
                       className={`px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
                         exportType === "users"
-                          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                          ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                           : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
                       }`}
                     >
@@ -321,7 +321,7 @@ export default function ExportPage() {
                       onClick={() => setExportType("departments")}
                       className={`px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
                         exportType === "departments"
-                          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                          ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                           : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
                       }`}
                     >
@@ -344,7 +344,7 @@ export default function ExportPage() {
                           onClick={() => setFormat(option.value)}
                           className={`px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all ${
                             format === option.value
-                              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                              ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                               : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
                           }`}
                         >
@@ -453,7 +453,7 @@ export default function ExportPage() {
                           }
                           className={`px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
                             filters.status === option.value
-                              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
+                              ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/20"
                               : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
                           }`}
                         >
@@ -513,12 +513,12 @@ export default function ExportPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
-            className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 p-8 text-center"
+            className="bg-linear-to-r from-indigo-50 to-purple-50 rounded-2xl border border-indigo-200 p-8 text-center"
           >
             <button
               onClick={handleExport}
               disabled={exporting}
-              className="px-8 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl inline-flex items-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 text-base font-medium"
+              className="px-8 py-3.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl inline-flex items-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 text-base font-medium"
             >
               {exporting ? (
                 <>
@@ -547,7 +547,7 @@ export default function ExportPage() {
             className="bg-blue-50 rounded-xl p-4 border border-blue-200"
           >
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
                 <Info className="w-4 h-4 text-blue-600" />
               </div>
               <div>

@@ -482,7 +482,7 @@ export default function ExportReportsPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
                   <Download className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -842,7 +842,7 @@ export default function ExportReportsPage() {
               <button
                 onClick={scheduleReport ? handleScheduleExport : handleExport}
                 disabled={exporting}
-                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-medium transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                className="w-full py-3 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-medium transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
               >
                 {exporting ? (
                   <>
@@ -1008,7 +1008,7 @@ export default function ExportReportsPage() {
             className="bg-blue-50 rounded-xl p-4 border border-blue-200"
           >
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-blue-700">Export Tips</p>
                 <ul className="text-xs text-blue-600 mt-1 space-y-1">

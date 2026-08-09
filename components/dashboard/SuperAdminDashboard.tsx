@@ -862,7 +862,7 @@ export default function SuperAdminDashboard() {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <span
               className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${
                 new Date(task.deadline) < new Date() &&
@@ -1000,7 +1000,7 @@ export default function SuperAdminDashboard() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-900 via-slate-900 to-indigo-950 p-6 rounded-3xl border border-indigo-500/20 shadow-xl text-white"
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-linear-to-r from-indigo-900 via-slate-900 to-indigo-950 p-6 rounded-3xl border border-indigo-500/20 shadow-xl text-white"
       >
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-indigo-300 shadow-inner border border-white/20">
@@ -1174,7 +1174,7 @@ export default function SuperAdminDashboard() {
           <motion.div
             key={idx}
             whileHover={{ y: -3 }}
-            className={`p-6 rounded-2xl bg-gradient-to-br ${stat.accent} backdrop-blur-md border shadow-sm relative overflow-hidden`}
+            className={`p-6 rounded-2xl bg-linear-to-br ${stat.accent} backdrop-blur-md border shadow-sm relative overflow-hidden`}
           >
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
@@ -1207,7 +1207,7 @@ export default function SuperAdminDashboard() {
             value: stats.pendingTasks,
             sub: "Awaiting execution",
             icon: Clock3,
-            bg: "bg-gradient-to-br from-amber-500/15 to-amber-100/30 border-amber-200",
+            bg: "bg-linear-to-br from-amber-500/15 to-amber-100/30 border-amber-200",
             textColor: "text-amber-800",
             iconBg: "bg-amber-500 text-white shadow-amber-200",
           },
@@ -1216,7 +1216,7 @@ export default function SuperAdminDashboard() {
             value: stats.inProgressTasks,
             sub: "Currently active",
             icon: Timer,
-            bg: "bg-gradient-to-br from-blue-500/15 to-cyan-100/30 border-blue-200",
+            bg: "bg-linear-to-br from-blue-500/15 to-cyan-100/30 border-blue-200",
             textColor: "text-blue-800",
             iconBg: "bg-blue-600 text-white shadow-blue-200",
           },
@@ -1225,7 +1225,7 @@ export default function SuperAdminDashboard() {
             value: stats.overdueTasks,
             sub: "Past deadline threshold",
             icon: AlertTriangle,
-            bg: "bg-gradient-to-br from-rose-500/15 to-pink-100/30 border-rose-200",
+            bg: "bg-linear-to-br from-rose-500/15 to-pink-100/30 border-rose-200",
             textColor: "text-rose-800",
             iconBg: "bg-rose-600 text-white shadow-rose-200",
           },
@@ -1234,7 +1234,7 @@ export default function SuperAdminDashboard() {
             value: stats.rejectedTasks,
             sub: "Requires revision",
             icon: XCircle,
-            bg: "bg-gradient-to-br from-slate-500/15 to-slate-200/30 border-slate-300",
+            bg: "bg-linear-to-br from-slate-500/15 to-slate-200/30 border-slate-300",
             textColor: "text-slate-800",
             iconBg: "bg-slate-700 text-white shadow-slate-200",
           },
@@ -1266,7 +1266,7 @@ export default function SuperAdminDashboard() {
       {/* ============ TASK CARDS SECTION (Glass containers) ============ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Pending Tasks Card */}
-        <div className="bg-gradient-to-b from-amber-500/5 to-white p-6 rounded-2xl border border-amber-200/60 backdrop-blur-md shadow-sm">
+        <div className="bg-linear-to-b from-amber-500/5 to-white p-6 rounded-2xl border border-amber-200/60 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1303,7 +1303,7 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* Upcoming Tasks Card */}
-        <div className="bg-gradient-to-b from-indigo-500/5 to-white p-6 rounded-2xl border border-indigo-200/60 backdrop-blur-md shadow-sm">
+        <div className="bg-linear-to-b from-indigo-500/5 to-white p-6 rounded-2xl border border-indigo-200/60 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1340,7 +1340,7 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* Recent Tasks Card */}
-        <div className="bg-gradient-to-b from-purple-500/5 to-white p-6 rounded-2xl border border-purple-200/60 backdrop-blur-md shadow-sm">
+        <div className="bg-linear-to-b from-purple-500/5 to-white p-6 rounded-2xl border border-purple-200/60 backdrop-blur-md shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -1401,7 +1401,7 @@ export default function SuperAdminDashboard() {
           {stats.projectPipelines.map((proj, idx) => (
             <div
               key={idx}
-              className="p-4 rounded-2xl bg-gradient-to-b from-slate-50 to-indigo-50/20 border border-slate-200/60 flex flex-col justify-between shadow-xs"
+              className="p-4 rounded-2xl bg-linear-to-b from-slate-50 to-indigo-50/20 border border-slate-200/60 flex flex-col justify-between shadow-xs"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -1421,7 +1421,7 @@ export default function SuperAdminDashboard() {
               </div>
               <div className="w-full bg-slate-200 rounded-full h-1.5 mt-4 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-indigo-500 to-purple-600 h-1.5 rounded-full transition-all duration-500"
+                  className="bg-linear-to-r from-indigo-500 to-purple-600 h-1.5 rounded-full transition-all duration-500"
                   style={{ width: `${proj.progress}%` }}
                 />
               </div>
@@ -1748,7 +1748,7 @@ export default function SuperAdminDashboard() {
         </div>
 
         {/* Dynamic Real-Time Activity Stream */}
-        <div className="bg-gradient-to-br from-amber-500/10 via-white to-amber-500/5 backdrop-blur-md p-6 rounded-2xl border border-amber-200/60 shadow-sm flex flex-col justify-between">
+        <div className="bg-linear-to-br from-amber-500/10 via-white to-amber-500/5 backdrop-blur-md p-6 rounded-2xl border border-amber-200/60 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>

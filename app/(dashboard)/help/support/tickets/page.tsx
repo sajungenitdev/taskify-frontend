@@ -590,7 +590,7 @@ const SupportTicketsPage: React.FC = () => {
     return (
         <div className="p-4 md:p-6 container mx-auto max-w-6xl">
             {/* Header */}
-            <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
+            <div className="bg-linear-to-br from-purple-600 via-purple-500 to-pink-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
@@ -1022,7 +1022,7 @@ const SupportTicketsPage: React.FC = () => {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="px-6 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                                    className="px-6 py-2 bg-linear-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
                                 >
                                     {isSubmitting ? (
                                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -1195,7 +1195,7 @@ const SupportTicketsPage: React.FC = () => {
                             <button
                                 onClick={handleReply}
                                 disabled={isSubmitting || (!replyMessage.trim() && replyAttachments.length === 0)}
-                                className="px-6 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                                className="px-6 py-2 bg-linear-to-r from-purple-500 to-purple-600 text-white rounded-xl font-medium hover:shadow-lg transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
                             >
                                 {isSubmitting ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />

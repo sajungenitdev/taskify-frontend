@@ -266,21 +266,21 @@ export function VelocityChart({
     <div className="space-y-4">
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl p-4 border border-indigo-200/50">
+        <div className="bg-linear-to-br from-indigo-50 to-indigo-100/50 rounded-xl p-4 border border-indigo-200/50">
           <p className="text-xs text-gray-500 font-medium">Avg Velocity</p>
           <p className="text-2xl font-bold text-indigo-700">
             {stats.averageVelocity}
           </p>
           <p className="text-xs text-gray-400">tasks/week</p>
         </div>
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
+        <div className="bg-linear-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200/50">
           <p className="text-xs text-gray-500 font-medium">Peak Velocity</p>
           <p className="text-2xl font-bold text-emerald-700">
             {stats.maxVelocity}
           </p>
           <p className="text-xs text-gray-400">tasks/week</p>
         </div>
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200/50">
+        <div className="bg-linear-to-br from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200/50">
           <p className="text-xs text-gray-500 font-medium">Total Completed</p>
           <p className="text-2xl font-bold text-amber-700">
             {stats.totalTasks}
@@ -288,7 +288,7 @@ export function VelocityChart({
           <p className="text-xs text-gray-400">over {stats.totalWeeks} weeks</p>
         </div>
         <div
-          className={`bg-gradient-to-br rounded-xl p-4 border ${getTrendColor()}`}
+          className={`bg-linear-to-br rounded-xl p-4 border ${getTrendColor()}`}
         >
           <p className="text-xs text-gray-500 font-medium">Trend</p>
           <div className="flex items-center gap-2">
@@ -431,7 +431,7 @@ export function VelocityChart({
       </div>
 
       {/* Velocity Summary */}
-      <div className="bg-gradient-to-r from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-200">
+      <div className="bg-linear-to-r from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-200">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

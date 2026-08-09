@@ -316,7 +316,7 @@ const Animated404Icon = () => {
                 <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-full p-8 shadow-2xl border border-gray-200/50 dark:border-gray-700/50">
                     <div className="relative">
                         <Shield className="w-24 h-24 text-blue-600 dark:text-blue-400 animate-float-gentle" />
-                        <div className="absolute -top-3 -right-3 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold rounded-full w-10 h-10 flex items-center justify-center shadow-lg animate-bounce-subtle">
+                        <div className="absolute -top-3 -right-3 bg-linear-to-r from-red-500 to-red-600 text-white text-sm font-bold rounded-full w-10 h-10 flex items-center justify-center shadow-lg animate-bounce-subtle">
                             404
                         </div>
                     </div>
@@ -483,7 +483,7 @@ const NotFoundPage = () => {
     ];
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 overflow-hidden relative">
+        <div className="min-h-screen bg-linear-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 overflow-hidden relative">
             {/* Animated Background */}
             <FloatingParticles />
             <FloatingShapes />
@@ -509,7 +509,7 @@ const NotFoundPage = () => {
 
                         {/* Error Title */}
                         <div className="space-y-3 mb-6">
-                            <h1 className="text-5xl md:text-7xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient">
+                            <h1 className="text-5xl md:text-7xl font-bold bg-linear-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient">
                                 Page Not Found
                             </h1>
                             <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -518,7 +518,7 @@ const NotFoundPage = () => {
                         </div>
 
                         {/* Error Code Badge */}
-                        <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30 text-red-700 dark:text-red-300 rounded-full text-sm font-medium mb-8 animate-pulse-slow border border-red-200 dark:border-red-800">
+                        <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-red-100 to-red-200 dark:from-red-900/30 dark:to-red-800/30 text-red-700 dark:text-red-300 rounded-full text-sm font-medium mb-8 animate-pulse-slow border border-red-200 dark:border-red-800">
                             <AlertCircle className="w-4 h-4" />
                             Error 404 - Resource Not Found
                         </div>
@@ -537,7 +537,7 @@ const NotFoundPage = () => {
                                 <button
                                     type="submit"
                                     disabled={isSearching}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50 hover:scale-105"
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-linear-to-r from-blue-500 to-purple-500 text-white rounded-xl text-sm font-medium hover:shadow-lg transition-all duration-300 disabled:opacity-50 hover:scale-105"
                                 >
                                     {isSearching ? (
                                         <RefreshCw className="w-4 h-4 animate-spin" />

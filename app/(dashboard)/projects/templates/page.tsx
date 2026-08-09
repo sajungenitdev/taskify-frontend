@@ -428,7 +428,7 @@ export default function TemplatesPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-md">
                   <LayoutTemplate className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -461,7 +461,7 @@ export default function TemplatesPage() {
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-emerald-500/20"
+                className="px-4 py-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-emerald-500/20"
               >
                 <Plus size={16} />
                 Create Template
@@ -667,7 +667,7 @@ export default function TemplatesPage() {
                   <div className="flex gap-2 mt-4">
                     <button
                       onClick={() => handleUseTemplate(template._id)}
-                      className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm py-2 rounded-lg transition flex items-center justify-center gap-1 shadow-sm"
+                      className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm py-2 rounded-lg transition flex items-center justify-center gap-1 shadow-sm"
                     >
                       <Copy size={14} />
                       Use Template
@@ -883,7 +883,7 @@ export default function TemplatesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     Create Template
@@ -1007,7 +1007,7 @@ export default function TemplatesPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                   >
                     {submitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1039,7 +1039,7 @@ export default function TemplatesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     Edit Template
@@ -1161,7 +1161,7 @@ export default function TemplatesPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                   >
                     {submitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1193,7 +1193,7 @@ export default function TemplatesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[80vh] overflow-y-auto"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 sticky top-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50 sticky top-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
                     <LayoutTemplate className="w-5 h-5 text-emerald-600" />
@@ -1285,7 +1285,7 @@ export default function TemplatesPage() {
                 <div className="flex gap-3 pt-4 border-t border-gray-200">
                   <button
                     onClick={() => handleUseTemplate(selectedTemplate._id)}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
                   >
                     <Copy size={16} />
                     Use This Template

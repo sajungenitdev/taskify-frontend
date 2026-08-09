@@ -160,7 +160,7 @@ export default function UpcomingDeadlines({
                   </div>
                   <ChevronRight
                     size={14}
-                    className="text-gray-300 group-hover:text-indigo-500 transition-colors flex-shrink-0"
+                    className="text-gray-300 group-hover:text-indigo-500 transition-colors shrink-0"
                   />
                 </div>
               </div>

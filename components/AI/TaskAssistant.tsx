@@ -123,7 +123,7 @@ export default function TaskAssistant({
   };
 
   return (
-    <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-xl border border-indigo-500/20 overflow-hidden">
+    <div className="bg-linear-to-br from-indigo-500/10 to-purple-500/10 rounded-xl border border-indigo-500/20 overflow-hidden">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-indigo-500/5 transition"

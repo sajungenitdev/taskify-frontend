@@ -541,7 +541,7 @@ export default function NotificationsPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Bell className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -943,7 +943,7 @@ export default function NotificationsPage() {
 
                       {/* Icon */}
                       <div
-                        className={`p-2 rounded-lg border ${getCategoryColor(notification.category)} flex-shrink-0`}
+                        className={`p-2 rounded-lg border ${getCategoryColor(notification.category)} shrink-0`}
                       >
                         {getCategoryIcon(notification.category)}
                       </div>
@@ -994,7 +994,7 @@ export default function NotificationsPage() {
                                 </p>
                               )}
                           </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             <span className="text-[10px] text-gray-400 whitespace-nowrap">
                               {formatDate(notification.createdAt)}
                             </span>
@@ -1006,7 +1006,7 @@ export default function NotificationsPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         {!notification.isRead ? (
                           <button
                             onClick={() => markAsRead(notification._id)}

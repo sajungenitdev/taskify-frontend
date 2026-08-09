@@ -399,10 +399,10 @@ export default function TeamCalendarPage() {
 
   if (teams.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+      <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center py-16 bg-white rounded-3xl shadow-sm border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-indigo-50 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <CalendarIcon className="w-10 h-10 text-indigo-400" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900">
@@ -413,7 +413,7 @@ export default function TeamCalendarPage() {
             </p>
             <button
               onClick={() => router.push("/dashboard/teams")}
-              className="mt-6 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25"
+              className="mt-6 px-6 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25"
             >
               Browse All Teams
             </button>
@@ -426,12 +426,12 @@ export default function TeamCalendarPage() {
   const selectedTeam = teams.find((t) => t._id === selectedTeamId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <CalendarIcon className="w-7 h-7 text-indigo-500" />
               Team Calendar
             </h1>
@@ -442,7 +442,7 @@ export default function TeamCalendarPage() {
           </div>
           <button
             onClick={goToToday}
-            className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25 text-sm flex items-center gap-2"
+            className="px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25 text-sm flex items-center gap-2"
           >
             <CalendarDaysIcon className="w-4 h-4" />
             Today
@@ -1048,7 +1048,7 @@ export default function TeamCalendarPage() {
                             onClick={() => {
                               router.push(`/dashboard/tasks/${task._id}`);
                             }}
-                            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
+                            className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25"
                           >
                             View Details
                           </button>

@@ -392,7 +392,7 @@ export default function MyAttendancePage() {
   const todayStr = today.toISOString().split("T")[0];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ============================================================
             BREADCRUMB
@@ -425,7 +425,7 @@ export default function MyAttendancePage() {
             ============================================================ */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Calendar className="w-7 h-7 text-indigo-500" />
               My Attendance
             </h1>
@@ -543,7 +543,7 @@ export default function MyAttendancePage() {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-md p-4 text-white">
+          <div className="bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl shadow-md p-4 text-white">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-white/20 rounded-xl">
                 <Activity className="w-5 h-5" />
@@ -562,7 +562,7 @@ export default function MyAttendancePage() {
             SUMMARY CARDS
             ============================================================ */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <div className="bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200">
+          <div className="bg-linear-to-r from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-200/50 rounded-lg">
                 <Timer className="w-5 h-5 text-blue-700" />
@@ -575,7 +575,7 @@ export default function MyAttendancePage() {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200">
+          <div className="bg-linear-to-r from-amber-50 to-amber-100/50 rounded-xl p-4 border border-amber-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-200/50 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-amber-700" />
@@ -588,7 +588,7 @@ export default function MyAttendancePage() {
               </div>
             </div>
           </div>
-          <div className="bg-gradient-to-r from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200">
+          <div className="bg-linear-to-r from-emerald-50 to-emerald-100/50 rounded-xl p-4 border border-emerald-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-200/50 rounded-lg">
                 <UserCheck className="w-5 h-5 text-emerald-700" />
@@ -877,7 +877,7 @@ export default function MyAttendancePage() {
                     onClick={() => {
                       toast.success("Attendance report downloaded");
                     }}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-colors font-medium shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
                   >
                     <FileText className="w-4 h-4" />
                     Download Report

@@ -487,7 +487,7 @@ export default function ResourcesPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Briefcase className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -524,7 +524,7 @@ export default function ResourcesPage() {
                   resetForm();
                   setShowCreateModal(true);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+                className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
               >
                 <Plus size={16} />
                 Allocate Resource
@@ -961,7 +961,7 @@ export default function ResourcesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     {editingResource ? "Edit Resource" : "Allocate Resource"}
@@ -1127,7 +1127,7 @@ export default function ResourcesPage() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                   >
                     {submitting ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -1164,7 +1164,7 @@ export default function ResourcesPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-gradient-to-r from-rose-50 to-red-50">
+              <div className="flex items-center gap-2 p-5 border-b border-gray-200 bg-linear-to-r from-rose-50 to-red-50">
                 <div className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center">
                   <AlertCircle className="w-4 h-4 text-rose-600" />
                 </div>
@@ -1185,7 +1185,7 @@ export default function ResourcesPage() {
                 <div className="flex gap-3 mt-6">
                   <button
                     onClick={() => handleDeleteResource(showDeleteConfirm)}
-                    className="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition shadow-sm"
+                    className="flex-1 bg-linear-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white py-2.5 rounded-lg transition shadow-sm"
                   >
                     Delete
                   </button>

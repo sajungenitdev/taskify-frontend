@@ -596,10 +596,10 @@ export default function IndividualWorkloadPage() {
   // ============= Loading State =============
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/20 to-purple-50/20">
+      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/20 to-purple-50/20">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 animate-pulse" />
+            <div className="w-16 h-16 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 animate-pulse" />
             <Loader2 className="absolute inset-0 w-16 h-16 animate-spin text-white/80 p-3" />
           </div>
           <p className="text-gray-500 text-sm font-medium animate-pulse">
@@ -619,7 +619,7 @@ export default function IndividualWorkloadPage() {
   // ============= Error State =============
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/20 to-purple-50/20 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/20 to-purple-50/20 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-10 h-10 text-red-500" />
@@ -673,7 +673,7 @@ export default function IndividualWorkloadPage() {
   const filteredTasks = getFilteredTasks();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-indigo-50/10 to-purple-50/10">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/10 to-purple-50/10">
       <div className="p-4 md:p-6 lg:p-8">
         <div className="container mx-auto">
           {/* Header */}
@@ -689,7 +689,7 @@ export default function IndividualWorkloadPage() {
                 <ArrowLeft size={16} />
                 Back to Workload Dashboard
               </Link>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mt-2">
+              <h1 className="text-3xl font-bold bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mt-2">
                 Employee Workload Analysis
               </h1>
               <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
@@ -713,7 +713,7 @@ export default function IndividualWorkloadPage() {
                 onClick={() => {
                   toast.success("Report generated successfully!");
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition flex items-center gap-2 shadow-md shadow-indigo-500/25"
+                className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition flex items-center gap-2 shadow-md shadow-indigo-500/25"
               >
                 <Download size={16} />
                 Export Report
@@ -728,9 +728,9 @@ export default function IndividualWorkloadPage() {
             className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200/50 shadow-xl overflow-hidden mb-6"
           >
             <div className="relative">
-              <div className="h-24 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+              <div className="h-24 bg-linear-to-r from-indigo-500 via-purple-500 to-pink-500" />
               <div className="absolute -bottom-12 left-6 flex items-end gap-4">
-                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center border-4 border-white shadow-xl flex-shrink-0">
+                <div className="w-24 h-24 rounded-2xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center border-4 border-white shadow-xl shrink-0">
                   <span className="text-white text-4xl font-bold">
                     {getInitials(data.user.fullName)}
                   </span>
@@ -1127,7 +1127,7 @@ export default function IndividualWorkloadPage() {
                       >
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                            <div className="w-10 h-10 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                               <FolderKanban className="w-4 h-4 text-white" />
                             </div>
                             <div>
@@ -1219,7 +1219,7 @@ export default function IndividualWorkloadPage() {
                 <div className="space-y-6">
                   {/* Performance Metrics */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
+                    <div className="bg-linear-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
                       <p className="text-xs text-gray-500 font-medium">Productivity Score</p>
                       <p className="text-2xl font-bold text-emerald-600 mt-1">
                         {data.metrics.productivityScore}%
@@ -1231,7 +1231,7 @@ export default function IndividualWorkloadPage() {
                         />
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                    <div className="bg-linear-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
                       <p className="text-xs text-gray-500 font-medium">Efficiency Rate</p>
                       <p className="text-2xl font-bold text-blue-600 mt-1">
                         {data.metrics.efficiencyRate}%
@@ -1243,7 +1243,7 @@ export default function IndividualWorkloadPage() {
                         />
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
+                    <div className="bg-linear-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
                       <p className="text-xs text-gray-500 font-medium">On-Time Delivery</p>
                       <p className="text-2xl font-bold text-amber-600 mt-1">
                         {data.metrics.onTimeDeliveryRate}%
@@ -1255,7 +1255,7 @@ export default function IndividualWorkloadPage() {
                         />
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
+                    <div className="bg-linear-to-br from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-100">
                       <p className="text-xs text-gray-500 font-medium">Avg Completion Time</p>
                       <p className="text-2xl font-bold text-purple-600 mt-1">
                         {data.metrics.avgTaskCompletionTime?.toFixed(1) || 0}h
@@ -1311,7 +1311,7 @@ export default function IndividualWorkloadPage() {
 
                   {/* Insights */}
                   <div className="grid md:grid-cols-2 gap-4">
-                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
+                    <div className="bg-linear-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
                       <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4 text-emerald-500" />
                         Strengths
@@ -1339,7 +1339,7 @@ export default function IndividualWorkloadPage() {
                         )}
                       </ul>
                     </div>
-                    <div className="bg-gradient-to-br from-rose-50 to-amber-50 rounded-xl p-4 border border-rose-100">
+                    <div className="bg-linear-to-br from-rose-50 to-amber-50 rounded-xl p-4 border border-rose-100">
                       <h4 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 text-amber-500" />
                         Areas for Improvement

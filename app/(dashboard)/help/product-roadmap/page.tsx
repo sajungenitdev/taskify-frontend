@@ -380,7 +380,7 @@ const ProductRoadmapPage: React.FC = () => {
   return (
     <div className="p-4 md:p-6 container mx-auto container">
       {/* Header */}
-      <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
+      <div className="bg-linear-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl shadow-xl p-6 md:p-8 mb-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
@@ -614,7 +614,7 @@ const ProductRoadmapPage: React.FC = () => {
                     </div>
                     <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-${item.color}-500 to-${item.color}-600`}
+                        className={`h-full rounded-full transition-all duration-1000 bg-linear-to-r from-${item.color}-500 to-${item.color}-600`}
                         style={{ width: `${item.progress}%` }}
                       />
                     </div>
@@ -739,7 +739,7 @@ const ProductRoadmapPage: React.FC = () => {
                         <div className="flex-1 max-w-[80px]">
                           <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full bg-gradient-to-r from-${item.color}-500 to-${item.color}-600`}
+                              className={`h-full rounded-full bg-linear-to-r from-${item.color}-500 to-${item.color}-600`}
                               style={{ width: `${item.progress}%` }}
                             />
                           </div>
@@ -832,7 +832,7 @@ const ProductRoadmapPage: React.FC = () => {
                   <div className="flex-1">
                     <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-${selectedItem.color}-500 to-${selectedItem.color}-600`}
+                        className={`h-full rounded-full transition-all duration-1000 bg-linear-to-r from-${selectedItem.color}-500 to-${selectedItem.color}-600`}
                         style={{ width: `${selectedItem.progress}%` }}
                       />
                     </div>

@@ -190,10 +190,10 @@ export default function MyTeamPage() {
 
   if (teams.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+      <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center py-16 bg-white rounded-3xl shadow-sm border border-gray-100/80">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-linear-to-br from-indigo-50 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Users className="w-10 h-10 text-indigo-400" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900">
@@ -205,7 +205,7 @@ export default function MyTeamPage() {
             </p>
             <button
               onClick={() => router.push("/teams")}
-              className="mt-6 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25"
+              className="mt-6 px-6 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25"
             >
               Browse All Teams
             </button>
@@ -216,12 +216,12 @@ export default function MyTeamPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold bg-linear-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent flex items-center gap-3">
               <Sparkles className="w-7 h-7 text-indigo-500" />
               My Teams
             </h1>
@@ -290,7 +290,7 @@ export default function MyTeamPage() {
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                   <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold shadow-xl flex-shrink-0"
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center text-white text-3xl font-bold shadow-xl shrink-0"
                     style={{ backgroundColor: selectedTeam.color || "#6366f1" }}
                   >
                     {getInitials(selectedTeam.name)}
@@ -373,7 +373,7 @@ export default function MyTeamPage() {
                       <div className="p-5">
                         <div className="flex items-start gap-4">
                           <div className="relative">
-                            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xl font-bold flex-shrink-0">
+                            <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-indigo-100 to-indigo-200 flex items-center justify-center text-indigo-600 text-xl font-bold shrink-0">
                               {getInitials(member.fullName || "Unknown")}
                             </div>
                             {isCurrentUser && (
@@ -391,7 +391,7 @@ export default function MyTeamPage() {
                                 <p className="font-semibold text-gray-900 truncate flex items-center gap-1.5">
                                   {member.fullName || "Unknown"}
                                   {member.isLead && (
-                                    <Crown className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                                    <Crown className="w-4 h-4 text-amber-500 shrink-0" />
                                   )}
                                 </p>
                                 <p className="text-sm text-gray-500 truncate">
@@ -399,7 +399,7 @@ export default function MyTeamPage() {
                                 </p>
                               </div>
                               <span
-                                className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1 flex-shrink-0 ${roleInfo.color}`}
+                                className={`px-2.5 py-1 text-xs font-medium rounded-full border flex items-center gap-1 shrink-0 ${roleInfo.color}`}
                               >
                                 <RoleIcon className="w-3 h-3" />
                                 {roleInfo.label}

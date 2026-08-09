@@ -157,7 +157,7 @@ export default function DashboardStats({
               </div>
             </div>
             <div
-              className={`${stat.bgColor} p-3 rounded-xl flex-shrink-0 ml-3`}
+              className={`${stat.bgColor} p-3 rounded-xl shrink-0 ml-3`}
             >
               <stat.icon className={`w-5 h-5 ${stat.textColor}`} />
             </div>
@@ -165,11 +165,11 @@ export default function DashboardStats({
 
           {/* Animated progress bar */}
           <div
-            className={`absolute bottom-0 left-0 h-1 bg-gradient-to-r ${stat.color} rounded-b-2xl transition-all duration-500 group-hover:w-full w-1/3`}
+            className={`absolute bottom-0 left-0 h-1 bg-linear-to-r ${stat.color} rounded-b-2xl transition-all duration-500 group-hover:w-full w-1/3`}
           />
 
           {/* Subtle hover effect */}
-          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+          <div className="absolute inset-0 rounded-2xl bg-linear-to-r from-transparent via-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
         </div>
       ))}
     </div>

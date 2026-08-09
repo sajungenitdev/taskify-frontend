@@ -452,7 +452,7 @@ const getImageUrl = useCallback(
       style={{ backgroundColor: "#122645" }}
     >
       {/* Animated gradient border */}
-      <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-indigo-400/50 to-purple-400/50" />
+      <div className="absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-indigo-400/50 to-purple-400/50" />
 
       {/* Subtle glow effects */}
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -658,7 +658,7 @@ const getImageUrl = useCallback(
               </div>
               {unreadCount > 0 && (
                 <span
-                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-gradient-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${
+                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-linear-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${
                     isBellBuzzing ? "animate-bounce" : ""
                   }`}
                 >
@@ -752,7 +752,7 @@ const getImageUrl = useCallback(
                                   <h4 className="text-xs font-semibold text-white/90">
                                     {notification.title}
                                   </h4>
-                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     <span className="text-[9px] text-white/30 whitespace-nowrap">
                                       {formatTime(notification.createdAt)}
                                     </span>
@@ -777,7 +777,7 @@ const getImageUrl = useCallback(
                                 )}
                               </div>
                               {!notification.isRead && (
-                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0 mt-1 animate-pulse" />
+                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 mt-1 animate-pulse" />
                               )}
                             </div>
                           </motion.div>
@@ -812,7 +812,7 @@ const getImageUrl = useCallback(
               className="flex items-center gap-2 text-white/80 hover:text-white transition-all duration-300 p-1 rounded-lg hover:bg-white/10"
             >
               <div className="relative group/avatar">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 flex-shrink-0 ring-2 ring-white/10 hover:ring-indigo-400/30 transition-all duration-300">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-linear-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0 ring-2 ring-white/10 hover:ring-indigo-400/30 transition-all duration-300">
                   {profileImageUrl && !imageError ? (
                     <img
                       src={profileImageUrl}
@@ -866,10 +866,10 @@ const getImageUrl = useCallback(
                     className="absolute right-0 mt-2 w-72 bg-[#0f1f3a] backdrop-blur-xl rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden"
                   >
                     {/* Profile Header */}
-                    <div className="p-4 border-b border-white/10 bg-gradient-to-r from-indigo-500/10 to-purple-500/10">
+                    <div className="p-4 border-b border-white/10 bg-linear-to-r from-indigo-500/10 to-purple-500/10">
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 flex-shrink-0 ring-2 ring-white/20">
+                          <div className="w-12 h-12 rounded-full overflow-hidden bg-linear-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0 ring-2 ring-white/20">
                             {profileImageUrl && !imageError ? (
                               <img
                                 src={profileImageUrl}

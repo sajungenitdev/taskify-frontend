@@ -95,14 +95,14 @@ export default function ResetPasswordPage() {
 
   if (isValidToken === false) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-slate-100 p-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-            <div className="p-6 text-center bg-gradient-to-r from-red-500 to-rose-600">
+            <div className="p-6 text-center bg-linear-to-r from-red-500 to-rose-600">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3 backdrop-blur-sm">
                 <AlertCircle className="w-8 h-8 text-white" />
               </div>
@@ -114,7 +114,7 @@ export default function ResetPasswordPage() {
               </p>
               <Link
                 href="/forgot-password"
-                className="inline-block px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-medium shadow-lg shadow-indigo-200"
+                className="inline-block px-6 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-medium shadow-lg shadow-indigo-200"
               >
                 Request New Link
               </Link>
@@ -127,14 +127,14 @@ export default function ResetPasswordPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-slate-100 p-4">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-md"
         >
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-            <div className="p-6 text-center bg-gradient-to-r from-emerald-600 to-teal-600">
+            <div className="p-6 text-center bg-linear-to-r from-emerald-600 to-teal-600">
               <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3 backdrop-blur-sm">
                 <CheckCircle className="w-8 h-8 text-white" />
               </div>
@@ -150,7 +150,7 @@ export default function ResetPasswordPage() {
               </div>
               <Link
                 href="/login"
-                className="mt-4 inline-block px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-medium shadow-lg shadow-indigo-200"
+                className="mt-4 inline-block px-6 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition font-medium shadow-lg shadow-indigo-200"
               >
                 Go to Login
               </Link>
@@ -162,7 +162,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-50 via-white to-slate-100 p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -171,7 +171,7 @@ export default function ResetPasswordPage() {
       >
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           {/* Header */}
-          <div className="p-6 text-center bg-gradient-to-r from-indigo-600 to-purple-600">
+          <div className="p-6 text-center bg-linear-to-r from-indigo-600 to-purple-600">
             <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-3 backdrop-blur-sm">
               <Sparkles className="w-8 h-8 text-white" />
             </div>
@@ -189,7 +189,7 @@ export default function ResetPasswordPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-xl mb-4"
               >
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
                 <p className="text-sm text-red-600">{error}</p>
               </motion.div>
             )}
@@ -259,7 +259,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-xl transition shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-xl transition shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>

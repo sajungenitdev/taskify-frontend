@@ -800,7 +800,7 @@ export default function WorkloadCapacityPage() {
                       <div className="p-5">
                         {/* User Info */}
                         <div className="flex items-center gap-3 mb-4">
-                          <div className="w-12 h-12 rounded-full flex-shrink-0 shadow-sm overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600">
+                          <div className="w-12 h-12 rounded-full shrink-0 shadow-sm overflow-hidden bg-linear-to-br from-indigo-500 to-purple-600">
                             {imageUrl ? (
                               <img
                                 src={imageUrl}
@@ -917,7 +917,7 @@ export default function WorkloadCapacityPage() {
                       >
                         <div className="flex items-center gap-4">
                           {/* Avatar */}
-                          <div className="w-12 h-12 rounded-full flex-shrink-0 shadow-sm overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600">
+                          <div className="w-12 h-12 rounded-full shrink-0 shadow-sm overflow-hidden bg-linear-to-br from-indigo-500 to-purple-600">
                             {imageUrl ? (
                               <img
                                 src={imageUrl}

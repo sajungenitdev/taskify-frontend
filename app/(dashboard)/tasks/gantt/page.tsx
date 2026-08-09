@@ -1067,7 +1067,7 @@ export default function GanttChartPage() {
                                 <div className="min-w-[800px]">
                                     {/* Header Row */}
                                     <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-                                        <div className="w-64 flex-shrink-0 p-3">
+                                        <div className="w-64 shrink-0 p-3">
                                             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Task
                                             </span>
@@ -1080,7 +1080,7 @@ export default function GanttChartPage() {
                                                 {dateLabels.map((label, index) => (
                                                     <div
                                                         key={index}
-                                                        className={`flex-shrink-0 text-center p-2 border-r border-gray-100 ${label.isWeekend ? "bg-gray-50" : ""
+                                                        className={`shrink-0 text-center p-2 border-r border-gray-100 ${label.isWeekend ? "bg-gray-50" : ""
                                                             } ${label.isToday ? "bg-indigo-50" : ""}`}
                                                         style={{ width: `${dayWidth}px` }}
                                                     >
@@ -1105,12 +1105,12 @@ export default function GanttChartPage() {
                                             >
                                                 {/* Task Info */}
                                                 <div
-                                                    className="w-64 flex-shrink-0 p-3 cursor-pointer"
+                                                    className="w-64 shrink-0 p-3 cursor-pointer"
                                                     onClick={() => handleTaskClick(task)}
                                                 >
                                                     <div className="flex items-center gap-2">
                                                         <div
-                                                            className="w-2 h-2 rounded-full flex-shrink-0"
+                                                            className="w-2 h-2 rounded-full shrink-0"
                                                             style={{ backgroundColor: task.color }}
                                                         />
                                                         <span className="text-sm font-medium text-gray-800 truncate">

@@ -522,7 +522,7 @@ export default function EmployeeDashboard() {
           <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            className={`relative overflow-hidden rounded-2xl bg-gradient-to-r ${trialStatus.color} p-4 shadow-lg`}
+            className={`relative overflow-hidden rounded-2xl bg-linear-to-r ${trialStatus.color} p-4 shadow-lg`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -649,15 +649,15 @@ export default function EmployeeDashboard() {
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         {isCompleted ? (
-                          <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+                          <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
                         ) : isRunning ? (
-                          <div className="w-5 h-5 rounded-full border-2 border-blue-600 flex items-center justify-center flex-shrink-0">
+                          <div className="w-5 h-5 rounded-full border-2 border-blue-600 flex items-center justify-center shrink-0">
                             <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
                           </div>
                         ) : isOverdue ? (
-                          <div className="w-5 h-5 rounded-full border-2 border-rose-500 flex-shrink-0" />
+                          <div className="w-5 h-5 rounded-full border-2 border-rose-500 shrink-0" />
                         ) : (
-                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 shrink-0" />
                         )}
                         <div>
                           <div className="flex items-center gap-2">
@@ -677,7 +677,7 @@ export default function EmployeeDashboard() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         {isCompleted && (
                           <span className="text-xs font-semibold px-2.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">
                             Done
@@ -858,7 +858,7 @@ export default function EmployeeDashboard() {
 
               <div className="p-6 space-y-6">
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
-                  <AlertTriangleIcon className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <AlertTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-medium text-amber-800">Evidence Required</p>
                     <p className="text-xs text-amber-700">
@@ -888,7 +888,7 @@ export default function EmployeeDashboard() {
                   <button
                     onClick={handleSubmitWithEvidence}
                     disabled={submittingEvidence || !evidenceText.trim()}
-                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submittingEvidence ? (
                       <>

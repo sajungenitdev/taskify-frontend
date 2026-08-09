@@ -476,7 +476,7 @@ export default function ProjectDashboard() {
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+          <div className="w-10 h-10 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
             <Building2 className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -500,10 +500,10 @@ export default function ProjectDashboard() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 border border-indigo-200/50 rounded-xl p-4 flex items-center justify-between shadow-sm"
+        className="bg-linear-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 border border-indigo-200/50 rounded-xl p-4 flex items-center justify-between shadow-sm"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/25">
+          <div className="p-2 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl shadow-md shadow-indigo-500/25">
             <Building2 size={18} className="text-white" />
           </div>
           <div>
@@ -641,7 +641,7 @@ export default function ProjectDashboard() {
         transition={{ delay: 0.2 }}
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
-        <Link href="/projects/create" className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+        <Link href="/projects/create" className="bg-linear-to-r from-indigo-500 to-purple-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
           <div className="flex items-center gap-2">
             <Plus className="w-5 h-5" />
             <div>
@@ -650,7 +650,7 @@ export default function ProjectDashboard() {
             </div>
           </div>
         </Link>
-        <Link href="/tasks/create" className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+        <Link href="/tasks/create" className="bg-linear-to-r from-emerald-500 to-teal-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
           <div className="flex items-center gap-2">
             <CheckSquare className="w-5 h-5" />
             <div>
@@ -659,7 +659,7 @@ export default function ProjectDashboard() {
             </div>
           </div>
         </Link>
-        <Link href="/tasks/tasks-board" className="bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+        <Link href="/tasks/tasks-board" className="bg-linear-to-r from-amber-500 to-orange-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
           <div className="flex items-center gap-2">
             <Eye className="w-5 h-5" />
             <div>
@@ -668,7 +668,7 @@ export default function ProjectDashboard() {
             </div>
           </div>
         </Link>
-        <Link href="/users" className="bg-gradient-to-r from-pink-500 to-rose-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
+        <Link href="/users" className="bg-linear-to-r from-pink-500 to-rose-600 rounded-xl p-3 text-white shadow-lg hover:shadow-xl transition group">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5" />
             <div>
@@ -777,7 +777,7 @@ export default function ProjectDashboard() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-3">
                   {departmentUsers.slice(0, 6).map((member) => (
                     <div key={member._id} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                         <span className="text-white text-xs font-bold">
                           {getInitials(member.fullName)}
                         </span>
@@ -909,7 +909,7 @@ export default function ProjectDashboard() {
                 {departmentUsers.map((member) => (
                   <div key={member._id} className="p-3 hover:bg-gray-50 transition flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                         <span className="text-white text-sm font-bold">
                           {getInitials(member.fullName)}
                         </span>
@@ -981,7 +981,7 @@ export default function ProjectDashboard() {
             ) : (
               projects.map((project) => (
                 <div key={project._id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition overflow-hidden">
-                  <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-indigo-50/30">
+                  <div className="p-4 border-b border-gray-200 bg-linear-to-r from-gray-50 to-indigo-50/30">
                     <div className="flex items-start justify-between">
                       <div>
                         <h4 className="font-semibold text-gray-800">{project.name}</h4>

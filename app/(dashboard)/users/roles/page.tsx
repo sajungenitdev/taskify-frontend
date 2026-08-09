@@ -150,13 +150,13 @@ export default function RolesPage() {
                 onClick={() => setSelectedRole(role.id)}
                 className={`w-full p-4 rounded-xl border transition-all text-left ${
                   selectedRole === role.id
-                    ? `bg-gradient-to-r ${role.color} border-transparent`
+                    ? `bg-linear-to-r ${role.color} border-transparent`
                     : "bg-slate-900/50 border-slate-800 hover:border-slate-700"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-xl bg-gradient-to-r ${role.color} flex items-center justify-center`}
+                    className={`w-10 h-10 rounded-xl bg-linear-to-r ${role.color} flex items-center justify-center`}
                   >
                     <role.icon className="w-5 h-5 text-white" />
                   </div>
@@ -186,7 +186,7 @@ export default function RolesPage() {
                 if (!role) return null;
                 return (
                   <div
-                    className={`bg-gradient-to-br ${role.color} rounded-2xl p-6 text-white`}
+                    className={`bg-linear-to-br ${role.color} rounded-2xl p-6 text-white`}
                   >
                     <div className="flex items-center gap-3 mb-4">
                       <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">

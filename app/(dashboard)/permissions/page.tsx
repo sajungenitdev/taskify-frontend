@@ -359,7 +359,7 @@ export default function PermissionsPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Key className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -390,7 +390,7 @@ export default function PermissionsPage() {
                   setPrimaryRole("");
                   setShowAssignModal(true);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+                className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
               >
                 <UserPlus size={16} />
                 Assign Permissions
@@ -504,7 +504,7 @@ export default function PermissionsPage() {
                     <div className="p-5">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm shrink-0">
                             <span className="text-white font-bold text-sm">
                               {user.fullName.charAt(0).toUpperCase()}
                             </span>
@@ -642,7 +642,7 @@ export default function PermissionsPage() {
                         <tr key={user._id} className="hover:bg-gray-50 transition">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                              <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                                 <span className="text-white text-xs font-bold">
                                   {user.fullName.charAt(0).toUpperCase()}
                                 </span>
@@ -744,7 +744,7 @@ export default function PermissionsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 flex-shrink-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50 shrink-0">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     {selectedUser ? `Edit Permissions - ${selectedUser.fullName}` : "Assign Permissions"}
@@ -771,7 +771,7 @@ export default function PermissionsPage() {
                 {selectedUser && (
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                         <span className="text-white text-xs font-bold">
                           {selectedUser.fullName.charAt(0).toUpperCase()}
                         </span>
@@ -883,7 +883,7 @@ export default function PermissionsPage() {
                 {/* Info Message */}
                 <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
                   <div className="flex items-start gap-2">
-                    <Info size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                    <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
                     <div>
                       <p className="text-xs text-gray-600 font-medium">
                         Multiple Roles Support
@@ -903,7 +903,7 @@ export default function PermissionsPage() {
                       !selectedUser ||
                       selectedRoles.length === 0
                     }
-                    className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
                   >
                     {assigningRole ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -942,7 +942,7 @@ export default function PermissionsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 flex-shrink-0">
+              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50 shrink-0">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">
                     User Details
@@ -962,7 +962,7 @@ export default function PermissionsPage() {
               <div className="p-5 space-y-4 overflow-y-auto flex-1">
                 {/* User Info */}
                 <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0">
+                  <div className="w-14 h-14 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0">
                     <span className="text-white text-xl font-bold">
                       {showUserDetail.fullName.charAt(0).toUpperCase()}
                     </span>
@@ -1114,7 +1114,7 @@ export default function PermissionsPage() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+              <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
                 <button
                   onClick={() => setShowUserDetail(null)}
                   className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"

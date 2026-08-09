@@ -360,7 +360,7 @@ export default function EditDepartmentPage() {
               <ArrowLeft size={18} />
             </button>
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
+              <div className="w-12 h-12 bg-linear-to-tr from-indigo-600 to-violet-500 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-100 shrink-0">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -765,7 +765,7 @@ export default function EditDepartmentPage() {
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 flex items-center gap-2 disabled:opacity-50"
+              className="px-6 py-2.5 bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-200 flex items-center gap-2 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 size={16} className="animate-spin" />

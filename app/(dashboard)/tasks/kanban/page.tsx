@@ -758,7 +758,7 @@ useEffect(() => {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <LayoutGrid className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -790,7 +790,7 @@ useEffect(() => {
               {bulkMode && selectedTaskIds.size > 0 && (
                 <button
                   onClick={() => setShowBulkMoveModal(true)}
-                  className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm"
+                  className="px-3 py-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm"
                 >
                   <Move size={14} />
                   Move {selectedTaskIds.size} Task
@@ -847,14 +847,14 @@ useEffect(() => {
               {canManageTasks && (
                 <>
                   <Link href="/tasks/bulk-upload">
-                    <button className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm">
+                    <button className="px-3 py-2 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm">
                       <Upload size={14} />
                       <span>Bulk</span>
                     </button>
                   </Link>
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm shadow-indigo-500/20"
+                    className="px-3 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-lg flex items-center gap-2 transition shadow-sm shadow-indigo-500/20"
                   >
                     <Plus size={14} />
                     <span>Create</span>
@@ -899,7 +899,7 @@ useEffect(() => {
                 {selectedTaskIds.size > 0 && (
                   <button
                     onClick={() => setShowBulkMoveModal(true)}
-                    className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs rounded-lg transition flex items-center gap-1"
+                    className="px-3 py-1.5 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs rounded-lg transition flex items-center gap-1"
                   >
                     <Move size={12} />
                     Move Selected
@@ -1292,7 +1292,7 @@ useEffect(() => {
                             </p>
                             <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                               <div className="flex items-center gap-1">
-                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                                <div className="w-5 h-5 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
                                   <span className="text-white text-[8px] font-bold">
                                     {task.assignedTo?.fullName?.charAt(0) ||
                                       "?"}
@@ -1532,7 +1532,7 @@ useEffect(() => {
               exit={{ opacity: 0, scale: 0.95 }}
               className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
             >
-              <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
                     <Move className="w-5 h-5 text-emerald-600" />
@@ -1582,7 +1582,7 @@ useEffect(() => {
                   <button
                     onClick={handleBulkMove}
                     disabled={!bulkTargetStatus}
-                    className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                    className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                   >
                     <Move size={16} />
                     Move Tasks
@@ -1692,7 +1692,7 @@ function DroppableColumn({
     >
       {/* Column Header */}
       <div
-        className={`shrink-0 p-3 border-b border-gray-100 bg-gradient-to-r from-${column.color}-50 to-white rounded-t-xl`}
+        className={`shrink-0 p-3 border-b border-gray-100 bg-linear-to-r from-${column.color}-50 to-white rounded-t-xl`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1882,7 +1882,7 @@ function TaskCard({
 
       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
         <div className="flex items-center gap-1">
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+          <div className="w-5 h-5 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
             <span className="text-white text-[8px] font-bold">
               {task.assignedTo?.fullName?.charAt(0) || "?"}
             </span>
@@ -1943,7 +1943,7 @@ function TaskDetailsModal({
         exit={{ opacity: 0, scale: 0.95 }}
         className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
       >
-        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50">
+        <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50">
           <div className="flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-indigo-500" />
             <h2 className="text-lg font-semibold text-gray-800">
@@ -2055,7 +2055,7 @@ function TaskDetailsModal({
             <button
               onClick={handleStatusUpdate}
               disabled={updating}
-              className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center gap-2 shadow-sm"
+              className="px-4 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center gap-2 shadow-sm"
             >
               {updating ? (
                 <Loader2 size={14} className="animate-spin" />

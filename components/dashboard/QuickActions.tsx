@@ -169,12 +169,12 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
           >
             {/* Gradient background on hover */}
             <div
-              className={`absolute inset-0 bg-gradient-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
+              className={`absolute inset-0 bg-linear-to-r ${action.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`}
             />
 
             {/* Icon */}
             <div
-              className={`relative w-9 h-9 rounded-xl bg-gradient-to-r ${action.color} flex items-center justify-center mb-3 shadow-md shadow-indigo-500/20`}
+              className={`relative w-9 h-9 rounded-xl bg-linear-to-r ${action.color} flex items-center justify-center mb-3 shadow-md shadow-indigo-500/20`}
             >
               <action.icon className="w-4 h-4 text-white" />
             </div>
@@ -190,7 +190,7 @@ export default function QuickActions({ hasRole, userRole }: QuickActionsProps) {
             </div>
 
             {/* Subtle border accent on hover */}
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-gray-200 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-transparent via-gray-200 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           </button>
         ))}
       </div>

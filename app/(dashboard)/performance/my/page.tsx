@@ -624,7 +624,7 @@ export default function MyPerformancePage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <TrendingUp className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -803,7 +803,7 @@ export default function MyPerformancePage() {
                     </div>
                     <div className="relative h-1.5 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500 group-hover:scale-x-105"
+                        className="absolute left-0 top-0 h-full bg-linear-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500 group-hover:scale-x-105"
                         style={{ width: `${Math.min(metric.progress, 100)}%` }}
                       />
                     </div>
@@ -1412,7 +1412,7 @@ export default function MyPerformancePage() {
                               </span>
                               <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full transition-all duration-500"
+                                  className="h-full bg-linear-to-r from-yellow-400 to-yellow-500 rounded-full transition-all duration-500"
                                   style={{
                                     width:
                                       rating.total > 0
@@ -1539,15 +1539,15 @@ export default function MyPerformancePage() {
                       className={`p-4 rounded-xl border transition-all ${
                         achievement.progress !== undefined
                           ? "bg-gray-50 border-gray-200"
-                          : "bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200 shadow-sm"
+                          : "bg-linear-to-br from-amber-50 to-orange-50 border-amber-200 shadow-sm"
                       }`}
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 ${
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 ${
                             achievement.progress !== undefined
                               ? "bg-gray-200"
-                              : "bg-gradient-to-br from-amber-400 to-orange-500 shadow-md"
+                              : "bg-linear-to-br from-amber-400 to-orange-500 shadow-md"
                           }`}
                         >
                           {achievement.icon || "🏆"}
@@ -1574,7 +1574,7 @@ export default function MyPerformancePage() {
                               </div>
                               <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-500"
+                                  className="h-full bg-linear-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-500"
                                   style={{
                                     width: `${Math.min(achievement.progress, 100)}%`,
                                   }}

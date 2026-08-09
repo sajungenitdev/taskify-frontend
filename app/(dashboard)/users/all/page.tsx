@@ -682,7 +682,7 @@ export default function AllUsersPage() {
           >
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                   <Users className="w-4 h-4 text-white" />
                 </div>
                 <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -912,7 +912,7 @@ export default function AllUsersPage() {
                         >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                              <div className="w-10 h-10 bg-linear-to-br from-indigo-500 to-purple-500 rounded-lg flex items-center justify-center shadow-sm shrink-0">
                                 <span className="text-white text-sm font-bold">
                                   {userItem.fullName.charAt(0).toUpperCase()}
                                 </span>
@@ -1151,9 +1151,9 @@ export default function AllUsersPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
           >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50 flex-shrink-0">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-linear-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
                   <UserPlus className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -1340,11 +1340,11 @@ export default function AllUsersPage() {
                 </select>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-gray-200 flex-shrink-0">
+              <div className="flex gap-3 pt-4 border-t border-gray-200 shrink-0">
                 <button
                   type="submit"
                   disabled={creating}
-                  className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                  className="flex-1 bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                 >
                   {creating ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -1388,9 +1388,9 @@ export default function AllUsersPage() {
             className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
             {/* View Modal Content */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-emerald-50 to-teal-50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-linear-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
                   <Eye className="w-4 h-4 text-white" />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-800">
@@ -1410,7 +1410,7 @@ export default function AllUsersPage() {
             <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
               {/* User Header */}
               <div className="flex items-center gap-4 pb-4 border-b border-gray-100">
-                <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md flex-shrink-0">
+                <div className="w-16 h-16 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md shrink-0">
                   <span className="text-white text-2xl font-bold">
                     {selectedUser.fullName.charAt(0).toUpperCase()}
                   </span>
@@ -1565,9 +1565,9 @@ export default function AllUsersPage() {
             className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
             {/* Edit Modal Content */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-blue-50 to-indigo-50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-linear-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                   <Edit2 className="w-4 h-4 text-white" />
                 </div>
                 <h2 className="text-lg font-semibold text-gray-800">
@@ -1818,9 +1818,9 @@ export default function AllUsersPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-amber-50 to-orange-50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-linear-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
                   <Key className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -1953,9 +1953,9 @@ export default function AllUsersPage() {
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden"
           >
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-purple-50 to-indigo-50">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-linear-to-br from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
                   <Layers className="w-4 h-4 text-white" />
                 </div>
                 <div>
@@ -2050,7 +2050,7 @@ export default function AllUsersPage() {
 
               <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                 <div className="flex items-start gap-2">
-                  <Info size={14} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <Info size={14} className="text-blue-500 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-xs text-gray-600 font-medium">
                       Multiple Roles Support
@@ -2067,7 +2067,7 @@ export default function AllUsersPage() {
                 <button
                   onClick={handleUpdateUserRoles}
                   disabled={updatingRoles || selectedRolesForUser.length === 0}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  className="flex-1 bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                 >
                   {updatingRoles ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

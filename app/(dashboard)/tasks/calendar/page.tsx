@@ -425,7 +425,7 @@ export default function MyCalendarPage() {
 
   if (isLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
           <p className="text-gray-500 text-sm">Loading your calendar...</p>
@@ -439,7 +439,7 @@ export default function MyCalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Breadcrumb */}
         <motion.div
@@ -473,7 +473,7 @@ export default function MyCalendarPage() {
         >
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                 <CalendarIcon className="w-4 h-4 text-white" />
               </div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
@@ -491,7 +491,7 @@ export default function MyCalendarPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={goToToday}
-              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md shadow-indigo-500/20"
+              className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md shadow-indigo-500/20"
             >
               <CalendarDays size={16} />
               Today
@@ -812,7 +812,7 @@ export default function MyCalendarPage() {
                                 hover:opacity-80 transition-opacity
                               `}
                             >
-                              <StatusIcon className="w-2.5 h-2.5 flex-shrink-0" />
+                              <StatusIcon className="w-2.5 h-2.5 shrink-0" />
                               <span className="truncate">{task.title}</span>
                             </div>
                           );
@@ -886,7 +886,7 @@ export default function MyCalendarPage() {
                               `}
                             >
                               <div className="font-medium truncate flex items-center gap-1">
-                                <StatusIcon className="w-3 h-3 flex-shrink-0" />
+                                <StatusIcon className="w-3 h-3 shrink-0" />
                                 {task.title}
                               </div>
                               <div className="flex items-center gap-1 mt-0.5 text-[10px] opacity-75">
@@ -975,13 +975,13 @@ export default function MyCalendarPage() {
                       >
                         <div className="flex items-center gap-4 flex-1 min-w-0">
                           <StatusIcon
-                            className={`w-4 h-4 flex-shrink-0 ${statusConfig.color.split(" ")[1]}`}
+                            className={`w-4 h-4 shrink-0 ${statusConfig.color.split(" ")[1]}`}
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-gray-900 truncate flex items-center gap-2">
                               {task.title}
                               {task.isStarred && (
-                                <Star className="w-3 h-3 fill-amber-400 text-amber-400 flex-shrink-0" />
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
                               )}
                             </p>
                             {task.description && (
@@ -990,7 +990,7 @@ export default function MyCalendarPage() {
                               </p>
                             )}
                           </div>
-                          <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="flex items-center gap-3 shrink-0">
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full ${priorityConfig.color}`}
                             >
@@ -1003,7 +1003,7 @@ export default function MyCalendarPage() {
                             </span>
                             {task.assignedTo && (
                               <div className="flex items-center gap-1.5">
-                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                                <div className="w-6 h-6 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
                                   {getInitials(task.assignedTo.fullName)}
                                 </div>
                               </div>
@@ -1107,7 +1107,7 @@ export default function MyCalendarPage() {
                         Assigned To
                       </h3>
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                           <span className="text-white text-xs font-bold">
                             {getInitials(
                               selectedTask.assignedTo?.fullName || "?",

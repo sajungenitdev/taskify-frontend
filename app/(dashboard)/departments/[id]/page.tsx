@@ -416,7 +416,7 @@ export default function DepartmentDetailPage() {
               <ArrowLeft size={18} />
             </Link>
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/10 shrink-0">
+              <div className="w-12 h-12 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/10 shrink-0">
                 <Building2 className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -695,7 +695,7 @@ export default function DepartmentDetailPage() {
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-gray-50/60 rounded-xl border border-gray-100 hover:bg-gray-50 hover:border-gray-200 transition gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-semibold shadow-xs shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-linear-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white text-xs font-semibold shadow-xs shrink-0">
                             {member.fullName.charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
