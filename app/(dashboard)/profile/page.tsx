@@ -923,13 +923,13 @@ export default function ProfilePage() {
                     <Lock size={14} />
                     Change Password
                   </button>
-                  <button
+                  {/* <button
                     onClick={() => router.push("/settings")}
                     className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition flex items-center gap-2"
                   >
                     <Settings size={14} />
                     Settings
-                  </button>
+                  </button> */}
                   <button
                     onClick={() => logout()}
                     className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
@@ -1290,32 +1290,41 @@ export default function ProfilePage() {
                   { key: "taskReminder", label: "Task Reminders", desc: "Receive task deadline reminders" },
                   { key: "deadlineAlert", label: "Deadline Alerts", desc: "Get alerts for approaching deadlines" },
                   { key: "teamUpdate", label: "Team Updates", desc: "Stay updated with team activities" },
-                ].map((item) => (
-                  <label
-                    key={item.key}
-                    className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition"
-                  >
-                    <div>
-                      <p className="text-gray-800 text-sm font-medium">{item.label}</p>
-                      <p className="text-xs text-gray-500">{item.desc}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => updateNotificationPreference(item.key as keyof NonNullable<UserProfile["notificationPreferences"]>)}
-                      className={`relative w-10 h-5 rounded-full transition-colors ${formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences]
-                        ? "bg-indigo-600"
-                        : "bg-gray-300"
-                        }`}
+                ].map((item) => {
+                  const isEnabled = formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences] ?? false;
+
+                  return (
+                    <label
+                      key={item.key}
+                      className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50 transition"
                     >
-                      <span
-                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${formData.notificationPreferences?.[item.key as keyof typeof formData.notificationPreferences]
-                          ? "translate-x-5"
-                          : "translate-x-0.5"
-                          }`}
-                      />
-                    </button>
-                  </label>
-                ))}
+                      <div>
+                        <p className="text-gray-800 text-sm font-medium">{item.label}</p>
+                        <p className="text-xs text-gray-500">{item.desc}</p>
+                      </div>
+
+                      {/* ✅ FIXED TOGGLE SWITCH */}
+                      <button
+                        type="button"
+                        onClick={() => updateNotificationPreference(item.key as keyof NonNullable<UserProfile["notificationPreferences"]>)}
+                        className={`
+              relative inline-flex h-6 w-11 items-center rounded-full 
+              transition-colors duration-200 focus:outline-none focus:ring-2 
+              focus:ring-indigo-500 focus:ring-offset-2
+              ${isEnabled ? "bg-indigo-600" : "bg-gray-300"}
+            `}
+                      >
+                        <span
+                          className={`
+                inline-block h-5 w-5 transform rounded-full bg-white 
+                shadow-lg transition-transform duration-200
+                ${isEnabled ? "translate-x-5" : "translate-x-0.5"}
+              `}
+                        />
+                      </button>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 

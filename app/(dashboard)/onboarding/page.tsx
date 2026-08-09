@@ -375,26 +375,30 @@ export default function OnboardingWizard() {
         firstLogin: false,
       };
 
-      // ✅ Remove any undefined or null values
+      // ✅ Type-safe cleaning using as any
       Object.keys(payload).forEach(key => {
-        if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
-          delete payload[key];
+        const value = (payload as any)[key];
+        if (value === undefined || value === null || value === '') {
+          delete (payload as any)[key];
         }
       });
 
-      // ✅ Clean nested objects
+      // ✅ Clean workSettings
       if (payload.workSettings) {
         Object.keys(payload.workSettings).forEach(key => {
-          if (payload.workSettings[key] === undefined || payload.workSettings[key] === null) {
-            delete payload.workSettings[key];
+          const value = (payload.workSettings as any)[key];
+          if (value === undefined || value === null) {
+            delete (payload.workSettings as any)[key];
           }
         });
       }
 
+      // ✅ Clean notificationPreferences
       if (payload.notificationPreferences) {
         Object.keys(payload.notificationPreferences).forEach(key => {
-          if (payload.notificationPreferences[key] === undefined || payload.notificationPreferences[key] === null) {
-            delete payload.notificationPreferences[key];
+          const value = (payload.notificationPreferences as any)[key];
+          if (value === undefined || value === null) {
+            delete (payload.notificationPreferences as any)[key];
           }
         });
       }
@@ -449,10 +453,10 @@ export default function OnboardingWizard() {
         <div key={step} className="flex items-center">
           <div
             className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${currentStep === step
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 scale-110"
-                : currentStep > step
-                  ? "bg-emerald-500 text-white"
-                  : "bg-gray-200 text-gray-500"
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 scale-110"
+              : currentStep > step
+                ? "bg-emerald-500 text-white"
+                : "bg-gray-200 text-gray-500"
               }`}
           >
             {currentStep > step ? <Check className="w-5 h-5" /> : step}
@@ -834,8 +838,8 @@ export default function OnboardingWizard() {
                       type="button"
                       onClick={() => toggleWorkDay(day.value)}
                       className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${formData.workDays.includes(day.value)
-                          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         }`}
                     >
                       {day.label}
@@ -1087,8 +1091,8 @@ export default function OnboardingWizard() {
               onClick={handleBack}
               disabled={currentStep === 1}
               className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${currentStep === 1
-                  ? "text-gray-400 cursor-not-allowed"
-                  : "text-gray-600 hover:bg-gray-100"
+                ? "text-gray-400 cursor-not-allowed"
+                : "text-gray-600 hover:bg-gray-100"
                 }`}
             >
               <ArrowLeft className="w-4 h-4" />
