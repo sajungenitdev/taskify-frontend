@@ -252,8 +252,8 @@ export default function KPIManagementPage() {
   const [monthlyReport, setMonthlyReport] = useState<MonthlyReport | null>(
     null,
   );
-  const [loading, setLoading] = useState(false);
-  const [reportLoading, setReportLoading] = useState(false);
+  const [loadingWeights, setLoadingWeights] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedYear, setSelectedYear] = useState<number>(
@@ -262,17 +262,24 @@ export default function KPIManagementPage() {
   const [showWeightEditor, setShowWeightEditor] = useState(false);
   const [editingWeights, setEditingWeights] = useState<KPIWeights>(DEFAULT_WEIGHTS);
   const [savingWeights, setSavingWeights] = useState(false);
-  const [activeTab, setActiveTab] = useState<
-    "weights" | "report"
-  >("weights");
+  const [activeTab, setActiveTab] = useState<"weights" | "report">("weights");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedPerformanceLevel, setSelectedPerformanceLevel] =
-    useState<string>("all");
+  const [selectedPerformanceLevel, setSelectedPerformanceLevel] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"score" | "name">("score");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const isDepartmentsLoaded = useRef(false);
+  console.log(departments, "departments")
+  console.log(user, "user")
+  // Refs to prevent infinite loops
+  const initialized = useRef(false);
+  const mounted = useRef(true);
+  const isFetchingReport = useRef(false);
+  const isFetchingWeights = useRef(false);
+  const isFetchingDepartments = useRef(false);
 
-  // ✅ FIX: Allow Project Managers to view KPI
+  // Store previous values to detect changes
+  const prevMonthRef = useRef<string>("");
+  const prevYearRef = useRef<number>(0);
+
   const canManage = hasRole([
     "super_admin",
     "admin",
@@ -281,7 +288,6 @@ export default function KPIManagementPage() {
     "project_manager",
   ]);
 
-  // ✅ FIX: Project Managers can calculate KPI for their department
   const canCalculate = hasRole([
     "super_admin",
     "admin",
@@ -290,7 +296,6 @@ export default function KPIManagementPage() {
     "project_manager",
   ]);
 
-  // ✅ FIX: Only admins and dept managers can edit weights
   const canEditWeights = hasRole([
     "super_admin",
     "admin",
@@ -316,20 +321,40 @@ export default function KPIManagementPage() {
   const currentMonth = months[new Date().getMonth()];
   const currentYear = new Date().getFullYear();
 
-  // Use ref to prevent infinite loops
-  const isFetching = useRef(false);
-  const isInitialized = useRef(false);
-
   // ============================================================
   // API CALLS
   // ============================================================
-  const fetchKPIWeights = useCallback(async (departmentId: string) => {
-    if (isFetching.current) return;
+  const fetchDepartments = useCallback(async () => {
+    if (isFetchingDepartments.current || !mounted.current) return;
+
     try {
-      isFetching.current = true;
-      setLoading(true);
+      isFetchingDepartments.current = true;
+      const response = await api.get("/departments");
+      if (mounted.current && response.data.success) {
+        const depts = response.data.data || [];
+        setDepartments(depts);
+        if (depts.length > 0 && !selectedDepartment) {
+          setSelectedDepartment(depts[0]._id);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+      toast.error("Failed to fetch departments");
+    } finally {
+      if (mounted.current) {
+        isFetchingDepartments.current = false;
+      }
+    }
+  }, [selectedDepartment]);
+
+  const fetchWeights = useCallback(async (departmentId: string) => {
+    if (isFetchingWeights.current || !departmentId || !mounted.current) return;
+
+    try {
+      isFetchingWeights.current = true;
+      setLoadingWeights(true);
       const response = await api.get(`/kpi/weights/${departmentId}`);
-      if (response.data.success) {
+      if (mounted.current && response.data.success) {
         setKpiWeights(response.data.data);
         if (response.data.data && response.data.data.weights) {
           setEditingWeights(response.data.data.weights);
@@ -338,26 +363,189 @@ export default function KPIManagementPage() {
     } catch (error) {
       console.error("Error fetching KPI weights:", error);
     } finally {
-      setLoading(false);
-      isFetching.current = false;
+      if (mounted.current) {
+        setLoadingWeights(false);
+        isFetchingWeights.current = false;
+      }
     }
   }, []);
 
-  const fetchMonthlyReport = useCallback(async () => {
-    if (isFetching.current) return;
+  // ============================================================
+  // FETCH DEPARTMENT EMPLOYEES (FALLBACK)
+  // ============================================================
+  const fetchDepartmentEmployees = useCallback(async () => {
+    if (!selectedDepartment) return false;
+
     try {
-      isFetching.current = true;
-      setReportLoading(true);
-      const monthIndex = months.indexOf(selectedMonth) + 1;
-      const response = await api.get(`/kpi/report/monthly`, {
-        params: {
-          month: monthIndex,
-          year: selectedYear,
-        },
-      });
+      const response = await api.get(`/departments/${selectedDepartment}/employees`);
       if (response.data.success) {
-        setMonthlyReport(response.data.data);
-      } else {
+        const employees = response.data.data || [];
+
+        if (employees.length === 0) {
+          // No employees in this department
+          setMonthlyReport({
+            month: `${selectedYear}-${String(months.indexOf(selectedMonth) + 1).padStart(2, "0")}`,
+            year: selectedYear,
+            totalEmployees: 0,
+            overallAverage: 0,
+            distribution: {
+              excellent: 0,
+              good: 0,
+              average: 0,
+              needs_improvement: 0,
+            },
+            departmentAverages: [],
+            topPerformers: [],
+            allScores: [],
+          });
+          return false;
+        }
+
+        // Create placeholder scores for employees without KPI data
+        const placeholderScores = employees.map((emp: any) => ({
+          _id: `placeholder_${emp._id}`,
+          userId: {
+            _id: emp._id,
+            fullName: emp.fullName,
+            email: emp.email,
+            employeeId: emp.employeeId || 'N/A',
+            role: emp.role || 'employee',
+          },
+          departmentId: {
+            _id: selectedDepartment,
+            name: departments.find(d => d._id === selectedDepartment)?.name || 'Unknown',
+            code: departments.find(d => d._id === selectedDepartment)?.code || 'N/A',
+          },
+          month: selectedMonth,
+          year: selectedYear,
+          totalScore: 0,
+          performanceLevel: 'needs_improvement' as const,
+          percentile: 0,
+          rank: 0,
+          totalEmployees: employees.length,
+          scores: {
+            taskCompletion: { score: 0, weight: 0, weightedScore: 0 },
+            qualityScore: { score: 0, weight: 0, weightedScore: 0 },
+            efficiency: { score: 0, weight: 0, weightedScore: 0 },
+            collaboration: { score: 0, weight: 0, weightedScore: 0 },
+            innovation: { score: 0, weight: 0, weightedScore: 0 },
+            attendance: { score: 0, weight: 0, weightedScore: 0 },
+          },
+          comments: 'No KPI data calculated yet. Click "Calculate KPI" to generate scores.',
+          calculatedAt: new Date().toISOString(),
+        }));
+
+        setMonthlyReport({
+          month: `${selectedYear}-${String(months.indexOf(selectedMonth) + 1).padStart(2, "0")}`,
+          year: selectedYear,
+          totalEmployees: employees.length,
+          overallAverage: 0,
+          distribution: {
+            excellent: 0,
+            good: 0,
+            average: 0,
+            needs_improvement: employees.length,
+          },
+          departmentAverages: [],
+          topPerformers: [],
+          allScores: placeholderScores,
+        });
+
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error fetching department employees:", error);
+      return false;
+    }
+  }, [selectedDepartment, selectedMonth, selectedYear, departments, months]);
+
+  // ============================================================
+  // FETCH REPORT
+  // ============================================================
+  const fetchReport = useCallback(async () => {
+    if (isFetchingReport.current || !selectedMonth || !selectedYear || !mounted.current) {
+      return;
+    }
+
+    try {
+      isFetchingReport.current = true;
+      setLoadingReport(true);
+
+      const monthIndex = months.indexOf(selectedMonth) + 1;
+      console.log(`📊 Fetching KPI report for: { month: '${monthIndex}', year: '${selectedYear}', departmentId: '${selectedDepartment}' }`);
+
+      // ✅ FIX: Pass departmentId only if it's not "all" or empty
+      const params: any = {
+        month: monthIndex,
+        year: selectedYear,
+      };
+
+      if (selectedDepartment && selectedDepartment !== "all") {
+        params.departmentId = selectedDepartment;
+      }
+
+      const response = await api.get(`/kpi/report/monthly`, {
+        params: params,
+      });
+
+      if (mounted.current) {
+        if (response.data.success) {
+          const data = response.data.data;
+          // ✅ FIX: Log what we received
+          console.log(`📊 Received ${data.totalEmployees} employees, ${data.allScores?.length || 0} scores`);
+
+          if (data.totalEmployees > 0 && data.allScores?.length > 0) {
+            setMonthlyReport(data);
+            toast.success(`Loaded ${data.totalEmployees} KPI records`);
+          } else {
+            // No data found
+            setMonthlyReport({
+              month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
+              year: selectedYear,
+              totalEmployees: 0,
+              overallAverage: 0,
+              distribution: {
+                excellent: 0,
+                good: 0,
+                average: 0,
+                needs_improvement: 0,
+              },
+              departmentAverages: [],
+              topPerformers: [],
+              allScores: [],
+            });
+            toast("No KPI data found for this department", {
+              icon: 'ℹ️',
+            });
+          }
+        } else {
+          // Handle error response
+          const hasEmployees = await fetchDepartmentEmployees();
+          if (!hasEmployees) {
+            const monthIndex = months.indexOf(selectedMonth) + 1;
+            setMonthlyReport({
+              month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
+              year: selectedYear,
+              totalEmployees: 0,
+              overallAverage: 0,
+              distribution: {
+                excellent: 0,
+                good: 0,
+                average: 0,
+                needs_improvement: 0,
+              },
+              departmentAverages: [],
+              topPerformers: [],
+              allScores: [],
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching monthly report:", error);
+      if (mounted.current) {
+        const monthIndex = months.indexOf(selectedMonth) + 1;
         setMonthlyReport({
           month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
           year: selectedYear,
@@ -374,48 +562,71 @@ export default function KPIManagementPage() {
           allScores: [],
         });
       }
-    } catch (error) {
-      console.error("Error fetching monthly report:", error);
-      const monthIndex = months.indexOf(selectedMonth) + 1;
-      setMonthlyReport({
-        month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
-        year: selectedYear,
-        totalEmployees: 0,
-        overallAverage: 0,
-        distribution: {
-          excellent: 0,
-          good: 0,
-          average: 0,
-          needs_improvement: 0,
-        },
-        departmentAverages: [],
-        topPerformers: [],
-        allScores: [],
-      });
     } finally {
-      setReportLoading(false);
-      isFetching.current = false;
-    }
-  }, [selectedMonth, selectedYear, months]);
-
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const response = await api.get("/departments");
-      if (response.data.success) {
-        setDepartments(response.data.data || []);
-        if (response.data.data.length > 0 && !selectedDepartment) {
-          setSelectedDepartment(response.data.data[0]._id);
-        }
+      if (mounted.current) {
+        setLoadingReport(false);
+        isFetchingReport.current = false;
       }
-    } catch (error) {
-      console.error("Error fetching departments:", error);
-      toast.error("Failed to fetch departments");
     }
-  }, [selectedDepartment]);
+  }, [selectedMonth, selectedYear, months, fetchDepartmentEmployees, selectedDepartment]);
 
   // ============================================================
   // HANDLERS
   // ============================================================
+  // Add this function to force refresh the report
+  const forceRefresh = useCallback(async () => {
+    isFetchingReport.current = false;
+    setLoadingReport(true);
+
+    try {
+      const monthIndex = months.indexOf(selectedMonth) + 1;
+      const params: any = {
+        month: monthIndex,
+        year: selectedYear,
+      };
+
+      if (selectedDepartment && selectedDepartment !== "all") {
+        params.departmentId = selectedDepartment;
+      }
+
+      const response = await api.get(`/kpi/report/monthly`, {
+        params: params,
+      });
+
+      if (mounted.current && response.data.success) {
+        const data = response.data.data;
+        console.log(`📊 Force refresh: Found ${data.totalEmployees} employees`);
+
+        if (data.totalEmployees > 0 && data.allScores?.length > 0) {
+          setMonthlyReport(data);
+          toast.success(`Loaded ${data.totalEmployees} KPI records`);
+        } else {
+          setMonthlyReport({
+            month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
+            year: selectedYear,
+            totalEmployees: 0,
+            overallAverage: 0,
+            distribution: {
+              excellent: 0,
+              good: 0,
+              average: 0,
+              needs_improvement: 0,
+            },
+            departmentAverages: [],
+            topPerformers: [],
+            allScores: [],
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing report:", error);
+    } finally {
+      if (mounted.current) {
+        setLoadingReport(false);
+      }
+    }
+  }, [selectedMonth, selectedYear, months, selectedDepartment]);
+
   const handleSaveWeights = useCallback(async () => {
     const total = Object.values(editingWeights).reduce(
       (sum: number, val: number) => sum + val,
@@ -431,20 +642,23 @@ export default function KPIManagementPage() {
       const response = await api.put(`/kpi/weights/${selectedDepartment}`, {
         weights: editingWeights,
       });
-      if (response.data.success) {
+      if (mounted.current && response.data.success) {
         toast.success("KPI weights saved successfully");
         setKpiWeights(response.data.data);
         setShowWeightEditor(false);
-        await fetchKPIWeights(selectedDepartment);
+        isFetchingWeights.current = false;
+        await fetchWeights(selectedDepartment);
       }
     } catch (error: any) {
       toast.error(
         error.response?.data?.message || "Failed to save KPI weights",
       );
     } finally {
-      setSavingWeights(false);
+      if (mounted.current) {
+        setSavingWeights(false);
+      }
     }
-  }, [editingWeights, selectedDepartment, fetchKPIWeights]);
+  }, [editingWeights, selectedDepartment, fetchWeights]);
 
   const handleCalculateKPI = useCallback(async () => {
     if (!selectedDepartment) {
@@ -471,63 +685,96 @@ export default function KPIManagementPage() {
         month: monthIndex,
         year: selectedYear,
       });
-      if (response.data.success) {
+
+      if (mounted.current && response.data.success) {
         toast.success(response.data.message);
-        await fetchMonthlyReport();
-        await fetchKPIWeights(selectedDepartment);
+
+        // ✅ FORCE REFRESH - Reset fetch flags
+        isFetchingReport.current = false;
+        isFetchingWeights.current = false;
+
+        // ✅ FIRST: Wait for database to save (longer delay)
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // ✅ SECOND: Fetch the report with the department filter
+        const monthIndex = months.indexOf(selectedMonth) + 1;
+        const params: any = {
+          month: monthIndex,
+          year: selectedYear,
+        };
+
+        // ✅ Pass the department ID
+        if (selectedDepartment && selectedDepartment !== "all") {
+          params.departmentId = selectedDepartment;
+        }
+
+        console.log(`📊 Fetching report after calculation with params:`, params);
+
+        const reportResponse = await api.get(`/kpi/report/monthly`, {
+          params: params,
+        });
+
+        if (mounted.current && reportResponse.data.success) {
+          const data = reportResponse.data.data;
+          console.log(`📊 Report data:`, data);
+
+          if (data.totalEmployees > 0 && data.allScores?.length > 0) {
+            setMonthlyReport(data);
+            toast.success(`✅ Loaded ${data.totalEmployees} KPI records`);
+          } else {
+            // Try fetching without department filter to see if data exists
+            const allReportResponse = await api.get(`/kpi/report/monthly`, {
+              params: {
+                month: monthIndex,
+                year: selectedYear,
+              },
+            });
+
+            if (mounted.current && allReportResponse.data.success) {
+              const allData = allReportResponse.data.data;
+              console.log(`📊 All departments report:`, allData);
+
+              if (allData.totalEmployees > 0) {
+                // Data exists but not for this department - show it anyway
+                setMonthlyReport(allData);
+                toast.success(`✅ Loaded ${allData.totalEmployees} KPI records (all departments)`);
+              } else {
+                // No data at all
+                setMonthlyReport({
+                  month: `${selectedYear}-${String(monthIndex).padStart(2, "0")}`,
+                  year: selectedYear,
+                  totalEmployees: 0,
+                  overallAverage: 0,
+                  distribution: {
+                    excellent: 0,
+                    good: 0,
+                    average: 0,
+                    needs_improvement: 0,
+                  },
+                  departmentAverages: [],
+                  topPerformers: [],
+                  allScores: [],
+                });
+                toast("No KPI data found", { icon: 'ℹ️' });
+              }
+            }
+          }
+        }
+
+        // ✅ THIRD: Also refresh weights
+        await fetchWeights(selectedDepartment);
+
       }
     } catch (error: any) {
       toast.error(
         error.response?.data?.message || "Failed to calculate KPI scores",
       );
     } finally {
-      setCalculating(false);
+      if (mounted.current) {
+        setCalculating(false);
+      }
     }
-  }, [selectedDepartment, selectedMonth, selectedYear, departments, months, fetchMonthlyReport, fetchKPIWeights]);
-
-  const handleExportReport = useCallback(() => {
-    if (!monthlyReport || monthlyReport.allScores.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
-    const headers = [
-      "Employee",
-      "Department",
-      "Total Score",
-      "Performance Level",
-      "Task Completion",
-      "Quality Score",
-      "Efficiency",
-      "Collaboration",
-      "Innovation",
-      "Attendance",
-    ];
-    const rows = monthlyReport.allScores.map((score) => [
-      score.userId.fullName,
-      score.departmentId.name,
-      formatScore(score.totalScore),
-      score.performanceLevel.replace("_", " "),
-      formatScore(score.scores.taskCompletion.score),
-      formatScore(score.scores.qualityScore.score),
-      formatScore(score.scores.efficiency.score),
-      formatScore(score.scores.collaboration.score),
-      formatScore(score.scores.innovation.score),
-      formatScore(score.scores.attendance.score),
-    ]);
-
-    const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
-      "\n",
-    );
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `KPI_Report_${selectedMonth}_${selectedYear}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Report exported successfully");
-  }, [monthlyReport, selectedMonth, selectedYear]);
+  }, [selectedDepartment, selectedMonth, selectedYear, departments, months, fetchWeights]);
 
   // ============================================================
   // HELPERS
@@ -581,6 +828,50 @@ export default function KPIManagementPage() {
     return score?.toFixed(1) || "0.0";
   }, []);
 
+  const handleExportReport = useCallback(() => {
+    if (!monthlyReport || monthlyReport.allScores.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const headers = [
+      "Employee",
+      "Department",
+      "Total Score",
+      "Performance Level",
+      "Task Completion",
+      "Quality Score",
+      "Efficiency",
+      "Collaboration",
+      "Innovation",
+      "Attendance",
+    ];
+    const rows = monthlyReport.allScores.map((score) => [
+      score.userId.fullName,
+      score.departmentId.name,
+      formatScore(score.totalScore),
+      score.performanceLevel.replace("_", " "),
+      formatScore(score.scores.taskCompletion.score),
+      formatScore(score.scores.qualityScore.score),
+      formatScore(score.scores.efficiency.score),
+      formatScore(score.scores.collaboration.score),
+      formatScore(score.scores.innovation.score),
+      formatScore(score.scores.attendance.score),
+    ]);
+
+    const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
+      "\n",
+    );
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `KPI_Report_${selectedMonth}_${selectedYear}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Report exported successfully");
+  }, [monthlyReport, selectedMonth, selectedYear, formatScore]);
+
   const formatDate = useCallback((dateString: string): string => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -593,40 +884,60 @@ export default function KPIManagementPage() {
   }, []);
 
   // ============================================================
-  // EFFECTS
+  // EFFECTS - MOUNT & INITIALIZE
   // ============================================================
-
-  // Initialize selected month
   useEffect(() => {
-    if (!selectedMonth && !isInitialized.current) {
-      isInitialized.current = true;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // Initialize month - runs once
+  useEffect(() => {
+    if (!selectedMonth && !initialized.current) {
+      initialized.current = true;
       setSelectedMonth(currentMonth);
+      setSelectedYear(currentYear);
     }
-  }, [selectedMonth, currentMonth]);
+  }, [selectedMonth, currentMonth, currentYear]);
 
+  // Load departments - runs once when canManage is true
   useEffect(() => {
-    if (canManage && !isDepartmentsLoaded.current) {
-      isDepartmentsLoaded.current = true;
+    if (canManage && !isFetchingDepartments.current && departments.length === 0) {
       fetchDepartments();
     }
-  }, [canManage]);
+  }, [canManage, departments.length, fetchDepartments]);
 
-  // Fetch KPI weights when department changes
+  // Load weights when department changes - with proper guard
   useEffect(() => {
-    if (selectedDepartment && !isFetching.current) {
-      fetchKPIWeights(selectedDepartment);
+    if (selectedDepartment && departments.length > 0 && !isFetchingWeights.current) {
+      fetchWeights(selectedDepartment);
     }
-  }, [selectedDepartment, fetchKPIWeights]);
+  }, [selectedDepartment, departments.length, fetchWeights]);
 
-  // Fetch monthly report when month/year changes
+  // Load report when month/year changes - only when values actually change
   useEffect(() => {
-    if (selectedMonth && selectedYear && !isFetching.current) {
-      fetchMonthlyReport();
+    // Skip if not initialized
+    if (!initialized.current) return;
+
+    // Skip if values haven't changed
+    if (selectedMonth === prevMonthRef.current && selectedYear === prevYearRef.current) {
+      return;
     }
-  }, [selectedMonth, selectedYear, fetchMonthlyReport]);
+
+    // Update refs
+    prevMonthRef.current = selectedMonth;
+    prevYearRef.current = selectedYear;
+
+    // Fetch report
+    if (selectedMonth && selectedYear && !isFetchingReport.current) {
+      fetchReport();
+    }
+  }, [selectedMonth, selectedYear, fetchReport]);
 
   // ============================================================
-  // ACCESS DENIED - Only for non-managers
+  // ACCESS DENIED
   // ============================================================
   if (!canManage) {
     return (
@@ -700,13 +1011,16 @@ export default function KPIManagementPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={fetchMonthlyReport}
-                disabled={reportLoading}
+                onClick={() => {
+                  isFetchingReport.current = false;
+                  fetchReport();
+                }}
+                disabled={loadingReport}
                 className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
               >
                 <RefreshCw
                   size={16}
-                  className={reportLoading ? "animate-spin" : ""}
+                  className={loadingReport ? "animate-spin" : ""}
                 />
               </button>
               <button
@@ -718,6 +1032,14 @@ export default function KPIManagementPage() {
               >
                 <Download size={16} />
                 Export
+              </button>
+              <button
+                onClick={forceRefresh}
+                disabled={loadingReport}
+                className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
+              >
+                <RefreshCw size={16} />
+                Refresh
               </button>
             </div>
           </motion.div>
@@ -735,7 +1057,10 @@ export default function KPIManagementPage() {
                 </label>
                 <select
                   value={selectedDepartment}
-                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedDepartment(e.target.value);
+                    isFetchingWeights.current = false;
+                  }}
                   className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 >
                   {departments.map((dept) => (
@@ -751,7 +1076,10 @@ export default function KPIManagementPage() {
                 </label>
                 <select
                   value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    isFetchingReport.current = false;
+                  }}
                   className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 >
                   {months.map((month) => (
@@ -767,7 +1095,10 @@ export default function KPIManagementPage() {
                 </label>
                 <select
                   value={selectedYear}
-                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    setSelectedYear(parseInt(e.target.value));
+                    isFetchingReport.current = false;
+                  }}
                   className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                 >
                   {[2023, 2024, 2025, 2026].map((year) => (
@@ -843,7 +1174,7 @@ export default function KPIManagementPage() {
                 setShowWeightEditor={setShowWeightEditor}
                 savingWeights={savingWeights}
                 handleSaveWeights={handleSaveWeights}
-                loading={loading}
+                loading={loadingWeights}
                 formatDate={formatDate}
                 WEIGHT_LABELS={WEIGHT_LABELS}
                 WEIGHT_DESCRIPTIONS={WEIGHT_DESCRIPTIONS}
@@ -856,7 +1187,7 @@ export default function KPIManagementPage() {
             {activeTab === "report" && (
               <ReportTab
                 monthlyReport={monthlyReport}
-                reportLoading={reportLoading}
+                reportLoading={loadingReport}
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
                 selectedDepartment={selectedDepartment}
@@ -948,8 +1279,8 @@ function WeightsTab({
             KPI Weights for {departmentName}
           </h3>
           <p className="text-sm text-gray-500">
-            {canEditWeights 
-              ? "Configure the weight distribution for KPI calculations" 
+            {canEditWeights
+              ? "Configure the weight distribution for KPI calculations"
               : "View KPI weights configuration (read-only)"}
           </p>
         </div>
@@ -1112,7 +1443,7 @@ function WeightsTab({
               <Settings className="w-16 h-16 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 font-medium">No weights configured</p>
               <p className="text-sm text-gray-400">
-                {canEditWeights 
+                {canEditWeights
                   ? "Click 'Edit Weights' to configure KPI weights"
                   : "Contact your administrator to configure KPI weights"}
               </p>
@@ -1263,13 +1594,13 @@ function ReportTab({
       <div className="text-center py-12 bg-gray-50/80 rounded-2xl border-2 border-dashed border-gray-300">
         <BarChart3 className="w-16 h-16 text-gray-300 mx-auto mb-3" />
         <h3 className="text-lg font-semibold text-gray-800 mb-2">
-          No Report Data
+          No Data Available
         </h3>
         <p className="text-gray-500">
-          No KPI data available for {selectedMonth} {selectedYear}
+          No employees found for this department
         </p>
         <p className="text-sm text-gray-400 mt-1">
-          Click "Calculate KPI" to generate scores for this period
+          Please ensure employees are assigned to this department
         </p>
       </div>
     );
@@ -1279,6 +1610,11 @@ function ReportTab({
   const departmentName =
     departments.find((d) => d._id === selectedDepartment)?.name ||
     "All Departments";
+
+  // Check if this is placeholder data (no KPI scores calculated)
+  const isPlaceholderData = monthlyReport.allScores.some(
+    (s) => s._id.startsWith("placeholder_")
+  );
 
   return (
     <div>
@@ -1295,16 +1631,16 @@ function ReportTab({
           {
             label: "Average Score",
             value:
-              filteredScores.length > 0
+              filteredScores.length > 0 && !isPlaceholderData
                 ? `${formatScore(filteredScores.reduce((sum: number, s: KPIScore) => sum + s.totalScore, 0) / filteredScores.length)}%`
-                : "0%",
+                : "N/A",
             icon: Target,
             color: "text-purple-600",
             bg: "bg-purple-50",
           },
           {
             label: "Excellent",
-            value: filteredScores.filter(
+            value: isPlaceholderData ? 0 : filteredScores.filter(
               (s) => s.performanceLevel === "excellent",
             ).length,
             icon: Crown,
@@ -1313,7 +1649,7 @@ function ReportTab({
           },
           {
             label: "Needs Improvement",
-            value: filteredScores.filter(
+            value: isPlaceholderData ? filteredScores.length : filteredScores.filter(
               (s) => s.performanceLevel === "needs_improvement",
             ).length,
             icon: AlertCircle,
@@ -1345,6 +1681,16 @@ function ReportTab({
         ))}
       </div>
 
+      {/* Info Banner for placeholder data */}
+      {isPlaceholderData && (
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm flex items-center gap-2">
+          <AlertCircle size={18} className="text-amber-600" />
+          <span>
+            No KPI scores calculated yet. Click the <strong>"Calculate KPI"</strong> button above to generate scores for this department.
+          </span>
+        </div>
+      )}
+
       {/* Department Name Header */}
       <div className="mb-4 flex items-center gap-2 text-sm text-gray-600">
         <Building2 size={14} className="text-indigo-500" />
@@ -1359,8 +1705,8 @@ function ReportTab({
         )}
       </div>
 
-      {/* Distribution Chart */}
-      {filteredScores.length > 0 && (
+      {/* Distribution Chart - Only show if we have real data */}
+      {!isPlaceholderData && filteredScores.length > 0 && (
         <div className="mb-6 p-4 bg-gray-50/80 rounded-xl border border-gray-200">
           <h4 className="text-sm font-medium text-gray-700 mb-3">
             Performance Distribution
@@ -1426,8 +1772,8 @@ function ReportTab({
         </div>
       )}
 
-      {/* Top Performers */}
-      {filteredScores.length > 0 && (
+      {/* Top Performers - Only show if we have real data */}
+      {!isPlaceholderData && filteredScores.length > 0 && (
         <div className="mb-6 p-4 bg-linear-to-r from-amber-50/80 to-orange-50/80 rounded-xl border border-amber-200">
           <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
             <Crown size={16} className="text-amber-500" />
@@ -1533,11 +1879,13 @@ function ReportTab({
             <tbody className="divide-y divide-gray-100">
               {filteredScores.map((score) => {
                 const perfConfig = getPerformanceConfig(score.performanceLevel);
+                const isPlaceholder = score._id.startsWith("placeholder_");
+
                 return (
                   <tr
                     key={score._id}
-                    className="hover:bg-gray-50/80 transition cursor-pointer"
-                    onClick={() => onViewEmployee(score.userId._id)}
+                    className={`hover:bg-gray-50/80 transition cursor-pointer ${isPlaceholder ? "opacity-60" : ""}`}
+                    onClick={() => !isPlaceholder && onViewEmployee(score.userId._id)}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -1559,41 +1907,53 @@ function ReportTab({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-gray-800">
-                          {formatScore(score.totalScore)}%
+                        <span className={`text-sm font-bold ${isPlaceholder ? "text-gray-400" : "text-gray-800"}`}>
+                          {isPlaceholder ? "N/A" : `${formatScore(score.totalScore)}%`}
                         </span>
-                        <div className="w-16 bg-gray-200 rounded-full h-1.5">
-                          <div
-                            className={`h-1.5 rounded-full ${score.totalScore >= 90
-                              ? "bg-emerald-500"
-                              : score.totalScore >= 75
-                                ? "bg-blue-500"
-                                : score.totalScore >= 60
-                                  ? "bg-amber-500"
-                                  : "bg-red-500"
-                              }`}
-                            style={{ width: `${score.totalScore}%` }}
-                          />
-                        </div>
+                        {!isPlaceholder && (
+                          <div className="w-16 bg-gray-200 rounded-full h-1.5">
+                            <div
+                              className={`h-1.5 rounded-full ${score.totalScore >= 90
+                                ? "bg-emerald-500"
+                                : score.totalScore >= 75
+                                  ? "bg-blue-500"
+                                  : score.totalScore >= 60
+                                    ? "bg-amber-500"
+                                    : "bg-red-500"
+                                }`}
+                              style={{ width: `${score.totalScore}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${isPlaceholder
+                          ? "bg-gray-100 border-gray-200 text-gray-400"
+                          : `${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`
+                          }`}
                       >
-                        {perfConfig.emoji} {perfConfig.label}
+                        {isPlaceholder ? "📋 Not Calculated" : `${perfConfig.emoji} ${perfConfig.label}`}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
-                      #{score.rank} of {score.totalEmployees}
+                      {isPlaceholder ? "—" : `#${score.rank} of ${score.totalEmployees}`}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onViewEmployee(score.userId._id);
+                          if (!isPlaceholder) {
+                            onViewEmployee(score.userId._id);
+                          } else {
+                            toast.error("No KPI data available for this employee yet");
+                          }
                         }}
-                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                        className={`p-1.5 rounded-lg transition ${isPlaceholder
+                          ? "text-gray-300 cursor-not-allowed"
+                          : "text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
+                          }`}
                       >
                         <Eye size={16} />
                       </button>
