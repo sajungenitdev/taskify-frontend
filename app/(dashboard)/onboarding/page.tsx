@@ -331,16 +331,19 @@ export default function OnboardingWizard() {
     }
   };
 
+  // app/onboarding/page.tsx (or wherever this component is)
+
   const handleSubmit = async () => {
     if (!validateStep(3)) return;
 
     setIsSubmitting(true);
     try {
+      // ✅ Clean payload - use 'department' NOT 'departmentId'
       const payload = {
         fullName: formData.fullName.trim(),
         phoneNumber: formData.phone.trim(),
         location: formData.location.trim(),
-        departmentId: formData.department,
+        department: formData.department, // ✅ Use 'department' instead of 'departmentId'
         position: formData.position.trim(),
         employeeId: formData.employeeId.trim(),
         bio: formData.bio.trim(),
@@ -372,24 +375,45 @@ export default function OnboardingWizard() {
         firstLogin: false,
       };
 
-      // console.log("📝 ===== ONBOARDING DATA ===== 📝");
-      // console.log("📦 Full Payload:", payload);
-      // console.log("=====================================");
+      // ✅ Remove any undefined or null values
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
+          delete payload[key];
+        }
+      });
+
+      // ✅ Clean nested objects
+      if (payload.workSettings) {
+        Object.keys(payload.workSettings).forEach(key => {
+          if (payload.workSettings[key] === undefined || payload.workSettings[key] === null) {
+            delete payload.workSettings[key];
+          }
+        });
+      }
+
+      if (payload.notificationPreferences) {
+        Object.keys(payload.notificationPreferences).forEach(key => {
+          if (payload.notificationPreferences[key] === undefined || payload.notificationPreferences[key] === null) {
+            delete payload.notificationPreferences[key];
+          }
+        });
+      }
+
+      console.log('📝 Sending payload:', payload);
 
       const response = await api.post("/onboarding/complete", payload);
 
       if (response.data.success) {
-        // ✅ FIX: Handle null profilePhoto
         const updatedUser = {
           ...user,
           fullName: formData.fullName,
           phoneNumber: formData.phone,
           location: formData.location,
-          departmentId: formData.department,
+          department: formData.department,
           position: formData.position,
           employeeId: formData.employeeId,
           bio: formData.bio,
-          profilePhoto: profilePhotoBase64 || undefined, // Convert null to undefined
+          profilePhoto: profilePhotoBase64 || undefined,
           onboardingCompleted: true,
           firstLogin: false,
         };
@@ -403,10 +427,16 @@ export default function OnboardingWizard() {
       }
     } catch (error: any) {
       console.error("❌ Error completing onboarding:", error);
-      toast.error(
-        error.response?.data?.message ||
-          "Failed to complete onboarding. Please try again.",
-      );
+
+      // ✅ Better error handling
+      if (error.response?.data?.message?.includes('department')) {
+        toast.error("Department setup failed. Please try again.");
+      } else {
+        toast.error(
+          error.response?.data?.message ||
+          "Failed to complete onboarding. Please try again."
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -418,21 +448,19 @@ export default function OnboardingWizard() {
       {[1, 2, 3].map((step) => (
         <div key={step} className="flex items-center">
           <div
-            className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${
-              currentStep === step
-                ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 scale-110"
+            className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${currentStep === step
+                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 scale-110"
                 : currentStep > step
                   ? "bg-emerald-500 text-white"
                   : "bg-gray-200 text-gray-500"
-            }`}
+              }`}
           >
             {currentStep > step ? <Check className="w-5 h-5" /> : step}
           </div>
           {step < 3 && (
             <div
-              className={`w-16 h-0.5 transition-all duration-500 ${
-                currentStep > step ? "bg-emerald-500" : "bg-gray-200"
-              }`}
+              className={`w-16 h-0.5 transition-all duration-500 ${currentStep > step ? "bg-emerald-500" : "bg-gray-200"
+                }`}
             />
           )}
         </div>
@@ -465,7 +493,7 @@ export default function OnboardingWizard() {
     const Icon = current?.icon || User;
     return (
       <div className="text-center mb-10">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-linear-to-br from-indigo-100 to-purple-100 mb-3">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 mb-3">
           <Icon className="w-6 h-6 text-indigo-600" />
         </div>
         <h2 className="text-2xl font-bold text-gray-800">{current?.title}</h2>
@@ -477,7 +505,7 @@ export default function OnboardingWizard() {
   // ============ LOADING & COMPLETED STATES ============
   if (loading) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mx-auto mb-4" />
           <p className="text-gray-500">Loading your onboarding...</p>
@@ -488,7 +516,7 @@ export default function OnboardingWizard() {
 
   if (completed) {
     return (
-      <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 max-w-md w-full p-10 text-center animate-fade-in-up">
           <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce-slow">
             <CheckCircle className="w-12 h-12 text-emerald-600" />
@@ -511,15 +539,15 @@ export default function OnboardingWizard() {
 
   // ============ MAIN RENDER ============
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50/80 py-12 px-4">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 bg-linear-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-3xl font-bold bg-linear-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               Getting Started
             </h1>
           </div>
@@ -539,7 +567,7 @@ export default function OnboardingWizard() {
               {/* Profile Photo */}
               <div className="flex flex-col items-center">
                 <div className="relative group">
-                  <div className="w-32 h-32 rounded-full bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden ring-4 ring-indigo-50 group-hover:ring-indigo-100 transition-all duration-300">
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center overflow-hidden ring-4 ring-indigo-50 group-hover:ring-indigo-100 transition-all duration-300">
                     {profilePhotoPreview ? (
                       <img
                         src={profilePhotoPreview}
@@ -556,7 +584,7 @@ export default function OnboardingWizard() {
                       <User className="w-14 h-14 text-indigo-500" />
                     )}
                   </div>
-                  <label className="absolute bottom-1 right-1 w-10 h-10 bg-linear-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110">
+                  <label className="absolute bottom-1 right-1 w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110">
                     <Camera className="w-5 h-5 text-white" />
                     <input
                       type="file"
@@ -805,11 +833,10 @@ export default function OnboardingWizard() {
                       key={day.value}
                       type="button"
                       onClick={() => toggleWorkDay(day.value)}
-                      className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
-                        formData.workDays.includes(day.value)
-                          ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25"
+                      className={`px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${formData.workDays.includes(day.value)
+                          ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25"
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
+                        }`}
                     >
                       {day.label}
                     </button>
@@ -1059,11 +1086,10 @@ export default function OnboardingWizard() {
             <button
               onClick={handleBack}
               disabled={currentStep === 1}
-              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${
-                currentStep === 1
+              className={`px-6 py-3 rounded-xl font-medium transition-all duration-200 flex items-center gap-2 ${currentStep === 1
                   ? "text-gray-400 cursor-not-allowed"
                   : "text-gray-600 hover:bg-gray-100"
-              }`}
+                }`}
             >
               <ArrowLeft className="w-4 h-4" />
               Back
@@ -1072,7 +1098,7 @@ export default function OnboardingWizard() {
             {currentStep < 3 ? (
               <button
                 onClick={handleNext}
-                className="px-8 py-3 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-300 shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/40 flex items-center gap-2 transform hover:scale-105"
+                className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-medium transition-all duration-300 shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/40 flex items-center gap-2 transform hover:scale-105"
               >
                 Continue
                 <ArrowRight className="w-4 h-4" />
@@ -1081,7 +1107,7 @@ export default function OnboardingWizard() {
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="px-8 py-3 bg-linear-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-xl font-medium transition-all duration-300 shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/40 flex items-center gap-2 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-xl font-medium transition-all duration-300 shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/40 flex items-center gap-2 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
@@ -1103,7 +1129,7 @@ export default function OnboardingWizard() {
         <div className="mt-6">
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
-              className="bg-linear-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+              className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-500"
               style={{ width: `${(currentStep / 3) * 100}%` }}
             />
           </div>
