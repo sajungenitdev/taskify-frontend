@@ -452,14 +452,14 @@ export default function Sidebar({
                     onClose?.();
                   }}
                   className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
-                      ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white"
-                      : "text-gray-300 hover:text-white hover:bg-white/10"
+                    ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-white/10"
                     }`}
                 >
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${isSubActive
-                        ? "bg-indigo-500/30"
-                        : "bg-white/10 group-hover:bg-white/20"
+                      ? "bg-indigo-500/30"
+                      : "bg-white/10 group-hover:bg-white/20"
                       }`}
                   >
                     <SubIcon
@@ -478,9 +478,9 @@ export default function Sidebar({
                   {showBadge && (
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                          ? "bg-red-500/30 text-red-300 animate-pulse"
-                          : subItem.badgeColor ||
-                          "bg-indigo-500/30 text-indigo-300"
+                        ? "bg-red-500/30 text-red-300 animate-pulse"
+                        : subItem.badgeColor ||
+                        "bg-indigo-500/30 text-indigo-300"
                         }`}
                     >
                       {badgeInfo.text}
@@ -503,14 +503,14 @@ export default function Sidebar({
                   onClose?.();
                 }}
                 className={`flex items-center gap-3 px-4 py-2.5 mx-1 rounded-lg transition-all duration-200 group ${isSubActive
-                    ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-white/10"
+                  ? "bg-linear-to-r from-indigo-500/20 to-purple-500/20 text-white"
+                  : "text-gray-300 hover:text-white hover:bg-white/10"
                   }`}
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${isSubActive
-                      ? "bg-indigo-500/30"
-                      : "bg-white/10 group-hover:bg-white/20"
+                    ? "bg-indigo-500/30"
+                    : "bg-white/10 group-hover:bg-white/20"
                     }`}
                 >
                   <SubIcon
@@ -528,9 +528,9 @@ export default function Sidebar({
                 {showBadge && (
                   <span
                     className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                        ? "bg-red-500/30 text-red-300 animate-pulse"
-                        : subItem.badgeColor ||
-                        "bg-indigo-500/30 text-indigo-300"
+                      ? "bg-red-500/30 text-red-300 animate-pulse"
+                      : subItem.badgeColor ||
+                      "bg-indigo-500/30 text-indigo-300"
                       }`}
                   >
                     {badgeInfo.text}
@@ -598,8 +598,8 @@ export default function Sidebar({
         {/* Header with Toggle Button - Fixed height */}
         <div
           className={`shrink-0 px-4 py-[12px] bg-transparent transition-all duration-300 sticky top-0 z-10 ${scrolled
-              ? "bg-[#0f2444]/90 backdrop-blur-md"
-              : "bg-[#0f2444]/60 backdrop-blur-sm"
+            ? "bg-[#0f2444]/90 backdrop-blur-md"
+            : "bg-[#0f2444]/60 backdrop-blur-sm"
             }`}
         >
           <div className="flex items-center justify-between">
@@ -624,19 +624,29 @@ export default function Sidebar({
                 </div>
               )}
             </div>
-            {!isCollapsed && onClose && (
-              <button
-                onClick={onClose}
-                className="text-white/40 hover:text-white transition-colors"
-              >
-                <X size={18} />
-              </button>
-            )}
+            <button
+              onClick={toggleCollapse}
+              className="h-7 bg-[#0f2444] 
+          hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 
+          hover:border-transparent rounded-full items-center justify-center transition-all duration-300 shadow-xl"
+            >
+              {isCollapsed ? (
+                <ChevronRight
+                  size={16}
+                  className="text-white/60 group-hover:text-white transition-colors"
+                />
+              ) : (
+                <ChevronLeft
+                  size={16}
+                  className="text-white/60 group-hover:text-white transition-colors"
+                />
+              )}
+            </button>
           </div>
         </div>
 
         {/* Toggle Button */}
-        <button
+        {/* <button
           onClick={toggleCollapse}
           className="hidden lg:flex fixed top-1/12 -translate-y-1/2 z-[999] w-7 h-7 bg-[#0f2444] 
           hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 border-2 border-white/20 
@@ -653,7 +663,7 @@ export default function Sidebar({
               className="text-white/60 group-hover:text-white transition-colors"
             />
           )}
-        </button>
+        </button> */}
 
         {/* Navigation - Scrollable area with flex-1 */}
         <nav
@@ -693,8 +703,8 @@ export default function Sidebar({
                         <Icon
                           size={18}
                           className={`transition-all duration-200 ${active
-                              ? "text-indigo-300"
-                              : "text-gray-400 group-hover:text-white"
+                            ? "text-indigo-300"
+                            : "text-gray-400 group-hover:text-white"
                             }`}
                         />
                         {isCollapsed && showBadge && (
@@ -710,9 +720,9 @@ export default function Sidebar({
                           {showBadge && (
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                                  ? "bg-red-500/30 text-red-300 animate-pulse"
-                                  : item.badgeColor ||
-                                  "bg-indigo-500/30 text-indigo-300"
+                                ? "bg-red-500/30 text-red-300 animate-pulse"
+                                : item.badgeColor ||
+                                "bg-indigo-500/30 text-indigo-300"
                                 }`}
                             >
                               {badgeInfo.text}
@@ -744,8 +754,8 @@ export default function Sidebar({
                       <Icon
                         size={18}
                         className={`transition-all duration-200 ${active
-                            ? "text-indigo-300"
-                            : "text-gray-400 group-hover:text-white"
+                          ? "text-indigo-300"
+                          : "text-gray-400 group-hover:text-white"
                           }`}
                       />
                       {isCollapsed && showBadge && (
@@ -760,9 +770,9 @@ export default function Sidebar({
                         {showBadge && (
                           <span
                             className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                                ? "bg-red-500/30 text-red-300 animate-pulse"
-                                : item.badgeColor ||
-                                "bg-indigo-500/30 text-indigo-300"
+                              ? "bg-red-500/30 text-red-300 animate-pulse"
+                              : item.badgeColor ||
+                              "bg-indigo-500/30 text-indigo-300"
                               }`}
                           >
                             {badgeInfo.text}
@@ -832,8 +842,8 @@ export default function Sidebar({
                             <Icon
                               size={18}
                               className={`transition-all duration-200 ${isParentActiveFlag || (isHovered && hasSubmenu)
-                                  ? "text-indigo-300"
-                                  : "text-gray-400 group-hover:text-white"
+                                ? "text-indigo-300"
+                                : "text-gray-400 group-hover:text-white"
                                 }`}
                             />
                             {isCollapsed && showBadge && !hasSubmenu && (
@@ -848,16 +858,16 @@ export default function Sidebar({
                               <ChevronRightIcon
                                 size={14}
                                 className={`transition-all duration-300 ${isHovered
-                                    ? "translate-x-1 text-indigo-300"
-                                    : "text-gray-400 group-hover:text-white"
+                                  ? "translate-x-1 text-indigo-300"
+                                  : "text-gray-400 group-hover:text-white"
                                   }`}
                               />
                               {showBadge && !hasSubmenu && (
                                 <span
                                   className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                                      ? "bg-red-500/30 text-red-300 animate-pulse"
-                                      : item.badgeColor ||
-                                      "bg-indigo-500/30 text-indigo-300"
+                                    ? "bg-red-500/30 text-red-300 animate-pulse"
+                                    : item.badgeColor ||
+                                    "bg-indigo-500/30 text-indigo-300"
                                     }`}
                                 >
                                   {badgeInfo.text}
@@ -898,8 +908,8 @@ export default function Sidebar({
                           <Icon
                             size={18}
                             className={`transition-all duration-200 ${isActive(item.href)
-                                ? "text-indigo-300"
-                                : "text-gray-400 group-hover:text-white"
+                              ? "text-indigo-300"
+                              : "text-gray-400 group-hover:text-white"
                               }`}
                           />
                           {isCollapsed && showBadge && (
@@ -915,9 +925,9 @@ export default function Sidebar({
                             {showBadge && (
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                                    ? "bg-red-500/30 text-red-300 animate-pulse"
-                                    : item.badgeColor ||
-                                    "bg-indigo-500/30 text-indigo-300"
+                                  ? "bg-red-500/30 text-red-300 animate-pulse"
+                                  : item.badgeColor ||
+                                  "bg-indigo-500/30 text-indigo-300"
                                   }`}
                               >
                                 {badgeInfo.text}
@@ -949,8 +959,8 @@ export default function Sidebar({
                         <Icon
                           size={18}
                           className={`transition-all duration-200 ${isActive(item.href)
-                              ? "text-indigo-300"
-                              : "text-gray-400 group-hover:text-white"
+                            ? "text-indigo-300"
+                            : "text-gray-400 group-hover:text-white"
                             }`}
                         />
                         {isCollapsed && showBadge && (
@@ -965,9 +975,9 @@ export default function Sidebar({
                           {showBadge && (
                             <span
                               className={`text-[10px] px-2 py-0.5 rounded-full font-medium transition-all duration-300 ${badgeInfo.isDynamic
-                                  ? "bg-red-500/30 text-red-300 animate-pulse"
-                                  : item.badgeColor ||
-                                  "bg-indigo-500/30 text-indigo-300"
+                                ? "bg-red-500/30 text-red-300 animate-pulse"
+                                : item.badgeColor ||
+                                "bg-indigo-500/30 text-indigo-300"
                                 }`}
                             >
                               {badgeInfo.text}
