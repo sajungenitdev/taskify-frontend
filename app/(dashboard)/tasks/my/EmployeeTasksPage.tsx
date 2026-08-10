@@ -166,7 +166,7 @@ const SubTaskTreeItem = ({
   };
 
   const progress = task.progress || 0;
-  const isCompleted = task.status === "completed" || task.status === "done";
+  const isCompleted = task.status === "completed";
 
   return (
     <div className="relative">
