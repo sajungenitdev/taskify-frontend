@@ -959,7 +959,7 @@ export default function CreateTaskModal({
       if (deptProject) {
         finalProjectId = deptProject._id;
       } else {
-        toast.warning("No project selected. Task will be created without a project.");
+        toast.error("No project selected. Task will be created without a project.");
       }
     }
 
