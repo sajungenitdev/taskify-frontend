@@ -1528,7 +1528,7 @@ export default function GanttChartPage() {
                                                             )}
                                                             {hasDependencies && (
                                                                 <span className="text-[8px] font-medium text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full shrink-0">
-                                                                    🔗 {task.dependencies.length}
+                                                                    🔗 {task.dependencies?.length ?? 0}
                                                                 </span>
                                                             )}
                                                         </div>
