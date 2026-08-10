@@ -22,8 +22,6 @@ import {
   Zap,
   Gauge,
   AlertCircle,
-  Diamond,
-  GitBranch,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -88,15 +86,6 @@ interface WorkloadInfo {
   monthlyCapacity: number;
 }
 
-interface Task {
-  _id: string;
-  title: string;
-  status: string;
-  isMilestone?: boolean;
-  parentTaskId?: string | null;
-  projectId?: string | { _id: string; name: string } | null;
-}
-
 interface CreateTaskModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -153,43 +142,15 @@ const getManagerId = (user: User | null | undefined): string | null => {
   return user.managerId;
 };
 
-// ============ TOAST HELPER ============
-const showInfoToast = (message: string) => {
-  toast.custom((t) => (
-    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-blue-50 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-      <div className="flex-1 w-0 p-4">
-        <div className="flex items-start">
-          <div className="flex-shrink-0 pt-0.5">
-            <AlertCircle className="h-5 w-5 text-blue-500" />
-          </div>
-          <div className="ml-3 flex-1">
-            <p className="text-sm text-blue-700">{message}</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex border-l border-blue-200">
-        <button
-          onClick={() => toast.dismiss(t.id)}
-          className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  ));
-};
-
 // ============ TOGGLE SWITCH COMPONENT ============
 const ToggleSwitch = ({
   enabled,
   onToggle,
   size = "md",
-  disabled = false,
 }: {
   enabled: boolean;
   onToggle: () => void;
   size?: "sm" | "md" | "lg";
-  disabled?: boolean;
 }) => {
   const sizes = {
     sm: { container: "w-8 h-4", dot: "w-3 h-3", translate: "translate-x-4" },
@@ -203,12 +164,10 @@ const ToggleSwitch = ({
     <button
       type="button"
       onClick={onToggle}
-      disabled={disabled}
       className={`
         relative inline-flex items-center rounded-full transition-colors duration-200 ease-in-out
         ${sizeConfig.container}
         ${enabled ? "bg-indigo-600" : "bg-gray-300"}
-        ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
         focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
       `}
     >
@@ -346,19 +305,14 @@ export default function CreateTaskModal({
   const [workloadData, setWorkloadData] = useState<
     Record<string, WorkloadInfo>
   >({});
-
-  // Milestone & Sub-task states
-  const [isMilestone, setIsMilestone] = useState(false);
-  const [isSubTask, setIsSubTask] = useState(false);
-  const [parentTaskId, setParentTaskId] = useState("");
-  const [availableParentTasks, setAvailableParentTasks] = useState<Task[]>([]);
-  const [loadingParentTasks, setLoadingParentTasks] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     assignedTo: "",
     deadline: "",
+    revisedDeadline: "",
     priority: "normal" as "low" | "normal" | "high" | "urgent",
     estimatedHours: 1,
     actualMinutes: 0,
@@ -387,7 +341,6 @@ export default function CreateTaskModal({
   const canViewWorkload = useMemo(() => {
     return isSuperAdmin || isAdmin || isHrManager || isDeptManager || isLineManager || isProjectManager;
   }, [isSuperAdmin, isAdmin, isHrManager, isDeptManager, isLineManager, isProjectManager]);
-
   // ============ FETCH WORKLOAD DATA ============
   const fetchWorkloadData = useCallback(async (usersList: User[]) => {
     if (!canViewWorkload || !usersList || usersList.length === 0) {
@@ -442,63 +395,18 @@ export default function CreateTaskModal({
     }
   }, []);
 
-  const fetchParentTasks = useCallback(async () => {
-    // 🆕 যদি ইতিমধ্যে tasks লোড হয়ে থাকে এবং সেগুলো খালি না হয়, তাহলে আবার fetch করবেন না
-    if (availableParentTasks.length > 0 && !loadingParentTasks) {
-      console.log("✅ Tasks already loaded, skipping fetch");
-      return;
-    }
-
-    if (!isSubTask) {
-      setAvailableParentTasks([]);
-      return;
-    }
-
-    try {
-      setLoadingParentTasks(true);
-      console.log("🔍 Fetching parent tasks...");
-
-      const response = await api.get('/tasks');
-
-      if (response.data.success) {
-        const allTasks = response.data.data || [];
-
-        let tasks = allTasks.filter((t: any) => {
-          const isValidStatus = t.status === 'pending' || t.status === 'in_progress';
-          if (!isValidStatus) return false;
-          if (t.isMilestone === true) return false;
-          if (t._id === parentTaskId) return false;
-          return true;
-        });
-
-        if (selectedProject) {
-          tasks = tasks.filter((t: any) => {
-            const pid = typeof t.projectId === 'object' ? t.projectId?._id : t.projectId;
-            return pid === selectedProject;
-          });
-        }
-
-        console.log(`✅ Available parent tasks: ${tasks.length}`);
-        setAvailableParentTasks(tasks);
-      }
-    } catch (error) {
-      console.error("❌ Error:", error);
-      toast.error("Failed to load parent tasks");
-    } finally {
-      setLoadingParentTasks(false);
-    }
-  }, [selectedProject, isSubTask, parentTaskId, availableParentTasks.length, loadingParentTasks]);
-
   const fetchAllUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
 
       let endpoint = "/users";
 
+      // If project manager, fetch users from their department
       if (isProjectManager) {
         const deptId = getDepartmentId(user);
         if (deptId) {
           endpoint = `/users/department/${deptId}`;
+          console.log(`📥 Fetching users from department endpoint: ${endpoint}`);
         }
       }
 
@@ -507,9 +415,15 @@ export default function CreateTaskModal({
       if (response.data.success) {
         const usersData = response.data.data || [];
 
+        console.log(`✅ Got ${usersData.length} users from API`);
+
         let filtered: User[] = usersData;
 
+        // For project managers, the department endpoint already filters by department
+        // but we'll keep the filter logic for other roles
         if (isProjectManager) {
+          // The department endpoint already returns only users in the department
+          // No need to filter again, but we'll keep the logic just in case
           const managerDeptId = getDepartmentId(user);
           if (managerDeptId) {
             filtered = usersData.filter((u: User) => {
@@ -517,6 +431,8 @@ export default function CreateTaskModal({
               const userDeptId = getDepartmentId(u);
               const userDeptName = getDepartmentName(u);
               const managerDeptName = getDepartmentName(user);
+
+              // Match by ID or by name
               return userDeptId === managerDeptId ||
                 (userDeptName && managerDeptName && userDeptName === managerDeptName);
             });
@@ -540,6 +456,7 @@ export default function CreateTaskModal({
           filtered = usersData.filter((u: User) => u._id === user?._id);
         }
 
+        console.log(`📊 After filtering: ${filtered.length} users`);
         setUsers(filtered);
         setFilteredUsers(filtered);
 
@@ -556,7 +473,7 @@ export default function CreateTaskModal({
       setLoadingUsers(false);
     }
   }, [user, isProjectManager, isDeptManager, isLineManager, isEmployee, canViewWorkload, fetchWorkloadData]);
-
+  // Keep ONLY this one - remove the duplicate inside the component
   const getDepartmentName = (user: User | null | undefined): string | null => {
     if (!user) return null;
 
@@ -574,7 +491,6 @@ export default function CreateTaskModal({
 
     return null;
   };
-
   // ============ EFFECTS ============
   useEffect(() => {
     if (isOpen && !isDataLoaded) {
@@ -595,32 +511,6 @@ export default function CreateTaskModal({
     }
   }, [isOpen, fetchDepartments, fetchProjects, fetchAllUsers, isDataLoaded]);
 
-  // 🆕 শুধু Sub-task টগল অন করলে বা Project পরিবর্তন হলে fetch করবে
-  useEffect(() => {
-    if (isSubTask) {
-      if (availableParentTasks.length === 0) {
-        fetchParentTasks();
-      }
-    } else {
-      setAvailableParentTasks([]);
-      setParentTaskId("");
-    }
-  }, [isSubTask, selectedProject]); // 🆕 fetchParentTasks dependency সরিয়ে দিন
-
-  // 🆕 Auto-detect deadline from end time
-  useEffect(() => {
-    if (formData.endTime) {
-      const endDate = new Date(formData.endTime);
-      if (!isNaN(endDate.getTime())) {
-        const deadlineStr = endDate.toISOString().split('T')[0];
-        setFormData(prev => ({
-          ...prev,
-          deadline: deadlineStr
-        }));
-      }
-    }
-  }, [formData.endTime]);
-
   // ============ AUTO-SELECT DEPARTMENT FOR PROJECT MANAGER ============
   useEffect(() => {
     if (isProjectManager && user && isOpen) {
@@ -628,6 +518,7 @@ export default function CreateTaskModal({
       if (deptId) {
         setSelectedDepartment(deptId);
       } else {
+        // If no department ID, try to find by name
         const deptName = getDepartmentName(user);
         if (deptName) {
           const dept = departments.find(d => d.name === deptName);
@@ -639,13 +530,15 @@ export default function CreateTaskModal({
     }
   }, [isProjectManager, user, isOpen, departments]);
 
-  // Filter users by selected department
+  // Filter users by selected department - but for project managers, use the department filter
   const filteredUsersByDepartment = useMemo(() => {
     if (isProjectManager && selectedDepartment) {
       const filtered = users.filter((u) => {
         const userDeptId = getDepartmentId(u);
         const userDeptName = getDepartmentName(u);
         const selectedDept = departments.find(d => d._id === selectedDepartment);
+
+        // Match by ID or by name
         return userDeptId === selectedDepartment ||
           (userDeptName && selectedDept && userDeptName === selectedDept.name);
       });
@@ -671,7 +564,7 @@ export default function CreateTaskModal({
     setFormData((prev) => ({ ...prev, assignedTo: "" }));
   };
 
-  // Update workload when assignee changes
+  // Update workload when assignee changes - using useMemo
   const selectedUser = useMemo(() => {
     if (formData.assignedTo) {
       return users.find((u) => u._id === formData.assignedTo) || null;
@@ -686,8 +579,12 @@ export default function CreateTaskModal({
     return null;
   }, [formData.assignedTo, workloadData]);
 
+  // ============ COMPUTED VALUES (inline, no state) ============
   const selectedAssignee = selectedUser;
   const selectedUserWorkload = userWorkload;
+  const showWorkloadWarning = Boolean(
+    userWorkload && (userWorkload.statusColor === "red" || userWorkload.statusColor === "amber")
+  );
 
   // Handle quick task toggle
   useEffect(() => {
@@ -697,7 +594,7 @@ export default function CreateTaskModal({
       setFormData((prev) => ({
         ...prev,
         assignedTo: user._id || "",
-        deadline: prev.deadline || tomorrow.toISOString().split("T")[0],
+        deadline: tomorrow.toISOString().split("T")[0],
       }));
     } else if (!isEmployee) {
       setFormData((prev) => ({
@@ -727,25 +624,6 @@ export default function CreateTaskModal({
     }
   }, [isEmployee, user]);
 
-  // 🆕 IMPORTANT: When milestone is enabled, disable sub-task
-  useEffect(() => {
-    if (isMilestone && isSubTask) {
-      setIsSubTask(false);
-      setParentTaskId("");
-      setAvailableParentTasks([]);
-    }
-  }, [isMilestone]);
-
-  // 🆕 Fetch parent tasks when sub-task toggle or project changes
-  useEffect(() => {
-    if (isSubTask && availableParentTasks.length === 0) {
-      fetchParentTasks();
-    } else if (!isSubTask) {
-      setAvailableParentTasks([]);
-      setParentTaskId("");
-    }
-  }, [isSubTask, selectedProject]); // fetchParentTasks সরিয়ে দিন
-
   // ============ HANDLERS ============
   const handleAddEvidenceUrl = () => {
     if (newUrl && newUrl.trim()) {
@@ -758,29 +636,30 @@ export default function CreateTaskModal({
     setEvidenceUrls(evidenceUrls.filter((_, i) => i !== index));
   };
 
-  const resetForm = () => {
-    setFormData({
-      title: "",
-      description: "",
-      assignedTo: "",
-      deadline: "",
-      priority: "normal",
-      estimatedHours: 1,
-      actualMinutes: 0,
-      isApprovalRequired: false,
-      evidenceRequired: false,
-      startTime: "",
-      endTime: "",
-    });
-    setSelectedDepartment("");
-    setSelectedProject("");
-    setEvidenceUrls([]);
-    setNewUrl("");
-    setIsQuickTask(false);
-    setIsMilestone(false);
-    setIsSubTask(false);
-    setParentTaskId("");
-    setAvailableParentTasks([]);
+  const createDefaultProject = async (
+    departmentId: string,
+  ): Promise<string | null> => {
+    try {
+      setIsCreatingProject(true);
+      const response = await api.post("/projects", {
+        name: "General Tasks",
+        code: "GEN",
+        description: "Default project for general tasks",
+        status: "active",
+        departmentId: departmentId,
+      });
+      if (response.data.success) {
+        const newProject = response.data.data;
+        setProjects((prev) => [...prev, newProject]);
+        return newProject._id;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error creating default project:", error);
+      return null;
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -796,47 +675,10 @@ export default function CreateTaskModal({
       return;
     }
 
-    // Validation for sub-task
-    if (isSubTask && !parentTaskId) {
-      toast.error("Please select a parent task for this sub-task");
-      return;
-    }
-
-    // Milestone cannot be a sub-task
-    if (isMilestone && isSubTask) {
-      toast.error("Milestone cannot be a sub-task");
-      return;
-    }
-
-    // Deadline validation
-    if (!formData.deadline) {
-      toast.error("Please set a deadline or end time");
-      return;
-    }
-
     let finalAssignedTo = formData.assignedTo;
     let finalDepartment = selectedDepartment;
     let finalDeadline = formData.deadline;
     let finalProjectId = selectedProject;
-
-    // For sub-tasks, inherit project from parent
-    if (isSubTask && parentTaskId) {
-      try {
-        const parentTask = await api.get(`/tasks/${parentTaskId}`);
-        if (parentTask.data.success) {
-          const parent = parentTask.data.data;
-          finalProjectId = parent.projectId?._id || parent.projectId;
-          finalDepartment = parent.departmentId?._id || parent.departmentId;
-          if (!formData.assignedTo) {
-            finalAssignedTo = parent.assignedTo?._id || parent.assignedTo;
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching parent task:", error);
-        toast.error("Failed to fetch parent task details");
-        return;
-      }
-    }
 
     if (isEmployee) {
       if (!user?._id) {
@@ -895,6 +737,10 @@ export default function CreateTaskModal({
         toast.error("Please select a department");
         return;
       }
+      if (!formData.deadline) {
+        toast.error("Please set a deadline");
+        return;
+      }
 
       if (selectedUserWorkload && selectedUserWorkload.statusColor === "red") {
         if (
@@ -917,7 +763,9 @@ export default function CreateTaskModal({
           const assignedUserDept = getDepartmentId(assignedUser);
           const managerDept = getDepartmentId(user);
           if (assignedUserDept !== managerDept) {
-            toast.error("You can only assign tasks to users in your department");
+            toast.error(
+              "You can only assign tasks to users in your department",
+            );
             return;
           }
         }
@@ -928,8 +776,16 @@ export default function CreateTaskModal({
         if (assignedUser) {
           const assignedUserDept = getDepartmentId(assignedUser);
           const managerDept = getDepartmentId(user);
+          console.log("Project Manager Check:", {
+            assignedUser: assignedUser.fullName,
+            assignedUserDept,
+            managerDept,
+            match: assignedUserDept === managerDept
+          });
           if (assignedUserDept !== managerDept) {
-            toast.error("You can only assign tasks to users in your department");
+            toast.error(
+              "You can only assign tasks to users in your department",
+            );
             return;
           }
         }
@@ -947,8 +803,7 @@ export default function CreateTaskModal({
       }
     }
 
-    // For sub-tasks, project is inherited from parent
-    if (!isSubTask && !finalProjectId) {
+    if (!finalProjectId) {
       const deptProject = projects.find(
         (p) =>
           p.departmentId &&
@@ -958,8 +813,22 @@ export default function CreateTaskModal({
       );
       if (deptProject) {
         finalProjectId = deptProject._id;
+      }
+    }
+
+    if (!finalProjectId) {
+      const toastId = toast.loading("Creating default project...");
+      const newProjectId = await createDefaultProject(finalDepartment);
+      toast.dismiss(toastId);
+
+      if (newProjectId) {
+        finalProjectId = newProjectId;
+        toast.success("Default project created");
       } else {
-        toast.warning("No project selected. Task will be created without a project.");
+        toast.error(
+          "Failed to create default project. Please create a project first.",
+        );
+        return;
       }
     }
 
@@ -967,12 +836,14 @@ export default function CreateTaskModal({
     const toastId = toast.loading("Creating task...");
 
     try {
-      const taskData: any = {
+      const taskData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         assignedTo: finalAssignedTo,
         deadline: finalDeadline,
+        projectId: finalProjectId,
         departmentId: finalDepartment,
+        revisedDeadline: formData.revisedDeadline || undefined,
         priority: formData.priority,
         estimatedHours: Number(formData.estimatedHours),
         actualMinutes: Number(formData.actualMinutes),
@@ -981,32 +852,13 @@ export default function CreateTaskModal({
         startTime: formData.startTime || undefined,
         endTime: formData.endTime || undefined,
         evidenceUrls: evidenceUrls.length > 0 ? evidenceUrls : undefined,
-        isMilestone: isMilestone,
-        parentTaskId: isSubTask ? parentTaskId : undefined,
-        startDate: formData.startTime ? new Date(formData.startTime).toISOString().split('T')[0] : finalDeadline,
       };
-
-      if (finalProjectId) {
-        taskData.projectId = finalProjectId;
-      }
-
-      if (isMilestone) {
-        taskData.estimatedHours = 0;
-        taskData.progress = 100;
-      }
-
-      if (isSubTask && parentTaskId) {
-        taskData.isMilestone = false;
-      }
 
       const response = await api.post("/tasks", taskData);
       toast.dismiss(toastId);
 
       if (response.data.success) {
-        const message = isMilestone ? "Milestone created successfully! 🎯" :
-          isSubTask ? "Sub-task created successfully! 📌" :
-            "Task created successfully! 🎉";
-        toast.success(message);
+        toast.success("Task created successfully! 🎉");
         resetForm();
         onTaskCreated();
         onClose();
@@ -1020,8 +872,33 @@ export default function CreateTaskModal({
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      assignedTo: "",
+      deadline: "",
+      revisedDeadline: "",
+      priority: "normal",
+      estimatedHours: 1,
+      actualMinutes: 0,
+      isApprovalRequired: false,
+      evidenceRequired: false,
+      startTime: "",
+      endTime: "",
+    });
+    setSelectedDepartment("");
+    setSelectedProject("");
+    setEvidenceUrls([]);
+    setNewUrl("");
+    setIsQuickTask(false);
+  };
+
   // ============ GET AVAILABLE USERS ============
   const getAvailableUsers = useCallback(() => {
+    console.log("Getting available users. Role:", user?.role);
+    console.log("Filtered users:", filteredUsers);
+
     if (isSuperAdmin || isAdmin || isHrManager) {
       return filteredUsers;
     }
@@ -1039,12 +916,19 @@ export default function CreateTaskModal({
     if (isProjectManager) {
       const managerDeptId = getDepartmentId(user);
       const managerDeptName = getDepartmentName(user);
+      console.log("Project Manager - Department ID:", managerDeptId, "Name:", managerDeptName);
+      console.log("All filtered users:", filteredUsers.map(u => ({
+        name: u.fullName,
+        deptId: getDepartmentId(u),
+        deptName: getDepartmentName(u)
+      })));
 
       if (managerDeptId) {
         return filteredUsers.filter((u) => {
           if (u.role === "super_admin") return false;
           const userDeptId = getDepartmentId(u);
           const userDeptName = getDepartmentName(u);
+          // Match by ID or by name as fallback
           return userDeptId === managerDeptId ||
             (userDeptName && managerDeptName && userDeptName === managerDeptName);
         });
@@ -1089,16 +973,12 @@ export default function CreateTaskModal({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-800">
-                {isMilestone ? "Create Milestone" : isSubTask ? "Create Sub-Task" : "Create New Task"}
+                Create New Task
               </h2>
               <p className="text-xs text-gray-500">
-                {isMilestone
-                  ? "Mark a key project checkpoint (displays as diamond on Gantt)"
-                  : isSubTask
-                    ? "Add a sub-task to an existing task"
-                    : isEmployee
-                      ? "Create a task for yourself"
-                      : "Fill all details to assign a new task"}
+                {isEmployee
+                  ? "Create a task for yourself"
+                  : "Fill all details to assign a new task"}
               </p>
             </div>
           </div>
@@ -1117,7 +997,9 @@ export default function CreateTaskModal({
             <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-200">
               <UserIcon className="w-5 h-5 text-green-600" />
               <div>
-                <p className="text-sm font-medium text-green-800">Employee Mode</p>
+                <p className="text-sm font-medium text-green-800">
+                  Employee Mode
+                </p>
                 <p className="text-xs text-green-700">
                   Tasks will be automatically assigned to you. You can only create tasks for yourself.
                 </p>
@@ -1125,8 +1007,8 @@ export default function CreateTaskModal({
             </div>
           )}
 
-          {/* Quick Task Toggle (Only for Admins) */}
-          {(isSuperAdmin || isAdmin) && !isEmployee && !isMilestone && !isSubTask && (
+          {/* Quick Task Toggle */}
+          {(isSuperAdmin || isAdmin) && !isEmployee && (
             <div className="p-4 bg-linear-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -1134,8 +1016,12 @@ export default function CreateTaskModal({
                     <Zap className="w-4 h-4 text-indigo-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Quick Task</p>
-                    <p className="text-xs text-gray-500">Auto-assign to yourself and simplify the form</p>
+                    <p className="text-sm font-medium text-gray-800">
+                      Quick Task
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Auto-assign to yourself and simplify the form
+                    </p>
                   </div>
                 </div>
                 <ToggleSwitch
@@ -1157,30 +1043,39 @@ export default function CreateTaskModal({
           {isDeptManager && !isEmployee && (
             <div className="flex items-center gap-2 p-2.5 bg-blue-50 rounded-lg border border-blue-200">
               <Users className="w-4 h-4 text-blue-600" />
-              <p className="text-xs text-blue-700">You can assign tasks to users in your department only.</p>
+              <p className="text-xs text-blue-700">
+                You can assign tasks to users in your department only.
+              </p>
             </div>
           )}
 
           {isLineManager && !isEmployee && (
             <div className="flex items-center gap-2 p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
               <Users className="w-4 h-4 text-emerald-600" />
-              <p className="text-xs text-emerald-700">You can assign tasks to your direct reports only.</p>
+              <p className="text-xs text-emerald-700">
+                You can assign tasks to your direct reports only.
+              </p>
             </div>
           )}
 
           {isProjectManager && !isEmployee && (
             <div className="flex items-center gap-2 p-2.5 bg-purple-50 rounded-lg border border-purple-200">
               <Users className="w-4 h-4 text-purple-600" />
-              <p className="text-xs text-purple-700">You can assign tasks to team members in your department.</p>
+              <p className="text-xs text-purple-700">
+                You can assign tasks to team members in your department.
+              </p>
             </div>
           )}
+
+          {/* Show debug info in development */}
+
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Title & Project Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  {isMilestone ? "Milestone Title" : isSubTask ? "Sub-Task Title" : "Task Title"} <span className="text-rose-500">*</span>
+                  Task Title <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -1189,31 +1084,26 @@ export default function CreateTaskModal({
                     setFormData({ ...formData, title: e.target.value })
                   }
                   className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
-                  placeholder={isMilestone ? "Enter milestone title" : isSubTask ? "Enter sub-task title" : "Enter task title"}
+                  placeholder="Enter task title"
                   required
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  Project {!isSubTask && <span className="text-gray-400 text-xs">(Optional)</span>}
-                  {isSubTask && <span className="text-gray-400 text-xs">(Inherited from parent)</span>}
+                  Project{" "}
+                  <span className="text-gray-400 text-xs">
+                    (Auto-assigned if empty)
+                  </span>
                 </label>
                 <div className="relative">
                   <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <select
                     value={selectedProject}
-                    onChange={(e) => {
-                      setSelectedProject(e.target.value);
-                      // If sub-task is on, refetch parent tasks
-                      if (isSubTask) {
-                        fetchParentTasks();
-                      }
-                    }}
+                    onChange={(e) => setSelectedProject(e.target.value)}
                     className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
-                    disabled={isSubTask}
                   >
-                    <option value="">No Project</option>
+                    <option value="">Auto-assign Project</option>
                     {projects.map((project) => (
                       <option key={project._id} value={project._id}>
                         {project.name} ({project.code})
@@ -1221,7 +1111,12 @@ export default function CreateTaskModal({
                     ))}
                   </select>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Select a project if needed, or leave empty</p>
+                {isCreatingProject && (
+                  <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Creating default project...
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1237,23 +1132,29 @@ export default function CreateTaskModal({
                 }
                 rows={3}
                 className="w-full px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none placeholder:text-gray-400"
-                placeholder={isMilestone ? "Describe what this milestone represents..." : "Describe the task details..."}
+                placeholder="Describe the task details..."
                 required
               />
             </div>
 
             {/* Department & Assign To Row - Hide for employees */}
-            {!isEmployee && !isSubTask && (
+            {!isEmployee && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1.5">
                     Department{" "}
                     {!isQuickTask && !isProjectManager && <span className="text-rose-500">*</span>}
                     {isQuickTask && (
-                      <span className="text-gray-400 text-xs"> (Auto-assigned)</span>
+                      <span className="text-gray-400 text-xs">
+                        {" "}
+                        (Auto-assigned)
+                      </span>
                     )}
                     {isProjectManager && !isQuickTask && (
-                      <span className="text-gray-400 text-xs"> (Auto-set from your department)</span>
+                      <span className="text-gray-400 text-xs">
+                        {" "}
+                        (Auto-set from your department)
+                      </span>
                     )}
                   </label>
                   <div className="relative">
@@ -1412,27 +1313,6 @@ export default function CreateTaskModal({
               </div>
             )}
 
-            {/* Sub-Task Info - Show inherited fields */}
-            {isSubTask && (
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-xs font-medium text-blue-700 mb-2">📋 Inherited from Parent Task</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-xs text-blue-600">Project:</span>
-                    <p className="text-gray-800 font-medium">
-                      {projects.find(p => p._id === selectedProject)?.name || "Will be inherited"}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-blue-600">Department:</span>
-                    <p className="text-gray-800 font-medium">
-                      {departments.find(d => d._id === selectedDepartment)?.name || "Will be inherited"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Priority, Estimated Hours, Actual Minutes */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -1466,15 +1346,14 @@ export default function CreateTaskModal({
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Estimated Hours
-                  {isMilestone && <span className="text-purple-600 text-xs ml-1">(Auto: 0h)</span>}
                 </label>
                 <div className="relative">
                   <Hourglass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <input
                     type="number"
-                    min="0"
+                    min="0.5"
                     step="0.5"
-                    value={isMilestone ? 0 : formData.estimatedHours}
+                    value={formData.estimatedHours}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
@@ -1483,7 +1362,6 @@ export default function CreateTaskModal({
                     }
                     className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition placeholder:text-gray-400"
                     placeholder="Hours"
-                    disabled={isMilestone}
                   />
                 </div>
               </div>
@@ -1517,7 +1395,6 @@ export default function CreateTaskModal({
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
                   Start Time
-                  {isMilestone && <span className="text-purple-600 text-xs ml-1">(Milestone date)</span>}
                 </label>
                 <div className="relative">
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1534,7 +1411,7 @@ export default function CreateTaskModal({
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                  End Time <span className="text-gray-400 text-xs">(Auto-sets deadline)</span>
+                  End Time
                 </label>
                 <div className="relative">
                   <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1547,186 +1424,68 @@ export default function CreateTaskModal({
                     className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                   />
                 </div>
-                {formData.endTime && (
+              </div>
+            </div>
+
+            {/* Deadlines */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Deadline{" "}
+                  {!isQuickTask && !isEmployee && !isProjectManager && <span className="text-rose-500">*</span>}
+                  {isProjectManager && !isQuickTask && (
+                    <span className="text-gray-400 text-xs"> (Required)</span>
+                  )}
+                  {(isQuickTask || isEmployee) && (
+                    <span className="text-gray-400 text-xs"> (Auto-set)</span>
+                  )}
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={formData.deadline}
+                    onChange={(e) =>
+                      setFormData({ ...formData, deadline: e.target.value })
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    required={!isQuickTask && !isEmployee}
+                    min={new Date().toISOString().split("T")[0]}
+                    disabled={isQuickTask || isEmployee}
+                  />
+                </div>
+                {isEmployee && (
                   <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
-                    Deadline auto-set to: {new Date(formData.endTime).toLocaleDateString()}
+                    Auto-set to tomorrow
                   </p>
                 )}
               </div>
-            </div>
 
-            {/* Deadline */}
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1.5">
-                Deadline {!isQuickTask && !isEmployee && !isSubTask && <span className="text-rose-500">*</span>}
-                {formData.endTime && <span className="text-green-600 text-xs ml-1">(Auto-set from end time)</span>}
-              </label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="date"
-                  value={formData.deadline}
-                  onChange={(e) =>
-                    setFormData({ ...formData, deadline: e.target.value })
-                  }
-                  className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                  required={!isQuickTask && !isEmployee && !isSubTask}
-                  min={new Date().toISOString().split("T")[0]}
-                  disabled={!!formData.endTime || isQuickTask || isEmployee || isSubTask}
-                />
-              </div>
-              {isEmployee && (
-                <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  Auto-set to tomorrow
-                </p>
-              )}
-              {isSubTask && (
-                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
-                  Will inherit deadline from parent task
-                </p>
-              )}
-            </div>
-
-            {/* 🆕 MILESTONE & SUB-TASK TOGGLES */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* Milestone Toggle */}
-              <div className={`flex items-center justify-between p-3 rounded-lg border transition-all ${isMilestone ? "bg-purple-50 border-purple-300" : "bg-gray-50 border-gray-200"}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isMilestone ? "bg-purple-200" : "bg-gray-200"}`}>
-                    <Diamond className={`w-4 h-4 ${isMilestone ? "text-purple-600" : "text-gray-400"}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Milestone</p>
-                    <p className="text-xs text-gray-500">Key checkpoint (diamond on Gantt)</p>
-                  </div>
-                </div>
-                <ToggleSwitch
-                  enabled={isMilestone}
-                  onToggle={() => {
-                    // 🆕 When enabling milestone, disable sub-task
-                    setIsMilestone(!isMilestone);
-                    if (!isMilestone) {
-                      setIsSubTask(false);
-                      setParentTaskId("");
-                      setAvailableParentTasks([]);
-                    }
-                  }}
-                  size="sm"
-                  disabled={isSubTask}
-                />
-              </div>
-
-              {/* Sub-Task Toggle */}
-              <div className={`flex items-center justify-between p-3 rounded-lg border transition-all ${isSubTask ? "bg-blue-50 border-blue-300" : "bg-gray-50 border-gray-200"}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSubTask ? "bg-blue-200" : "bg-gray-200"}`}>
-                    <GitBranch className={`w-4 h-4 ${isSubTask ? "text-blue-600" : "text-gray-400"}`} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">Sub-Task</p>
-                    <p className="text-xs text-gray-500">Child of an existing task</p>
-                  </div>
-                </div>
-                <ToggleSwitch
-                  enabled={isSubTask}
-                  onToggle={() => {
-                    // 🆕 When enabling sub-task, disable milestone
-                    setIsSubTask(!isSubTask);
-                    if (!isSubTask) {
-                      setIsMilestone(false);
-                    }
-                    // Fetch parent tasks when sub-task is enabled
-                    if (!isSubTask) {
-                      fetchParentTasks();
-                    }
-                  }}
-                  size="sm"
-                  disabled={isMilestone}
-                />
-              </div>
-            </div>
-
-            {isSubTask && (
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
-                <label className="block text-xs font-medium text-blue-700 mb-1.5">
-                  Parent Task <span className="text-rose-500">*</span>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">
+                  Revised Deadline
                 </label>
                 <div className="relative">
-                  <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
-                  <select
-                    value={parentTaskId || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      console.log("🟢 Selected:", value);
-                      setParentTaskId(value);
-                    }}
-                    // 🆕 onClick এ fetch করবেন না, শুধু onChange এ কাজ করবে
-                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-white border border-blue-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition appearance-none cursor-pointer"
-                    required={isSubTask}
-                  >
-                    <option value="">-- Select Parent Task --</option>
-                    {loadingParentTasks ? (
-                      <option value="" disabled>Loading tasks...</option>
-                    ) : availableParentTasks.length === 0 ? (
-                      <option value="" disabled>No available parent tasks</option>
-                    ) : (
-                      availableParentTasks.map((task) => {
-                        const projectName = typeof task.projectId === 'object'
-                          ? task.projectId?.name
-                          : task.projectId;
-                        return (
-                          <option key={task._id} value={task._id}>
-                            {task.title} ({task.status})
-                            {projectName && ` - ${projectName}`}
-                          </option>
-                        );
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="date"
+                    value={formData.revisedDeadline}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        revisedDeadline: e.target.value,
                       })
-                    )}
-                  </select>
+                    }
+                    className="w-full pl-9 pr-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    min={
+                      formData.deadline ||
+                      new Date().toISOString().split("T")[0]
+                    }
+                  />
                 </div>
-
-                {/* 🆕 Selected task info */}
-                {parentTaskId && (
-                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-xs text-green-700 flex items-center gap-1">
-                      <CheckSquare className="w-3 h-3" />
-                      Selected: {
-                        availableParentTasks.find(t => t._id === parentTaskId)?.title || 'Loading...'
-                      }
-                    </p>
-                  </div>
-                )}
               </div>
-            )}
-
-            {/* Milestone Info Banner */}
-            {isMilestone && (
-              <div className="p-3 bg-purple-100 border border-purple-300 rounded-lg">
-                <p className="text-xs text-purple-700 flex items-center gap-2">
-                  <Diamond className="w-4 h-4" />
-                  Milestone will appear as a <strong>diamond</strong> on the Gantt chart with 0 duration and 100% progress
-                </p>
-                <p className="text-xs text-purple-600 mt-1">
-                  ⚡ Estimated Hours will be set to 0 • Progress set to 100%
-                </p>
-              </div>
-            )}
-
-            {/* Sub-Task Info Banner */}
-            {isSubTask && (
-              <div className="p-3 bg-blue-100 border border-blue-300 rounded-lg">
-                <p className="text-xs text-blue-700 flex items-center gap-2">
-                  <GitBranch className="w-4 h-4" />
-                  Sub-task will inherit <strong>project</strong> and <strong>department</strong> from parent task
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  📌 Sub-tasks appear indented under parent in Gantt chart
-                </p>
-              </div>
-            )}
+            </div>
 
             {/* Evidence URLs */}
             <div>
@@ -1852,22 +1611,12 @@ export default function CreateTaskModal({
                     <Loader2 size={16} className="animate-spin" />
                     {isCreatingProject
                       ? "Creating Project..."
-                      : isMilestone
-                        ? "Creating Milestone..."
-                        : isSubTask
-                          ? "Creating Sub-Task..."
-                          : "Creating Task..."}
+                      : "Creating Task..."}
                   </>
                 ) : (
                   <>
                     <Sparkles size={16} />
-                    {isEmployee
-                      ? "Create Task for Yourself"
-                      : isMilestone
-                        ? "Create Milestone"
-                        : isSubTask
-                          ? "Create Sub-Task"
-                          : "Create Task"}
+                    {isEmployee ? "Create Task for Yourself" : "Create Task"}
                   </>
                 )}
               </button>

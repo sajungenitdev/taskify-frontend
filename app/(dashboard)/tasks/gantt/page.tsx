@@ -38,6 +38,8 @@ import {
     UserPlus,
     ChevronDown,
     FileText,
+    GitBranch,
+    Gem,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -77,6 +79,10 @@ interface Task {
     dependencies?: string[];
     order?: number;
     progress?: number;
+    isMilestone?: boolean;
+    parentTaskId?: string | null | { _id: string; title: string; status: string };
+    subTaskCount?: number;
+    completedSubTaskCount?: number;
 }
 
 interface GanttTask extends Task {
@@ -89,6 +95,10 @@ interface GanttTask extends Task {
     isOverdue: boolean;
     isToday: boolean;
     isThisWeek: boolean;
+    isMilestone?: boolean;
+    subTaskCount?: number;
+    completedSubTaskCount?: number;
+    parentTaskId?: string | null | { _id: string; title: string; status: string };
 }
 
 interface User {
@@ -274,6 +284,11 @@ const TaskGanttBar = ({
                     Project: {task.projectId.name}
                 </p>
             )}
+            {task.subTaskCount && task.subTaskCount > 0 && (
+                <p className="text-xs text-gray-300">
+                    Sub-tasks: {task.completedSubTaskCount || 0}/{task.subTaskCount}
+                </p>
+            )}
         </div>
     );
 
@@ -311,6 +326,110 @@ const TaskGanttBar = ({
     );
 };
 
+// ============ MILESTONE DIAMOND COMPONENT ============
+const MilestoneDiamond = ({
+    task,
+    dayWidth,
+    startDate,
+    onTaskClick,
+}: {
+    task: GanttTask;
+    dayWidth: number;
+    startDate: Date;
+    onTaskClick: (task: GanttTask) => void;
+}) => {
+    const startOffset = getDaysBetween(startDate, task.start);
+
+    const diamondColor = task.isOverdue
+        ? "text-rose-500"
+        : task.status === "completed" || task.status === "done"
+            ? "text-emerald-500"
+            : task.status === "in_progress"
+                ? "text-blue-500"
+                : task.status === "submitted"
+                    ? "text-purple-500"
+                    : "text-amber-500";
+
+    const tooltipContent = (
+        <div className="space-y-1">
+            <p className="font-semibold text-white">🚩 {task.title}</p>
+            <div className="flex items-center gap-2 text-xs text-gray-300">
+                <span>Status: {getStatusLabel(task.status)}</span>
+                <span>•</span>
+                <span>Priority: {getPriorityLabel(task.priority)}</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-300">
+                <span>Milestone Date: {formatDate(task.start)}</span>
+            </div>
+            {task.assignedTo && (
+                <p className="text-xs text-gray-300">
+                    Assigned to: {task.assignedTo.fullName}
+                </p>
+            )}
+            {task.projectId && (
+                <p className="text-xs text-gray-300">
+                    Project: {task.projectId.name}
+                </p>
+            )}
+        </div>
+    );
+
+    return (
+        <Tooltip content={tooltipContent}>
+            <div
+                className="absolute cursor-pointer transition-all hover:scale-110 group"
+                style={{
+                    left: `${startOffset * dayWidth + dayWidth / 2 - 10}px`,
+                    top: "10px",
+                }}
+                onClick={() => onTaskClick(task)}
+            >
+                <div className="relative">
+                    <svg
+                        className={`w-6 h-6 ${diamondColor} drop-shadow-md`}
+                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                    >
+                        <polygon points="12,2 22,12 12,22 2,12" />
+                    </svg>
+                    <Flag
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 text-white"
+                        fill="white"
+                    />
+                    {task.isOverdue && (
+                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5">
+                            <div className="animate-ping absolute w-2.5 h-2.5 bg-rose-400 rounded-full opacity-75" />
+                            <div className="relative w-2.5 h-2.5 bg-rose-500 rounded-full" />
+                        </div>
+                    )}
+                </div>
+            </div>
+        </Tooltip>
+    );
+};
+
+// ============ SUB-TASK INDICATOR COMPONENT ============
+const SubTaskIndicator = ({
+    task,
+    onTaskClick,
+}: {
+    task: GanttTask;
+    onTaskClick: (task: GanttTask) => void;
+}) => {
+    const hasSubTasks = (task.subTaskCount || 0) > 0;
+
+    if (!hasSubTasks) return null;
+
+    return (
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-blue-100 text-blue-700 text-[8px] font-medium px-1.5 py-0.5 rounded-full border border-blue-200">
+            <GitBranch className="w-2.5 h-2.5" />
+            {task.completedSubTaskCount || 0}/{task.subTaskCount}
+        </div>
+    );
+};
+
 // ============ MAIN COMPONENT ============
 export default function GanttChartPage() {
     const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -331,6 +450,8 @@ export default function GanttChartPage() {
     const [filterPriority, setFilterPriority] = useState<string>("all");
     const [filterProject, setFilterProject] = useState<string>("all");
     const [filterEmployee, setFilterEmployee] = useState<string>("all");
+    const [filterMilestone, setFilterMilestone] = useState<string>("all");
+    const [filterSubTask, setFilterSubTask] = useState<string>("all");
     const [projects, setProjects] = useState<{ _id: string; name: string }[]>([]);
     const [viewTab, setViewTab] = useState<"all" | "employee">("all");
     const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
@@ -343,26 +464,22 @@ export default function GanttChartPage() {
         }
     }, [authLoading, isAuthenticated, router]);
 
-
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
 
-            // Fetch tasks
             const tasksResponse = await api.get("/tasks");
             if (tasksResponse.data.success) {
                 setTasks(tasksResponse.data.data || []);
             }
 
-            // Fetch projects for filter
             const projectsResponse = await api.get("/projects");
             if (projectsResponse.data.success) {
                 const projectsData = projectsResponse.data.data || [];
                 setProjects(projectsData.map((p: any) => ({ _id: p._id, name: p.name })));
             }
 
-            // Fetch users for employee filter
             const usersResponse = await api.get("/users");
             if (usersResponse.data.success) {
                 setUsers(usersResponse.data.data || []);
@@ -376,17 +493,24 @@ export default function GanttChartPage() {
         }
     }, []);
 
-    // Fetch data
     useEffect(() => {
         if (isAuthenticated) {
             fetchData();
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, fetchData]);
 
     // Generate Gantt data
     const ganttData = useMemo(() => {
         const filteredTasks = tasks.filter((task) => {
             if (!task.startDate && !task.deadline) return false;
+
+            // Milestone filter
+            if (filterMilestone === "milestones" && !task.isMilestone) return false;
+            if (filterMilestone === "regular" && task.isMilestone) return false;
+
+            // Sub-task filter
+            if (filterSubTask === "parent" && task.parentTaskId) return false;
+            if (filterSubTask === "subtask" && !task.parentTaskId) return false;
 
             // Employee filter
             if (filterEmployee !== "all" && task.assignedTo?._id !== filterEmployee) {
@@ -434,7 +558,6 @@ export default function GanttChartPage() {
             if (end > maxDate) maxDate = end;
         });
 
-        // Add padding
         minDate.setDate(minDate.getDate() - 2);
         maxDate.setDate(maxDate.getDate() + 2);
 
@@ -461,6 +584,9 @@ export default function GanttChartPage() {
                 isOverdue,
                 isToday,
                 isThisWeek,
+                isMilestone: task.isMilestone || false,
+                subTaskCount: task.subTaskCount || 0,
+                completedSubTaskCount: task.completedSubTaskCount || 0,
             };
         });
 
@@ -470,8 +596,11 @@ export default function GanttChartPage() {
             endDate: maxDate,
             totalDays: getDaysBetween(minDate, maxDate),
             totalTasks: ganttTasks.length,
+            milestoneCount: ganttTasks.filter(t => t.isMilestone).length,
+            parentTaskCount: ganttTasks.filter(t => !t.parentTaskId).length,
+            subTaskCount: ganttTasks.filter(t => t.parentTaskId).length,
         };
-    }, [tasks, searchQuery, filterStatus, filterPriority, filterProject, filterEmployee]);
+    }, [tasks, searchQuery, filterStatus, filterPriority, filterProject, filterEmployee, filterMilestone, filterSubTask]);
 
     // Get unique statuses, priorities, and employees for filters
     const statuses = useMemo(() => {
@@ -572,7 +701,6 @@ export default function GanttChartPage() {
             const pageWidth = doc.internal.pageSize.getWidth();
             const pageHeight = doc.internal.pageSize.getHeight();
 
-            // Header
             doc.setFontSize(24);
             doc.setTextColor(99, 102, 241);
             doc.text("Gantt Chart", pageWidth / 2, 20, { align: "center" });
@@ -586,27 +714,29 @@ export default function GanttChartPage() {
             });
             doc.text(`Generated on ${dateStr}`, pageWidth / 2, 28, { align: "center" });
 
-            // Stats
             doc.setFontSize(10);
             doc.setTextColor(51, 65, 85);
             const totalTasks = ganttData.tasks.length;
             const completedTasks = ganttData.tasks.filter(t => t.status === "completed" || t.status === "done").length;
             const inProgressTasks = ganttData.tasks.filter(t => t.status === "in_progress").length;
             const overdueTasks = ganttData.tasks.filter(t => t.isOverdue).length;
+            const milestoneCount = ganttData.milestoneCount;
             const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
             doc.text(`Total Tasks: ${totalTasks}`, 20, 40);
             doc.text(`Completed: ${completedTasks}`, 20, 46);
             doc.text(`In Progress: ${inProgressTasks}`, 20, 52);
             doc.text(`Overdue: ${overdueTasks}`, 20, 58);
-            doc.text(`Overall Progress: ${progress}%`, 20, 64);
+            doc.text(`Milestones: ${milestoneCount}`, 20, 64);
+            doc.text(`Overall Progress: ${progress}%`, 20, 70);
 
-            // Task Table
             const tableData = ganttData.tasks.map((task) => [
                 task.title,
                 task.projectId?.name || "N/A",
                 getStatusLabel(task.status),
                 getPriorityLabel(task.priority),
+                task.isMilestone ? "⭐ Yes" : "No",
+                task.parentTaskId ? "Yes" : "No",
                 formatDate(task.start),
                 formatDate(task.end),
                 `${task.duration}d`,
@@ -615,33 +745,34 @@ export default function GanttChartPage() {
             ]);
 
             autoTable(doc, {
-                startY: 72,
-                head: [["Task", "Project", "Status", "Priority", "Start", "Deadline", "Duration", "Progress", "Assigned To"]],
+                startY: 78,
+                head: [["Task", "Project", "Status", "Priority", "Milestone", "Sub-Task", "Start", "Deadline", "Duration", "Progress", "Assigned To"]],
                 body: tableData,
                 theme: "striped",
                 headStyles: {
                     fillColor: [99, 102, 241],
                     textColor: [255, 255, 255],
-                    fontSize: 8,
+                    fontSize: 7,
                     fontStyle: "bold",
                 },
                 bodyStyles: {
-                    fontSize: 7,
+                    fontSize: 6,
                 },
                 columnStyles: {
-                    0: { cellWidth: 35 },
-                    1: { cellWidth: 25 },
-                    2: { cellWidth: 18 },
-                    3: { cellWidth: 15 },
-                    4: { cellWidth: 20 },
-                    5: { cellWidth: 20 },
-                    6: { cellWidth: 12 },
-                    7: { cellWidth: 15 },
-                    8: { cellWidth: 25 },
+                    0: { cellWidth: 25 },
+                    1: { cellWidth: 18 },
+                    2: { cellWidth: 14 },
+                    3: { cellWidth: 12 },
+                    4: { cellWidth: 12 },
+                    5: { cellWidth: 12 },
+                    6: { cellWidth: 18 },
+                    7: { cellWidth: 18 },
+                    8: { cellWidth: 10 },
+                    9: { cellWidth: 12 },
+                    10: { cellWidth: 20 },
                 },
-                margin: { left: 10, right: 10 },
+                margin: { left: 8, right: 8 },
                 didDrawPage: function (data) {
-                    // Footer
                     const pageCount = doc.getNumberOfPages();
                     const currentPage = data.pageNumber || 1;
                     doc.setFontSize(8);
@@ -655,7 +786,6 @@ export default function GanttChartPage() {
                 },
             });
 
-            // Save
             doc.save(`Gantt_Chart_${new Date().toISOString().split("T")[0]}.pdf`);
             toast.success("PDF exported successfully!", { id: "pdf-export" });
 
@@ -665,7 +795,7 @@ export default function GanttChartPage() {
         } finally {
             setExportingPDF(false);
         }
-    }, [ganttData.tasks]);
+    }, [ganttData.tasks, ganttData.milestoneCount]);
 
     // Export CSV
     const handleExportCSV = () => {
@@ -675,6 +805,8 @@ export default function GanttChartPage() {
                 "Project",
                 "Status",
                 "Priority",
+                "Milestone",
+                "Sub-Task",
                 "Start Date",
                 "Deadline",
                 "Duration (days)",
@@ -687,6 +819,8 @@ export default function GanttChartPage() {
                 `"${task.projectId?.name || "N/A"}"`,
                 getStatusLabel(task.status),
                 getPriorityLabel(task.priority),
+                task.isMilestone ? "Yes" : "No",
+                task.parentTaskId ? "Yes" : "No",
                 formatDate(task.start),
                 formatDate(task.end),
                 task.duration,
@@ -774,6 +908,12 @@ export default function GanttChartPage() {
                                 <span className="ml-2 text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
                                     {ganttData.totalTasks} tasks
                                 </span>
+                                <span className="ml-2 text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">
+                                    ⭐ {ganttData.milestoneCount} milestones
+                                </span>
+                                <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                    <GitBranch className="w-3 h-3 inline" /> {ganttData.subTaskCount} sub-tasks
+                                </span>
                             </p>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -834,7 +974,7 @@ export default function GanttChartPage() {
                         </button>
                     </motion.div>
 
-                    {/* Employee Selector (shown only in employee view) */}
+                    {/* Employee Selector */}
                     {viewTab === "employee" && (
                         <motion.div
                             initial={{ opacity: 0, y: -10 }}
@@ -889,17 +1029,6 @@ export default function GanttChartPage() {
                                             <X size={14} className="text-gray-400" />
                                         </button>
                                     </div>
-                                )}
-                                {filterEmployee !== "all" && !selectedEmployee && (
-                                    <button
-                                        onClick={() => {
-                                            setFilterEmployee("all");
-                                            setSelectedEmployee(null);
-                                        }}
-                                        className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition"
-                                    >
-                                        Clear Selection
-                                    </button>
                                 )}
                             </div>
                         </motion.div>
@@ -964,6 +1093,26 @@ export default function GanttChartPage() {
                                         </option>
                                     ))}
                                 </select>
+
+                                <select
+                                    value={filterMilestone}
+                                    onChange={(e) => setFilterMilestone(e.target.value)}
+                                    className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                >
+                                    <option value="all">All Tasks</option>
+                                    <option value="milestones">⭐ Milestones Only</option>
+                                    <option value="regular">Regular Tasks Only</option>
+                                </select>
+
+                                <select
+                                    value={filterSubTask}
+                                    onChange={(e) => setFilterSubTask(e.target.value)}
+                                    className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                >
+                                    <option value="all">All Tasks</option>
+                                    <option value="parent">📋 Parent Tasks Only</option>
+                                    <option value="subtask">📌 Sub-Tasks Only</option>
+                                </select>
                             </div>
                         </div>
 
@@ -1024,14 +1173,14 @@ export default function GanttChartPage() {
                                 <div className="flex bg-gray-100 rounded-lg p-0.5">
                                     <button
                                         onClick={handleZoomOut}
-                                        className="p-1.5 hover:bg-white rounded-lg transition"
+                                        className="p-1.5 text-blue-600 hover:bg-white rounded-lg transition"
                                         title="Zoom Out"
                                     >
                                         <ZoomOut size={16} />
                                     </button>
                                     <button
                                         onClick={handleZoomIn}
-                                        className="p-1.5 hover:bg-white rounded-lg transition"
+                                        className="p-1.5 text-blue-600 hover:bg-white rounded-lg transition"
                                         title="Zoom In"
                                     >
                                         <ZoomIn size={16} />
@@ -1057,9 +1206,17 @@ export default function GanttChartPage() {
                                 <p className="text-gray-500 text-sm">
                                     {filterEmployee !== "all"
                                         ? `No tasks assigned to the selected employee`
-                                        : searchQuery || filterStatus !== "all" || filterPriority !== "all" || filterProject !== "all"
-                                            ? "Try adjusting your filters"
-                                            : "Create tasks with start dates and deadlines to see them on the Gantt chart"}
+                                        : filterMilestone === "milestones"
+                                            ? "No milestones found. Mark tasks as milestones to see them here."
+                                            : filterMilestone === "regular"
+                                                ? "No regular tasks found."
+                                                : filterSubTask === "parent"
+                                                    ? "No parent tasks found."
+                                                    : filterSubTask === "subtask"
+                                                        ? "No sub-tasks found."
+                                                        : searchQuery || filterStatus !== "all" || filterPriority !== "all" || filterProject !== "all"
+                                                            ? "Try adjusting your filters"
+                                                            : "Create tasks with start dates and deadlines to see them on the Gantt chart"}
                                 </p>
                             </div>
                         ) : (
@@ -1098,52 +1255,107 @@ export default function GanttChartPage() {
 
                                     {/* Task Rows */}
                                     <div>
-                                        {ganttData.tasks.map((task) => (
-                                            <div
-                                                key={task._id}
-                                                className="flex border-b border-gray-100 hover:bg-gray-50 transition group"
-                                            >
-                                                {/* Task Info */}
+                                        {ganttData.tasks.map((task) => {
+                                            const isSubTask = task.parentTaskId && task.parentTaskId !== null && task.parentTaskId !== '';
+                                            const hasSubTasks = (task.subTaskCount || 0) > 0;
+
+                                            return (
                                                 <div
-                                                    className="w-64 shrink-0 p-3 cursor-pointer"
-                                                    onClick={() => handleTaskClick(task)}
+                                                    key={task._id}
+                                                    className={`flex border-b border-gray-100 hover:bg-gray-50 transition group ${task.isMilestone ? "bg-purple-50/30" : ""
+                                                        } ${isSubTask ? "bg-blue-50/10" : ""}`}
                                                 >
-                                                    <div className="flex items-center gap-2">
-                                                        <div
-                                                            className="w-2 h-2 rounded-full shrink-0"
-                                                            style={{ backgroundColor: task.color }}
-                                                        />
-                                                        <span className="text-sm font-medium text-gray-800 truncate">
-                                                            {task.title}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
-                                                        {task.projectId && (
-                                                            <span>{task.projectId.name}</span>
-                                                        )}
-                                                        {task.assignedTo && (
-                                                            <>
-                                                                <span>•</span>
-                                                                <span className="flex items-center gap-1">
-                                                                    <User size={10} />
-                                                                    {task.assignedTo.fullName}
+                                                    {/* Task Info */}
+                                                    <div
+                                                        className="w-64 shrink-0 p-3 cursor-pointer"
+                                                        onClick={() => handleTaskClick(task)}
+                                                    >
+                                                        <div className="flex items-center gap-2">
+                                                            {task.isMilestone && (
+                                                                <Gem className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                                            )}
+                                                            {isSubTask && !task.isMilestone && (
+                                                                <GitBranch className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                                                            )}
+                                                            {hasSubTasks && !task.isMilestone && !isSubTask && (
+                                                                <GitBranch className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                            )}
+                                                            <div
+                                                                className="w-2 h-2 rounded-full shrink-0"
+                                                                style={{ backgroundColor: task.color }}
+                                                            />
+                                                            <span className={`text-sm font-medium truncate ${task.isMilestone ? "text-purple-700" : isSubTask ? "text-blue-700" : "text-gray-800"
+                                                                }`}>
+                                                                {task.title}
+                                                            </span>
+                                                            {task.isMilestone && (
+                                                                <span className="text-[8px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                                                    MILESTONE
                                                                 </span>
+                                                            )}
+                                                            {isSubTask && !task.isMilestone && (
+                                                                <span className="text-[8px] font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                                                    SUB-TASK
+                                                                </span>
+                                                            )}
+                                                            {hasSubTasks && !task.isMilestone && !isSubTask && (
+                                                                <span className="text-[8px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                                                    {task.completedSubTaskCount || 0}/{task.subTaskCount}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                                                            {task.projectId && (
+                                                                <span>{task.projectId.name}</span>
+                                                            )}
+                                                            {task.assignedTo && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span className="flex items-center gap-1">
+                                                                        <User size={10} />
+                                                                        {task.assignedTo.fullName}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                            {isSubTask && task.parentTaskId && typeof task.parentTaskId === 'object' && (
+                                                                <>
+                                                                    <span>•</span>
+                                                                    <span className="flex items-center gap-1 text-blue-500">
+                                                                        <GitBranch size={10} />
+                                                                        Parent: {task.parentTaskId.title}
+                                                                    </span>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Gantt Bar Area */}
+                                                    <div className="flex-1 relative" style={{ height: "48px" }}>
+                                                        {task.isMilestone ? (
+                                                            <MilestoneDiamond
+                                                                task={task}
+                                                                dayWidth={dayWidth}
+                                                                startDate={ganttData.startDate}
+                                                                onTaskClick={handleTaskClick}
+                                                            />
+                                                        ) : (
+                                                            <>
+                                                                <TaskGanttBar
+                                                                    task={task}
+                                                                    dayWidth={dayWidth}
+                                                                    startDate={ganttData.startDate}
+                                                                    onTaskClick={handleTaskClick}
+                                                                />
+                                                                <SubTaskIndicator
+                                                                    task={task}
+                                                                    onTaskClick={handleTaskClick}
+                                                                />
                                                             </>
                                                         )}
                                                     </div>
                                                 </div>
-
-                                                {/* Gantt Bar Area */}
-                                                <div className="flex-1 relative" style={{ height: "48px" }}>
-                                                    <TaskGanttBar
-                                                        task={task}
-                                                        dayWidth={dayWidth}
-                                                        startDate={ganttData.startDate}
-                                                        onTaskClick={handleTaskClick}
-                                                    />
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -1182,12 +1394,50 @@ export default function GanttChartPage() {
                             <div className="w-3 h-3 bg-indigo-100 border border-indigo-200 rounded" />
                             <span>Progress Bar</span>
                         </div>
+                        <div className="w-px h-6 bg-gray-200" />
+                        <div className="flex items-center gap-2">
+                            <svg className="w-4 h-4 text-purple-500" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="12,2 22,12 12,22 2,12" />
+                            </svg>
+                            <span className="font-medium text-purple-600">Milestone</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <GitBranch className="w-4 h-4 text-blue-500" />
+                            <span className="font-medium text-blue-600">Sub-Task</span>
+                        </div>
+                        <div className="w-px h-6 bg-gray-200" />
+                        <div className="flex items-center gap-2">
+                            <GitBranch className="w-4 h-4 text-emerald-500" />
+                            <span className="font-medium text-emerald-600">Parent Task</span>
+                        </div>
                         {filterEmployee !== "all" && selectedEmployee && (
                             <>
                                 <div className="w-px h-6 bg-gray-200" />
                                 <div className="flex items-center gap-2 text-indigo-600">
                                     <UserCheck size={14} />
                                     <span>Viewing: {selectedEmployee.fullName}</span>
+                                </div>
+                            </>
+                        )}
+                        {filterMilestone !== "all" && (
+                            <>
+                                <div className="w-px h-6 bg-gray-200" />
+                                <div className="flex items-center gap-2 text-purple-600">
+                                    <Flag size={14} />
+                                    <span>
+                                        {filterMilestone === "milestones" ? "Showing Milestones Only" : "Showing Regular Tasks Only"}
+                                    </span>
+                                </div>
+                            </>
+                        )}
+                        {filterSubTask !== "all" && (
+                            <>
+                                <div className="w-px h-6 bg-gray-200" />
+                                <div className="flex items-center gap-2 text-blue-600">
+                                    <GitBranch size={14} />
+                                    <span>
+                                        {filterSubTask === "parent" ? "Showing Parent Tasks Only" : "Showing Sub-Tasks Only"}
+                                    </span>
                                 </div>
                             </>
                         )}
@@ -1210,7 +1460,8 @@ export default function GanttChartPage() {
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Header */}
-                            <div className="p-6 border-b border-gray-200">
+                            <div className={`p-6 border-b ${selectedTask.isMilestone ? "border-purple-200 bg-purple-50/50" : selectedTask.parentTaskId ? "border-blue-200 bg-blue-50/30" : "border-gray-200"
+                                }`}>
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2">
@@ -1218,7 +1469,14 @@ export default function GanttChartPage() {
                                                 className="w-2 h-8 rounded"
                                                 style={{ backgroundColor: selectedTask.color }}
                                             />
-                                            <h3 className="text-xl font-bold text-gray-800">
+                                            {selectedTask.isMilestone && (
+                                                <Gem className="w-5 h-5 text-purple-500" />
+                                            )}
+                                            {selectedTask.parentTaskId && !selectedTask.isMilestone && (
+                                                <GitBranch className="w-5 h-5 text-blue-400" />
+                                            )}
+                                            <h3 className={`text-xl font-bold ${selectedTask.isMilestone ? "text-purple-700" : selectedTask.parentTaskId ? "text-blue-700" : "text-gray-800"
+                                                }`}>
                                                 {selectedTask.title}
                                             </h3>
                                         </div>
@@ -1226,6 +1484,33 @@ export default function GanttChartPage() {
                                             <span>{getStatusLabel(selectedTask.status)}</span>
                                             <span>•</span>
                                             <span>{getPriorityLabel(selectedTask.priority)}</span>
+                                            {selectedTask.isMilestone && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="text-purple-600 font-medium flex items-center gap-1">
+                                                        <Gem size={12} />
+                                                        Milestone
+                                                    </span>
+                                                </>
+                                            )}
+                                            {selectedTask.parentTaskId && typeof selectedTask.parentTaskId === 'object' && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="text-blue-600 font-medium flex items-center gap-1">
+                                                        <GitBranch size={12} />
+                                                        Sub-Task of: {selectedTask.parentTaskId.title}
+                                                    </span>
+                                                </>
+                                            )}
+                                            {selectedTask.subTaskCount && selectedTask.subTaskCount > 0 && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="text-emerald-600 font-medium flex items-center gap-1">
+                                                        <GitBranch size={12} />
+                                                        {selectedTask.completedSubTaskCount || 0}/{selectedTask.subTaskCount} sub-tasks
+                                                    </span>
+                                                </>
+                                            )}
                                             {selectedTask.projectId && (
                                                 <>
                                                     <span>•</span>
@@ -1259,6 +1544,42 @@ export default function GanttChartPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            Type
+                                        </h4>
+                                        <p className="text-sm text-gray-800 mt-1 flex items-center gap-1.5">
+                                            {selectedTask.isMilestone ? (
+                                                <>
+                                                    <Gem size={14} className="text-purple-500" />
+                                                    <span className="font-medium text-purple-600">Milestone</span>
+                                                </>
+                                            ) : selectedTask.parentTaskId ? (
+                                                <>
+                                                    <GitBranch size={14} className="text-blue-500" />
+                                                    <span className="font-medium text-blue-600">Sub-Task</span>
+                                                </>
+                                            ) : selectedTask.subTaskCount && selectedTask.subTaskCount > 0 ? (
+                                                <>
+                                                    <GitBranch size={14} className="text-emerald-500" />
+                                                    <span className="font-medium text-emerald-600">Parent Task</span>
+                                                </>
+                                            ) : (
+                                                "Regular Task"
+                                            )}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            Status
+                                        </h4>
+                                        <p className="text-sm text-gray-800 mt-1">
+                                            {getStatusLabel(selectedTask.status)}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             Start Date
                                         </h4>
                                         <p className="text-sm text-gray-800 mt-1">
@@ -1269,39 +1590,64 @@ export default function GanttChartPage() {
                                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             Deadline
                                         </h4>
-                                        <p className={`text-sm mt-1 ${selectedTask.isOverdue ? "text-rose-600 font-medium" : "text-gray-800"}`}>
+                                        <p className={`text-sm mt-1 ${selectedTask.isOverdue ? "text-rose-600 font-medium" : "text-gray-800"
+                                            }`}>
                                             {formatDate(selectedTask.end)}
                                             {selectedTask.isOverdue && " ⚠️ Overdue"}
                                         </p>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Duration
-                                        </h4>
-                                        <p className="text-sm text-gray-800 mt-1">
-                                            {selectedTask.duration} days
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Progress
-                                        </h4>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className="h-full bg-indigo-500 rounded-full transition-all"
-                                                    style={{ width: `${selectedTask.progressPercent}%` }}
-                                                />
+                                {!selectedTask.isMilestone && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                Duration
+                                            </h4>
+                                            <p className="text-sm text-gray-800 mt-1">
+                                                {selectedTask.duration} days
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                Progress
+                                            </h4>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-indigo-500 rounded-full transition-all"
+                                                        style={{ width: `${selectedTask.progressPercent}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-700">
+                                                    {selectedTask.progressPercent}%
+                                                </span>
                                             </div>
-                                            <span className="text-sm font-medium text-gray-700">
-                                                {selectedTask.progressPercent}%
-                                            </span>
                                         </div>
                                     </div>
-                                </div>
+                                )}
+
+                                {/* Sub-task progress for parent tasks */}
+                                {selectedTask.subTaskCount && selectedTask.subTaskCount > 0 && !selectedTask.isMilestone && (
+                                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <p className="text-xs text-blue-600 font-medium">Sub-Task Progress</p>
+                                            <span className="text-xs font-bold text-blue-700">
+                                                {selectedTask.completedSubTaskCount || 0}/{selectedTask.subTaskCount} complete
+                                            </span>
+                                        </div>
+                                        <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-blue-500 rounded-full transition-all"
+                                                style={{
+                                                    width: `${selectedTask.subTaskCount > 0
+                                                        ? ((selectedTask.completedSubTaskCount || 0) / selectedTask.subTaskCount) * 100
+                                                        : 0}%`
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
 
                                 {selectedTask.assignedTo && (
                                     <div>

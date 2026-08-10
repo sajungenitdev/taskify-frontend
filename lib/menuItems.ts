@@ -908,7 +908,7 @@ export const SUB_ITEMS = {
     "/tasks/gantt",
     GanttChart,
     "Tasks",
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER, ROLES.EMPLOYEE],
     { description: "Project timeline visualization with Gantt chart" },
   ),
   bulkUpload: createSubNavItem(

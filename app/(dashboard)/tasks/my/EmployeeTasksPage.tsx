@@ -44,6 +44,10 @@ import {
   Text,
   Send as SendIcon,
   PlayIcon,
+  GitBranch,
+  ChevronDown,
+  ChevronUp,
+  Gem,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -77,6 +81,12 @@ interface Task {
   isTimerRunning?: boolean;
   timerStartTime?: string;
   elapsedTime?: number;
+  // 🆕 NEW FIELDS
+  isMilestone?: boolean;
+  parentTaskId?: string | null | { _id: string; title: string; status: string };
+  subTaskCount?: number;
+  completedSubTaskCount?: number;
+  progress?: number;
 }
 
 const PRIORITY_CONFIG = {
@@ -111,6 +121,183 @@ const getPriorityConfig = (priority: string) => {
   return PRIORITY_CONFIG[key] || PRIORITY_CONFIG.normal;
 };
 
+// ============ SUB-TASK TREE COMPONENT ============
+const SubTaskTreeItem = ({
+  task,
+  onTaskClick,
+  level = 0,
+}: {
+  task: Task;
+  onTaskClick: (task: Task) => void;
+  level?: number;
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const [subTasks, setSubTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showSubTasks, setShowSubTasks] = useState(false);
+
+  const hasSubTasks = (task.subTaskCount || 0) > 0;
+  const isMilestone = task.isMilestone === true;
+  const isParent = !isMilestone && hasSubTasks;
+
+  const fetchSubTasks = useCallback(async () => {
+    if (!task._id) return;
+    setLoading(true);
+    try {
+      const response = await api.get(`/tasks/${task._id}/subtasks`);
+      if (response.data.success) {
+        setSubTasks(response.data.data || []);
+        setShowSubTasks(true);
+      }
+    } catch (error) {
+      console.error("Error fetching sub-tasks:", error);
+      toast.error("Failed to load sub-tasks");
+    } finally {
+      setLoading(false);
+    }
+  }, [task._id]);
+
+  const toggleExpand = () => {
+    if (!showSubTasks) {
+      fetchSubTasks();
+    } else {
+      setShowSubTasks(!showSubTasks);
+    }
+  };
+
+  const progress = task.progress || 0;
+  const isCompleted = task.status === "completed" || task.status === "done";
+
+  return (
+    <div className="relative">
+      {/* Task Row */}
+      <div
+        className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition cursor-pointer group ${isMilestone ? "bg-purple-50/50 border-l-4 border-purple-400" : ""
+          } ${isCompleted ? "opacity-70" : ""}`}
+        style={{ marginLeft: `${level * 24}px` }}
+        onClick={() => onTaskClick(task)}
+      >
+        {/* Expand/Collapse Button */}
+        {isParent && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand();
+            }}
+            className="p-1 hover:bg-gray-200 rounded-lg transition shrink-0"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+            ) : showSubTasks ? (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+        )}
+
+        {/* Icon */}
+        {isMilestone ? (
+          <div className="w-6 h-6 flex items-center justify-center shrink-0">
+            <Gem className="w-4 h-4 text-purple-500" />
+          </div>
+        ) : isParent ? (
+          <div className="w-6 h-6 flex items-center justify-center shrink-0">
+            <GitBranch className="w-4 h-4 text-blue-500" />
+          </div>
+        ) : (
+          <div className="w-6 h-6 flex items-center justify-center shrink-0">
+            <CheckSquare className={`w-4 h-4 ${isCompleted ? "text-emerald-500" : "text-gray-400"}`} />
+          </div>
+        )}
+
+        {/* Title & Status */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={`text-sm font-medium ${isMilestone ? "text-purple-700" : isCompleted ? "text-gray-400 line-through" : "text-gray-800"
+              }`}>
+              {task.title}
+            </span>
+            {isMilestone && (
+              <span className="text-[8px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                MILESTONE
+              </span>
+            )}
+            {isParent && (
+              <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                {task.completedSubTaskCount || 0}/{task.subTaskCount || 0} sub-tasks
+              </span>
+            )}
+            {progress > 0 && !isMilestone && !isCompleted && (
+              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                {progress}%
+              </span>
+            )}
+            {/* Status Badge */}
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${task.status === "completed" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+              task.status === "in_progress" ? "bg-sky-50 border-sky-200 text-sky-700" :
+                task.status === "submitted" ? "bg-purple-50 border-purple-200 text-purple-700" :
+                  task.status === "overdue" ? "bg-rose-50 border-rose-200 text-rose-700" :
+                    task.status === "rejected" ? "bg-red-50 border-red-200 text-red-700" :
+                      "bg-amber-50 border-amber-200 text-amber-700"
+              }`}>
+              {task.status.replace("_", " ")}
+            </span>
+          </div>
+          {task.description && (
+            <p className="text-xs text-gray-400 truncate mt-0.5">{task.description}</p>
+          )}
+        </div>
+
+        {/* Project & Deadline */}
+        <div className="flex items-center gap-3 text-xs text-gray-400 shrink-0">
+          {task.projectId && (
+            <span className="flex items-center gap-1">
+              <FolderKanban className="w-3 h-3" />
+              {task.projectId.name}
+            </span>
+          )}
+          {task.deadline && (
+            <span className={`flex items-center gap-1 ${new Date(task.deadline) < new Date() && !isCompleted ? "text-rose-500" : ""}`}>
+              <Calendar className="w-3 h-3" />
+              {new Date(task.deadline).toLocaleDateString()}
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <User className="w-3 h-3" />
+            {task.assignedTo?.fullName || 'Unassigned'}
+          </span>
+        </div>
+      </div>
+
+      {/* Sub-tasks */}
+      {isParent && showSubTasks && subTasks.length > 0 && (
+        <div className="mt-1 space-y-1">
+          {subTasks.map((subTask) => (
+            <SubTaskTreeItem
+              key={subTask._id}
+              task={subTask}
+              onTaskClick={onTaskClick}
+              level={level + 1}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* No sub-tasks message */}
+      {isParent && showSubTasks && subTasks.length === 0 && !loading && (
+        <div
+          className="text-xs text-gray-400 italic p-2"
+          style={{ marginLeft: `${(level + 1) * 24 + 40}px` }}
+        >
+          No sub-tasks found
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============ MAIN COMPONENT ============
 export default function EmployeeTasksPage() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -140,13 +327,16 @@ export default function EmployeeTasksPage() {
   const [sortBy] = useState<"deadline" | "priority" | "title">("deadline");
   const [sortOrder] = useState<"asc" | "desc">("asc");
   const [filterType, setFilterType] = useState<"all" | "today" | "overdue" | "done">("all");
+  // 🆕 View mode
+  const [viewMode, setViewMode] = useState<"list" | "tree">("list");
+  const [showParentOnly, setShowParentOnly] = useState(false);
 
   // Evidence Modal state
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [evidenceTask, setEvidenceTask] = useState<Task | null>(null);
   const [evidenceText, setEvidenceText] = useState("");
   const [submittingEvidence, setSubmittingEvidence] = useState(false);
-console.log(tasks, "tasks")
+
   const itemsPerPage = 10;
 
   const isTaskAssignee = useCallback((task: Task): boolean => {
@@ -374,6 +564,13 @@ console.log(tasks, "tasks")
       return searchMatch && priorityMatch && statusMatch && typeMatch;
     });
 
+    // 🆕 Filter: Show only parent tasks
+    if (showParentOnly) {
+      filtered = filtered.filter(task =>
+        !task.parentTaskId || task.parentTaskId === null || task.parentTaskId === ''
+      );
+    }
+
     return sortTasks(filtered, sortBy, sortOrder);
   }, [
     tasks,
@@ -383,6 +580,7 @@ console.log(tasks, "tasks")
     filterType,
     sortBy,
     sortOrder,
+    showParentOnly,
     matchesSearch,
     matchesPriority,
     matchesStatus,
@@ -404,6 +602,8 @@ console.log(tasks, "tasks")
     completed: tasks.filter((t) => t.status === "completed").length,
     overdue: tasks.filter((t) => t.status === "overdue").length,
     rejected: tasks.filter((t) => t.status === "rejected").length,
+    milestoneCount: tasks.filter((t) => t.isMilestone === true).length,
+    subTaskCount: tasks.filter((t) => t.parentTaskId && t.parentTaskId !== null && t.parentTaskId !== '').length,
   };
 
   const formatDateFull = (dateString: string) => {
@@ -431,13 +631,64 @@ console.log(tasks, "tasks")
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6 w-full max-w-7xl">
+      <div className=" mx-auto px-4 py-6 w-full container">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm text-gray-500">
+                {stats.total} total tasks
+              </span>
+              {stats.milestoneCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200">
+                  <Gem className="w-3 h-3" />
+                  {stats.milestoneCount} milestones
+                </span>
+              )}
+              {stats.subTaskCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200">
+                  <GitBranch className="w-3 h-3" />
+                  {stats.subTaskCount} sub-tasks
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {/* 🆕 View Toggle */}
+            <div className="flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${viewMode === "list"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                <List className="w-4 h-4" />
+                List
+              </button>
+              <button
+                onClick={() => setViewMode("tree")}
+                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${viewMode === "tree"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+                  }`}
+              >
+                <GitBranch className="w-4 h-4" />
+                Tree
+              </button>
+            </div>
+            {/* 🆕 Show Parents Only Toggle */}
+            <button
+              onClick={() => setShowParentOnly(!showParentOnly)}
+              className={`px-3 py-2 rounded-xl text-sm flex items-center gap-2 transition shadow-sm ${showParentOnly
+                ? "bg-blue-600 text-white"
+                : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800"
+                }`}
+            >
+              <GitBranch className="w-4 h-4" />
+              {showParentOnly ? "Parents Only" : "All Tasks"}
+            </button>
             <button
               onClick={() => setShowCreateModal(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2 transition shadow-sm"
@@ -516,175 +767,244 @@ console.log(tasks, "tasks")
             onChange={(e) => setSelectedStatus(e.target.value)}
             className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition shadow-sm"
           >
-            <option value="">Deadline: any</option>
+            <option value="">All Status</option>
             <option value="pending">Pending</option>
-            <option value="in_progress">Running</option>
+            <option value="in_progress">In Progress</option>
             <option value="submitted">Submitted</option>
             <option value="completed">Completed</option>
             <option value="overdue">Overdue</option>
+            <option value="rejected">Rejected</option>
           </select>
         </div>
 
-        {/* Tasks List View */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="divide-y divide-gray-100">
-            {paginatedTasks.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No tasks found</p>
-              </div>
-            ) : (
-              paginatedTasks.map((task) => {
-                const isTimerActive = isTimerActiveForTask(task._id);
-                const isRunning = isTimerActive && timerState.isRunning;
-                const isCompleted = task.status === "completed";
-                const isSubmitted = task.status === "submitted";
-                // Only mark as overdue if NOT completed and NOT submitted
-                const isOverdue = !isCompleted && !isSubmitted && (task.status === "overdue" || new Date(task.deadline) < new Date());
-                const dueDateStr = formatDateFull(task.deadline);
-                const priorityConfig = getPriorityConfig(task.priority);
-                const hasEvidence = task.evidenceUrls && task.evidenceUrls.length > 0;
-                const needsEvidence = task.evidenceRequired && !hasEvidence;
-
-                return (
-                  <div
-                    key={task._id}
-                    onClick={() => handleTaskClick(task)}
-                    className="flex items-center justify-between px-5 py-4 hover:bg-gray-50/80 transition cursor-pointer group"
-                  >
-                    {/* Left: Checkbox & Title */}
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1 mr-4">
-                      <button
-                        type="button"
-                        onClick={(e) => handleCheckboxClick(task, e)}
-                        disabled={isCompleted}
-                        className="shrink-0 focus:outline-none relative group/checkbox"
-                        title={isCompleted ? "Completed" : "Click to submit evidence and complete"}
-                      >
-                        {isCompleted ? (
-                          <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center transition shadow-sm">
-                            <Check className="w-3 h-3 text-white" />
-                          </div>
-                        ) : needsEvidence ? (
-                          <div className="w-5 h-5 rounded-full bg-amber-200 border-2 border-amber-400 flex items-center justify-center transition shadow-sm hover:bg-amber-300 cursor-pointer">
-                            <Paperclip className="w-2.5 h-2.5 text-amber-700" />
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full border-2 border-gray-300 group-hover:border-blue-500 transition" />
-                        )}
-                        {needsEvidence && (
-                          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
-                        )}
-                      </button>
-                      <div className="flex items-center gap-2 min-w-0">
-                        <p
-                          className={`text-sm font-medium truncate ${isCompleted ? "text-gray-400 line-through" : "text-gray-800"}`}
-                        >
-                          {task.title}
-                        </p>
-                        {needsEvidence && (
-                          <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
-                            <Paperclip className="w-2.5 h-2.5" />
-                            Evidence
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right: Running status/Due date & Priority Badge */}
-                    <div className="flex items-center gap-4 shrink-0">
-                      {isCompleted ? (
-                        <span className="text-xs font-medium text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-md">
-                          <Check className="w-3 h-3" />
-                          Completed
-                        </span>
-                      ) : isSubmitted ? (
-                        <span className="text-xs font-medium text-purple-600 flex items-center gap-1.5 bg-purple-50 px-2.5 py-1 rounded-md">
-                          Submitted
-                        </span>
-                      ) : isRunning ? (
-                        <span className="text-xs font-medium text-blue-600 flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md">
-                          <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                          Running
-                        </span>
-                      ) : isTimerActive ? (
-                        <span className="text-xs font-medium text-amber-600 flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-md">
-                          <span className="w-2 h-2 rounded-full bg-amber-500" />
-                          Paused
-                        </span>
-                      ) : task.status === "in_progress" ? (
-                        <span className="text-xs font-medium text-sky-600 flex items-center gap-1.5 bg-sky-50 px-2.5 py-1 rounded-md">
-                          <PlayIcon className="w-3 h-3" />
-                          In Progress
-                        </span>
-                      ) : task.status === "rejected" ? (
-                        <span className="text-xs font-medium text-rose-600 flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-md">
-                          Rejected
-                        </span>
-                      ) : dueDateStr ? (
-                        <span className={`text-xs font-medium ${isOverdue ? "text-rose-500" : "text-gray-500"}`}>
-                          {dueDateStr}
-                        </span>
-                      ) : null}
-
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-xl border ${priorityConfig.bg} ${priorityConfig.border} ${priorityConfig.text}`}>
-                        {priorityConfig.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-xs text-gray-500">
-                Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                {Math.min(currentPage * itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
-              </p>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50 transition"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPages <= 5) pageNum = i + 1;
-                  else if (currentPage <= 3) pageNum = i + 1;
-                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                  else pageNum = currentPage - 2 + i;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${currentPage === pageNum
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                        }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50 transition"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+        {/* Tasks View */}
+        {viewMode === "tree" ? (
+          // 🆕 TREE VIEW
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-200 bg-gray-50/50">
+              <div className="flex items-center gap-2">
+                <GitBranch className="w-5 h-5 text-blue-600" />
+                <h3 className="text-sm font-semibold text-gray-700">Task Hierarchy</h3>
+                <span className="text-xs text-gray-400 ml-2">
+                  {filteredTasks.filter(t => !t.parentTaskId || t.parentTaskId === null || t.parentTaskId === '').length} parent tasks
+                </span>
               </div>
             </div>
-          )}
-        </div>
+            <div className="p-4 space-y-2 max-h-[600px] overflow-y-auto">
+              {filteredTasks.length === 0 ? (
+                <div className="text-center py-16">
+                  <GitBranch className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 font-medium">No tasks found</p>
+                </div>
+              ) : (
+                filteredTasks
+                  .filter(task => !task.parentTaskId || task.parentTaskId === null || task.parentTaskId === '')
+                  .map((task) => (
+                    <SubTaskTreeItem
+                      key={task._id}
+                      task={task}
+                      onTaskClick={handleTaskClick}
+                    />
+                  ))
+              )}
+              {filteredTasks.filter(task => !task.parentTaskId || task.parentTaskId === null || task.parentTaskId === '').length === 0 && filteredTasks.length > 0 && (
+                <div className="text-center py-8 text-gray-400 text-sm">
+                  <p>All your tasks are sub-tasks. No parent tasks found.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          // LIST VIEW (with sub-task indicators)
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="divide-y divide-gray-100">
+              {paginatedTasks.length === 0 ? (
+                <div className="text-center py-12">
+                  <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No tasks found</p>
+                </div>
+              ) : (
+                paginatedTasks.map((task) => {
+                  const isTimerActive = isTimerActiveForTask(task._id);
+                  const isRunning = isTimerActive && timerState.isRunning;
+                  const isCompleted = task.status === "completed";
+                  const isSubmitted = task.status === "submitted";
+                  const isOverdue = !isCompleted && !isSubmitted && (task.status === "overdue" || new Date(task.deadline) < new Date());
+                  const dueDateStr = formatDateFull(task.deadline);
+                  const priorityConfig = getPriorityConfig(task.priority);
+                  const hasEvidence = task.evidenceUrls && task.evidenceUrls.length > 0;
+                  const needsEvidence = task.evidenceRequired && !hasEvidence;
+                  const isMilestone = task.isMilestone === true;
+                  const isSubTask = task.parentTaskId && task.parentTaskId !== null && task.parentTaskId !== '';
+                  const hasSubTasks = (task.subTaskCount || 0) > 0;
+
+                  return (
+                    <div
+                      key={task._id}
+                      onClick={() => handleTaskClick(task)}
+                      className={`flex items-center justify-between px-5 py-4 hover:bg-gray-50/80 transition cursor-pointer group ${isMilestone ? "bg-purple-50/30" : ""} ${isSubTask ? "bg-blue-50/10 ml-6" : ""}`}
+                    >
+                      {/* Left: Checkbox & Title */}
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1 mr-4">
+                        <button
+                          type="button"
+                          onClick={(e) => handleCheckboxClick(task, e)}
+                          disabled={isCompleted}
+                          className="shrink-0 focus:outline-none relative group/checkbox"
+                          title={isCompleted ? "Completed" : "Click to submit evidence and complete"}
+                        >
+                          {isCompleted ? (
+                            <div className="w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center transition shadow-sm">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
+                          ) : needsEvidence ? (
+                            <div className="w-5 h-5 rounded-full bg-amber-200 border-2 border-amber-400 flex items-center justify-center transition shadow-sm hover:bg-amber-300 cursor-pointer">
+                              <Paperclip className="w-2.5 h-2.5 text-amber-700" />
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 rounded-full border-2 border-gray-300 group-hover:border-blue-500 transition" />
+                          )}
+                          {needsEvidence && (
+                            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse" />
+                          )}
+                        </button>
+
+                        <div className="flex items-center gap-2 min-w-0">
+                          {/* 🆕 Type Icon */}
+                          {isMilestone && (
+                            <Gem className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                          )}
+                          {isSubTask && (
+                            <GitBranch className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                          )}
+                          {hasSubTasks && !isMilestone && (
+                            <GitBranch className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          )}
+                          <p
+                            className={`text-sm font-medium truncate ${isCompleted ? "text-gray-400 line-through" : isMilestone ? "text-purple-700" : "text-gray-800"
+                              }`}
+                          >
+                            {task.title}
+                          </p>
+                          {/* 🆕 Type Badge */}
+                          {isMilestone && (
+                            <span className="text-[8px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full shrink-0">
+                              MILESTONE
+                            </span>
+                          )}
+                          {isSubTask && (
+                            <span className="text-[8px] font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-full shrink-0">
+                              SUB-TASK
+                            </span>
+                          )}
+                          {hasSubTasks && !isMilestone && (
+                            <span className="text-[8px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">
+                              {task.completedSubTaskCount || 0}/{task.subTaskCount}
+                            </span>
+                          )}
+                          {needsEvidence && (
+                            <span className="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1 shrink-0">
+                              <Paperclip className="w-2.5 h-2.5" />
+                              Evidence
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Status & Priority */}
+                      <div className="flex items-center gap-4 shrink-0">
+                        {isCompleted ? (
+                          <span className="text-xs font-medium text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-md">
+                            <Check className="w-3 h-3" />
+                            Completed
+                          </span>
+                        ) : isSubmitted ? (
+                          <span className="text-xs font-medium text-purple-600 flex items-center gap-1.5 bg-purple-50 px-2.5 py-1 rounded-md">
+                            Submitted
+                          </span>
+                        ) : isRunning ? (
+                          <span className="text-xs font-medium text-blue-600 flex items-center gap-1.5 bg-blue-50 px-2.5 py-1 rounded-md">
+                            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                            Running
+                          </span>
+                        ) : isTimerActive ? (
+                          <span className="text-xs font-medium text-amber-600 flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-md">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            Paused
+                          </span>
+                        ) : task.status === "in_progress" ? (
+                          <span className="text-xs font-medium text-sky-600 flex items-center gap-1.5 bg-sky-50 px-2.5 py-1 rounded-md">
+                            <PlayIcon className="w-3 h-3" />
+                            In Progress
+                          </span>
+                        ) : task.status === "rejected" ? (
+                          <span className="text-xs font-medium text-rose-600 flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-md">
+                            Rejected
+                          </span>
+                        ) : dueDateStr ? (
+                          <span className={`text-xs font-medium ${isOverdue ? "text-rose-500" : "text-gray-500"}`}>
+                            {dueDateStr}
+                          </span>
+                        ) : null}
+
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-xl border ${priorityConfig.bg} ${priorityConfig.border} ${priorityConfig.text}`}>
+                          {priorityConfig.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100 bg-gray-50/50">
+                <p className="text-xs text-gray-500">
+                  Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                  {Math.min(currentPage * itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
+                </p>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50 transition"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else if (currentPage <= 3) pageNum = i + 1;
+                    else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                    else pageNum = currentPage - 2 + i;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${currentPage === pageNum
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-2 rounded-lg bg-white border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50 transition"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ============ EVIDENCE SUBMISSION MODAL ============ */}
       {/* ============ EVIDENCE SUBMISSION MODAL ============ */}
       <AnimatePresence>
         {showEvidenceModal && evidenceTask && (
@@ -731,7 +1051,7 @@ console.log(tasks, "tasks")
                   </div>
                 </div>
 
-                {/* Uploaded File Item Preview (as seen in image) */}
+                {/* Uploaded File Item Preview */}
                 <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl">
                   <div className="flex items-center gap-3 min-w-0">
                     <span className="text-xl">🖼️</span>

@@ -51,7 +51,8 @@ export default function LoginPage() {
         toast.error("Login succeeded but no token was stored. Please try again.");
       }
     } catch (error: unknown) {
-      let errorMessage = "Login failed. Please try again.";
+      let errorMessage = "Please enter a valid password";
+      // let errorMessage = "Invalid Credential";
 
       if (typeof error === "string") {
         errorMessage = error;
