@@ -1469,7 +1469,7 @@ export default function TaskDetailPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${subTask.status === "completed" || subTask.status === "done"
+                  <span className={`w-2 h-2 rounded-full ${subTask.status === "completed"
                     ? "bg-emerald-500"
                     : subTask.status === "in_progress"
                       ? "bg-blue-500"
@@ -1483,7 +1483,7 @@ export default function TaskDetailPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">{formatDate(subTask.deadline)}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${subTask.status === "completed" || subTask.status === "done"
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${subTask.status === "completed"
                     ? "bg-emerald-100 text-emerald-700"
                     : subTask.status === "in_progress"
                       ? "bg-blue-100 text-blue-700"
