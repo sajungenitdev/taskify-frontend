@@ -388,7 +388,8 @@ const TaskGanttBar = ({
                     ? "bg-purple-100 border-purple-200"
                     : "bg-amber-100 border-amber-200";
 
-    const hasDependencies = task.dependencies && task.dependencies.length > 0;
+    const dependencyCount = task.dependencies?.length ?? 0;
+    const hasDependencies = dependencyCount > 0;
 
     const tooltipContent = (
         <div className="space-y-1">
@@ -405,7 +406,7 @@ const TaskGanttBar = ({
             </div>
             {hasDependencies && (
                 <p className="text-xs text-gray-300">
-                    🔗 {task.dependencies.length} dependencies
+                    🔗 {dependencyCount} dependencies
                 </p>
             )}
             {task.assignedTo && (
@@ -489,7 +490,8 @@ const MilestoneDiamond = ({
                     ? "text-purple-500"
                     : "text-amber-500";
 
-    const hasDependencies = task.dependencies && task.dependencies.length > 0;
+    const dependencyCount = task.dependencies?.length ?? 0;
+    const hasDependencies = dependencyCount > 0;
 
     const tooltipContent = (
         <div className="space-y-1">
@@ -504,7 +506,7 @@ const MilestoneDiamond = ({
             </div>
             {hasDependencies && (
                 <p className="text-xs text-gray-300">
-                    🔗 {task.dependencies.length} dependencies
+                    🔗 {dependencyCount} dependencies
                 </p>
             )}
             {task.assignedTo && (
