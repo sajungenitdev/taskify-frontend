@@ -1692,7 +1692,7 @@ export default function TaskDetailPage() {
                             {/* Header with Uppercase Title and Dynamic Count */}
                             <div className="flex items-center justify-between ">
                               <h3 className="text-xs pb-2 font-bold uppercase tracking-wider text-gray-500">
-                                Sub-Tasks ({subTasks.filter(st => st.status === "completed" || st.status === "done").length}/{subTasks.length} done)
+                                Sub-Tasks ({subTasks.filter(st => st.status === "completed").length}/{subTasks.length} done)
                               </h3>
                             </div>
 
@@ -1702,7 +1702,7 @@ export default function TaskDetailPage() {
                                 className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                                 style={{
                                   width: `${subTasks.length > 0
-                                    ? (subTasks.filter(st => st.status === "completed" || st.status === "done").length / subTasks.length) * 100
+                                    ? (subTasks.filter(st => st.status === "completed").length / subTasks.length) * 100
                                     : 0
                                     }%`,
                                 }}
@@ -1717,7 +1717,7 @@ export default function TaskDetailPage() {
                               </div>
                             ) : (
                               subTasks.map((subTask) => {
-                                const isCompleted = subTask.status === "completed" || subTask.status === "done";
+                                const isCompleted = subTask.status === "completed";
 
                                 return (
                                   <Link
