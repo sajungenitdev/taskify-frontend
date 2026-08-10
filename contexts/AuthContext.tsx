@@ -111,11 +111,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         toast.success(`Welcome back, ${userData.fullName}!`);
         return userData;
       } else {
-        throw new Error(response.data.message || "Login failed");
+        throw new Error(response.data.message || "Invalid Credentials");
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error.response?.data?.message || "Login failed");
+      toast.error(error.response?.data?.message || "Invalid Credentials");
       throw error;
     }
   };

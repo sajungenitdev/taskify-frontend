@@ -40,6 +40,8 @@ import {
     FileText,
     GitBranch,
     Gem,
+    Link2,
+    ArrowRight,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -47,6 +49,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import DependencyEditor from "@/components/tasks/DependencyEditor";
 
 // ============ TYPES ============
 interface Task {
@@ -76,7 +79,11 @@ interface Task {
         _id: string;
         fullName: string;
     };
-    dependencies?: string[];
+    dependencies?: {
+        taskId: string;
+        type: string;
+        lag: number;
+    }[];
     order?: number;
     progress?: number;
     isMilestone?: boolean;
@@ -99,6 +106,8 @@ interface GanttTask extends Task {
     subTaskCount?: number;
     completedSubTaskCount?: number;
     parentTaskId?: string | null | { _id: string; title: string; status: string };
+    x: number;
+    y: number;
 }
 
 interface User {
@@ -108,6 +117,13 @@ interface User {
     employeeId?: string;
     role?: string;
     department?: string;
+}
+
+interface DependencyEdge {
+    from: string;
+    to: string;
+    type: string;
+    lag: number;
 }
 
 // ============ CONSTANTS ============
@@ -226,6 +242,117 @@ const Tooltip = ({ children, content, position = "top" }: TooltipProps) => {
     );
 };
 
+// ============ DEPENDENCY ARROW COMPONENT ============
+const DependencyArrow = ({
+    fromX,
+    fromY,
+    toX,
+    toY,
+    type = "FS",
+    isBlocked = false,
+    isOverdue = false,
+}: {
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+    type?: string;
+    isBlocked?: boolean;
+    isOverdue?: boolean;
+}) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const width = Math.abs(toX - fromX) + 60;
+        const height = Math.abs(toY - fromY) + 60;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        ctx.clearRect(0, 0, width, height);
+
+        const padding = 30;
+        const startX = fromX - Math.min(fromX, toX) + padding;
+        const startY = fromY - Math.min(fromY, toY) + padding;
+        const endX = toX - Math.min(fromX, toX) + padding;
+        const endY = toY - Math.min(fromY, toY) + padding;
+
+        const arrowSize = 10;
+        const angle = Math.atan2(endY - startY, endX - startX);
+
+        let color = "#6366f1";
+        if (isBlocked || isOverdue) {
+            color = "#ef4444";
+        }
+
+        // Draw curved line with bezier curve
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2 - 30;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo(midX, midY, endX, endY);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isBlocked || isOverdue ? 3 : 2;
+        ctx.setLineDash(isBlocked || isOverdue ? [6, 5] : []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw arrowhead
+        const lastAngle = Math.atan2(endY - midY, endX - midX);
+        ctx.beginPath();
+        ctx.moveTo(endX, endY);
+        ctx.lineTo(
+            endX - arrowSize * Math.cos(lastAngle - Math.PI / 6),
+            endY - arrowSize * Math.sin(lastAngle - Math.PI / 6)
+        );
+        ctx.lineTo(
+            endX - arrowSize * Math.cos(lastAngle + Math.PI / 6),
+            endY - arrowSize * Math.sin(lastAngle + Math.PI / 6)
+        );
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // Draw dependency type label
+        const labelX = (startX + endX) / 2 - 12;
+        const labelY = (startY + endY) / 2 - 40;
+        ctx.fillStyle = color;
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText(type, labelX, labelY);
+
+        // Draw lag if > 0
+        if (isOverdue) {
+            ctx.fillStyle = "#ef4444";
+            ctx.font = "12px sans-serif";
+            ctx.fillText("⚠️", (startX + endX) / 2 + 10, labelY + 2);
+        }
+    }, [fromX, fromY, toX, toY, type, isBlocked, isOverdue]);
+
+    const left = Math.min(fromX, toX) - 30;
+    const top = Math.min(fromY, toY) - 30;
+
+    return (
+        <canvas
+            ref={canvasRef}
+            className="absolute pointer-events-none"
+            style={{
+                left: `${left}px`,
+                top: `${top}px`,
+                zIndex: 5,
+                width: `${Math.abs(toX - fromX) + 60}px`,
+                height: `${Math.abs(toY - fromY) + 60}px`,
+            }}
+        />
+    );
+};
+
 // ============ COMPONENTS ============
 const TaskGanttBar = ({
     task,
@@ -261,6 +388,8 @@ const TaskGanttBar = ({
                     ? "bg-purple-100 border-purple-200"
                     : "bg-amber-100 border-amber-200";
 
+    const hasDependencies = task.dependencies && task.dependencies.length > 0;
+
     const tooltipContent = (
         <div className="space-y-1">
             <p className="font-semibold text-white">{task.title}</p>
@@ -274,6 +403,11 @@ const TaskGanttBar = ({
                 <span>•</span>
                 <span>{formatDate(task.start)} - {formatDate(task.end)}</span>
             </div>
+            {hasDependencies && (
+                <p className="text-xs text-gray-300">
+                    🔗 {task.dependencies.length} dependencies
+                </p>
+            )}
             {task.assignedTo && (
                 <p className="text-xs text-gray-300">
                     Assigned to: {task.assignedTo.fullName}
@@ -295,7 +429,7 @@ const TaskGanttBar = ({
     return (
         <Tooltip content={tooltipContent}>
             <div
-                className={`absolute rounded-lg cursor-pointer transition-all hover:shadow-lg hover:scale-y-110 group ${barColorLight}`}
+                className={`absolute rounded-lg cursor-pointer transition-all hover:shadow-lg hover:scale-y-110 group ${barColorLight} ${hasDependencies ? "border-l-4 border-indigo-400" : ""}`}
                 style={{
                     left: `${startOffset * dayWidth}px`,
                     width: `${Math.max(duration * dayWidth, 30)}px`,
@@ -319,6 +453,11 @@ const TaskGanttBar = ({
                     <div className="absolute -top-1 -right-1 w-3 h-3">
                         <div className="animate-ping absolute w-3 h-3 bg-rose-400 rounded-full opacity-75" />
                         <div className="relative w-3 h-3 bg-rose-500 rounded-full" />
+                    </div>
+                )}
+                {hasDependencies && (
+                    <div className="absolute -top-1 -left-1">
+                        <Link2 className="w-3 h-3 text-indigo-500" />
                     </div>
                 )}
             </div>
@@ -350,6 +489,8 @@ const MilestoneDiamond = ({
                     ? "text-purple-500"
                     : "text-amber-500";
 
+    const hasDependencies = task.dependencies && task.dependencies.length > 0;
+
     const tooltipContent = (
         <div className="space-y-1">
             <p className="font-semibold text-white">🚩 {task.title}</p>
@@ -361,6 +502,11 @@ const MilestoneDiamond = ({
             <div className="flex items-center gap-2 text-xs text-gray-300">
                 <span>Milestone Date: {formatDate(task.start)}</span>
             </div>
+            {hasDependencies && (
+                <p className="text-xs text-gray-300">
+                    🔗 {task.dependencies.length} dependencies
+                </p>
+            )}
             {task.assignedTo && (
                 <p className="text-xs text-gray-300">
                     Assigned to: {task.assignedTo.fullName}
@@ -402,6 +548,11 @@ const MilestoneDiamond = ({
                         <div className="absolute -top-1 -right-1 w-2.5 h-2.5">
                             <div className="animate-ping absolute w-2.5 h-2.5 bg-rose-400 rounded-full opacity-75" />
                             <div className="relative w-2.5 h-2.5 bg-rose-500 rounded-full" />
+                        </div>
+                    )}
+                    {hasDependencies && (
+                        <div className="absolute -top-1 -left-1">
+                            <Link2 className="w-2.5 h-2.5 text-indigo-500" />
                         </div>
                     )}
                 </div>
@@ -457,6 +608,12 @@ export default function GanttChartPage() {
     const [selectedEmployee, setSelectedEmployee] = useState<User | null>(null);
     const [exportingPDF, setExportingPDF] = useState(false);
 
+    // 🆕 Dependency states
+    const [dependencyEdges, setDependencyEdges] = useState<DependencyEdge[]>([]);
+    const [showDependencyEditor, setShowDependencyEditor] = useState(false);
+    const [selectedTaskId, setSelectedTaskId] = useState("");
+    const [loadingDependencies, setLoadingDependencies] = useState(false);
+
     // Redirect if not authenticated
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
@@ -471,7 +628,25 @@ export default function GanttChartPage() {
 
             const tasksResponse = await api.get("/tasks");
             if (tasksResponse.data.success) {
-                setTasks(tasksResponse.data.data || []);
+                const taskData = tasksResponse.data.data || [];
+                setTasks(taskData);
+
+                const edges: DependencyEdge[] = [];
+                taskData.forEach((task: any) => {
+                    if (task.dependencies && task.dependencies.length > 0) {
+                        task.dependencies.forEach((dep: any) => {
+                            edges.push({
+                                from: dep.taskId,
+                                to: task._id,
+                                type: dep.type || "FS",
+                                lag: dep.lag || 0,
+                            });
+                        });
+                    }
+                });
+                if (edges.length > 0) {
+                    setDependencyEdges(edges);
+                }
             }
 
             const projectsResponse = await api.get("/projects");
@@ -499,25 +674,29 @@ export default function GanttChartPage() {
         }
     }, [isAuthenticated, fetchData]);
 
+    // ✅ FIX: Get day width function - defined BEFORE useMemo
+    const getDayWidth = useCallback(() => {
+        const baseWidth = viewMode === "day" ? 80 : viewMode === "week" ? 60 : 40;
+        return baseWidth * zoomLevel;
+    }, [viewMode, zoomLevel]);
+
+    const dayWidth = getDayWidth();
+
     // Generate Gantt data
     const ganttData = useMemo(() => {
         const filteredTasks = tasks.filter((task) => {
             if (!task.startDate && !task.deadline) return false;
 
-            // Milestone filter
             if (filterMilestone === "milestones" && !task.isMilestone) return false;
             if (filterMilestone === "regular" && task.isMilestone) return false;
 
-            // Sub-task filter
             if (filterSubTask === "parent" && task.parentTaskId) return false;
             if (filterSubTask === "subtask" && !task.parentTaskId) return false;
 
-            // Employee filter
             if (filterEmployee !== "all" && task.assignedTo?._id !== filterEmployee) {
                 return false;
             }
 
-            // Search filter
             if (searchQuery) {
                 const query = searchQuery.toLowerCase();
                 const matchesSearch =
@@ -527,28 +706,19 @@ export default function GanttChartPage() {
                 if (!matchesSearch) return false;
             }
 
-            // Status filter
             if (filterStatus !== "all" && task.status !== filterStatus) return false;
-
-            // Priority filter
-            if (filterPriority !== "all" && task.priority !== filterPriority)
-                return false;
-
-            // Project filter
-            if (filterProject !== "all" && task.projectId?._id !== filterProject)
-                return false;
+            if (filterPriority !== "all" && task.priority !== filterPriority) return false;
+            if (filterProject !== "all" && task.projectId?._id !== filterProject) return false;
 
             return true;
         });
 
-        // Sort by start date
         const sorted = [...filteredTasks].sort((a, b) => {
             const dateA = a.startDate ? new Date(a.startDate) : new Date(a.deadline);
             const dateB = b.startDate ? new Date(b.startDate) : new Date(b.deadline);
             return dateA.getTime() - dateB.getTime();
         });
 
-        // Calculate date range
         let minDate = new Date();
         let maxDate = new Date();
         sorted.forEach((task) => {
@@ -561,7 +731,6 @@ export default function GanttChartPage() {
         minDate.setDate(minDate.getDate() - 2);
         maxDate.setDate(maxDate.getDate() + 2);
 
-        // Generate Gantt tasks
         const ganttTasks: GanttTask[] = sorted.map((task, index) => {
             const start = task.startDate ? new Date(task.startDate) : new Date(task.deadline);
             const end = new Date(task.deadline);
@@ -569,9 +738,9 @@ export default function GanttChartPage() {
             const progressPercent = task.progress ||
                 (task.status === "completed" || task.status === "done" ? 100 : 0);
             const isOverdue = end < new Date() && task.status !== "completed" && task.status !== "done";
-            const isToday = new Date() >= start && new Date() <= end;
-            const isThisWeek = new Date() >= new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000) &&
-                new Date() <= new Date(end.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+            // ✅ Use the getDayWidth function here
+            const currentDayWidth = getDayWidth();
 
             return {
                 ...task,
@@ -582,11 +751,14 @@ export default function GanttChartPage() {
                 progressPercent,
                 color: getStatusColor(task.status),
                 isOverdue,
-                isToday,
-                isThisWeek,
+                isToday: new Date() >= start && new Date() <= end,
+                isThisWeek: new Date() >= new Date(start.getTime() - 7 * 24 * 60 * 60 * 1000) &&
+                    new Date() <= new Date(end.getTime() + 7 * 24 * 60 * 60 * 1000),
                 isMilestone: task.isMilestone || false,
                 subTaskCount: task.subTaskCount || 0,
                 completedSubTaskCount: task.completedSubTaskCount || 0,
+                x: getDaysBetween(minDate, start) * currentDayWidth,
+                y: index * 48 + 24,
             };
         });
 
@@ -600,7 +772,7 @@ export default function GanttChartPage() {
             parentTaskCount: ganttTasks.filter(t => !t.parentTaskId).length,
             subTaskCount: ganttTasks.filter(t => t.parentTaskId).length,
         };
-    }, [tasks, searchQuery, filterStatus, filterPriority, filterProject, filterEmployee, filterMilestone, filterSubTask]);
+    }, [tasks, searchQuery, filterStatus, filterPriority, filterProject, filterEmployee, filterMilestone, filterSubTask, getDayWidth]);
 
     // Get unique statuses, priorities, and employees for filters
     const statuses = useMemo(() => {
@@ -638,14 +810,6 @@ export default function GanttChartPage() {
     const handleZoomOut = () => {
         setZoomLevel(Math.max(zoomLevel - 0.25, 0.5));
     };
-
-    // Get day width
-    const getDayWidth = () => {
-        const baseWidth = viewMode === "day" ? 80 : viewMode === "week" ? 60 : 40;
-        return baseWidth * zoomLevel;
-    };
-
-    const dayWidth = getDayWidth();
 
     // Generate date labels
     const dateLabels = useMemo(() => {
@@ -689,6 +853,12 @@ export default function GanttChartPage() {
         return tasks.filter(t => t.assignedTo?._id === employeeId).length;
     };
 
+    // Open dependency editor
+    const openDependencyEditor = (taskId: string) => {
+        setSelectedTaskId(taskId);
+        setShowDependencyEditor(true);
+    };
+
     // ============================================================
     // PDF EXPORT FUNCTION
     // ============================================================
@@ -721,6 +891,7 @@ export default function GanttChartPage() {
             const inProgressTasks = ganttData.tasks.filter(t => t.status === "in_progress").length;
             const overdueTasks = ganttData.tasks.filter(t => t.isOverdue).length;
             const milestoneCount = ganttData.milestoneCount;
+            const dependencyCount = dependencyEdges.length;
             const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
             doc.text(`Total Tasks: ${totalTasks}`, 20, 40);
@@ -728,7 +899,8 @@ export default function GanttChartPage() {
             doc.text(`In Progress: ${inProgressTasks}`, 20, 52);
             doc.text(`Overdue: ${overdueTasks}`, 20, 58);
             doc.text(`Milestones: ${milestoneCount}`, 20, 64);
-            doc.text(`Overall Progress: ${progress}%`, 20, 70);
+            doc.text(`Dependencies: ${dependencyCount}`, 20, 70);
+            doc.text(`Overall Progress: ${progress}%`, 20, 76);
 
             const tableData = ganttData.tasks.map((task) => [
                 task.title,
@@ -737,6 +909,7 @@ export default function GanttChartPage() {
                 getPriorityLabel(task.priority),
                 task.isMilestone ? "⭐ Yes" : "No",
                 task.parentTaskId ? "Yes" : "No",
+                task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length} dep(s)` : "No",
                 formatDate(task.start),
                 formatDate(task.end),
                 `${task.duration}d`,
@@ -745,33 +918,34 @@ export default function GanttChartPage() {
             ]);
 
             autoTable(doc, {
-                startY: 78,
-                head: [["Task", "Project", "Status", "Priority", "Milestone", "Sub-Task", "Start", "Deadline", "Duration", "Progress", "Assigned To"]],
+                startY: 84,
+                head: [["Task", "Project", "Status", "Priority", "Milestone", "Sub-Task", "Dependencies", "Start", "Deadline", "Duration", "Progress", "Assigned To"]],
                 body: tableData,
                 theme: "striped",
                 headStyles: {
                     fillColor: [99, 102, 241],
                     textColor: [255, 255, 255],
-                    fontSize: 7,
+                    fontSize: 6,
                     fontStyle: "bold",
                 },
                 bodyStyles: {
-                    fontSize: 6,
+                    fontSize: 5,
                 },
                 columnStyles: {
-                    0: { cellWidth: 25 },
-                    1: { cellWidth: 18 },
-                    2: { cellWidth: 14 },
-                    3: { cellWidth: 12 },
-                    4: { cellWidth: 12 },
-                    5: { cellWidth: 12 },
-                    6: { cellWidth: 18 },
-                    7: { cellWidth: 18 },
-                    8: { cellWidth: 10 },
-                    9: { cellWidth: 12 },
-                    10: { cellWidth: 20 },
+                    0: { cellWidth: 20 },
+                    1: { cellWidth: 15 },
+                    2: { cellWidth: 12 },
+                    3: { cellWidth: 10 },
+                    4: { cellWidth: 10 },
+                    5: { cellWidth: 10 },
+                    6: { cellWidth: 12 },
+                    7: { cellWidth: 16 },
+                    8: { cellWidth: 16 },
+                    9: { cellWidth: 10 },
+                    10: { cellWidth: 10 },
+                    11: { cellWidth: 18 },
                 },
-                margin: { left: 8, right: 8 },
+                margin: { left: 6, right: 6 },
                 didDrawPage: function (data) {
                     const pageCount = doc.getNumberOfPages();
                     const currentPage = data.pageNumber || 1;
@@ -795,7 +969,7 @@ export default function GanttChartPage() {
         } finally {
             setExportingPDF(false);
         }
-    }, [ganttData.tasks, ganttData.milestoneCount]);
+    }, [ganttData.tasks, ganttData.milestoneCount, dependencyEdges.length]);
 
     // Export CSV
     const handleExportCSV = () => {
@@ -807,6 +981,7 @@ export default function GanttChartPage() {
                 "Priority",
                 "Milestone",
                 "Sub-Task",
+                "Dependencies",
                 "Start Date",
                 "Deadline",
                 "Duration (days)",
@@ -821,6 +996,7 @@ export default function GanttChartPage() {
                 getPriorityLabel(task.priority),
                 task.isMilestone ? "Yes" : "No",
                 task.parentTaskId ? "Yes" : "No",
+                task.dependencies && task.dependencies.length > 0 ? `${task.dependencies.length}` : "0",
                 formatDate(task.start),
                 formatDate(task.end),
                 task.duration,
@@ -913,6 +1089,9 @@ export default function GanttChartPage() {
                                 </span>
                                 <span className="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                                     <GitBranch className="w-3 h-3 inline" /> {ganttData.subTaskCount} sub-tasks
+                                </span>
+                                <span className="ml-2 text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                                    <Link2 className="w-3 h-3 inline" /> {dependencyEdges.length} dependencies
                                 </span>
                             </p>
                         </div>
@@ -1173,14 +1352,14 @@ export default function GanttChartPage() {
                                 <div className="flex bg-gray-100 rounded-lg p-0.5">
                                     <button
                                         onClick={handleZoomOut}
-                                        className="p-1.5 text-blue-600 hover:bg-white rounded-lg transition"
+                                        className="p-1.5 hover:bg-white rounded-lg transition"
                                         title="Zoom Out"
                                     >
                                         <ZoomOut size={16} />
                                     </button>
                                     <button
                                         onClick={handleZoomIn}
-                                        className="p-1.5 text-blue-600 hover:bg-white rounded-lg transition"
+                                        className="p-1.5 hover:bg-white rounded-lg transition"
                                         title="Zoom In"
                                     >
                                         <ZoomIn size={16} />
@@ -1197,7 +1376,7 @@ export default function GanttChartPage() {
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+                        className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative"
                     >
                         {ganttData.tasks.length === 0 ? (
                             <div className="p-12 text-center">
@@ -1224,10 +1403,21 @@ export default function GanttChartPage() {
                                 <div className="min-w-[800px]">
                                     {/* Header Row */}
                                     <div className="flex border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
-                                        <div className="w-64 shrink-0 p-3">
+                                        <div className="w-64 shrink-0 p-3 flex items-center justify-between">
                                             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Task
                                             </span>
+                                            <button
+                                                onClick={() => {
+                                                    if (ganttData.tasks.length > 0) {
+                                                        openDependencyEditor(ganttData.tasks[0]._id);
+                                                    }
+                                                }}
+                                                className="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-[10px] font-medium rounded-lg transition flex items-center gap-1"
+                                            >
+                                                <Link2 className="w-3 h-3" />
+                                                Dependencies
+                                            </button>
                                         </div>
                                         <div className="flex-1 relative overflow-hidden">
                                             <div
@@ -1254,16 +1444,44 @@ export default function GanttChartPage() {
                                     </div>
 
                                     {/* Task Rows */}
-                                    <div>
+                                    <div className="relative">
+                                        {/* 🆕 Dependency Arrows - rendered in background */}
+                                        {dependencyEdges.map((edge, index) => {
+                                            const fromTask = ganttData.tasks.find(t => t._id === edge.from);
+                                            const toTask = ganttData.tasks.find(t => t._id === edge.to);
+
+                                            if (!fromTask || !toTask) return null;
+
+                                            // ✅ Use the dayWidth from the outer scope
+                                            const fromX = getDaysBetween(ganttData.startDate, fromTask.start) * dayWidth + dayWidth;
+                                            const fromY = fromTask.row * 48 + 24;
+                                            const toX = getDaysBetween(ganttData.startDate, toTask.start) * dayWidth;
+                                            const toY = toTask.row * 48 + 24;
+
+                                            return (
+                                                <DependencyArrow
+                                                    key={`dep-${index}`}
+                                                    fromX={fromX}
+                                                    fromY={fromY}
+                                                    toX={toX}
+                                                    toY={toY}
+                                                    type={edge.type}
+                                                    isBlocked={toTask.isOverdue}
+                                                    isOverdue={toTask.isOverdue}
+                                                />
+                                            );
+                                        })}
+
                                         {ganttData.tasks.map((task) => {
                                             const isSubTask = task.parentTaskId && task.parentTaskId !== null && task.parentTaskId !== '';
                                             const hasSubTasks = (task.subTaskCount || 0) > 0;
+                                            const hasDependencies = task.dependencies && task.dependencies.length > 0;
 
                                             return (
                                                 <div
                                                     key={task._id}
                                                     className={`flex border-b border-gray-100 hover:bg-gray-50 transition group ${task.isMilestone ? "bg-purple-50/30" : ""
-                                                        } ${isSubTask ? "bg-blue-50/10" : ""}`}
+                                                        } ${isSubTask ? "bg-blue-50/10" : ""} ${hasDependencies ? "border-l-2 border-l-indigo-300" : ""}`}
                                                 >
                                                     {/* Task Info */}
                                                     <div
@@ -1279,6 +1497,9 @@ export default function GanttChartPage() {
                                                             )}
                                                             {hasSubTasks && !task.isMilestone && !isSubTask && (
                                                                 <GitBranch className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                            )}
+                                                            {hasDependencies && (
+                                                                <Link2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
                                                             )}
                                                             <div
                                                                 className="w-2 h-2 rounded-full shrink-0"
@@ -1301,6 +1522,11 @@ export default function GanttChartPage() {
                                                             {hasSubTasks && !task.isMilestone && !isSubTask && (
                                                                 <span className="text-[8px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full shrink-0">
                                                                     {task.completedSubTaskCount || 0}/{task.subTaskCount}
+                                                                </span>
+                                                            )}
+                                                            {hasDependencies && (
+                                                                <span className="text-[8px] font-medium text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded-full shrink-0">
+                                                                    🔗 {task.dependencies.length}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1410,6 +1636,10 @@ export default function GanttChartPage() {
                             <GitBranch className="w-4 h-4 text-emerald-500" />
                             <span className="font-medium text-emerald-600">Parent Task</span>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <Link2 className="w-4 h-4 text-indigo-500" />
+                            <span className="font-medium text-indigo-600">Dependency</span>
+                        </div>
                         {filterEmployee !== "all" && selectedEmployee && (
                             <>
                                 <div className="w-px h-6 bg-gray-200" />
@@ -1444,6 +1674,21 @@ export default function GanttChartPage() {
                     </motion.div>
                 </div>
             </div>
+
+            {/* Dependency Editor Modal */}
+            <DependencyEditor
+                taskId={selectedTaskId}
+                isOpen={showDependencyEditor}
+                onClose={() => {
+                    setShowDependencyEditor(false);
+                    setSelectedTaskId("");
+                    fetchData();
+                }}
+                onDependencyUpdated={() => {
+                    fetchData();
+                    setShowDependencyEditor(false);
+                }}
+            />
 
             {/* Task Details Modal */}
             <AnimatePresence>
@@ -1511,6 +1756,15 @@ export default function GanttChartPage() {
                                                     </span>
                                                 </>
                                             )}
+                                            {selectedTask.dependencies && selectedTask.dependencies.length > 0 && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="text-indigo-600 font-medium flex items-center gap-1">
+                                                        <Link2 size={12} />
+                                                        {selectedTask.dependencies.length} dependencies
+                                                    </span>
+                                                </>
+                                            )}
                                             {selectedTask.projectId && (
                                                 <>
                                                     <span>•</span>
@@ -1521,165 +1775,97 @@ export default function GanttChartPage() {
                                     </div>
                                     <button
                                         onClick={() => setShowTaskDetails(false)}
-                                        className="p-1.5 hover:bg-gray-100 rounded-lg transition"
+                                        className="p-2 hover:bg-gray-100 rounded-lg transition"
                                     >
-                                        <X size={20} className="text-gray-400" />
+                                        <X size={18} />
                                     </button>
                                 </div>
                             </div>
 
                             {/* Body */}
-                            <div className="p-6 space-y-4">
+                            <div className="p-6 space-y-6">
                                 {selectedTask.description && (
                                     <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Description
-                                        </h4>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                            {selectedTask.description}
-                                        </p>
+                                        <h4 className="text-sm font-medium text-gray-600 mb-1">Description</h4>
+                                        <p className="text-gray-800">{selectedTask.description}</p>
                                     </div>
                                 )}
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Type
-                                        </h4>
-                                        <p className="text-sm text-gray-800 mt-1 flex items-center gap-1.5">
-                                            {selectedTask.isMilestone ? (
-                                                <>
-                                                    <Gem size={14} className="text-purple-500" />
-                                                    <span className="font-medium text-purple-600">Milestone</span>
-                                                </>
-                                            ) : selectedTask.parentTaskId ? (
-                                                <>
-                                                    <GitBranch size={14} className="text-blue-500" />
-                                                    <span className="font-medium text-blue-600">Sub-Task</span>
-                                                </>
-                                            ) : selectedTask.subTaskCount && selectedTask.subTaskCount > 0 ? (
-                                                <>
-                                                    <GitBranch size={14} className="text-emerald-500" />
-                                                    <span className="font-medium text-emerald-600">Parent Task</span>
-                                                </>
-                                            ) : (
-                                                "Regular Task"
-                                            )}
-                                        </p>
+                                        <h4 className="text-sm font-medium text-gray-600 mb-1">Start Date</h4>
+                                        <p className="text-gray-800">{formatDate(selectedTask.start)}</p>
                                     </div>
                                     <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Status
-                                        </h4>
-                                        <p className="text-sm text-gray-800 mt-1">
-                                            {getStatusLabel(selectedTask.status)}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Start Date
-                                        </h4>
-                                        <p className="text-sm text-gray-800 mt-1">
-                                            {formatDate(selectedTask.start)}
-                                        </p>
+                                        <h4 className="text-sm font-medium text-gray-600 mb-1">Deadline</h4>
+                                        <p className="text-gray-800">{formatDate(selectedTask.end)}</p>
                                     </div>
                                     <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Deadline
-                                        </h4>
-                                        <p className={`text-sm mt-1 ${selectedTask.isOverdue ? "text-rose-600 font-medium" : "text-gray-800"
-                                            }`}>
-                                            {formatDate(selectedTask.end)}
-                                            {selectedTask.isOverdue && " ⚠️ Overdue"}
-                                        </p>
+                                        <h4 className="text-sm font-medium text-gray-600 mb-1">Duration</h4>
+                                        <p className="text-gray-800">{selectedTask.duration} days</p>
                                     </div>
-                                </div>
-
-                                {!selectedTask.isMilestone && (
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                                Duration
-                                            </h4>
-                                            <p className="text-sm text-gray-800 mt-1">
-                                                {selectedTask.duration} days
-                                            </p>
+                                    <div>
+                                        <h4 className="text-sm font-medium text-gray-600 mb-1">Progress</h4>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-indigo-500 rounded-full"
+                                                    style={{ width: `${selectedTask.progressPercent}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-sm font-medium">{selectedTask.progressPercent}%</span>
                                         </div>
-                                        <div>
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                                Progress
-                                            </h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                    <div
-                                                        className="h-full bg-indigo-500 rounded-full transition-all"
-                                                        style={{ width: `${selectedTask.progressPercent}%` }}
-                                                    />
-                                                </div>
-                                                <span className="text-sm font-medium text-gray-700">
-                                                    {selectedTask.progressPercent}%
-                                                </span>
+                                    </div>
+                                </div>
+
+                                {selectedTask.assignedTo && (
+                                    <div>
+                                        <h4 className="text-sm font-medium text-gray-600 mb-1">Assigned To</h4>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold">
+                                                {getInitials(selectedTask.assignedTo.fullName)}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-800">{selectedTask.assignedTo.fullName}</p>
+                                                <p className="text-xs text-gray-500">{selectedTask.assignedTo.email}</p>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Sub-task progress for parent tasks */}
-                                {selectedTask.subTaskCount && selectedTask.subTaskCount > 0 && !selectedTask.isMilestone && (
-                                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <p className="text-xs text-blue-600 font-medium">Sub-Task Progress</p>
-                                            <span className="text-xs font-bold text-blue-700">
-                                                {selectedTask.completedSubTaskCount || 0}/{selectedTask.subTaskCount} complete
-                                            </span>
-                                        </div>
-                                        <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-                                            <div
-                                                className="h-full bg-blue-500 rounded-full transition-all"
-                                                style={{
-                                                    width: `${selectedTask.subTaskCount > 0
-                                                        ? ((selectedTask.completedSubTaskCount || 0) / selectedTask.subTaskCount) * 100
-                                                        : 0}%`
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {selectedTask.assignedTo && (
+                                {selectedTask.dependencies && selectedTask.dependencies.length > 0 && (
                                     <div>
-                                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Assigned To
+                                        <h4 className="text-sm font-medium text-gray-600 mb-2 flex items-center gap-1">
+                                            <Link2 size={14} />
+                                            Dependencies ({selectedTask.dependencies.length})
                                         </h4>
-                                        <p className="text-sm text-gray-800 mt-1">
-                                            {selectedTask.assignedTo.fullName}
-                                            {selectedTask.assignedTo.email && (
-                                                <span className="text-gray-400 text-xs ml-2">
-                                                    {selectedTask.assignedTo.email}
-                                                </span>
-                                            )}
-                                        </p>
+                                        <div className="space-y-1">
+                                            {selectedTask.dependencies.map((dep, idx) => {
+                                                const depTask = tasks.find(t => t._id === dep.taskId);
+                                                return (
+                                                    <div key={idx} className="flex items-center gap-2 text-sm bg-gray-50 px-3 py-1.5 rounded-lg">
+                                                        <span className="font-medium text-indigo-600">{dep.type}</span>
+                                                        <span className="text-gray-400">→</span>
+                                                        <span>{depTask?.title || dep.taskId}</span>
+                                                        {dep.lag > 0 && (
+                                                            <span className="text-xs text-gray-500">(+{dep.lag}d)</span>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
+                            </div>
 
-                                <div className="flex gap-2 pt-4 border-t border-gray-100">
-                                    <Link
-                                        href={`/tasks/${selectedTask._id}`}
-                                        className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center justify-center gap-2"
-                                    >
-                                        <Eye size={16} />
-                                        View Task Details
-                                    </Link>
-                                    <button
-                                        onClick={() => setShowTaskDetails(false)}
-                                        className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
-                                    >
-                                        Close
-                                    </button>
-                                </div>
+                            {/* Footer */}
+                            <div className="p-4 border-t border-gray-200 bg-gray-50/50 flex justify-end">
+                                <button
+                                    onClick={() => setShowTaskDetails(false)}
+                                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition"
+                                >
+                                    Close
+                                </button>
                             </div>
                         </motion.div>
                     </div>

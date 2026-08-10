@@ -1,5 +1,4 @@
-// app/(dashboard)/tasks/[id]/page.tsx - COMPLETE UPDATED VERSION
-
+// app/(dashboard)/tasks/[id]/page.tsx
 "use client";
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
@@ -59,8 +58,6 @@ import {
   GitBranch,
   Gem,
   Plus,
-  Activity,
-  ChevronRightCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -100,6 +97,7 @@ interface Task {
   evidenceSubmittedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // 🆕 NEW FIELDS
   isMilestone?: boolean;
   parentTaskId?: string | null | { _id: string; title: string; status: string };
   subTaskCount?: number;
@@ -175,7 +173,7 @@ function RejectionReasonModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center roun justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -228,6 +226,7 @@ export default function TaskDetailPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
+  // Use global timer context
   const {
     timerState,
     startTimer,
@@ -253,8 +252,11 @@ export default function TaskDetailPage() {
   const [copied, setCopied] = useState(false);
   const [submittingForReview, setSubmittingForReview] = useState(false);
 
+  // 🆕 Sub-tasks state
   const [subTasks, setSubTasks] = useState<Task[]>([]);
   const [loadingSubTasks, setLoadingSubTasks] = useState(false);
+
+  // 🆕 Dependency state
   const [showDependencyEditor, setShowDependencyEditor] = useState(false);
 
   // Comments state
@@ -344,6 +346,7 @@ export default function TaskDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  // Check if evidence is provided
   const hasEvidence = () => {
     return (
       (task?.evidenceUrls && task.evidenceUrls.length > 0) ||
@@ -352,6 +355,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // Get total time
   const getTotalTime = useCallback(() => {
     if (!task) return { minutes: 0, display: "0m" };
 
@@ -389,12 +393,13 @@ export default function TaskDetailPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+
+  // app/(dashboard)/tasks/[id]/page.tsx - সম্পূর্ণ fetchTask ফাংশন
+
   const fetchTask = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      console.log("🔍 Fetching task with ID:", id);
 
       const response = await api.get(`/tasks/${id}`);
 
@@ -406,8 +411,6 @@ export default function TaskDetailPage() {
       } else {
         taskData = response.data;
       }
-
-      console.log("📋 Raw task data:", taskData);
 
       if (taskData && taskData._id) {
         const formattedTask = {
@@ -435,6 +438,7 @@ export default function TaskDetailPage() {
           evidenceUrls: taskData.evidenceUrls || [],
           evidenceSubmitted: taskData.evidenceSubmitted || false,
           evidenceSubmittedAt: taskData.evidenceSubmittedAt || "",
+          // 🆕 New fields
           isMilestone: taskData.isMilestone || false,
           parentTaskId: taskData.parentTaskId || null,
           subTaskCount: taskData.subTaskCount || 0,
@@ -443,68 +447,34 @@ export default function TaskDetailPage() {
           dependencies: taskData.dependencies || [],
         };
 
-        console.log("📋 Formatted task:", {
-          id: formattedTask._id,
-          title: formattedTask.title,
-          subTaskCount: formattedTask.subTaskCount,
-          isMilestone: formattedTask.isMilestone,
-          parentTaskId: formattedTask.parentTaskId,
-        });
-
         setTask(formattedTask);
 
-        // ============================================================
-        // ✅ FIX: ALWAYS try to fetch sub-tasks if subTaskCount > 0
-        // ============================================================
-        // 🔥 গুরুত্বপূর্ণ: subTaskCount > 0 থাকলেই চেষ্টা করুন
-        // এটা প্যারেন্ট টাস্ক হোক বা না হোক
-        if (formattedTask.subTaskCount > 0 && !formattedTask.isMilestone) {
-          console.log("🔍 Trying to fetch sub-tasks for task:", formattedTask._id);
+        // ✅ FIX: শুধুমাত্র প্যারেন্ট টাস্ক হলে সাব-টাস্ক ফেচ করুন
+        // যে টাস্কের parentTaskId নেই, milestone না, এবং subTaskCount > 0
+        if (formattedTask.subTaskCount > 0 &&
+          !formattedTask.isMilestone &&
+          !formattedTask.parentTaskId) {
           try {
-            const subResponse = await api.get(`/tasks/${formattedTask._id}/subtasks`);
-            console.log("📋 Sub-tasks API Response:", subResponse.data);
-
+            const subResponse = await api.get(`/tasks/${id}/subtasks`);
             if (subResponse.data.success) {
-              const subTaskData = subResponse.data.data || [];
-              console.log(`✅ Found ${subTaskData.length} sub-tasks`);
-              setSubTasks(subTaskData);
-
-              // ✅ যদি sub-tasks পাওয়া যায়, সেগুলো দেখান
-            } else {
-              console.warn("⚠️ API returned success: false");
-              // ✅ যদি sub-tasks না পাওয়া যায়, subTaskCount আপডেট করুন
-              setTask(prev => prev ? { ...prev, subTaskCount: 0 } : null);
-              setSubTasks([]);
+              setSubTasks(subResponse.data.data || []);
             }
-          } catch (subError: any) {
-            console.error("❌ Error fetching sub-tasks:", {
-              status: subError.response?.status,
-              message: subError.response?.data?.message,
-            });
-
-            // ✅ 404 মানে sub-tasks নেই
-            if (subError.response?.status === 404) {
-              console.log("ℹ️ No sub-tasks found (404) - Updating subTaskCount to 0");
-              // 🔥 subTaskCount আপডেট করুন যাতে আবার API কল না করে
-              setTask(prev => prev ? { ...prev, subTaskCount: 0 } : null);
-            }
+          } catch (subError) {
+            console.log("ℹ️ No sub-tasks found or task is not a parent");
             setSubTasks([]);
           }
         } else {
-          console.log("ℹ️ Task has no sub-tasks or is milestone");
           setSubTasks([]);
         }
 
         if (taskData.evidenceUrls && taskData.evidenceUrls.length > 0) {
           setHasSubmittedEvidence(true);
         }
-
       } else {
-        console.error("❌ Invalid task data received");
         throw new Error("Invalid task data received");
       }
     } catch (error: any) {
-      console.error("❌ Error fetching task:", error);
+      console.error("Error fetching task:", error);
       const errorMessage = error.response?.data?.message || "Failed to fetch task";
       setError(errorMessage);
 
@@ -517,23 +487,23 @@ export default function TaskDetailPage() {
       }
     } finally {
       setLoading(false);
-      console.log("✅ fetchTask completed");
     }
   };
 
-  // const fetchSubTasks = async () => {
-  //   try {
-  //     setLoadingSubTasks(true);
-  //     const response = await api.get(`/tasks/${id}/subtasks`);
-  //     if (response.data.success) {
-  //       setSubTasks(response.data.data || []);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error fetching sub-tasks:", error);
-  //   } finally {
-  //     setLoadingSubTasks(false);
-  //   }
-  // };
+  // 🆕 Fetch sub-tasks
+  const fetchSubTasks = async () => {
+    try {
+      setLoadingSubTasks(true);
+      const response = await api.get(`/tasks/${id}/subtasks`);
+      if (response.data.success) {
+        setSubTasks(response.data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching sub-tasks:", error);
+    } finally {
+      setLoadingSubTasks(false);
+    }
+  };
 
   useEffect(() => {
     if (task && isTimerActiveForTask(task._id)) {
@@ -544,8 +514,10 @@ export default function TaskDetailPage() {
         });
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fetch Extension Requests
   const fetchExtensionRequests = async () => {
     try {
       const response = await api.get(`/tasks/${id}/extension-requests`);
@@ -794,6 +766,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Update task status
   const updateTaskStatus = async (newStatus: string, data?: any) => {
     setUpdating(true);
     try {
@@ -837,6 +810,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Mark Complete
   const handleMarkComplete = async () => {
     if (!task) return;
 
@@ -884,6 +858,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Time Extension
   const handleRequestExtension = async () => {
     if (!extensionData.requestedDate) {
       toast.error("Please select a new deadline");
@@ -920,6 +895,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Approve Extension
   const handleApproveExtension = async (extensionId: string, newDeadline: string) => {
     if (!confirm("Approve this extension request?")) return;
 
@@ -939,6 +915,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Submit for Review
   const handleSubmitForReview = () => {
     if (task?.evidenceRequired && !hasEvidence()) {
       toast.error("Please upload evidence before submitting for review");
@@ -1005,6 +982,7 @@ export default function TaskDetailPage() {
     }
   };
 
+  // Approval/Rejection
   const openApprovalNoteModal = (action: "approve" | "reject") => {
     setPendingAction(action);
     setApprovalNote("");
@@ -1290,7 +1268,7 @@ export default function TaskDetailPage() {
     return name?.charAt(0)?.toUpperCase() || "?";
   };
 
-  // Render helpers
+  // Render rejection note
   const renderRejectionNote = () => {
     if (task?.status !== "rejected" || !task?.rejectionReason) return null;
 
@@ -1317,6 +1295,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // Render approval note
   const renderApprovalNote = () => {
     if (task?.status !== "completed" || !task?.approvalNote) return null;
 
@@ -1339,6 +1318,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // Render extension requests
   const renderExtensionRequests = () => {
     if (extensionRequests.length === 0) return null;
 
@@ -1397,6 +1377,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // Render evidence badge
   const renderEvidenceBadge = () => {
     if (!task?.evidenceRequired) return null;
 
@@ -1418,6 +1399,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // 🆕 Render milestone badge
   const renderMilestoneBadge = () => {
     if (!task?.isMilestone) return null;
 
@@ -1429,6 +1411,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // 🆕 Render sub-task badge
   const renderSubTaskBadge = () => {
     if (!task?.parentTaskId || typeof task.parentTaskId !== 'object') return null;
 
@@ -1440,6 +1423,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // 🆕 Render parent task badge
   const renderParentTaskBadge = () => {
     if (!task?.subTaskCount || task.subTaskCount === 0) return null;
 
@@ -1451,6 +1435,7 @@ export default function TaskDetailPage() {
     );
   };
 
+  // 🆕 Render dependencies badge
   const renderDependenciesBadge = () => {
     if (!task?.dependencies || task.dependencies.length === 0) return null;
 
@@ -1459,6 +1444,92 @@ export default function TaskDetailPage() {
         <Link2 className="w-3 h-3" />
         {task.dependencies.length} dependencies
       </span>
+    );
+  };
+
+  // 🆕 Render sub-tasks list
+  const renderSubTasks = () => {
+    if (!subTasks || subTasks.length === 0) return null;
+
+    return (
+      <div className="mt-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+        <div className="flex items-center gap-2 mb-3">
+          <GitBranch className="w-4 h-4 text-blue-600" />
+          <p className="text-sm font-medium text-blue-800">Sub-Tasks ({subTasks.length})</p>
+          <span className="text-xs text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+            {task?.completedSubTaskCount || 0}/{task?.subTaskCount || 0} complete
+          </span>
+        </div>
+        <div className="space-y-2">
+          {subTasks.map((subTask) => (
+            <Link
+              key={subTask._id}
+              href={`/tasks/${subTask._id}`}
+              className="block p-3 bg-white rounded-lg border border-blue-100 hover:border-blue-300 hover:shadow-sm transition"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${subTask.status === "completed" || subTask.status === "done"
+                    ? "bg-emerald-500"
+                    : subTask.status === "in_progress"
+                      ? "bg-blue-500"
+                      : subTask.status === "submitted"
+                        ? "bg-purple-500"
+                        : subTask.status === "overdue"
+                          ? "bg-rose-500"
+                          : "bg-amber-500"
+                    }`} />
+                  <span className="text-sm font-medium text-gray-800">{subTask.title}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">{formatDate(subTask.deadline)}</span>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${subTask.status === "completed" || subTask.status === "done"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : subTask.status === "in_progress"
+                      ? "bg-blue-100 text-blue-700"
+                      : subTask.status === "submitted"
+                        ? "bg-purple-100 text-purple-700"
+                        : subTask.status === "overdue"
+                          ? "bg-rose-100 text-rose-700"
+                          : "bg-amber-100 text-amber-700"
+                    }`}>
+                    {subTask.status.replace("_", " ")}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // 🆕 Render dependencies list
+  const renderDependencies = () => {
+    if (!task?.dependencies || task.dependencies.length === 0) return null;
+
+    return (
+      <div className="mt-4 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100">
+        <div className="flex items-center gap-2 mb-3">
+          <Link2 className="w-4 h-4 text-indigo-600" />
+          <p className="text-sm font-medium text-indigo-800">Dependencies ({task.dependencies.length})</p>
+        </div>
+        <div className="space-y-2">
+          {task.dependencies.map((dep, index) => (
+            <div key={index} className="flex items-center justify-between p-2 bg-white rounded-lg border border-indigo-100">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Task {dep.taskId}</span>
+                <span className="text-xs font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                  {dep.type || "FS"}
+                </span>
+                {dep.lag > 0 && (
+                  <span className="text-xs text-gray-400">+{dep.lag}d</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   };
 
@@ -1535,6 +1606,7 @@ export default function TaskDetailPage() {
               Back to Tasks
             </Link>
             <div className="flex items-center gap-2 flex-wrap">
+              {/* 🆕 Dependencies Button */}
               <button
                 onClick={() => setShowDependencyEditor(true)}
                 className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
@@ -1583,593 +1655,160 @@ export default function TaskDetailPage() {
               )}
             </div>
           </motion.div>
-          <div className="rounded-xl border bg-white shadow-sm">
-            {/* Card Header */}
-            <div className="border-b px-6 py-4 bg-black  rounded-2xl rounded-b-none">
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <span
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color}`}
-                >
-                  {getPriorityConfig(task.priority).icon} {task.priority.toUpperCase()}
-                </span>
-                <span
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
-                >
-                  {getStatusConfig(task.status).icon}
-                  {task.status.replace("_", " ").toUpperCase()}
-                </span>
-                <span>{renderSubTaskBadge()}</span>
-                <span>{renderMilestoneBadge()}</span>
-                <span>{renderParentTaskBadge()}</span>
-                <span>{renderDependenciesBadge()}</span>
-                <span>{renderEvidenceBadge()}</span>
-              </div>
-              <div className="pt-2">
-                <h1 className="text-2xl lg:text-3xl font-bold text-white mb-3">
-                  {task.isMilestone && <Gem className="w-6 h-6 text-purple-500 inline mr-2" />}
-                  {task.title}
-                </h1>
-                <div className="flex">
-                  <div className="flex">
-                    <p className="text-xs text-gray-500 mb-0.5">Assigned By: </p>
-                    <p className="text-xs text-gray-500 mb-0.5 ps-1">
-                      {task.assignedBy?.fullName || "Unknown"}
-                    </p>
-                    {/* <p className="text-xs text-gray-500 mb-0.5 ps-2">Assigned To: </p>
-                          <p className="text-xs text-gray-500 mb-0.5 ps-1">
-                              {task.assignedTo?.fullName || "Unassigned"}
-                          </p> */}
-                  </div>
-                  <div className="flex ps-2">
-                    <p className="text-xs text-gray-500 mb-0.5">EST:</p>
-                    <p className="text-xs text-gray-500 mb-0.5">{task.estimatedHours} hours</p>
-                  </div>
-                  <div className="flex ps-2">
-                    <p className="text-xs text-gray-500 mb-0.5"> Due: {formatDate(task.createdAt)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Card Body */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Column 1 */}
-                <div className="lg:col-span-3">
-                  {/* Task Header with Timer */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`overflow-hidden ${task.isMilestone ? "border-purple-300 bg-purple-50/30" : "border-gray-200"
-                      }`}
-                  >
-                    <div className="">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {isTimerActive && (
-                          <div
-                            className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full ${isTimerRunningForTask
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Left Column - Task Details */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Task Header with Timer */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${task.isMilestone ? "border-purple-300 bg-purple-50/30" : "border-gray-200"
+                  }`}
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4 flex-wrap gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* 🆕 Badges */}
+                      {renderMilestoneBadge()}
+                      {renderSubTaskBadge()}
+                      {renderParentTaskBadge()}
+                      {renderDependenciesBadge()}
+                      <span
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getPriorityConfig(task.priority).color}`}
+                      >
+                        {getPriorityConfig(task.priority).icon} {task.priority.toUpperCase()}
+                      </span>
+                      <span
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full border ${getStatusConfig(task.status).color}`}
+                      >
+                        {getStatusConfig(task.status).icon}{" "}
+                        {task.status.replace("_", " ").toUpperCase()}
+                      </span>
+                      {isOverdue && (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                          ⚠️ OVERDUE
+                        </span>
+                      )}
+                      {task.averageRating && task.averageRating > 0 && (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                          <Star size={12} className="fill-amber-500 text-amber-500" />
+                          {task.averageRating.toFixed(1)}
+                        </span>
+                      )}
+                      {renderEvidenceBadge()}
+                      {isTimerActive && (
+                        <div
+                          className={`flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full ${isTimerRunningForTask
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                        >
+                          <TimerIcon size={12} />
+                          <span>{formatTimeShort(timerDisplay)}</span>
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${isTimerRunningForTask ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
                               }`}
-                          >
-                            <TimerIcon size={12} />
-                            <span>{formatTimeShort(timerDisplay)}</span>
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${isTimerRunningForTask ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
-                                }`}
+                          />
+                        </div>
+                      )}
+                      {task.actualMinutes && task.actualMinutes > 0 && !isTimerActive && (
+                        <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                          <History size={12} />
+                          <span>{task.actualMinutes}m tracked</span>
+                        </div>
+                      )}
+                      {/* 🆕 Progress bar for parent tasks */}
+                      {task.subTaskCount && task.subTaskCount > 0 && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">Progress:</span>
+                          <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-500 rounded-full transition-all"
+                              style={{
+                                width: `${task.subTaskCount > 0
+                                  ? ((task.completedSubTaskCount || 0) / task.subTaskCount) * 100
+                                  : 0}%`
+                              }}
                             />
                           </div>
-                        )}
-                        {task.actualMinutes && task.actualMinutes > 0 && !isTimerActive && (
-                          <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                            <History size={12} />
-                            <span>{task.actualMinutes}m tracked</span>
-                          </div>
-                        )}
-                      </div>
-                      {/* Rejection Note */}
-                      {renderRejectionNote()}
-
-                      {/* Approval Note */}
-                      {renderApprovalNote()}
-
-                      {/* Extension Requests */}
-                      {renderExtensionRequests()}
-                      <div className="p-5 pt-0 ps-0">
-                        <span className="text-gray-500 text-[12px]">Description</span>
-                        <p className="text-black leading-relaxed">
-                          {task.description || "No description provided."}
-                        </p>
-                      </div>
-                      {subTasks.length > 0 && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.15 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="p-5 pt-0 ps-0">
-                            {/* Header with Uppercase Title and Dynamic Count */}
-                            <div className="flex items-center justify-between ">
-                              <h3 className="text-xs pb-2 font-bold uppercase tracking-wider text-gray-500">
-                                Sub-Tasks ({subTasks.filter(st => st.status === "completed" || st.status === "done").length}/{subTasks.length} done)
-                              </h3>
-                            </div>
-
-                            {/* Emerald Progress Bar */}
-                            <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${subTasks.length > 0
-                                    ? (subTasks.filter(st => st.status === "completed" || st.status === "done").length / subTasks.length) * 100
-                                    : 0
-                                    }%`,
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="px-5 pb-5 ps-0 space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                            {loadingSubTasks ? (
-                              <div className="flex items-center justify-center py-8">
-                                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-                              </div>
-                            ) : (
-                              subTasks.map((subTask) => {
-                                const isCompleted = subTask.status === "completed" || subTask.status === "done";
-
-                                return (
-                                  <Link
-                                    key={subTask._id}
-                                    href={`/tasks/${subTask._id}`}
-                                    className="flex items-center justify-between py-2 px-1 hover:bg-gray-50 rounded-lg transition group"
-                                  >
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                      {/* Custom Square Checkbox Style */}
-                                      <div className="shrink-0">
-                                        {isCompleted ? (
-                                          <div className="w-4 h-4 rounded bg-blue-600 flex items-center justify-center">
-                                            <Check className="w-3 h-3 text-white" />
-                                          </div>
-                                        ) : (
-                                          <div className="w-4 h-4 rounded border border-gray-300 bg-white group-hover:border-blue-500 transition" />
-                                        )}
-                                      </div>
-
-                                      {/* Task Title & Details */}
-                                      <div className="min-w-0 flex-1">
-                                        <p
-                                          className={`text-sm truncate ${isCompleted
-                                            ? "text-gray-400 line-through"
-                                            : "text-gray-700 font-normal"
-                                            }`}
-                                        >
-                                          {subTask.title}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </Link>
-                                );
-                              })
-                            )}
-                          </div>
-                        </motion.div>
+                          <span className="text-xs font-medium text-gray-700">
+                            {task.subTaskCount > 0
+                              ? Math.round(((task.completedSubTaskCount || 0) / task.subTaskCount) * 100)
+                              : 0}%
+                          </span>
+                        </div>
                       )}
-
-
-                      {/* Timer Controls */}
-                      {/* {task.status !== "completed" && task.status !== "submitted" && (
-                        <div className=" pt-4 border-t border-gray-200 p-6">
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2">
-                              <TimerIcon size={16} className="text-indigo-500" />
-                              <span className="text-sm font-medium text-gray-700">Time Tracking</span>
-                            </div>
-                           
-                            <div className="flex items-center gap-2">
-                              {isTimerActive ? (
-                                <>
-                                  {isTimerRunningForTask ? (
-                                    <button
-                                      onClick={handlePauseTimer}
-                                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                    >
-                                      <Pause size={14} />
-                                      Pause
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={handleResumeTimer}
-                                      className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                    >
-                                      <Play size={14} />
-                                      Resume
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={handleStopTimer}
-                                    className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                  >
-                                    <Square size={14} />
-                                    Stop
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={handleStartTimer}
-                                  className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
-                                  disabled={activeTimerTaskId !== null && activeTimerTaskId !== task._id}
-                                >
-                                  <Play size={14} />
-                                  Start Timer
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )} */}
                     </div>
-                  </motion.div>
-                </div>
-                <div>
-                  <div className="space-y-6">
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="bg-white rounded-2xl p-6 top-6 pb-0"
-                    >
-                      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                        <Zap className="w-5 h-5 text-indigo-500" />
-                        Actions
-                      </h3>
-                      <div className="space-y-3">
-                        {/* Dependencies Button - সবসময় Visible */}
-                        <button
-                          onClick={() => setShowDependencyEditor(true)}
-                          className="w-full py-2.5 mb-0 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition flex items-center justify-center gap-2 shadow-sm border border-indigo-200"
-                        >
-                          <Link2 size={16} />
-                          Manage Dependencies
-                          {task.dependencies && task.dependencies.length > 0 && (
-                            <span className="bg-indigo-200 text-indigo-800 text-xs px-2 py-0.5 rounded-full">
-                              {task.dependencies.length}
-                            </span>
-                          )}
-                        </button>
+                  </div>
 
-                        {/* Timer Controls - সবসময় Visible */}
-                        <div className="grid grid-cols-2 gap-2">
-                          {task.status === "pending" ? (
-                            <button
-                              onClick={() => updateTaskStatus("in_progress")}
-                              disabled={updating}
-                              className="col-span-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
-                            >
-                              {updating ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-                              Start Task
-                            </button>
-                          ) : task.status === "in_progress" ? (
-                            <>
-                              {/* <button
-                          onClick={handleMarkComplete}
-                          disabled={updating}
-                          className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                        >
-                          {updating ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                          Mark Complete
-                        </button> */}
-                            </>
-                          ) : task.status === "submitted" && canApprove ? (
-                            <>
-                              <button
-                                onClick={() => openApprovalNoteModal("approve")}
-                                disabled={updating}
-                                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                              >
-                                {updating ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={16} />}
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => openApprovalNoteModal("reject")}
-                                className="py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                              >
-                                <ThumbsDown size={16} />
-                                Reject
-                              </button>
-                            </>
-                          ) : task.status === "rejected" ? (
-                            <button
-                              onClick={() => updateTaskStatus("pending")}
-                              disabled={updating}
-                              className="col-span-2 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                            >
-                              {updating ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                              Send for Rework
-                            </button>
-                          ) : null}
-                        </div>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-3">
+                    {task.isMilestone && <Gem className="w-6 h-6 text-purple-500 inline mr-2" />}
+                    {task.title}
+                  </h1>
+                  <p className="text-gray-600 leading-relaxed">
+                    {task.description || "No description provided."}
+                  </p>
 
-                        {/* <button
-                          onClick={handleStartTimer}
-                          className="w-full py-2.5 cursor-pointer bg-emerald-500 hover:bg-emerald-600 rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                          disabled={activeTimerTaskId !== null && activeTimerTaskId !== task._id}
-                        >
-                          <Play size={14} />
-                          Resume Timer
-                        </button> */}
-                        {/* ✅ Resume Timer Button - সবসময় Visible */}
-                        {/* <button
-                          onClick={handleStartTimer}
-                          className="w-full py-2.5 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                          disabled={activeTimerTaskId !== null && activeTimerTaskId !== task._id}
-                        >
-                          <Play size={14} />
-                          {isTimerActive ? "Resume Timer" : "Start Timer"}
-                        </button> */}
+                  {/* 🆕 Sub-tasks */}
+                  {renderSubTasks()}
 
-                        {/* ✅ Timer Controls - শুধুমাত্র Timer Active থাকলে দেখাবে */}
-                        {/* Timer Controls - Updated with Hide/Show logic */}
-                        <div className="space-y-2">
-                          {/* 🔥 Resume/Start Button - সবসময় Visible (কিন্তু Timer Active এবং Running থাকলে Hide) */}
-                          {(!isTimerActive || (isTimerActive && !isTimerRunningForTask)) && (
-                            <button
-                              onClick={handleStartTimer}
-                              className="w-full py-2.5 cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                              disabled={activeTimerTaskId !== null && activeTimerTaskId !== task._id}
-                            >
-                              <Play size={14} />
-                              {isTimerActive ? "Resume Timer" : "Start Timer"}
-                            </button>
-                          )}
+                  {/* 🆕 Dependencies */}
+                  {renderDependencies()}
 
-                          {/* Timer Controls - শুধুমাত্র Timer Active এবং Running থাকলে দেখাবে */}
-                          {isTimerActive && isTimerRunningForTask && (
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                onClick={handlePauseTimer}
-                                className="py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition flex items-center justify-center gap-1 shadow-sm"
-                              >
-                                <Pause size={14} />
-                                Pause
-                              </button>
-                              <button
-                                onClick={handleStopTimer}
-                                className="py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition flex items-center justify-center gap-1 shadow-sm"
-                              >
-                                <Square size={14} />
-                                Stop
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                  {/* Rejection Note */}
+                  {renderRejectionNote()}
 
-                        {/* Submit for Review - সবসময় Visible (যদি in_progress হয়) */}
-                        {task.status === "in_progress" && (
-                          <button
-                            onClick={handleSubmitForReview}
-                            disabled={updating || submittingForReview}
-                            className="w-full py-2.5 cursor-pointer bg-white border border-gray-300  text-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                          >
-                            {updating || submittingForReview ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <Upload size={16} />
-                            )}
-                            Upload Evidance
-                            {task?.evidenceRequired && (
-                              <span className="text-[8px] bg-purple-400/30 px-1.5 py-0.5 rounded-full">Evidence Required</span>
-                            )}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setShowExtensionModal(true)}
-                          className="w-full py-2.5 cursor-pointer bg-white border border-gray-300  text-black rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                        >
-                          <CalendarClock size={16} />
-                          Request Extension
-                        </button>
-                        {task.status === "in_progress" && (
-                          <button
-                            onClick={handleSubmitForReview}
-                            disabled={updating || submittingForReview}
-                            className="w-full py-2.5 cursor-pointer bg-amber-200 border border-amber-700  text-amber-700 rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                          >
-                            {updating || submittingForReview ? (
-                              <Loader2 size={16} className="animate-spin" />
-                            ) : (
-                              <Send size={16} />
-                            )}
-                            Submit for Approval
-                            {task?.evidenceRequired && (
-                              <span className="text-[8px] bg-purple-400/30 px-1.5 py-0.5 rounded-full">Evidence Required</span>
-                            )}
-                          </button>
-                        )}
-                        {/* Review Button - সবসময় Visible (যদি completed হয়) */}
-                        {canReview && !reviews.some((r) => r.reviewer?._id === user?._id) && task.status === "completed" && (
-                          <button
-                            onClick={() => setShowReviewModal(true)}
-                            className="w-full py-2.5 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
-                          >
-                            <Star size={16} />
-                            Leave a Review
-                          </button>
-                        )}
+                  {/* Approval Note */}
+                  {renderApprovalNote()}
+
+                  {/* Extension Requests */}
+                  {renderExtensionRequests()}
+
+                  {/* Task Meta Tags */}
+                  <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-gray-100">
+                    {task.projectId && task.projectId.name && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                        <Briefcase size={12} />
+                        {task.projectId.name}
                       </div>
-                    </motion.div>
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.25 }}
-                      className="bg-white  p-6"
-                    >
-                      <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                        <History className="w-4 h-4 text-gray-400" />
-                        Task History
-                      </h3>
-                      <div className=" max-h-[300px] overflow-y-auto custom-scrollbar">
-                        {/* Timer Events */}
-                        {isTimerActive ? (
-                          <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-2 h-2 rounded-full ${isTimerRunningForTask ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-                              <span className="text-sm text-gray-700">
-                                {isTimerRunningForTask ? "Started timer" : "Timer paused"}
+                    )}
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                      <Clock size={12} />
+                      {task.estimatedHours}h estimated
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                      <Users size={12} />
+                      Assigned to {task.assignedTo?.fullName}
+                    </div>
+                    {task.createdAt && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                        <Calendar size={12} />
+                        Created {formatDate(task.createdAt)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Timer Controls */}
+                  {task.status !== "completed" && task.status !== "submitted" && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <TimerIcon size={16} className="text-indigo-500" />
+                          <span className="text-sm font-medium text-gray-700">Time Tracking</span>
+                        </div>
+                        <div className="flex-1">
+                          {isTimerActive ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg font-mono font-semibold text-indigo-700 tabular-nums">
+                                {formatTime(timerState.elapsedSeconds)}
                               </span>
-                            </div>
-                            <span className="text-xs text-gray-400">
-                              {formatTimeShort(timerDisplay)}
-                            </span>
-                          </div>
-                        ) : task.actualMinutes && task.actualMinutes > 0 ? (
-                          <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                            <div className="flex items-center gap-3">
-                              <ClockIcon className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-700">Time tracked</span>
-                            </div>
-                            <span className="text-xs font-medium text-gray-600">
-                              {formatTimeShort(task.actualMinutes * 60)}
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {/* Status Changes */}
-                        <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <Activity className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-700">Status</span>
-                          </div>
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${task.status === "completed" ? "bg-emerald-100 text-emerald-700" :
-                            task.status === "in_progress" ? "bg-blue-100 text-blue-700" :
-                              task.status === "submitted" ? "bg-purple-100 text-purple-700" :
-                                task.status === "rejected" ? "bg-rose-100 text-rose-700" :
-                                  task.status === "overdue" ? "bg-red-100 text-red-700" :
-                                    "bg-amber-100 text-amber-700"
-                            }`}>
-                            {task.status.replace("_", " ")}
-                          </span>
-                        </div>
-
-                        {/* Created At */}
-                        <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <Calendar className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-700">Created</span>
-                          </div>
-                          <span className="text-xs text-gray-400">
-                            {formatDateTime(task.createdAt)}
-                          </span>
-                        </div>
-
-                        {/* Updated At */}
-                        <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <RefreshCw className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-700">Last Updated</span>
-                          </div>
-                          <span className="text-xs text-gray-400">
-                            {formatDateTime(task.updatedAt)}
-                          </span>
-                        </div>
-
-                        {/* Assigned By */}
-                        <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                          <div className="flex items-center gap-3">
-                            <User className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm text-gray-700">Assigned By</span>
-                          </div>
-                          <span className="text-xs text-gray-400">
-                            {task.assignedBy?.fullName || "Unknown"}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                    {/* Quick Stats */}
-                    {/* <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.1 }}
-                      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6"
-                    >
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Stats</h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 text-sm">Time Tracked</span>
-                          <span className="text-gray-800 text-sm font-medium">{totalTime.display}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 text-sm">Comments</span>
-                          <span className="text-gray-800 text-sm font-medium">{comments.length}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 text-sm">Attachments</span>
-                          <span className="text-gray-800 text-sm font-medium">{attachments.length}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                          <span className="text-gray-500 text-sm">Reviews</span>
-                          <span className="text-gray-800 text-sm font-medium">{reviews.length}</span>
-                        </div>
-                        {task.subTaskCount && task.subTaskCount > 0 && (
-                          <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                            <span className="text-gray-500 text-sm">Sub-Tasks</span>
-                            <span className="text-gray-800 text-sm font-medium">
-                              {task.completedSubTaskCount || 0}/{task.subTaskCount}
-                            </span>
-                          </div>
-                        )}
-                        {task.dependencies && task.dependencies.length > 0 && (
-                          <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
-                            <span className="text-gray-500 text-sm">Dependencies</span>
-                            <span className="text-gray-800 text-sm font-medium">{task.dependencies.length}</span>
-                          </div>
-                        )}
-                        {reviewStats.averageRating > 0 && (
-                          <div className="flex justify-between items-center py-1.5">
-                            <span className="text-gray-500 text-sm">Avg Rating</span>
-                            <div className="flex items-center gap-1">
-                              <Star size={14} className="fill-amber-500 text-amber-500" />
-                              <span className="text-gray-800 text-sm font-medium">
-                                {reviewStats.averageRating.toFixed(1)}
+                              <span
+                                className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"
+                                  }`}
+                              >
+                                {isTimerRunningForTask ? "● Running" : "● Paused"}
                               </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div> */}
-
-                    {/* Timer Status Card */}
-                    <motion.div
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 }}
-                      className={`bg-linear-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${isTimerRunningForTask ? "border-indigo-300" : "border-gray-200"
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                          <TimerIcon size={16} className="text-indigo-600" />
-                          Timer Status
-                        </h3>
-                        {isTimerActive && (
-                          <span
-                            className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"
-                              }`}
-                          >
-                            {isTimerRunningForTask ? "● Running" : "● Paused"}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="text-center py-4">
-                        {isTimerActive ? (
-                          <>
-                            <div className="text-3xl font-mono font-bold text-indigo-700 tabular-nums">
-                              {formatTime(timerState.elapsedSeconds)}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {isTimerRunningForTask ? "Timer is running" : "Timer is paused"}
                               {task.actualMinutes && task.actualMinutes > 0 && (
                                 <span className="text-[10px] text-gray-400 ml-2">
                                   (Saved: {task.actualMinutes.toFixed(2)}m)
@@ -2180,81 +1819,312 @@ export default function TaskDetailPage() {
                                   Total: {((task.actualMinutes || 0) + (timerState.elapsedSeconds / 60)).toFixed(2)}m
                                 </span>
                               )}
-                            </p>
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-3xl font-mono font-bold text-gray-400">
-                              {task.actualMinutes ? formatTime(task.actualMinutes * 60) : "--:--:--"}
                             </div>
-                            <p className="text-xs text-gray-400 mt-1">
-                              {task.actualMinutes ? `${task.actualMinutes.toFixed(2)}m tracked` : "No timer active"}
-                            </p>
-                          </>
-                        )}
-                      </div>
-                      {task.actualMinutes && task.actualMinutes > 0 && !isTimerActive && (
-                        <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-3 mt-2">
-                          Total tracked: {task.actualMinutes} minutes
+                          ) : (
+                            <span className="text-sm text-gray-400">
+                              {task.actualMinutes ? `${task.actualMinutes.toFixed(2)}m logged` : "No time tracked"}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </motion.div>
+                        <div className="flex items-center gap-2">
+                          {isTimerActive ? (
+                            <>
+                              {isTimerRunningForTask ? (
+                                <button
+                                  onClick={handlePauseTimer}
+                                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                >
+                                  <Pause size={14} />
+                                  Pause
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={handleResumeTimer}
+                                  className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                                >
+                                  <Play size={14} />
+                                  Resume
+                                </button>
+                              )}
+                              <button
+                                onClick={handleStopTimer}
+                                className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                              >
+                                <Square size={14} />
+                                Stop
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={handleStartTimer}
+                              className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg transition flex items-center gap-1 shadow-sm"
+                              disabled={activeTimerTaskId !== null && activeTimerTaskId !== task._id}
+                            >
+                              <Play size={14} />
+                              Start Timer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Task Information */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Info className="w-5 h-5 text-indigo-500" />
+                  Task Information
+                </h3>
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <User size={18} className="text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-0.5">Assigned To</p>
+                        <p className="text-gray-800 font-medium">
+                          {task.assignedTo?.fullName || "Unassigned"}
+                        </p>
+                        <p className="text-gray-400 text-sm">{task.assignedTo?.email || ""}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <User size={18} className="text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-0.5">Assigned By</p>
+                        <p className="text-gray-800 font-medium">
+                          {task.assignedBy?.fullName || "Unknown"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <Calendar size={18} className="text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-0.5">Deadline</p>
+                        <p className={`font-medium ${isOverdue ? "text-rose-600" : "text-gray-800"}`}>
+                          {formatDate(task.deadline)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <ClockIcon size={18} className="text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="text-xs text-gray-500 mb-0.5">Estimated Hours</p>
+                        <p className="text-gray-800 font-medium">{task.estimatedHours} hours</p>
+                      </div>
+                    </div>
+                    {task.projectId && task.projectId.name && (
+                      <div className="flex items-start gap-3">
+                        <Briefcase size={18} className="text-gray-400 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-gray-500 mb-0.5">Project</p>
+                          <p className="text-gray-800 font-medium">{task.projectId.name}</p>
+                          {task.projectId.code && (
+                            <p className="text-gray-400 text-sm">Code: {task.projectId.code}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              </motion.div>
+
               {/* Comments Section */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-white rounded-2xl rounded-b-none overflow-hidden"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
               >
-                <h1 className="text-lg font-semibold text-gray-800 ps-5 pt-5 pb-5">Notes & Comments</h1>
-                <div className="p-5 pt-0 space-y-5">
-                  <div className="flex gap-3 mb-0">
-                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm">
-                      <span className="text-white text-sm font-bold">
-                        {getInitials(user?.fullName || "?")}
-                      </span>
+                <button
+                  onClick={() => setShowComments(!showComments)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <MessageSquare className="w-5 h-5 text-indigo-500" />
+                    <h3 className="text-lg font-semibold text-gray-800">Comments ({comments.length})</h3>
+                  </div>
+                  {showComments ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                </button>
+
+                {showComments && (
+                  <div className="p-5 pt-0 space-y-5">
+                    <div className="flex gap-3">
+                      <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-sm">
+                        <span className="text-white text-sm font-bold">
+                          {getInitials(user?.fullName || "?")}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <textarea
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          placeholder="Write a comment..."
+                          rows={3}
+                          className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                        />
+                        <div className="flex justify-end mt-2">
+                          <button
+                            onClick={handleAddComment}
+                            disabled={submittingComment || !newComment.trim()}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
+                          >
+                            {submittingComment ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                            Post Comment
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Please make sure to add rate limiting on all booking endpoints before submitting."
-                        rows={1}
-                        className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 placeholder-gray-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleAddComment}
-                        disabled={submittingComment || !newComment.trim()}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-2 disabled:opacity-50 shadow-sm"
-                      >
-                        {submittingComment ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                        Send
-                      </button>
+
+                    <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
+                      {comments.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">No comments yet. Be the first to comment!</div>
+                      ) : (
+                        comments.map((comment) => (
+                          <CommentItem
+                            key={comment._id}
+                            comment={comment}
+                            onCommentUpdate={() => {
+                              fetchComments();
+                              fetchTask();
+                            }}
+                          />
+                        ))
+                      )}
                     </div>
                   </div>
+                )}
+              </motion.div>
 
-                  <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
-                    {comments.length === 0 ? (
-                      <div className="text-start py-8 pt-3 text-gray-500">No comments yet. Be the first to comment!</div>
+              {/* Attachments Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+                id="attachments-section"
+              >
+                <button
+                  onClick={() => setShowAttachments(!showAttachments)}
+                  className="w-full p-5 flex items-center justify-between hover:bg-gray-50 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <Paperclip className="w-5 h-5 text-indigo-500" />
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      Attachments ({attachments.length})
+                      {task?.evidenceRequired && task?.status === "in_progress" && (
+                        <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full ml-2">
+                          Evidence Required
+                        </span>
+                      )}
+                    </h3>
+                  </div>
+                  {showAttachments ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                </button>
+
+                {showAttachments && (
+                  <div className="p-5 pt-0">
+                    {task?.evidenceRequired && task?.status === "in_progress" && (
+                      <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-800">Evidence Required</p>
+                          <p className="text-xs text-amber-700">
+                            Please upload evidence before submitting this task for review or marking as complete.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mb-4">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <label
+                        htmlFor="file-upload"
+                        className="flex items-center justify-center gap-2 w-full p-4 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition bg-gray-50"
+                      >
+                        {uploadingFiles ? (
+                          <Loader2 size={20} className="animate-spin text-indigo-500" />
+                        ) : (
+                          <>
+                            <Upload size={20} className="text-gray-400" />
+                            <span className="text-gray-500">
+                              {task?.evidenceRequired ? "Upload evidence (Required)" : "Upload files"}
+                            </span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+
+                    {attachments.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        {task?.evidenceRequired ? "No evidence uploaded yet." : "No attachments yet."}
+                      </div>
                     ) : (
-                      comments.map((comment) => (
-                        <CommentItem
-                          key={comment._id}
-                          comment={comment}
-                          onCommentUpdate={() => {
-                            fetchComments();
-                            fetchTask();
-                          }}
-                        />
-                      ))
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {attachments.map((attachment) => (
+                          <div
+                            key={attachment._id}
+                            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-indigo-200 transition group"
+                          >
+                            {attachment.mimeType?.startsWith("image/") ? (
+                              <div
+                                className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center cursor-pointer hover:opacity-80 transition overflow-hidden"
+                                onClick={() => setSelectedImage(attachment.url)}
+                              >
+                                {attachment.thumbnailUrl ? (
+                                  <img src={attachment.thumbnailUrl} alt={attachment.originalName} className="w-full h-full object-cover" />
+                                ) : (
+                                  <ImageIcon size={20} className="text-gray-400" />
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg bg-gray-200 flex items-center justify-center">
+                                {getFileIcon(attachment.mimeType)}
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-gray-800 text-sm font-medium truncate">{attachment.originalName}</p>
+                              <p className="text-gray-400 text-xs">{formatFileSize(attachment.size)}</p>
+                            </div>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                              <button
+                                onClick={() => handleDownloadAttachment(attachment)}
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                title="Download"
+                              >
+                                <Download size={14} />
+                              </button>
+                              {(canManage || attachment.uploadedBy?._id === user?._id) && (
+                                <button
+                                  onClick={() => handleDeleteAttachment(attachment._id)}
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  title="Delete"
+                                >
+                                  <Trash size={14} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </div>
+                )}
               </motion.div>
 
               {/* Reviews Section */}
@@ -2335,6 +2205,275 @@ export default function TaskDetailPage() {
                   )}
                 </motion.div>
               )}
+            </div>
+
+            {/* Right Column - Actions & Stats */}
+            <div className="space-y-6">
+              {/* Actions Card */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sticky top-6"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-indigo-500" />
+                  Actions
+                </h3>
+                <div className="space-y-3">
+                  {/* 🆕 Dependencies Button */}
+                  <button
+                    onClick={() => setShowDependencyEditor(true)}
+                    className="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition flex items-center justify-center gap-2 shadow-sm border border-indigo-200"
+                  >
+                    <Link2 size={16} />
+                    Manage Dependencies
+                    {task.dependencies && task.dependencies.length > 0 && (
+                      <span className="bg-indigo-200 text-indigo-800 text-xs px-2 py-0.5 rounded-full">
+                        {task.dependencies.length}
+                      </span>
+                    )}
+                  </button>
+
+                  {task.status === "pending" && (
+                    <button
+                      onClick={() => updateTaskStatus("in_progress")}
+                      disabled={updating}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                    >
+                      {updating ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+                      Start Task
+                    </button>
+                  )}
+
+                  {task.status === "in_progress" && (
+                    <>
+                      <button
+                        onClick={handleMarkComplete}
+                        disabled={updating}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                      >
+                        {updating ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                        Mark Complete
+                      </button>
+                      <button
+                        onClick={handleSubmitForReview}
+                        disabled={updating || submittingForReview}
+                        className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
+                      >
+                        {updating || submittingForReview ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                        Submit for Review
+                        {task?.evidenceRequired && (
+                          <span className="text-xs bg-purple-400/30 px-2 py-0.5 rounded-full">Evidence Required</span>
+                        )}
+                      </button>
+                    </>
+                  )}
+
+                  {canRequestExtension && (
+                    <button
+                      onClick={() => setShowExtensionModal(true)}
+                      className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <CalendarClock size={16} />
+                      Request Extension
+                    </button>
+                  )}
+
+                  {task.status === "submitted" && canApprove && (
+                    <>
+                      <button
+                        onClick={() => openApprovalNoteModal("approve")}
+                        disabled={updating}
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                      >
+                        {updating ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={16} />}
+                        Approve & Complete
+                      </button>
+                      <button
+                        onClick={() => openApprovalNoteModal("reject")}
+                        className="w-full py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <ThumbsDown size={16} />
+                        Reject Task
+                      </button>
+                    </>
+                  )}
+
+                  {task.status === "rejected" && (
+                    <>
+                      <div
+                        className="text-center py-3 bg-rose-50 rounded-xl border border-rose-200 cursor-pointer hover:bg-rose-100 transition"
+                        onClick={() => setShowRejectionReasonModal(true)}
+                      >
+                        <p className="text-rose-600 text-sm font-medium">❌ Task Rejected</p>
+                        {task.rejectionReason && (
+                          <p className="text-rose-500 text-xs mt-1 line-clamp-2 px-2">{task.rejectionReason}</p>
+                        )}
+                        <p className="text-xs text-rose-400 mt-1">Click to view full reason</p>
+                      </div>
+                      <button
+                        onClick={() => updateTaskStatus("pending")}
+                        disabled={updating}
+                        className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                      >
+                        {updating ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                        Send for Rework
+                      </button>
+                    </>
+                  )}
+
+                  {task.status === "submitted" && !canApprove && (
+                    <div className="text-center py-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <p className="text-gray-500 text-sm">Waiting for approval from manager</p>
+                    </div>
+                  )}
+
+                  {task.status === "completed" && (
+                    <div className="text-center py-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                      <p className="text-emerald-600 text-sm font-medium">✅ Task Completed</p>
+                      {task.approvalNote && (
+                        <p className="text-emerald-500 text-xs mt-1 line-clamp-2 px-2">Note: {task.approvalNote}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {canReview && !reviews.some((r) => r.reviewer?._id === user?._id) && task.status === "completed" && (
+                    <button
+                      onClick={() => setShowReviewModal(true)}
+                      className="w-full py-2.5 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Star size={16} />
+                      Leave a Review
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Quick Stats */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6"
+              >
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Stats</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Created</span>
+                    <span className="text-gray-800 text-sm">{formatDateTime(task.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Last Updated</span>
+                    <span className="text-gray-800 text-sm">{formatDateTime(task.updatedAt)}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Time Tracked</span>
+                    <span className="text-gray-800 text-sm font-medium">{totalTime.display}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Comments</span>
+                    <span className="text-gray-800 text-sm font-medium">{comments.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Attachments</span>
+                    <span className="text-gray-800 text-sm font-medium">{attachments.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                    <span className="text-gray-500 text-sm">Reviews</span>
+                    <span className="text-gray-800 text-sm font-medium">{reviews.length}</span>
+                  </div>
+                  {task.subTaskCount && task.subTaskCount > 0 && (
+                    <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                      <span className="text-gray-500 text-sm">Sub-Tasks</span>
+                      <span className="text-gray-800 text-sm font-medium">
+                        {task.completedSubTaskCount || 0}/{task.subTaskCount}
+                      </span>
+                    </div>
+                  )}
+                  {task.dependencies && task.dependencies.length > 0 && (
+                    <div className="flex justify-between items-center py-1.5 border-b border-gray-100">
+                      <span className="text-gray-500 text-sm">Dependencies</span>
+                      <span className="text-gray-800 text-sm font-medium">{task.dependencies.length}</span>
+                    </div>
+                  )}
+                  {reviewStats.averageRating > 0 && (
+                    <div className="flex justify-between items-center py-1.5">
+                      <span className="text-gray-500 text-sm">Avg Rating</span>
+                      <div className="flex items-center gap-1">
+                        <Star size={14} className="fill-amber-500 text-amber-500" />
+                        <span className="text-gray-800 text-sm font-medium">
+                          {reviewStats.averageRating.toFixed(1)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* Timer Status Card */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className={`bg-linear-to-br from-indigo-50 to-purple-50 rounded-2xl border p-6 shadow-sm ${isTimerRunningForTask ? "border-indigo-300" : "border-gray-200"
+                  }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                    <TimerIcon size={16} className="text-indigo-600" />
+                    Timer Status
+                  </h3>
+                  {isTimerActive && (
+                    <span
+                      className={`text-xs font-medium ${isTimerRunningForTask ? "text-emerald-600" : "text-amber-600"
+                        }`}
+                    >
+                      {isTimerRunningForTask ? "● Running" : "● Paused"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-center py-4">
+                  {isTimerActive ? (
+                    <>
+                      <div className="text-3xl font-mono font-bold text-indigo-700 tabular-nums">
+                        {formatTime(timerState.elapsedSeconds)}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {isTimerRunningForTask ? "Timer is running" : "Timer is paused"}
+                        {task.actualMinutes && task.actualMinutes > 0 && (
+                          <span className="text-[10px] text-gray-400 ml-2">
+                            (Saved: {task.actualMinutes.toFixed(2)}m)
+                          </span>
+                        )}
+                        {isTimerRunningForTask && (
+                          <span className="text-[10px] text-indigo-500 ml-2">
+                            Total: {((task.actualMinutes || 0) + (timerState.elapsedSeconds / 60)).toFixed(2)}m
+                          </span>
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-3xl font-mono font-bold text-gray-400">
+                        {task.actualMinutes ? formatTime(task.actualMinutes * 60) : "--:--:--"}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {task.actualMinutes ? `${task.actualMinutes.toFixed(2)}m tracked` : "No timer active"}
+                      </p>
+                    </>
+                  )}
+                </div>
+                {task.actualMinutes && task.actualMinutes > 0 && !isTimerActive && (
+                  <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-3 mt-2">
+                    Total tracked: {task.actualMinutes} minutes
+                  </div>
+                )}
+              </motion.div>
             </div>
           </div>
         </div>
@@ -2469,6 +2608,8 @@ export default function TaskDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Evidence Submission Modal */}
       <AnimatePresence>
         {showEvidenceModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -2476,100 +2617,81 @@ export default function TaskDetailPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl border border-gray-200 shadow-2xl w-full max-w-[440px] p-6 sm:p-8 overflow-y-auto max-h-[90vh]"
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
             >
-              {/* Header */}
-              <div className="flex items-start gap-3 mb-2">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 text-xl font-bold">
-                  📎
-                </div>
+              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-center">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900">
-                    Upload Evidence
+                  <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <Text className="w-5 h-5 text-indigo-500" />
+                    Submit Evidence
                   </h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Attach proof of task completion. Required before submitting.
-                  </p>
+                  <p className="text-xs text-gray-500">Evidence is required to submit this task</p>
                 </div>
+                <button
+                  onClick={() => {
+                    setShowEvidenceModal(false);
+                    setEvidenceText("");
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition"
+                >
+                  <X size={20} className="text-gray-400" />
+                </button>
               </div>
 
-              <div className="space-y-5 mt-6">
-                {/* 4 Options Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
-                    <span className="text-2xl mb-1.5 block">📷</span>
-                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">Photo / Image</span>
-                  </div>
-                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
-                    <span className="text-2xl mb-1.5 block">📄</span>
-                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">PDF / Document</span>
-                  </div>
-                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
-                    <span className="text-2xl mb-1.5 block">🔗</span>
-                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">URL / Link</span>
-                  </div>
-                  <div className="border border-dashed border-gray-200 hover:border-blue-500 rounded-2xl p-4 text-center cursor-pointer transition-all bg-gray-50/50 hover:bg-blue-50/20 group">
-                    <span className="text-2xl mb-1.5 block">📍</span>
-                    <span className="text-xs font-semibold text-gray-700 group-hover:text-blue-600 block">GPS Location</span>
+              <div className="p-6 space-y-6">
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
+                  <AlertTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Evidence Required</p>
+                    <p className="text-xs text-amber-700">
+                      Please provide evidence details below. You can add URLs or describe the evidence.
+                    </p>
                   </div>
                 </div>
 
-                {/* Uploaded File Item Preview */}
-                <div className="flex items-center justify-between p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-xl">🖼️</span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-emerald-800 truncate">
-                        completion_screenshot.png
-                      </p>
-                      <p className="text-[11px] text-emerald-600 font-medium">
-                        1.2 MB · Uploaded ✓
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setEvidenceText("")}
-                    className="text-gray-400 hover:text-gray-600 p-1 shrink-0"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* Note input */}
                 <div>
-                  <input
-                    type="text"
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Evidence Details <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
                     value={evidenceText}
                     onChange={(e) => setEvidenceText(e.target.value)}
-                    placeholder="Add a note about this evidence (optional)"
-                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-xs text-gray-800 placeholder:text-gray-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                    rows={6}
+                    placeholder="Enter evidence details or URLs...\n\nExample:\n- https://drive.google.com/file/evidence1\n- https://docs.google.com/document/evidence2\n- Screenshots attached in comments\n- Source code: https://github.com/..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none text-gray-800 placeholder:text-gray-400 font-mono text-sm"
                   />
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Enter one URL or detail per line.{" "}
+                    {evidenceText.split("\n").filter((l) => l.trim()).length} items added
+                  </p>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex items-center gap-3 pt-2">
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={handleSubmitWithEvidence}
+                    disabled={submittingEvidence || !evidenceText.trim()}
+                    className="flex-1 px-4 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submittingEvidence ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Submit with Evidence
+                      </>
+                    )}
+                  </button>
                   <button
                     onClick={() => {
                       setShowEvidenceModal(false);
                       setEvidenceText("");
                     }}
-                    className="flex-1 py-3 px-4 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-semibold rounded-xl transition-all text-sm shadow-sm"
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
                   >
                     Cancel
-                  </button>
-                  <button
-                    onClick={handleSubmitWithEvidence}
-                    disabled={submittingEvidence}
-                    className="flex-1 py-3 px-4 bg-[#1A60FF] hover:bg-blue-600 text-white font-semibold rounded-xl transition-all text-sm shadow-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {submittingEvidence ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      "Save Evidence"
-                    )}
                   </button>
                 </div>
               </div>

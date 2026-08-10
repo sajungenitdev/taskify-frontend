@@ -496,7 +496,7 @@ export const SUB_ITEMS = {
   // My Profile Sub-items
   editProfile: createSubNavItem(
     "edit-profile",
-    "Edit Profile",
+    "Account Settings",
     "/profile",
     User,
     "My Profile",
@@ -509,22 +509,22 @@ export const SUB_ITEMS = {
     ],
     { description: "Update your personal information" },
   ),
-  accountSettings: createSubNavItem(
-    "account-settings",
-    "Account Settings",
-    "/settings/account",
-    Settings,
-    "My Profile",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.EMPLOYEE,
-      ROLES.DEPT_MANAGER,
-      ROLES.EMPLOYEE
-    ],
-    { description: "Manage your account preferences" },
-  ),
+  // accountSettings: createSubNavItem(
+  //   "account-settings",
+  //   "Account Settings",
+  //   "/settings/account",
+  //   Settings,
+  //   "My Profile",
+  //   [
+  //     ROLES.SUPER_ADMIN,
+  //     ROLES.ADMIN,
+  //     ROLES.HR_MANAGER,
+  //     ROLES.EMPLOYEE,
+  //     ROLES.DEPT_MANAGER,
+  //     ROLES.EMPLOYEE
+  //   ],
+  //   { description: "Manage your account preferences" },
+  // ),
   // securitySettings: createSubNavItem(
   //   "security-settings",
   //   "Security",
