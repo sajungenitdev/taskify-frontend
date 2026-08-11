@@ -14,7 +14,6 @@ import {
   Loader2,
   ChevronRight,
   Home,
-  Filter,
   Search,
   User,
   Building2,
@@ -22,29 +21,12 @@ import {
   Crown,
   Medal,
   Target,
-  Activity,
-  Eye,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Star,
-  Zap,
-  Flame,
-  BarChart3,
   LineChart,
-  PieChart,
   FileText,
   X,
-  ArrowUpRight,
-  ArrowDownRight,
   Minus,
-  HelpCircle,
-  Settings,
-  Printer,
-  Share2,
-  Mail,
+  AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -59,50 +41,12 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Area,
-  ComposedChart,
   ReferenceLine,
-  Label,
-  Brush,
 } from "recharts";
 
-interface KPIHistory {
-  _id: string;
-  userId: {
-    _id: string;
-    fullName: string;
-    email: string;
-    employeeId: string;
-    role: string;
-    avatar?: string;
-  };
-  departmentId: {
-    _id: string;
-    name: string;
-    code: string;
-  };
-  month: string;
-  year: number;
-  totalScore: number;
-  performanceLevel: "excellent" | "good" | "average" | "needs_improvement";
-  scores: {
-    taskCompletion: { score: number; weight: number; weightedScore: number };
-    qualityScore: { score: number; weight: number; weightedScore: number };
-    efficiency: { score: number; weight: number; weightedScore: number };
-    collaboration: { score: number; weight: number; weightedScore: number };
-    innovation: { score: number; weight: number; weightedScore: number };
-    attendance: { score: number; weight: number; weightedScore: number };
-  };
-  calculatedAt: string;
-}
-
-interface TrendData {
-  month: string;
-  monthIndex: number;
-  year: number;
-  [key: string]: any;
-}
-
+// ============================================================
+// INTERFACES & TYPES
+// ============================================================
 interface EmployeeTrend {
   userId: string;
   fullName: string;
@@ -111,85 +55,80 @@ interface EmployeeTrend {
   department: string;
   scores: {
     month: string;
+    monthIndex: number;
+    year: number;
     score: number;
     level: string;
   }[];
   averageScore: number;
   trend: "up" | "down" | "stable";
   trendPercentage: number;
-  bestMonth: {
-    month: string;
-    score: number;
-  };
-  worstMonth: {
-    month: string;
-    score: number;
-  };
+  bestMonth: { month: string; score: number };
+  worstMonth: { month: string; score: number };
   consistencyScore: number;
 }
 
+interface TrendDataPoint {
+  month: string;
+  monthIndex: number;
+  year: number;
+  label: string;
+  [key: string]: any;
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const CHART_COLORS = [
+  "#6366f1", "#8b5cf6", "#ec4899", "#f59e0b",
+  "#10b981", "#3b82f6", "#ef4444", "#14b8a6",
+];
+
 export default function KPITrendsPage() {
-  const { user, hasRole } = useAuth();
+  const { hasRole } = useAuth();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+
+  // State Management
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [trendData, setTrendData] = useState<TrendData[]>([]);
   const [employeeTrends, setEmployeeTrends] = useState<EmployeeTrend[]>([]);
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [monthsToShow, setMonthsToShow] = useState(6);
-  const [showAllEmployees, setShowAllEmployees] = useState(false);
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [monthsToShow, setMonthsToShow] = useState<number>(6);
+  const [showAllEmployees, setShowAllEmployees] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<"name" | "average" | "trend">("average");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
-  const isFetching = useRef(false);
-  const initialFetchDone = useRef(false);
+  // Refs to prevent duplicate concurrent network calls
+  const isFetching = useRef<boolean>(false);
+  const initialFetchDone = useRef<boolean>(false);
 
-  const canManage = hasRole([
-    "super_admin",
-    "admin",
-    "hr_manager",
-    "dept_manager",
-  ]);
+  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
 
-  const months = useMemo(
-    () => [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ],
-    [],
-  );
-
-  // Get last months
+  // ============================================================
+  // DATE CALCULATOR HELPER
+  // ============================================================
   const getLastMonths = useCallback(() => {
     const result = [];
     const now = new Date();
     for (let i = monthsToShow - 1; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       result.push({
-        month: months[date.getMonth()],
+        month: MONTHS[date.getMonth()],
         monthIndex: date.getMonth(),
         year: date.getFullYear(),
-        key: `${months[date.getMonth()]} ${date.getFullYear()}`,
       });
     }
     return result;
-  }, [monthsToShow, months]);
+  }, [monthsToShow]);
 
-  // Fetch KPI history data
+  // ============================================================
+  // DATA SYNCHRONIZATION FROM REAL API ENDPOINTS
+  // ============================================================
   const fetchTrendData = useCallback(async () => {
     if (isFetching.current) return;
 
@@ -198,1084 +137,629 @@ export default function KPITrendsPage() {
       setLoading(true);
       setError(null);
 
-      // Get all users
-      let usersData: any[] = [];
-      try {
-        const usersRes = await api.get("/auth/users");
-        if (usersRes.data.success) {
-          usersData = usersRes.data.data || [];
-        }
-      } catch (userError) {
-        console.error("Error fetching users:", userError);
-      }
+      // Fetch users and department metadata concurrently
+      const [usersRes, deptRes] = await Promise.all([
+        api.get("/users").catch(() => ({ data: { success: false, data: [] } })),
+        api.get("/departments").catch(() => ({ data: { success: false, data: [] } })),
+      ]);
 
-      // Get KPI history for each user
+      const usersData: any[] = usersRes.data.success ? usersRes.data.data || [] : [];
       const lastMonths = getLastMonths();
-      const allTrendData: TrendData[] = lastMonths.map((m) => ({
-        month: m.month,
-        monthIndex: m.monthIndex,
-        year: m.year,
-      }));
 
-      const employeeMap = new Map<string, any>();
-
-      // Fetch KPI scores for each month
-      for (const monthData of lastMonths) {
+      // Collect historical score data across all targeted months concurrently
+      const monthlyPromises = lastMonths.map(async (m) => {
         try {
-          const monthIndex = monthData.monthIndex + 1;
-          const response = await api.get(`/kpi/report/monthly`, {
-            params: {
-              month: monthIndex,
-              year: monthData.year,
-            },
+          const res = await api.get(`/kpi/report/monthly`, {
+            params: { month: m.monthIndex + 1, year: m.year },
           });
-
-          if (response.data.success && response.data.data) {
-            const scores = response.data.data.allScores || [];
-
-            // Create a map for quick lookup
-            const scoreMap = new Map();
-            scores.forEach((s: any) => {
-              const userId = s.userId._id;
-              scoreMap.set(userId, s);
-
-              if (!employeeMap.has(userId)) {
-                employeeMap.set(userId, {
-                  userId: s.userId,
-                  departmentId: s.departmentId,
-                  scores: [],
-                });
-              }
-
-              const empData = employeeMap.get(userId);
-              empData.scores.push({
-                month: monthData.month,
-                monthIndex: monthData.monthIndex,
-                year: monthData.year,
-                score: s.totalScore,
-                level: s.performanceLevel,
-                details: s.scores,
-              });
-            });
-
-            // Add data for users who don't have scores
-            usersData.forEach((user) => {
-              if (!scoreMap.has(user._id)) {
-                if (!employeeMap.has(user._id)) {
-                  employeeMap.set(user._id, {
-                    userId: user,
-                    departmentId: user.departmentId,
-                    scores: [],
-                  });
-                }
-              }
-            });
-
-            // Update trend data with scores
-            const trendEntry = allTrendData.find(
-              (t) => t.month === monthData.month && t.year === monthData.year,
-            );
-
-            if (trendEntry) {
-              scoreMap.forEach((score, userId) => {
-                const empData = employeeMap.get(userId);
-                if (empData) {
-                  trendEntry[userId] = score.totalScore || 0;
-                }
-              });
-            }
-          }
-        } catch (e) {
-          console.error(`Error fetching data for ${monthData.month}:`, e);
-          // Add empty data for missing months
-          const trendEntry = allTrendData.find(
-            (t) => t.month === monthData.month && t.year === monthData.year,
-          );
-          if (trendEntry) {
-            usersData.forEach((user) => {
-              trendEntry[user._id] = 0;
-            });
-          }
+          return {
+            month: m.month,
+            monthIndex: m.monthIndex,
+            year: m.year,
+            scores: res.data.success ? res.data.data?.allScores || [] : [],
+          };
+        } catch {
+          return { month: m.month, monthIndex: m.monthIndex, year: m.year, scores: [] };
         }
-      }
+      });
 
-      // Process employee trends
-      const processedTrends: EmployeeTrend[] = [];
-      employeeMap.forEach((data, userId) => {
-        const scores = data.scores || [];
-        const sortedScores = scores.sort(
-          (a: any, b: any) => a.monthIndex - b.monthIndex || a.year - b.year,
-        );
+      const monthlyResults = await Promise.all(monthlyPromises);
 
-        // Calculate average
-        const validScores = sortedScores.filter((s: any) => s.score > 0);
-        const avg =
-          validScores.length > 0
-            ? validScores.reduce((sum: number, s: any) => sum + s.score, 0) /
-              validScores.length
-            : 0;
+      // Aggregate user performance logs across history
+      const employeeMap = new Map<string, { user: any; history: Map<string, any> }>();
 
-        // Calculate trend
-        let trend: "up" | "down" | "stable" = "stable";
-        let trendPercentage = 0;
-        if (validScores.length >= 2) {
-          const first = validScores[0].score;
-          const last = validScores[validScores.length - 1].score;
-          const diff = last - first;
-          trendPercentage = first > 0 ? (diff / first) * 100 : 0;
-          if (diff > 2) trend = "up";
-          else if (diff < -2) trend = "down";
-        }
+      usersData.forEach((u) => {
+        employeeMap.set(u._id, { user: u, history: new Map() });
+      });
 
-        // Find best and worst months
-        let bestMonth = { month: "", score: 0 };
-        let worstMonth = { month: "", score: 100 };
-        validScores.forEach((s: any) => {
-          if (s.score > bestMonth.score) {
-            bestMonth = { month: s.month, score: s.score };
+      monthlyResults.forEach((res) => {
+        res.scores.forEach((s: any) => {
+          const uId = s.userId?._id || s.userId;
+          if (employeeMap.has(uId)) {
+            employeeMap.get(uId)?.history.set(`${res.month}-${res.year}`, {
+              month: res.month,
+              monthIndex: res.monthIndex,
+              year: res.year,
+              score: s.totalScore || 0,
+              level: s.performanceLevel || "average",
+            });
           }
-          if (s.score < worstMonth.score) {
-            worstMonth = { month: s.month, score: s.score };
-          }
-        });
-
-        // Calculate consistency score
-        const consistencyScore =
-          validScores.length > 1
-            ? Math.round(
-                (validScores.reduce(
-                  (sum: number, s: any) => sum + Math.pow(s.score - avg, 2),
-                  0,
-                ) /
-                  validScores.length) *
-                  100,
-              ) / 100
-            : 0;
-
-        processedTrends.push({
-          userId: data.userId._id,
-          fullName: data.userId.fullName,
-          email: data.userId.email,
-          employeeId: data.userId.employeeId || "N/A",
-          department: data.departmentId?.name || "Unassigned",
-          scores: sortedScores.map((s: any) => ({
-            month: s.month,
-            score: s.score,
-            level: s.level || "needs_improvement",
-          })),
-          averageScore: Math.round(avg),
-          trend,
-          trendPercentage: Math.round(trendPercentage),
-          bestMonth,
-          worstMonth,
-          consistencyScore,
         });
       });
 
-      setTrendData(allTrendData);
+      // Build consolidated employee trend arrays
+      const processedTrends: EmployeeTrend[] = [];
+      employeeMap.forEach((data, userId) => {
+        const userObj = data.user;
+        const deptName = userObj.department?.name || userObj.departmentId?.name || "Unassigned";
+
+        const scoresList = lastMonths.map((m) => {
+          const historyEntry = data.history.get(`${m.month}-${m.year}`);
+          return {
+            month: m.month,
+            monthIndex: m.monthIndex,
+            year: m.year,
+            score: historyEntry ? historyEntry.score : 0,
+            level: historyEntry ? historyEntry.level : "needs_improvement",
+          };
+        });
+
+        const activeScores = scoresList.filter((s) => s.score > 0);
+        const avg = activeScores.length > 0
+          ? activeScores.reduce((sum, s) => sum + s.score, 0) / activeScores.length
+          : 0;
+
+        let trend: "up" | "down" | "stable" = "stable";
+        let trendPercentage = 0;
+        if (activeScores.length >= 2) {
+          const first = activeScores[0].score;
+          const last = activeScores[activeScores.length - 1].score;
+          const diff = last - first;
+          trendPercentage = first > 0 ? Math.round((diff / first) * 100) : 0;
+          if (diff > 1) trend = "up";
+          else if (diff < -1) trend = "down";
+        }
+
+        let bestMonth = { month: "N/A", score: 0 };
+        let worstMonth = { month: "N/A", score: 100 };
+        activeScores.forEach((s) => {
+          if (s.score > bestMonth.score) bestMonth = { month: s.month, score: s.score };
+          if (s.score < worstMonth.score) worstMonth = { month: s.month, score: s.score };
+        });
+
+        const variance = activeScores.length > 1
+          ? activeScores.reduce((sum, s) => sum + Math.pow(s.score - avg, 2), 0) / activeScores.length
+          : 0;
+
+        processedTrends.push({
+          userId,
+          fullName: userObj.fullName || "Unknown",
+          email: userObj.email || "",
+          employeeId: userObj.employeeId || "N/A",
+          department: deptName,
+          scores: scoresList,
+          averageScore: Math.round(avg),
+          trend,
+          trendPercentage,
+          bestMonth: bestMonth.score > 0 ? bestMonth : { month: "None", score: 0 },
+          worstMonth: worstMonth.score < 100 ? worstMonth : { month: "None", score: 0 },
+          consistencyScore: Math.round(Math.sqrt(variance) * 10) / 10,
+        });
+      });
+
       setEmployeeTrends(processedTrends);
 
-      // Auto-select top performers on first load only
-      if (isFirstLoad) {
-        const topPerformers = processedTrends
-          .filter((t) => t.averageScore > 0)
+      // Auto-select top 5 performers on initial layout load
+      if (!initialFetchDone.current && processedTrends.length > 0) {
+        const topPerformers = [...processedTrends]
+          .filter((e) => e.averageScore > 0)
           .sort((a, b) => b.averageScore - a.averageScore)
           .slice(0, 5);
 
         if (topPerformers.length > 0) {
-          setSelectedEmployees(topPerformers.map((t) => t.userId));
+          setSelectedEmployees(topPerformers.map((e) => e.userId));
         }
-        setIsFirstLoad(false);
+        initialFetchDone.current = true;
       }
-    } catch (error: any) {
-      console.error("Error fetching trend data:", error);
-      setError(error.response?.data?.message || "Failed to fetch trend data");
-      toast.error(
-        error.response?.data?.message || "Failed to fetch trend data",
-      );
+    } catch (err: any) {
+      console.error("Error synthesizing trend metrics:", err);
+      setError(err.response?.data?.message || "Failed to load trend analytics.");
+      toast.error("Failed to synchronize performance history");
     } finally {
       setLoading(false);
       isFetching.current = false;
-      initialFetchDone.current = true;
     }
-  }, [getLastMonths, isFirstLoad]);
+  }, [getLastMonths]);
 
-  // Initial fetch only once
   useEffect(() => {
-    if (canManage && !initialFetchDone.current) {
+    if (canManage) {
       fetchTrendData();
     }
   }, [canManage, fetchTrendData]);
 
-  // Filter employees - memoized to prevent unnecessary recalculations
+  // ============================================================
+  // MEMOIZED FILTERED DIRECTORY LISTINGS
+  // ============================================================
   const filteredEmployees = useMemo(() => {
-    let filtered = employeeTrends;
+    let filtered = [...employeeTrends];
 
-    // Filter by search
-    if (searchTerm) {
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (e) =>
-          e.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          e.employeeId.toLowerCase().includes(searchTerm.toLowerCase()),
+          e.fullName.toLowerCase().includes(term) ||
+          e.email.toLowerCase().includes(term) ||
+          e.employeeId.toLowerCase().includes(term)
       );
     }
 
-    // Filter by department
     if (departmentFilter !== "all") {
       filtered = filtered.filter((e) => e.department === departmentFilter);
     }
 
-    // Sort
     filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
-      switch (sortBy) {
-        case "name":
-          aVal = a.fullName;
-          bVal = b.fullName;
-          break;
-        case "average":
-          aVal = a.averageScore;
-          bVal = b.averageScore;
-          break;
-        case "trend":
-          aVal = a.trendPercentage;
-          bVal = b.trendPercentage;
-          break;
-        default:
-          aVal = a.averageScore;
-          bVal = b.averageScore;
+      let aVal: any = a.averageScore;
+      let bVal: any = b.averageScore;
+
+      if (sortBy === "name") {
+        aVal = a.fullName;
+        bVal = b.fullName;
+      } else if (sortBy === "trend") {
+        aVal = a.trendPercentage;
+        bVal = b.trendPercentage;
       }
+
       if (typeof aVal === "string") {
-        return sortOrder === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
+        return sortOrder === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
       return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
     });
 
-    if (!showAllEmployees) {
-      filtered = filtered.slice(0, 10);
-    }
+    return showAllEmployees ? filtered : filtered.slice(0, 10);
+  }, [employeeTrends, searchTerm, departmentFilter, sortBy, sortOrder, showAllEmployees]);
 
-    return filtered;
-  }, [
-    employeeTrends,
-    searchTerm,
-    departmentFilter,
-    sortBy,
-    sortOrder,
-    showAllEmployees,
-  ]);
-
-  // Get unique departments
-  const departments = useMemo(() => {
+  const departmentsList = useMemo(() => {
     const depts = new Set(employeeTrends.map((e) => e.department));
     return Array.from(depts).filter(Boolean);
   }, [employeeTrends]);
 
-  // Toggle employee selection
-  const toggleEmployee = (userId: string) => {
-    setSelectedEmployees((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId],
-    );
-  };
-
-  // Select all visible employees
-  const selectAllVisible = () => {
-    const allIds = filteredEmployees.map((e) => e.userId);
-    setSelectedEmployees(allIds);
-  };
-
-  // Clear selection
-  const clearSelection = () => {
-    setSelectedEmployees([]);
-  };
-
-  // Get chart data
+  // ============================================================
+  // CHART DATA COMPILATION
+  // ============================================================
   const chartData = useMemo(() => {
-    const data = trendData.map((t) => {
-      const entry: any = {
-        month: t.month,
-        monthIndex: t.monthIndex,
-        year: t.year,
-        label: `${t.month.slice(0, 3)} ${t.year}`,
+    const lastMonths = getLastMonths();
+    return lastMonths.map((m) => {
+      const dataPoint: TrendDataPoint = {
+        month: m.month,
+        monthIndex: m.monthIndex,
+        year: m.year,
+        label: `${m.month.slice(0, 3)} ${m.year}`,
       };
 
-      selectedEmployees.forEach((userId) => {
-        const employee = employeeTrends.find((e) => e.userId === userId);
-        if (employee) {
-          const score = employee.scores.find(
-            (s) =>
-              s.month === t.month &&
-              new Date(t.year, t.monthIndex).getFullYear() === t.year,
-          );
-          entry[employee.fullName] = score?.score || 0;
+      selectedEmployees.forEach((uId) => {
+        const emp = employeeTrends.find((e) => e.userId === uId);
+        if (emp) {
+          const match = emp.scores.find((s) => s.month === m.month && s.year === m.year);
+          dataPoint[emp.fullName] = match ? match.score : 0;
         }
       });
 
-      return entry;
+      return dataPoint;
     });
+  }, [getLastMonths, selectedEmployees, employeeTrends]);
 
-    return data;
-  }, [trendData, selectedEmployees, employeeTrends]);
-
-  // Get summary stats
+  // ============================================================
+  // SUMMARY METRICS CALCULATION
+  // ============================================================
   const stats = useMemo(() => {
-    const selected = employeeTrends.filter((e) =>
-      selectedEmployees.includes(e.userId),
-    );
-    const valid = selected.filter((e) => e.averageScore > 0);
+    const selected = employeeTrends.filter((e) => selectedEmployees.includes(e.userId));
+    const activeScored = selected.filter((e) => e.averageScore > 0);
 
     return {
       totalEmployees: employeeTrends.length,
       selectedCount: selected.length,
-      averageScore:
-        valid.length > 0
-          ? Math.round(
-              valid.reduce((sum, e) => sum + e.averageScore, 0) / valid.length,
-            )
-          : 0,
-      topPerformer:
-        valid.length > 0
-          ? valid.reduce((a, b) => (a.averageScore > b.averageScore ? a : b))
-          : null,
+      averageScore: activeScored.length > 0 ? Math.round(activeScored.reduce((sum, e) => sum + e.averageScore, 0) / activeScored.length) : 0,
       improving: selected.filter((e) => e.trend === "up").length,
       declining: selected.filter((e) => e.trend === "down").length,
       stable: selected.filter((e) => e.trend === "stable").length,
     };
   }, [employeeTrends, selectedEmployees]);
 
-  // Export data as CSV
+  const toggleEmployee = (userId: string) => {
+    setSelectedEmployees((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const selectAllVisible = () => {
+    setSelectedEmployees(filteredEmployees.map((e) => e.userId));
+  };
+
+  const clearSelection = () => {
+    setSelectedEmployees([]);
+  };
+
+  // CSV Export utility
   const handleExport = () => {
-    if (trendData.length === 0) {
-      toast.error("No data to export");
+    if (trendData.length === 0 || selectedEmployees.length === 0) {
+      toast.error("Please select at least one employee to export data");
       return;
     }
 
     try {
-      const headers = [
-        "Month",
-        "Year",
-        ...selectedEmployees.map((id) => {
-          const emp = employeeTrends.find((e) => e.userId === id);
-          return emp?.fullName || id;
-        }),
-      ];
-
-      const rows = trendData.map((t) => [
+      const headers = ["Month", "Year", ...selectedEmployees.map((id) => employeeTrends.find((e) => e.userId === id)?.fullName || id)];
+      const rows = chartData.map((t) => [
         t.month,
         t.year,
         ...selectedEmployees.map((id) => {
-          const value = t[id] || 0;
-          return value.toFixed(1);
+          const emp = employeeTrends.find((e) => e.userId === id);
+          return emp ? (t[emp.fullName] || 0).toFixed(1) : "0";
         }),
       ]);
 
-      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join(
-        "\n",
-      );
-      const blob = new Blob([csv], { type: "text/csv" });
+      const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `KPI_Trends_${new Date().toISOString().split("T")[0]}.csv`;
-      a.click();
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `KPI_Trends_Report_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
       URL.revokeObjectURL(url);
-      toast.success("Data exported successfully");
-    } catch (error) {
-      toast.error("Failed to export data");
-      console.error("Export error:", error);
+      toast.success("Trend data exported successfully");
+    } catch (err) {
+      toast.error("Failed to generate CSV export");
     }
   };
 
-  // Get trend color and icon
   const getTrendInfo = (trend: string, percentage: number) => {
-    if (trend === "up") {
-      return {
-        color: "text-emerald-600",
-        bg: "bg-emerald-50",
-        icon: TrendingUp,
-        label: `+${percentage}%`,
-      };
-    } else if (trend === "down") {
-      return {
-        color: "text-rose-600",
-        bg: "bg-rose-50",
-        icon: TrendingDown,
-        label: `${percentage}%`,
-      };
-    } else {
-      return {
-        color: "text-amber-600",
-        bg: "bg-amber-50",
-        icon: Minus,
-        label: "Stable",
-      };
-    }
-  };
-
-  const getLevelColor = (level: string) => {
-    const colors: Record<string, string> = {
-      excellent: "bg-emerald-100 text-emerald-700 border-emerald-200",
-      good: "bg-blue-100 text-blue-700 border-blue-200",
-      average: "bg-amber-100 text-amber-700 border-amber-200",
-      needs_improvement: "bg-rose-100 text-rose-700 border-rose-200",
-    };
-    return colors[level] || colors.needs_improvement;
-  };
-
-  // Handle refresh manually
-  const handleRefresh = () => {
-    initialFetchDone.current = false;
-    setIsFirstLoad(true);
-    fetchTrendData();
+    if (trend === "up") return { color: "text-emerald-600", bg: "bg-emerald-50", icon: TrendingUp, label: `+${percentage}%` };
+    if (trend === "down") return { color: "text-rose-600", bg: "bg-rose-50", icon: TrendingDown, label: `${percentage}%` };
+    return { color: "text-amber-600", bg: "bg-amber-50", icon: Minus, label: "Stable" };
   };
 
   if (!canManage) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center bg-white rounded-2xl p-8 border border-gray-200 shadow-sm max-w-md">
-          <div className="w-20 h-20 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <FileText className="w-10 h-10 text-rose-500" />
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center bg-white rounded-3xl p-8 border border-slate-100 shadow-xl max-w-md w-full">
+          <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-rose-500 shadow-inner">
+            <AlertCircle className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            Access Denied
-          </h2>
-          <p className="text-gray-500">
-            You don't have permission to view this page
-          </p>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm"
-          >
-            Go to Dashboard
-          </button>
-        </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-1">Access Restricted</h2>
+          <p className="text-slate-500 text-sm mb-6">You lack administrative clearance to view performance trend analytics.</p>
+          <Link href="/dashboard" className="inline-block px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl transition shadow-lg shadow-indigo-600/20">
+            Return to Dashboard
+          </Link>
+        </motion.div>
       </div>
     );
   }
 
-  if (loading && initialFetchDone.current === false) {
+  if (loading && !initialFetchDone.current) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
-          <p className="text-gray-500 text-sm">Loading KPI trends...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 space-y-3">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <p className="text-xs font-medium text-slate-400">Synthesizing workforce trend analytics...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-4 md:p-6 lg:p-8">
-        <div className="container mx-auto space-y-6">
-          {/* Breadcrumb */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 text-sm"
-          >
-            <Link
-              href="/dashboard"
-              className="text-gray-400 hover:text-gray-600 transition flex items-center gap-1"
-            >
-              <Home size={14} />
-              Dashboard
-            </Link>
-            <ChevronRight size={14} className="text-gray-300" />
-            <Link
-              href="/kpi"
-              className="text-gray-400 hover:text-gray-600 transition"
-            >
-              KPI
-            </Link>
-            <ChevronRight size={14} className="text-gray-300" />
-            <span className="text-gray-700 font-medium">Trends</span>
-          </motion.div>
+    <div className="min-h-screen bg-slate-50/60 antialiased">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4"
-          >
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+          <Link href="/dashboard" className="hover:text-slate-600 transition flex items-center gap-1">
+            <Home size={13} /> Dashboard
+          </Link>
+          <ChevronRight size={13} />
+          <Link href="/kpi" className="hover:text-slate-600 transition">KPI Analytics</Link>
+          <ChevronRight size={13} />
+          <span className="text-slate-700">Performance Trends</span>
+        </div>
+
+        {/* Header Banner */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-linear-to-tr from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20 text-white">
+                <LineChart className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Workforce Performance Trends</h1>
+                <p className="text-slate-500 text-sm font-medium">Evaluate multi-month performance trajectories and trajectory markers across divisions.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleExport}
+              disabled={selectedEmployees.length === 0}
+              className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-2 transition shadow-xs cursor-pointer disabled:opacity-40"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+            <button
+              onClick={fetchTrendData}
+              disabled={loading}
+              title="Refresh Analytics"
+              className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition shadow-xs cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`} />
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Analytical Statistics Summary */}
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-4">
+          {[
+            { label: "Total Workforce", val: stats.totalEmployees, icon: Users, color: "text-indigo-600", bg: "bg-indigo-50" },
+            { label: "Selected Chart", val: stats.selectedCount, icon: Target, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Unit Average", val: `${stats.averageScore}%`, icon: Award, color: "text-purple-600", bg: "bg-purple-50" },
+            { label: "Improving", val: stats.improving, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Declining", val: stats.declining, icon: TrendingDown, color: "text-rose-600", bg: "bg-rose-50" },
+            { label: "Stable", val: stats.stable, icon: Minus, color: "text-amber-600", bg: "bg-amber-50" },
+          ].map((stat, i) => (
+            <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">{stat.label}</span>
+                <div className={`w-8 h-8 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center font-bold`}>
+                  <stat.icon className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-2xl font-extrabold text-slate-900 tracking-tight">{stat.val}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Filter and Control Toolbar */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Time Horizon</label>
+            <select
+              value={monthsToShow}
+              onChange={(e) => setMonthsToShow(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-xs font-semibold outline-none cursor-pointer"
+            >
+              <option value={3}>Last 3 Months</option>
+              <option value={6}>Last 6 Months</option>
+              <option value={9}>Last 9 Months</option>
+              <option value={12}>Last 12 Months</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Fiscal Year</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-xs font-semibold outline-none cursor-pointer"
+            >
+              {[2024, 2025, 2026, 2027].map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Division Unit</label>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-xs font-semibold outline-none cursor-pointer"
+            >
+              <option value="all">All Divisions</option>
+              {departmentsList.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Search Employee</label>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Name or ID..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-800 text-xs font-semibold outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              onClick={() => { setSearchTerm(""); setDepartmentFilter("all"); clearSelection(); }}
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
+        {/* Longitudinal Line Chart Display */}
+        <div className="bg-white rounded-3xl border border-slate-100 p-6 sm:p-8 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
             <div>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                  <LineChart className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl lg:text-3xl font-bold bg-linear-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    KPI Trends
-                  </h1>
-                  <p className="text-gray-500 text-sm mt-0.5 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Employee performance trends over the last {monthsToShow}{" "}
-                    months
-                  </p>
-                </div>
-              </div>
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <LineChart className="w-5 h-5 text-indigo-600" /> Multi-Month Score Trajectories
+              </h3>
+              <p className="text-xs text-slate-400 font-medium">Comparing {selectedEmployees.length} active employee profiles.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={handleExport}
-                disabled={selectedEmployees.length === 0}
-                className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
-              >
-                <Download size={16} />
-                Export
+            <div className="flex items-center gap-2">
+              <button onClick={selectAllVisible} className="px-3.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-xs rounded-xl transition cursor-pointer">
+                Select All Visible
               </button>
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="px-4 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50/80 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm hover:shadow-md disabled:opacity-50"
-              >
-                <RefreshCw
-                  size={16}
-                  className={loading ? "animate-spin" : ""}
-                />
-                Refresh
+              <button onClick={clearSelection} className="px-3.5 py-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold text-xs rounded-xl transition cursor-pointer">
+                Clear Selection
               </button>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Stats Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4"
-          >
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold text-gray-800">
-                    {stats.totalEmployees}
-                  </p>
-                  <p className="text-xs text-gray-500">Total Employees</p>
-                </div>
-                <Users className="w-8 h-8 text-indigo-400 opacity-50" />
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <div>
-                <p className="text-2xl font-bold text-indigo-600">
-                  {stats.selectedCount}
-                </p>
-                <p className="text-xs text-gray-500">Selected</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <div>
-                <p className="text-2xl font-bold text-emerald-600">
-                  {stats.averageScore}%
-                </p>
-                <p className="text-xs text-gray-500">Avg Score</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <div>
-                <p className="text-2xl font-bold text-emerald-600">
-                  {stats.improving}
-                </p>
-                <p className="text-xs text-gray-500">Improving</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <div>
-                <p className="text-2xl font-bold text-rose-600">
-                  {stats.declining}
-                </p>
-                <p className="text-xs text-gray-500">Declining</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <div>
-                <p className="text-2xl font-bold text-amber-600">
-                  {stats.stable}
-                </p>
-                <p className="text-xs text-gray-500">Stable</p>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Controls */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 border border-gray-200 shadow-sm"
-          >
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Months to Show
-                </label>
-                <select
-                  value={monthsToShow}
-                  onChange={(e) => {
-                    setMonthsToShow(parseInt(e.target.value));
-                    initialFetchDone.current = false;
-                    setIsFirstLoad(true);
-                  }}
-                  className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value={3}>3 Months</option>
-                  <option value={6}>6 Months</option>
-                  <option value={9}>9 Months</option>
-                  <option value={12}>12 Months</option>
-                </select>
-              </div>
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Year
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => {
-                    setSelectedYear(parseInt(e.target.value));
-                    initialFetchDone.current = false;
-                    setIsFirstLoad(true);
-                  }}
-                  className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  {[2023, 2024, 2025, 2026].map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Department
-                </label>
-                <select
-                  value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value="all">All Departments</option>
-                  {departments.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1 min-w-[200px] relative">
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">
-                  Search Employee
-                </label>
-                <Search className="absolute left-3 top-[34px] w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name, email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50/80 border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                />
-              </div>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setDepartmentFilter("all");
-                  setShowAllEmployees(false);
-                  clearSelection();
-                }}
-                className="px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm"
-              >
-                <X size={16} />
-                Reset
-              </button>
-            </div>
-          </motion.div>
-
-          {/* Chart */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-200 shadow-sm"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <LineChart size={16} className="text-indigo-500" />
-                  Performance Trends
-                </h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {selectedEmployees.length} employees selected
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {selectedEmployees.length === 0 && (
-                  <span className="text-xs text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
-                    Select employees to view trends
-                  </span>
-                )}
-                <button
-                  onClick={selectAllVisible}
-                  className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition"
-                >
-                  Select All
-                </button>
-                <button
-                  onClick={clearSelection}
-                  className="px-3 py-1.5 text-xs bg-gray-50 text-gray-600 hover:bg-gray-100 rounded-lg transition"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsLineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 11, fill: "#6b7280" }}
-                    angle={-30}
-                    textAnchor="end"
-                    height={50}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: "#6b7280" }}
-                    domain={[0, 100]}
-                    label={{
-                      value: "Score",
-                      angle: -90,
-                      position: "insideLeft",
-                      style: { fill: "#6b7280", fontSize: 11 },
-                    }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                      padding: "12px",
-                    }}
-                    formatter={(value: any) => [
-                      `${value.toFixed(1)}%`,
-                      "Score",
-                    ]}
-                  />
-                  <Legend />
-                  <ReferenceLine
-                    y={70}
-                    stroke="#f59e0b"
-                    strokeDasharray="5 5"
-                    label={{
-                      value: "Target (70%)",
-                      position: "right",
-                      fill: "#f59e0b",
-                      fontSize: 10,
-                    }}
-                  />
-                  {selectedEmployees.map((userId, index) => {
-                    const employee = employeeTrends.find(
-                      (e) => e.userId === userId,
-                    );
-                    if (!employee) return null;
-                    const colors = [
-                      "#6366f1",
-                      "#8b5cf6",
-                      "#ec4899",
-                      "#f59e0b",
-                      "#10b981",
-                      "#3b82f6",
-                      "#ef4444",
-                      "#14b8a6",
-                      "#8b5cf6",
-                      "#f472b6",
-                    ];
-                    return (
-                      <Line
-                        key={userId}
-                        type="monotone"
-                        dataKey={employee.fullName}
-                        stroke={colors[index % colors.length]}
-                        strokeWidth={2}
-                        dot={{ r: 4 }}
-                        activeDot={{ r: 6 }}
-                        connectNulls
-                      />
-                    );
-                  })}
-                </RechartsLineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {selectedEmployees.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-2">
-                {selectedEmployees.map((userId) => {
-                  const employee = employeeTrends.find(
-                    (e) => e.userId === userId,
-                  );
-                  if (!employee) return null;
+          <div className="h-[420px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsLineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "#64748b" }} />
+                <Tooltip contentStyle={{ backgroundColor: "white", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }} formatter={(val: any) => [`${Number(val).toFixed(1)}%`, "Score"]} />
+                <Legend wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }} />
+                <ReferenceLine y={70} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: "Target Benchmark (70%)", fill: "#d97706", fontSize: 10, position: "top" }} />
+                {selectedEmployees.map((uId, idx) => {
+                  const emp = employeeTrends.find((e) => e.userId === uId);
+                  if (!emp) return null;
                   return (
-                    <div
-                      key={userId}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <span
-                        className="w-2 h-2 rounded-full"
-                        style={{
-                          backgroundColor: [
-                            "#6366f1",
-                            "#8b5cf6",
-                            "#ec4899",
-                            "#f59e0b",
-                            "#10b981",
-                            "#3b82f6",
-                            "#ef4444",
-                            "#14b8a6",
-                          ][selectedEmployees.indexOf(userId) % 8],
-                        }}
-                      />
-                      <span className="text-xs font-medium text-gray-700">
-                        {employee.fullName}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        ({employee.averageScore}%)
-                      </span>
-                      <button
-                        onClick={() => toggleEmployee(userId)}
-                        className="ml-1 text-gray-400 hover:text-rose-500 transition"
-                      >
-                        <X size={12} />
-                      </button>
-                    </div>
+                    <Line
+                      key={uId}
+                      type="monotone"
+                      dataKey={emp.fullName}
+                      stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                      strokeWidth={2.5}
+                      dot={{ r: 4 }}
+                      activeDot={{ r: 7 }}
+                      connectNulls
+                    />
                   );
                 })}
-              </div>
-            )}
-          </motion.div>
+              </RechartsLineChart>
+            </ResponsiveContainer>
+          </div>
 
-          {/* Employee List */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
-          >
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                  <Users size={16} className="text-indigo-500" />
-                  Employee Trends
-                </h3>
-                <p className="text-xs text-gray-400">
-                  {filteredEmployees.length} employees shown
-                  {!showAllEmployees &&
-                    filteredEmployees.length > 10 &&
-                    ` (showing top 10)`}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setSortBy("name")}
-                    className={`px-2 py-1 text-xs rounded-md transition ${
-                      sortBy === "name"
-                        ? "bg-indigo-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    Name
-                  </button>
-                  <button
-                    onClick={() => setSortBy("average")}
-                    className={`px-2 py-1 text-xs rounded-md transition ${
-                      sortBy === "average"
-                        ? "bg-indigo-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    Score
-                  </button>
-                  <button
-                    onClick={() => setSortBy("trend")}
-                    className={`px-2 py-1 text-xs rounded-md transition ${
-                      sortBy === "trend"
-                        ? "bg-indigo-600 text-white"
-                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                    }`}
-                  >
-                    Trend
-                  </button>
-                </div>
-                <button
-                  onClick={() =>
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                  }
-                  className="px-2 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded-md transition"
-                >
-                  {sortOrder === "asc" ? "↑" : "↓"}
-                </button>
-                {filteredEmployees.length > 10 && (
-                  <button
-                    onClick={() => setShowAllEmployees(!showAllEmployees)}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 transition"
-                  >
-                    {showAllEmployees ? "Show Less" : "Show All"}
-                  </button>
-                )}
-              </div>
+          {/* Active Legend Pills */}
+          {selectedEmployees.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+              {selectedEmployees.map((uId, idx) => {
+                const emp = employeeTrends.find((e) => e.userId === uId);
+                if (!emp) return null;
+                return (
+                  <div key={uId} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs font-bold text-slate-700">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: CHART_COLORS[idx % CHART_COLORS.length] }} />
+                    <span>{emp.fullName}</span>
+                    <span className="text-slate-400 font-normal">({emp.averageScore}%)</span>
+                    <button onClick={() => toggleEmployee(uId)} className="ml-1 text-slate-400 hover:text-rose-600 transition cursor-pointer">
+                      <X size={13} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
+          )}
+        </div>
 
-            <div className="p-4">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="text-xs text-gray-500 border-b border-gray-100">
-                      <th className="text-left py-2 px-3 font-medium w-8">
+        {/* Employee Workforce Table */}
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden">
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <Users size={18} className="text-indigo-600" /> Workforce Performance Ledger
+              </h3>
+              <p className="text-xs text-slate-400 font-medium">Click rows to toggle plotting on the trend graph above.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSortBy("average")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${sortBy === "average" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              >
+                Sort by Score
+              </button>
+              <button
+                onClick={() => setSortBy("trend")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${sortBy === "trend" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              >
+                Sort by Trajectory
+              </button>
+              <button
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                className="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                {sortOrder === "asc" ? "ASC ↑" : "DESC ↓"}
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="px-6 py-4 w-12 text-center">Plot</th>
+                  <th className="px-6 py-4">Employee</th>
+                  <th className="px-6 py-4">Division</th>
+                  <th className="px-6 py-4 text-center">Avg Score</th>
+                  <th className="px-6 py-4 text-center">Trajectory</th>
+                  <th className="px-6 py-4 text-center">Peak Month</th>
+                  <th className="px-6 py-4 text-center">Lowest Month</th>
+                  <th className="px-6 py-4 text-center">Variance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                {filteredEmployees.map((emp) => {
+                  const isSelected = selectedEmployees.includes(emp.userId);
+                  const trend = getTrendInfo(emp.trend, emp.trendPercentage);
+                  const TrendIcon = trend.icon;
+
+                  return (
+                    <tr
+                      key={emp.userId}
+                      onClick={() => toggleEmployee(emp.userId)}
+                      className={`hover:bg-slate-50/50 transition cursor-pointer ${isSelected ? "bg-indigo-50/40" : ""}`}
+                    >
+                      <td className="px-6 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          checked={
-                            filteredEmployees.length > 0 &&
-                            filteredEmployees.every((e) =>
-                              selectedEmployees.includes(e.userId),
-                            )
-                          }
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              selectAllVisible();
-                            } else {
-                              clearSelection();
-                            }
-                          }}
-                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={isSelected}
+                          onChange={() => toggleEmployee(emp.userId)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         />
-                      </th>
-                      <th className="text-left py-2 px-3 font-medium">
-                        Employee
-                      </th>
-                      <th className="text-left py-2 px-3 font-medium">
-                        Department
-                      </th>
-                      <th className="text-center py-2 px-3 font-medium">
-                        Avg Score
-                      </th>
-                      <th className="text-center py-2 px-3 font-medium">
-                        Trend
-                      </th>
-                      <th className="text-center py-2 px-3 font-medium">
-                        Best
-                      </th>
-                      <th className="text-center py-2 px-3 font-medium">
-                        Worst
-                      </th>
-                      <th className="text-center py-2 px-3 font-medium">
-                        Consistency
-                      </th>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-xs shrink-0">
+                            {emp.fullName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900">{emp.fullName}</p>
+                            <p className="text-xs text-slate-400">{emp.employeeId} • {emp.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-600">{emp.department}</td>
+                      <td className="px-6 py-4 text-center font-extrabold text-slate-900">{emp.averageScore}%</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${trend.bg} ${trend.color}`}>
+                          <TrendIcon size={12} /> {trend.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center text-xs font-bold text-emerald-600">{emp.bestMonth.score}% ({emp.bestMonth.month.slice(0, 3)})</td>
+                      <td className="px-6 py-4 text-center text-xs font-bold text-rose-600">{emp.worstMonth.score}% ({emp.worstMonth.month.slice(0, 3)})</td>
+                      <td className="px-6 py-4 text-center text-xs font-bold text-slate-600">{emp.consistencyScore}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {filteredEmployees.map((employee) => {
-                      const isSelected = selectedEmployees.includes(
-                        employee.userId,
-                      );
-                      const trendInfo = getTrendInfo(
-                        employee.trend,
-                        employee.trendPercentage,
-                      );
-                      const TrendIcon = trendInfo.icon;
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-                      return (
-                        <tr
-                          key={employee.userId}
-                          className={`hover:bg-gray-50 transition cursor-pointer ${
-                            isSelected ? "bg-indigo-50/50" : ""
-                          }`}
-                          onClick={() => toggleEmployee(employee.userId)}
-                        >
-                          <td
-                            className="py-3 px-3"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleEmployee(employee.userId)}
-                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                          </td>
-                          <td className="py-3 px-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                                {employee.fullName.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-gray-800">
-                                  {employee.fullName}
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  {employee.employeeId} • {employee.email}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-sm text-gray-600">
-                            {employee.department}
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span
-                              className={`text-sm font-bold ${
-                                employee.averageScore >= 80
-                                  ? "text-emerald-600"
-                                  : employee.averageScore >= 60
-                                    ? "text-amber-600"
-                                    : "text-rose-600"
-                              }`}
-                            >
-                              {employee.averageScore}%
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${trendInfo.bg} ${trendInfo.color}`}
-                            >
-                              <TrendIcon size={12} />
-                              {trendInfo.label}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-center text-sm text-emerald-600 font-medium">
-                            {employee.bestMonth.score}% (
-                            {employee.bestMonth.month.slice(0, 3)})
-                          </td>
-                          <td className="py-3 px-3 text-center text-sm text-rose-600 font-medium">
-                            {employee.worstMonth.score}% (
-                            {employee.worstMonth.month.slice(0, 3)})
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span
-                              className={`text-xs font-medium ${
-                                employee.consistencyScore < 10
-                                  ? "text-emerald-600"
-                                  : employee.consistencyScore < 20
-                                    ? "text-amber-600"
-                                    : "text-rose-600"
-                              }`}
-                            >
-                              {employee.consistencyScore.toFixed(1)}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          {filteredEmployees.length === 0 && (
+            <div className="py-16 text-center text-slate-400 text-xs">No employees found matching your filters.</div>
+          )}
+
+          {filteredEmployees.length > 10 && (
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 text-center">
+              <button
+                onClick={() => setShowAllEmployees(!showAllEmployees)}
+                className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
+              >
+                {showAllEmployees ? "Show Top 10 Only" : `Show All (${employeeTrends.length} Employees)`}
+              </button>
             </div>
-          </motion.div>
+          )}
         </div>
+
       </div>
     </div>
   );
