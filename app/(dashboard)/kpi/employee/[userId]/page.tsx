@@ -221,7 +221,7 @@ export default function EmployeeKPIDetailPage() {
     };
 
     const getRoleDisplayName = (role: string | undefined | null): string => {
-        if (!role) return "Unknown Role";
+        if (!role) return "";
 
         const roleMap: Record<string, string> = {
             super_admin: "Super Admin",
