@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -24,29 +24,10 @@ import {
   RefreshCw,
   Grid,
   List,
-  Info,
   Edit2,
   UserX,
-  Star,
-  Award,
-  Zap,
-  Sparkles,
-  TrendingUp,
-  ChevronDown,
-  Check,
-  UserCog,
-  Layers,
   Key,
-  Fingerprint,
-  BadgeCheck,
-  Settings,
-  Globe,
-  Mail,
-  Phone,
-  Calendar,
-  Clock,
-  ArrowRight,
-  Filter,
+  Layers,
   SortAsc,
   SortDesc,
 } from "lucide-react";
@@ -84,15 +65,16 @@ interface User {
 }
 
 export default function PermissionsPage() {
-  const { user, hasRole } = useAuth();
+  const { hasRole } = useAuth();
   const router = useRouter();
+
+  // State Management
   const [roles, setRoles] = useState<Role[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [primaryRole, setPrimaryRole] = useState<string>("");
   const [assigningRole, setAssigningRole] = useState(false);
@@ -102,6 +84,7 @@ export default function PermissionsPage() {
   const [showUserDetail, setShowUserDetail] = useState<User | null>(null);
   const [removingRole, setRemovingRole] = useState(false);
 
+  // Access Control Verification
   const canManagePermissions = hasRole(["super_admin", "admin"]);
 
   useEffect(() => {
@@ -115,50 +98,54 @@ export default function PermissionsPage() {
     fetchData();
   }, []);
 
+  /**
+   * Synchronize system roles and user directories concurrently.
+   */
   const fetchData = async () => {
     try {
       setLoading(true);
       const [rolesRes, usersRes] = await Promise.all([
-        api.get("/roles"),
-        api.get("/auth/users"),
+        api.get("/roles").catch(() => ({ data: { success: false, data: [] } })),
+        api.get("/auth/users").catch(() => ({ data: { success: false, data: [] } })),
       ]);
 
       if (rolesRes.data.success) {
-        setRoles(rolesRes.data.data);
+        setRoles(rolesRes.data.data || []);
       }
       if (usersRes.data.success) {
-        setUsers(usersRes.data.data);
+        setUsers(usersRes.data.data || []);
       }
     } catch (error: any) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
+      console.error("Error fetching permissions dataset:", error);
+      toast.error("Failed to load permission matrices");
     } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Retrieve active role objects mapped to a given user.
+   */
   const getUserRoles = (user: User): Role[] => {
-    if (user.roles && user.roles.length > 0) {
+    if (user.roles && Array.isArray(user.roles) && user.roles.length > 0) {
       return user.roles;
     }
-    // Fallback: find role by code
-    const role = roles.find((r) => r.code.toLowerCase() === user.role);
+    const role = roles.find((r) => r.code.toLowerCase() === user.role?.toLowerCase());
     return role ? [role] : [];
   };
 
-  const getUserRoleNames = (user: User): string => {
-    const userRoles = getUserRoles(user);
-    return userRoles.map((r) => r.name).join(", ") || user.role || "No role";
-  };
-
   const getPrimaryRoleName = (user: User): string => {
-    if (user.roles && user.roles.length > 0) {
-      const primary = user.roles.find((r) => r.code.toLowerCase() === user.role);
-      return primary ? primary.name : user.roles[0].name;
+    const userRoles = getUserRoles(user);
+    if (userRoles.length > 0) {
+      const primary = userRoles.find((r) => r.code.toLowerCase() === user.role?.toLowerCase());
+      return primary ? primary.name : userRoles[0].name;
     }
-    return user.role || "No role";
+    return user.role ? user.role.replace(/_/g, " ").toUpperCase() : "Unassigned";
   };
 
+  /**
+   * Commit role assignments and security tiers to backend.
+   */
   const handleAssignRoles = async () => {
     if (!selectedUser || selectedRoles.length === 0) {
       toast.error("Please select a user and at least one role");
@@ -166,6 +153,7 @@ export default function PermissionsPage() {
     }
 
     setAssigningRole(true);
+    const toastId = toast.loading("Updating user security assignments...");
     try {
       const response = await api.put(`/roles/user/${selectedUser._id}/assign`, {
         roleIds: selectedRoles,
@@ -173,25 +161,27 @@ export default function PermissionsPage() {
       });
 
       if (response.data.success) {
-        toast.success(`Roles assigned to ${selectedUser.fullName} successfully`);
-        setShowAssignModal(false);
+        toast.success(`Roles assigned to ${selectedUser.fullName} successfully`, { id: toastId });
         setSelectedUser(null);
         setSelectedRoles([]);
         setPrimaryRole("");
         fetchData();
       } else {
-        toast.error(response.data.message || "Failed to assign roles");
+        toast.error(response.data.message || "Failed to assign roles", { id: toastId });
       }
     } catch (error: any) {
       console.error("Assign roles error:", error);
-      toast.error(error.response?.data?.message || "Failed to assign roles");
+      toast.error(error.response?.data?.message || "Failed to commit security updates", { id: toastId });
     } finally {
       setAssigningRole(false);
     }
   };
 
+  /**
+   * Revoke a specific role assignment from a user account.
+   */
   const handleRemoveRole = async (userId: string, roleId: string, roleName: string) => {
-    if (!confirm(`Are you sure you want to remove "${roleName}" from this user?`)) {
+    if (!confirm(`Are you sure you want to revoke "${roleName}" from this user?`)) {
       return;
     }
 
@@ -199,31 +189,28 @@ export default function PermissionsPage() {
     try {
       const response = await api.delete(`/roles/user/${userId}/role/${roleId}`);
       if (response.data.success) {
-        toast.success(`Role "${roleName}" removed successfully`);
+        toast.success(`Role "${roleName}" revoked successfully`);
         fetchData();
         if (showUserDetail) {
           const updatedUser = users.find((u) => u._id === userId);
-          if (updatedUser) {
-            setShowUserDetail(updatedUser);
-          }
+          if (updatedUser) setShowUserDetail(updatedUser);
         }
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to remove role");
+      toast.error(error.response?.data?.message || "Failed to revoke role assignment");
     } finally {
       setRemovingRole(false);
     }
   };
 
+  /**
+   * Promote a role to primary status.
+   */
   const handleSetPrimaryRole = async (userId: string, roleId: string) => {
     try {
-      const user = users.find((u) => u._id === userId);
-      if (!user) return;
-
       const role = roles.find((r) => r._id === roleId);
       if (!role) return;
 
-      // Update the user's primary role
       const response = await api.put(`/auth/users/${userId}`, {
         role: role.code.toLowerCase(),
       });
@@ -233,20 +220,18 @@ export default function PermissionsPage() {
         fetchData();
         if (showUserDetail) {
           const updatedUser = users.find((u) => u._id === userId);
-          if (updatedUser) {
-            setShowUserDetail(updatedUser);
-          }
+          if (updatedUser) setShowUserDetail(updatedUser);
         }
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update primary role");
+      toast.error(error.response?.data?.message || "Failed to update primary role assignment");
     }
   };
 
+  // Filter and sort user directory
   const filteredUsers = useMemo(() => {
     let filtered = [...users];
 
-    // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
@@ -257,7 +242,6 @@ export default function PermissionsPage() {
       );
     }
 
-    // Filter by role
     if (filterRole !== "all") {
       filtered = filtered.filter((u) => {
         const userRoles = getUserRoles(u);
@@ -265,10 +249,9 @@ export default function PermissionsPage() {
       });
     }
 
-    // Sort
     filtered.sort((a, b) => {
-      let compareA: string = "";
-      let compareB: string = "";
+      let compareA = "";
+      let compareB = "";
 
       if (sortBy === "name") {
         compareA = a.fullName;
@@ -285,643 +268,436 @@ export default function PermissionsPage() {
     });
 
     return filtered;
-  }, [users, searchTerm, filterRole, sortBy, sortOrder]);
+  }, [users, searchTerm, filterRole, sortBy, sortOrder, roles]);
 
-  const stats = {
+  const stats = useMemo(() => ({
     totalUsers: users.length,
     activeUsers: users.filter((u) => u.isActive).length,
     totalRoles: roles.length,
-    usersWithMultipleRoles: users.filter((u) => u.roles && u.roles.length > 1).length,
-    totalAssignments: users.reduce((acc, u) => acc + (u.roles?.length || 0), 0),
-  };
-
-  const getRoleColor = (roleName: string) => {
-    const colors: Record<string, string> = {
-      "Super Admin": "text-purple-600",
-      Admin: "text-red-600",
-      "HR Manager": "text-pink-600",
-      "Department Manager": "text-orange-600",
-      "Project Manager": "text-cyan-600",
-      "Line Manager": "text-green-600",
-      Employee: "text-gray-500",
-    };
-    return colors[roleName] || "text-indigo-600";
-  };
-
-  const getRoleBgColor = (roleName: string) => {
-    const colors: Record<string, string> = {
-      "Super Admin": "bg-purple-50",
-      Admin: "bg-red-50",
-      "HR Manager": "bg-pink-50",
-      "Department Manager": "bg-orange-50",
-      "Project Manager": "bg-cyan-50",
-      "Line Manager": "bg-green-50",
-      Employee: "bg-gray-50",
-    };
-    return colors[roleName] || "bg-indigo-50";
-  };
+    usersWithMultipleRoles: users.filter((u) => (u.roles?.length || 0) > 1).length,
+    totalAssignments: users.reduce((acc, u) => acc + (u.roles?.length || 1), 0),
+  }), [users, roles]);
 
   const getRoleBadgeColor = (roleName: string) => {
     const colors: Record<string, string> = {
-      "Super Admin": "bg-purple-100 text-purple-700 border-purple-200",
-      Admin: "bg-red-100 text-red-700 border-red-200",
-      "HR Manager": "bg-pink-100 text-pink-700 border-pink-200",
-      "Department Manager": "bg-orange-100 text-orange-700 border-orange-200",
-      "Project Manager": "bg-cyan-100 text-cyan-700 border-cyan-200",
-      "Line Manager": "bg-green-100 text-green-700 border-green-200",
-      Employee: "bg-gray-100 text-gray-700 border-gray-200",
+      "Super Admin": "bg-purple-50 text-purple-700 border-purple-200",
+      Admin: "bg-rose-50 text-rose-700 border-rose-200",
+      "HR Manager": "bg-pink-50 text-pink-700 border-pink-200",
+      "Department Manager": "bg-amber-50 text-amber-700 border-amber-200",
+      "Project Manager": "bg-cyan-50 text-cyan-700 border-cyan-200",
+      "Line Manager": "bg-emerald-50 text-emerald-700 border-emerald-200",
+      Employee: "bg-slate-100 text-slate-700 border-slate-200",
     };
-    return colors[roleName] || "bg-indigo-100 text-indigo-700 border-indigo-200";
+    return colors[roleName] || "bg-indigo-50 text-indigo-700 border-indigo-200";
+  };
+
+  const getRoleBgColor = (roleName: string) => {
+    if (roleName.includes("Super")) return "bg-purple-50 text-purple-600";
+    if (roleName.includes("Admin")) return "bg-rose-50 text-rose-600";
+    if (roleName.includes("HR")) return "bg-pink-50 text-pink-600";
+    return "bg-indigo-50 text-indigo-600";
   };
 
   if (!canManagePermissions) return null;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
-          <p className="text-gray-500 text-sm">Loading permissions...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 space-y-3">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <p className="text-xs font-medium text-slate-400">Loading access control lists...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="p-4 md:p-6 lg:p-8">
-        <div className="w-full mx-auto space-y-6">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
-          >
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-9 h-9 bg-linear-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
-                  <Key className="w-4 h-4 text-white" />
+    <div className="min-h-screen bg-slate-50/60 antialiased">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        {/* Header Section */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-xs"
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20 text-white">
+                <Key className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Permission Management</h1>
+                  <span className="px-2.5 py-0.5 text-xs font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+                    {stats.totalUsers}
+                  </span>
                 </div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                  Permission Management
-                </h1>
-                <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
-                  {stats.totalUsers}
-                </span>
+                <p className="text-slate-500 text-sm font-medium">Assign enterprise security tiers, map roles, and manage user clearances.</p>
               </div>
-              <p className="text-gray-500 text-sm">
-                Manage user permissions and role assignments
-              </p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() =>
-                  setViewMode(viewMode === "grid" ? "list" : "grid")
-                }
-                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition text-sm flex items-center gap-2 shadow-sm"
-              >
-                {viewMode === "grid" ? <List size={14} /> : <Grid size={14} />}
-                {viewMode === "grid" ? "List View" : "Grid View"}
-              </button>
-              <button
-                onClick={() => {
-                  setSelectedUser(null);
-                  setSelectedRoles([]);
-                  setPrimaryRole("");
-                  setShowAssignModal(true);
-                }}
-                className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
-              >
-                <UserPlus size={16} />
-                Assign Permissions
-              </button>
-              <button
-                onClick={fetchData}
-                className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
-              >
-                <RefreshCw size={16} />
-              </button>
-            </div>
-          </motion.div>
+          </div>
 
-          {/* Stats Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 lg:grid-cols-5 gap-4"
-          >
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-gray-800">{stats.totalUsers}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Total Users</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-emerald-600">{stats.activeUsers}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Active Users</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-indigo-600">{stats.totalRoles}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Available Roles</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-amber-600">{stats.usersWithMultipleRoles}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Multi-Role Users</p>
-            </div>
-            <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
-              <p className="text-2xl font-bold text-purple-600">{stats.totalAssignments}</p>
-              <p className="text-xs text-gray-500 mt-0.5">Total Assignments</p>
-            </div>
-          </motion.div>
-
-          {/* Filters */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-col md:flex-row gap-4 items-start md:items-center"
-          >
-            <div className="relative flex-1 w-full md:max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search users by name, email, or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
-              />
-            </div>
-            <div className="flex flex-wrap gap-3 w-full md:w-auto">
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
-              >
-                <option value="all">All Roles</option>
-                {roles.map((role) => (
-                  <option key={role._id} value={role._id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "name" | "email" | "role")}
-                className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition shadow-sm"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="email">Sort by Email</option>
-                <option value="role">Sort by Role</option>
-              </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/60">
               <button
-                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                className="px-3 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 rounded-xl transition shadow-sm flex items-center gap-1"
+                onClick={() => setViewMode("grid")}
+                className={`p-2 rounded-lg transition text-xs font-semibold flex items-center gap-1.5 ${viewMode === "grid" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
-                {sortOrder === "asc" ? <SortAsc size={16} /> : <SortDesc size={16} />}
+                <Grid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Grid</span>
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-2 rounded-lg transition text-xs font-semibold flex items-center gap-1.5 ${viewMode === "list" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                  }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">List</span>
               </button>
             </div>
-          </motion.div>
 
-          {/* User Cards - Grid View */}
-          {viewMode === "grid" ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5"
+            <button
+              onClick={fetchData}
+              title="Refresh Data"
+              className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition shadow-xs"
             >
-              {filteredUsers.map((user, index) => {
-                const userRoles = getUserRoles(user);
-                const primaryRoleName = getPrimaryRoleName(user);
+              <RefreshCw className="w-4 h-4" />
+            </button>
+          </div>
+        </motion.div>
 
-                return (
-                  <motion.div
-                    key={user._id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="bg-white rounded-2xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-100 transition-all duration-300 overflow-hidden group"
-                  >
-                    <div className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm shrink-0">
-                            <span className="text-white font-bold text-sm">
-                              {user.fullName.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="text-gray-800 font-semibold truncate">
-                              {user.fullName}
-                            </h3>
-                            <p className="text-xs text-gray-500 truncate">
-                              {user.email}
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setSelectedRoles(userRoles.map((r) => r._id));
-                            setPrimaryRole(
-                              userRoles.find((r) => r.code.toLowerCase() === user.role)?._id ||
-                              (userRoles.length > 0 ? userRoles[0]._id : "")
-                            );
-                            setShowAssignModal(true);
-                          }}
-                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition opacity-0 group-hover:opacity-100"
-                        >
-                          <Edit2 size={14} />
-                        </button>
-                      </div>
-
-                      {/* Role Badges */}
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {userRoles.map((role) => (
-                          <span
-                            key={role._id}
-                            className={`text-[10px] px-2 py-1 rounded-full border font-medium ${getRoleBadgeColor(role.name)}`}
-                          >
-                            {role.name}
-                            {role._id ===
-                              userRoles.find((r) => r.code.toLowerCase() === user.role)?._id && (
-                              <span className="ml-1 text-[8px] text-amber-500">★</span>
-                            )}
-                          </span>
-                        ))}
-                        {userRoles.length === 0 && (
-                          <span className="text-xs text-gray-400">No roles assigned</span>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
-                        <div className="flex items-center gap-3">
-                          <span>{user.employeeId || "No ID"}</span>
-                          <span className="w-1 h-1 rounded-full bg-gray-300" />
-                          <span>
-                            {user.department?.name || "No department"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                            user.isActive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
-                          }`}>
-                            {user.isActive ? "Active" : "Inactive"}
-                          </span>
-                          <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-medium">
-                            {userRoles.length} role{userRoles.length !== 1 ? "s" : ""}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-                      <button
-                        onClick={() => setShowUserDetail(user)}
-                        className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1 transition"
-                      >
-                        <Eye size={12} />
-                        View Details
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setSelectedRoles(userRoles.map((r) => r._id));
-                          setPrimaryRole(
-                            userRoles.find((r) => r.code.toLowerCase() === user.role)?._id ||
-                            (userRoles.length > 0 ? userRoles[0]._id : "")
-                          );
-                          setShowAssignModal(true);
-                        }}
-                        className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 transition"
-                      >
-                        <UserPlus size={12} />
-                        Edit Permissions
-                      </button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          ) : (
-            // List View
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm"
-            >
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        User
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Email
-                      </th>
-                      <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Roles
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Primary Role
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredUsers.map((user) => {
-                      const userRoles = getUserRoles(user);
-                      const primaryRoleName = getPrimaryRoleName(user);
-
-                      return (
-                        <tr key={user._id} className="hover:bg-gray-50 transition">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
-                                <span className="text-white text-xs font-bold">
-                                  {user.fullName.charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="text-gray-800 font-medium text-sm">
-                                  {user.fullName}
-                                </p>
-                                <p className="text-xs text-gray-400">
-                                  {user.employeeId || "No ID"}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            {user.email}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-1">
-                              {userRoles.map((role) => (
-                                <span
-                                  key={role._id}
-                                  className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${getRoleBadgeColor(role.name)}`}
-                                >
-                                  {role.name}
-                                </span>
-                              ))}
-                              {userRoles.length === 0 && (
-                                <span className="text-xs text-gray-400">No roles</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="text-sm font-medium text-gray-700">
-                              {primaryRoleName}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                              user.isActive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
-                            }`}>
-                              {user.isActive ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setSelectedUser(user);
-                                  setSelectedRoles(userRoles.map((r) => r._id));
-                                  setPrimaryRole(
-                                    userRoles.find((r) => r.code.toLowerCase() === user.role)?._id ||
-                                    (userRoles.length > 0 ? userRoles[0]._id : "")
-                                  );
-                                  setShowAssignModal(true);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                                title="Edit permissions"
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              <button
-                                onClick={() => setShowUserDetail(user)}
-                                className="p-1.5 text-gray-400 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition"
-                                title="View details"
-                              >
-                                <Eye size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+        {/* Analytics Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+          {[
+            { label: "Total Accounts", val: stats.totalUsers, icon: Users, color: "text-indigo-600", bg: "bg-indigo-50" },
+            { label: "Active Clearance", val: stats.activeUsers, icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Role Registry", val: stats.totalRoles, icon: Shield, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Multi-Role", val: stats.usersWithMultipleRoles, icon: Layers, color: "text-amber-600", bg: "bg-amber-50" },
+            { label: "Assignments", val: stats.totalAssignments, icon: Key, color: "text-purple-600", bg: "bg-purple-50" },
+          ].map((stat, i) => (
+            <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">{stat.label}</span>
+                <div className={`w-8 h-8 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center font-bold`}>
+                  <stat.icon className="w-4 h-4" />
+                </div>
               </div>
-            </motion.div>
-          )}
-
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-              <UserX size={48} className="text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">No users found</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Try adjusting your search or filters
-              </p>
+              <p className="text-2xl font-extrabold text-slate-900 tracking-tight">{stat.val}</p>
             </div>
-          )}
+          ))}
         </div>
+
+        {/* Filter and Search Bar */}
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Filter by name, email, or employee ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200/80 rounded-2xl text-slate-800 text-sm focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition shadow-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={filterRole}
+              onChange={(e) => setFilterRole(e.target.value)}
+              className="px-4 py-3 bg-white border border-slate-200/80 rounded-2xl text-slate-700 text-sm font-medium focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition shadow-xs cursor-pointer"
+            >
+              <option value="all">All Security Roles</option>
+              {roles.map((r) => (
+                <option key={r._id} value={r._id}>{r.name}</option>
+              ))}
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-4 py-3 bg-white border border-slate-200/80 rounded-2xl text-slate-700 text-sm font-medium focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition shadow-xs cursor-pointer"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="email">Sort by Email</option>
+              <option value="role">Sort by Primary Role</option>
+            </select>
+
+            <button
+              onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+              className="p-3 bg-white border border-slate-200/80 hover:bg-slate-50 text-slate-600 rounded-2xl transition shadow-xs"
+              title="Toggle Sort Order"
+            >
+              {sortOrder === "asc" ? <SortAsc size={16} /> : <SortDesc size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Grid View */}
+        {viewMode === "grid" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredUsers.map((u, index) => {
+              const userRoles = getUserRoles(u);
+
+              return (
+                <motion.div
+                  key={u._id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="bg-white rounded-3xl border border-slate-100 shadow-xs hover:shadow-xl hover:border-slate-200/80 transition duration-300 flex flex-col justify-between overflow-hidden group"
+                >
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm shadow-xs group-hover:bg-indigo-600 group-hover:text-white transition duration-300">
+                          {u.fullName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-base leading-snug tracking-tight">{u.fullName}</h3>
+                          <p className="text-slate-400 text-xs truncate max-w-[180px]">{u.email}</p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 text-[11px] font-bold tracking-wide rounded-full ${u.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60" : "bg-rose-50 text-rose-700 border border-rose-200/60"
+                        }`}>
+                        {u.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    {/* Role Badges */}
+                    <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100">
+                      {userRoles.map((role) => (
+                        <span
+                          key={role._id}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded-lg border ${getRoleBadgeColor(role.name)}`}
+                        >
+                          {role.name}
+                        </span>
+                      ))}
+                      {userRoles.length === 0 && (
+                        <span className="text-xs text-slate-400 italic font-medium">No clearance assigned</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs text-slate-400 font-medium pt-1">
+                      <span>{u.employeeId || "No ID Tag"}</span>
+                      <span>{u.department?.name || "General Unit"}</span>
+                    </div>
+                  </div>
+
+                  <div className="px-6 py-4 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      onClick={() => setShowUserDetail(u)}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1.5 transition"
+                    >
+                      <Eye size={14} />
+                      Inspect Profile
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSelectedUser(u);
+                        setSelectedRoles(userRoles.map((r) => r._id));
+                        setPrimaryRole(userRoles[0]?._id || "");
+                      }}
+                      className="px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-xs"
+                    >
+                      <UserPlus size={13} />
+                      Configure Roles
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          /* List View Table */
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-4">Account Holder</th>
+                    <th className="px-6 py-4">Email Address</th>
+                    <th className="px-6 py-4">Assigned Roles</th>
+                    <th className="px-6 py-4 text-center">Primary Tier</th>
+                    <th className="px-6 py-4 text-center">Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                  {filteredUsers.map((u) => {
+                    const userRoles = getUserRoles(u);
+
+                    return (
+                      <tr key={u._id} className="hover:bg-slate-50/50 transition">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 font-bold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                              {u.fullName.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">{u.fullName}</p>
+                              <p className="text-xs text-slate-400">{u.employeeId || "No ID"}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600 text-xs">{u.email}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {userRoles.map((role) => (
+                              <span key={role._id} className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${getRoleBadgeColor(role.name)}`}>
+                                {role.name}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center text-xs font-bold text-slate-900">{getPrimaryRoleName(u)}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`px-2.5 py-1 text-[11px] font-bold rounded-full ${u.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60" : "bg-rose-50 text-rose-700 border border-rose-200/60"
+                            }`}>
+                            {u.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setShowUserDetail(u)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition"
+                              title="View Details"
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedUser(u);
+                                setSelectedRoles(userRoles.map((r) => r._id));
+                                setPrimaryRole(userRoles[0]?._id || "");
+                              }}
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition"
+                              title="Edit Permissions"
+                            >
+                              <UserPlus size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {filteredUsers.length === 0 && (
+          <div className="bg-white rounded-3xl p-16 text-center border border-slate-100 shadow-xs max-w-lg mx-auto space-y-3">
+            <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-400">
+              <UserX className="w-8 h-8" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">No Users Discovered</h3>
+            <p className="text-slate-400 text-xs">No accounts matched your search queries or security filters.</p>
+          </div>
+        )}
+
       </div>
 
-      {/* Assign Permissions Modal */}
+      {/* Modal: Configure / Assign User Roles */}
       <AnimatePresence>
-        {showAssignModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        {selectedUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="w-full max-w-lg bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50 shrink-0">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    {selectedUser ? `Edit Permissions - ${selectedUser.fullName}` : "Assign Permissions"}
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    Select roles to assign to this user
-                  </p>
+                  <h2 className="text-lg font-bold text-slate-900">Manage User Permissions</h2>
+                  <p className="text-xs text-slate-500 font-medium">Configuring access for {selectedUser.fullName}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setShowAssignModal(false);
-                    setSelectedUser(null);
-                    setSelectedRoles([]);
-                    setPrimaryRole("");
-                  }}
-                  className="text-gray-400 hover:text-gray-600 transition"
-                >
+                <button onClick={() => setSelectedUser(null)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl transition">
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4 overflow-y-auto flex-1">
-                {/* Selected User Info */}
-                {selectedUser && (
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                        <span className="text-white text-xs font-bold">
-                          {selectedUser.fullName.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {selectedUser.fullName}
-                        </p>
-                        <p className="text-xs text-gray-500">{selectedUser.email}</p>
-                      </div>
-                    </div>
+              <div className="p-6 space-y-6">
+                {/* User Snapshot */}
+                <div className="flex items-center gap-3.5 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
+                    {selectedUser.fullName.charAt(0).toUpperCase()}
                   </div>
-                )}
-
-                {/* Select Roles */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Select Roles <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
-                    <div className="max-h-48 overflow-y-auto p-2 space-y-1">
-                      {roles.map((role) => {
-                        const isSelected = selectedRoles.includes(role._id);
-                        return (
-                          <div
-                            key={role._id}
-                            onClick={() => {
-                              if (role.isPermanent && !isSelected) {
-                                setSelectedRoles((prev) => [...prev, role._id]);
-                              } else if (!role.isPermanent) {
-                                setSelectedRoles((prev) =>
-                                  prev.includes(role._id)
-                                    ? prev.filter((id) => id !== role._id)
-                                    : [...prev, role._id]
-                                );
-                              } else {
-                                // Permanent roles can only be deselected if user has more than one role
-                                const currentRoles = selectedUser ? getUserRoles(selectedUser) : [];
-                                if (currentRoles.length > 1) {
-                                  setSelectedRoles((prev) =>
-                                    prev.filter((id) => id !== role._id)
-                                  );
-                                } else {
-                                  toast.error("User must have at least one role");
-                                }
-                              }
-                            }}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                              isSelected
-                                ? "bg-indigo-50 hover:bg-indigo-100"
-                                : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-900">
-                                {role.name}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {role.code} • Level {role.level}
-                              </p>
-                            </div>
-                            {role.isPermanent && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                                Permanent
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1.5">
-                    {selectedRoles.length} role(s) selected
-                  </p>
-                </div>
-
-                {/* Select Primary Role */}
-                {selectedRoles.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Primary Role
-                      <span className="text-xs text-gray-400 ml-2">
-                        (Default: first selected)
-                      </span>
-                    </label>
-                    <select
-                      value={primaryRole}
-                      onChange={(e) => setPrimaryRole(e.target.value)}
-                      className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-800 text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                    >
-                      {selectedRoles.map((roleId) => {
-                        const role = roles.find((r) => r._id === roleId);
-                        return role ? (
-                          <option key={roleId} value={roleId}>
-                            {role.name} (Level {role.level})
-                          </option>
-                        ) : null;
-                      })}
-                    </select>
-                  </div>
-                )}
-
-                {/* Info Message */}
-                <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
-                  <div className="flex items-start gap-2">
-                    <Info size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs text-gray-600 font-medium">
-                        Multiple Roles Support
-                      </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Users can have multiple roles. The primary role determines the main role displayed in the UI.
-                      </p>
-                    </div>
+                    <p className="font-bold text-slate-900 text-sm">{selectedUser.fullName}</p>
+                    <p className="text-xs text-slate-400">{selectedUser.email}</p>
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-4">
+                {/* Role Checklist */}
+                <div className="space-y-3">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Select Authorized Roles</label>
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {roles.map((role) => {
+                      const isChecked = selectedRoles.includes(role._id);
+
+                      return (
+                        <div
+                          key={role._id}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedRoles(selectedRoles.filter((id) => id !== role._id));
+                              if (primaryRole === role._id) setPrimaryRole("");
+                            } else {
+                              setSelectedRoles([...selectedRoles, role._id]);
+                              if (!primaryRole) setPrimaryRole(role._id);
+                            }
+                          }}
+                          className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between ${isChecked ? "bg-indigo-50/60 border-indigo-300 shadow-xs" : "bg-white border-slate-200/80 hover:border-slate-300"
+                            }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition ${isChecked ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white"
+                              }`}>
+                              {isChecked && <CheckCircle className="w-3.5 h-3.5" />}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 text-xs">{role.name}</p>
+                              <p className="text-[10px] text-slate-400 font-mono">{role.code} • Level {role.level}</p>
+                            </div>
+                          </div>
+
+                          {isChecked && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPrimaryRole(role._id);
+                              }}
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${primaryRole === role._id
+                                  ? "bg-amber-500 text-white border-amber-600 shadow-xs"
+                                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                }`}
+                            >
+                              {primaryRole === role._id ? "Primary Role" : "Set Primary"}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-slate-100">
                   <button
                     onClick={handleAssignRoles}
-                    disabled={
-                      assigningRole ||
-                      !selectedUser ||
-                      selectedRoles.length === 0
-                    }
-                    className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+                    disabled={assigningRole}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 text-sm flex items-center justify-center gap-2"
                   >
-                    {assigningRole ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <>
-                        <Check size={16} />
-                        {selectedUser ? "Update Permissions" : `Assign ${selectedRoles.length} Role${selectedRoles.length !== 1 ? "s" : ""}`}
-                      </>
-                    )}
+                    {assigningRole && <Loader2 size={16} className="animate-spin" />}
+                    Save Security Permissions
                   </button>
                   <button
-                    onClick={() => {
-                      setShowAssignModal(false);
-                      setSelectedUser(null);
-                      setSelectedRoles([]);
-                      setPrimaryRole("");
-                    }}
-                    className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                    onClick={() => setSelectedUser(null)}
+                    className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition text-sm"
                   >
                     Cancel
                   </button>
@@ -932,194 +708,106 @@ export default function PermissionsPage() {
         )}
       </AnimatePresence>
 
-      {/* User Detail Modal */}
+      {/* Modal: Detailed User Profile & Active Clearance */}
       <AnimatePresence>
         {showUserDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="w-full max-w-lg bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50 to-purple-50 shrink-0">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">
-                    User Details
-                  </h2>
-                  <p className="text-xs text-gray-500">
-                    View and manage user permissions
-                  </p>
+                  <h2 className="text-lg font-bold text-slate-900">User Security Profile</h2>
+                  <p className="text-xs text-slate-500 font-medium">Active clearance assignments & audit info</p>
                 </div>
-                <button
-                  onClick={() => setShowUserDetail(null)}
-                  className="text-gray-400 hover:text-gray-600 transition"
-                >
+                <button onClick={() => setShowUserDetail(null)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl transition">
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4 overflow-y-auto flex-1">
-                {/* User Info */}
-                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
-                  <div className="w-14 h-14 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0">
-                    <span className="text-white text-xl font-bold">
-                      {showUserDetail.fullName.charAt(0).toUpperCase()}
-                    </span>
+              <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white font-bold flex items-center justify-center text-lg shadow-xs shrink-0">
+                    {showUserDetail.fullName.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-bold text-gray-800 truncate">
-                      {showUserDetail.fullName}
-                    </h3>
-                    <p className="text-sm text-gray-500 truncate">{showUserDetail.email}</p>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {showUserDetail.employeeId && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-600">
-                          ID: {showUserDetail.employeeId}
-                        </span>
-                      )}
-                      {showUserDetail.department && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-200">
-                          {showUserDetail.department.name}
-                        </span>
-                      )}
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        showUserDetail.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-rose-50 text-rose-700 border border-rose-200"
-                      }`}>
+                    <h3 className="font-extrabold text-slate-900 text-base truncate">{showUserDetail.fullName}</h3>
+                    <p className="text-xs text-slate-400 truncate">{showUserDetail.email}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-[10px] font-mono bg-white text-black px-2 py-0.5 rounded border border-slate-200">ID: {showUserDetail.employeeId || "N/A"}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${showUserDetail.isActive ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                        }`}>
                         {showUserDetail.isActive ? "Active" : "Inactive"}
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedUser(showUserDetail);
-                      const userRoles = getUserRoles(showUserDetail);
-                      setSelectedRoles(userRoles.map((r) => r._id));
-                      setPrimaryRole(
-                        userRoles.find((r) => r.code.toLowerCase() === showUserDetail.role)?._id ||
-                        (userRoles.length > 0 ? userRoles[0]._id : "")
-                      );
-                      setShowUserDetail(null);
-                      setShowAssignModal(true);
-                    }}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-lg transition flex items-center gap-1"
-                  >
-                    <Edit2 size={12} />
-                    Edit
-                  </button>
                 </div>
 
-                {/* Roles Section */}
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    <Shield size={14} className="text-indigo-500" />
-                    Assigned Roles
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                    <Shield size={14} className="text-indigo-600" />
+                    Assigned Clearances ({getUserRoles(showUserDetail).length})
                   </h4>
+
                   <div className="space-y-2">
-                    {getUserRoles(showUserDetail).map((role) => (
-                      <div
-                        key={role._id}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-1.5 rounded-lg ${getRoleBgColor(role.name)}`}>
-                            <Shield size={14} className={getRoleColor(role.name)} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">
-                              {role.name}
-                              {role._id === getUserRoles(showUserDetail).find(
-                                (r) => r.code.toLowerCase() === showUserDetail.role
-                              )?._id && (
-                                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
-                                  Primary
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {role.code} • Level {role.level} • {role.isPermanent ? "Permanent" : "Custom"}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!role.isPermanent && (
-                            <button
-                              onClick={() => handleRemoveRole(
-                                showUserDetail._id,
-                                role._id,
-                                role.name
-                              )}
-                              disabled={removingRole}
-                              className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                          {role._id !== getUserRoles(showUserDetail).find(
-                            (r) => r.code.toLowerCase() === showUserDetail.role
-                          )?._id && (
-                            <button
-                              onClick={() => handleSetPrimaryRole(showUserDetail._id, role._id)}
-                              className="text-[10px] px-2 py-1 rounded bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition font-medium"
-                            >
-                              Set Primary
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {getUserRoles(showUserDetail).length === 0 && (
-                      <div className="text-center py-6 bg-gray-50 rounded-lg border border-gray-200">
-                        <UserX size={24} className="text-gray-300 mx-auto mb-1" />
-                        <p className="text-gray-500 text-sm">No roles assigned</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                    {getUserRoles(showUserDetail).map((role) => {
+                      const isPrimary = role.code.toLowerCase() === showUserDetail.role?.toLowerCase();
 
-                {/* Available Roles to Add */}
-                <div>
-                  <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                    <Plus size={14} className="text-emerald-500" />
-                    Available Roles to Add
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {roles
-                      .filter((r) => !getUserRoles(showUserDetail).some((ur) => ur._id === r._id))
-                      .map((role) => (
-                        <button
-                          key={role._id}
-                          onClick={async () => {
-                            const currentRoles = getUserRoles(showUserDetail);
-                            const newRoleIds = [...currentRoles.map((r) => r._id), role._id];
-                            setSelectedUser(showUserDetail);
-                            setSelectedRoles(newRoleIds);
-                            setPrimaryRole(
-                              currentRoles.find((r) => r.code.toLowerCase() === showUserDetail.role)?._id ||
-                              currentRoles[0]?._id ||
-                              role._id
-                            );
-                            setShowUserDetail(null);
-                            setShowAssignModal(true);
-                          }}
-                          className={`text-xs px-3 py-1.5 rounded-full border font-medium transition ${getRoleBadgeColor(role.name)} hover:shadow-md`}
-                        >
-                          + {role.name}
-                        </button>
-                      ))}
-                    {roles.every((r) => getUserRoles(showUserDetail).some((ur) => ur._id === r._id)) && (
-                      <p className="text-xs text-gray-400">All roles already assigned</p>
+                      return (
+                        <div key={role._id} className="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-indigo-600 font-bold text-xs shadow-xs">
+                              {role.level}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 text-xs flex items-center gap-2">
+                                {role.name}
+                                {isPrimary && <span className="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-md font-bold shadow-xs">Primary</span>}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-mono">{role.code}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {!role.isPermanent && (
+                              <button
+                                onClick={() => handleRemoveRole(showUserDetail._id, role._id, role.name)}
+                                disabled={removingRole}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition"
+                                title="Revoke Role"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                            {!isPrimary && (
+                              <button
+                                onClick={() => handleSetPrimaryRole(showUserDetail._id, role._id)}
+                                className="px-2.5 py-1 text-[10px] font-bold bg-white text-indigo-600 border border-slate-200 hover:bg-indigo-50 rounded-lg transition shadow-xs"
+                              >
+                                Make Primary
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {getUserRoles(showUserDetail).length === 0 && (
+                      <div className="p-8 text-center text-slate-400 text-xs">No active roles attached to this account.</div>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="p-4 border-t border-gray-200 bg-gray-50 shrink-0">
+              <div className="p-4 border-t border-slate-100 bg-slate-50/50 shrink-0">
                 <button
                   onClick={() => setShowUserDetail(null)}
-                  className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition text-sm shadow-xs"
                 >
-                  Close
+                  Close Profile
                 </button>
               </div>
             </motion.div>
@@ -1128,19 +816,11 @@ export default function PermissionsPage() {
       </AnimatePresence>
 
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(229, 231, 235, 0.5);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(99, 102, 241, 0.3);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(99, 102, 241, 0.5);
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
       `}</style>
     </div>
