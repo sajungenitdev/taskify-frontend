@@ -103,9 +103,11 @@ export default function KPITrendsPage() {
   const [sortBy, setSortBy] = useState<"name" | "average" | "trend">("average");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
+  // Replaced ref with state to prevent rendering access violations
+  const [initialFetchCompleted, setInitialFetchCompleted] = useState<boolean>(false);
+
   // Refs to prevent duplicate concurrent network calls
   const isFetching = useRef<boolean>(false);
-  const initialFetchDone = useRef<boolean>(false);
 
   const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
 
@@ -138,7 +140,7 @@ export default function KPITrendsPage() {
       setError(null);
 
       // Fetch users and department metadata concurrently
-      const [usersRes, deptRes] = await Promise.all([
+      const [usersRes] = await Promise.all([
         api.get("/users").catch(() => ({ data: { success: false, data: [] } })),
         api.get("/departments").catch(() => ({ data: { success: false, data: [] } })),
       ]);
@@ -250,7 +252,7 @@ export default function KPITrendsPage() {
       setEmployeeTrends(processedTrends);
 
       // Auto-select top 5 performers on initial layout load
-      if (!initialFetchDone.current && processedTrends.length > 0) {
+      if (!initialFetchCompleted && processedTrends.length > 0) {
         const topPerformers = [...processedTrends]
           .filter((e) => e.averageScore > 0)
           .sort((a, b) => b.averageScore - a.averageScore)
@@ -259,7 +261,7 @@ export default function KPITrendsPage() {
         if (topPerformers.length > 0) {
           setSelectedEmployees(topPerformers.map((e) => e.userId));
         }
-        initialFetchDone.current = true;
+        setInitialFetchCompleted(true);
       }
     } catch (err: any) {
       console.error("Error synthesizing trend metrics:", err);
@@ -269,7 +271,7 @@ export default function KPITrendsPage() {
       setLoading(false);
       isFetching.current = false;
     }
-  }, [getLastMonths]);
+  }, [getLastMonths, initialFetchCompleted]);
 
   useEffect(() => {
     if (canManage) {
@@ -381,7 +383,7 @@ export default function KPITrendsPage() {
 
   // CSV Export utility
   const handleExport = () => {
-    if (trendData.length === 0 || selectedEmployees.length === 0) {
+    if (chartData.length === 0 || selectedEmployees.length === 0) {
       toast.error("Please select at least one employee to export data");
       return;
     }
@@ -436,7 +438,7 @@ export default function KPITrendsPage() {
     );
   }
 
-  if (loading && !initialFetchDone.current) {
+  if (loading && !initialFetchCompleted) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 space-y-3">
         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -447,7 +449,7 @@ export default function KPITrendsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50/60 antialiased">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
