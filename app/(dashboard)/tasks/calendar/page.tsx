@@ -456,7 +456,7 @@ export default function MyCalendarPage() {
           </Link>
           <ChevronRightIcon size={14} className="text-gray-300" />
           <Link
-            href="/tasks"
+            href="/tasks/tasks-board"
             className="text-gray-400 hover:text-gray-600 transition"
           >
             Tasks

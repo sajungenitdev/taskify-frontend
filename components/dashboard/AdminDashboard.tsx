@@ -247,7 +247,7 @@ export default function AdminDashboard() {
           <p className="text-xs text-gray-400">Manage departments</p>
         </Link>
 
-        <Link href="/tasks" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition group text-center">
+        <Link href="/tasks/tasks-board" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition group text-center">
           <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition">
             <Activity className="w-6 h-6 text-amber-600" />
           </div>

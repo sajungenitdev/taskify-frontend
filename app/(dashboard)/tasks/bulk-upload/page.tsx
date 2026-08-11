@@ -687,7 +687,7 @@ export default function BulkUploadPage() {
             Dashboard
           </Link>
           <ChevronRight className="w-4 h-4 text-gray-300" />
-          <Link href="/tasks" className="hover:text-gray-700 transition">
+          <Link href="/tasks/tasks-board" className="hover:text-gray-700 transition">
             Tasks
           </Link>
           <ChevronRight className="w-4 h-4 text-gray-300" />

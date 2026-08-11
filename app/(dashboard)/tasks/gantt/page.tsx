@@ -1071,7 +1071,7 @@ export default function GanttChartPage() {
                     >
                         <div>
                             <Link
-                                href="/tasks"
+                                href="/tasks/tasks-board"
                                 className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-700 transition-colors text-sm"
                             >
                                 <ArrowLeft size={16} />

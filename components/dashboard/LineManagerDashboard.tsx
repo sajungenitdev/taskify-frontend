@@ -101,7 +101,7 @@ export default function LineManagerDashboard() {
       </motion.div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Link href="/tasks" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition group">
+        <Link href="/tasks/tasks-board" className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm hover:shadow-md transition group">
           <div className="flex items-center justify-between">
             <div><p className="text-sm font-medium text-gray-800">Team Tasks</p><p className="text-xs text-gray-400">View team tasks</p></div>
             <CheckSquare className="w-6 h-6 text-indigo-400 group-hover:scale-110 transition" />
