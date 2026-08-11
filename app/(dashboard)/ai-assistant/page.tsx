@@ -773,7 +773,7 @@ export default function AIAssistantPage() {
 
           {/* Input Area */}
           <div className="p-4 border-t border-gray-200 bg-white shadow-sm">
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-[90%]">
               <input
                 ref={inputRef}
                 type="text"
