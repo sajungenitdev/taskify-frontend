@@ -33,6 +33,7 @@ import toast from "react-hot-toast";
 
 interface Department {
   _id: string;
+  id?: string;
   name: string;
   code: string;
   description?: string;
