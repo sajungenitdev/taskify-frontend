@@ -220,7 +220,9 @@ export default function EmployeeKPIDetailPage() {
         return "Unassigned";
     };
 
-    const getRoleDisplayName = (role: string): string => {
+    const getRoleDisplayName = (role: string | undefined | null): string => {
+        if (!role) return "Unknown Role";
+
         const roleMap: Record<string, string> = {
             super_admin: "Super Admin",
             admin: "Admin",
@@ -749,7 +751,7 @@ export default function EmployeeKPIDetailPage() {
                                             <span className="text-xs text-gray-400 font-medium uppercase tracking-wider block">KPI · {selectedMonth} {selectedYear}</span>
                                             <div className="flex items-baseline gap-2 mt-1">
                                                 <span className={`text-4xl font-black tracking-tight ${employee.totalScore >= 75 ? "text-emerald-600" :
-                                                        employee.totalScore >= 60 ? "text-amber-600" : "text-red-600"
+                                                    employee.totalScore >= 60 ? "text-amber-600" : "text-red-600"
                                                     }`}>
                                                     {employee.totalScore}%
                                                 </span>
@@ -777,7 +779,7 @@ export default function EmployeeKPIDetailPage() {
                                                         <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                                                             <div
                                                                 className={`h-full rounded-full ${value.score >= 70 ? 'bg-emerald-500' :
-                                                                        value.score >= 45 ? 'bg-blue-600' : 'bg-amber-500'
+                                                                    value.score >= 45 ? 'bg-blue-600' : 'bg-amber-500'
                                                                     }`}
                                                                 style={{ width: barWidth }}
                                                             />
@@ -843,8 +845,8 @@ export default function EmployeeKPIDetailPage() {
 
                                     {/* System Suggestion Box */}
                                     <div className={`${employee.totalScore < 60 ? 'bg-red-50/60 border-red-200/80' :
-                                            employee.totalScore < 75 ? 'bg-amber-50/60 border-amber-200/80' :
-                                                'bg-emerald-50/60 border-emerald-200/80'
+                                        employee.totalScore < 75 ? 'bg-amber-50/60 border-amber-200/80' :
+                                            'bg-emerald-50/60 border-emerald-200/80'
                                         } border rounded-xl p-4 text-xs space-y-1.5`}>
                                         <div className="flex items-center gap-1.5 text-gray-700 font-bold">
                                             <AlertTriangle size={15} />
@@ -858,19 +860,19 @@ export default function EmployeeKPIDetailPage() {
                                     {/* Action Buttons Row */}
                                     <div className="grid grid-cols-3 gap-3 pt-2">
                                         <button
-                                            onClick={() => toast.success("Warning issued to employee")}
+                                            onClick={() => toast.success("Featured Comming Soon...")}
                                             className="py-2.5 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-semibold shadow-sm transition text-center"
                                         >
                                             Issue Warning
                                         </button>
                                         <button
-                                            onClick={() => toast.success("Training scheduled successfully")}
+                                            onClick={() => toast.success("Featured Comming Soon...")}
                                             className="py-2.5 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-semibold shadow-sm transition text-center"
                                         >
                                             Schedule Training
                                         </button>
                                         <button
-                                            onClick={() => toast.success("Workload redistributed")}
+                                            onClick={() => toast.success("Featured Comming Soon...")}
                                             className="py-2.5 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-semibold shadow-sm transition text-center"
                                         >
                                             Redistribute
