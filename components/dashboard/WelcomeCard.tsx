@@ -687,15 +687,15 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
             <div className="flex items-center gap-3 flex-wrap">
               <motion.div
                 whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileTap={{ scale: 0.98 }} 
               >
                 <div
                   className="group relative inline-flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 via-indigo-600 to-purple-600 hover:from-indigo-700 hover:via-indigo-700 hover:to-purple-700 text-white text-xs font-bold rounded-xl transition-all duration-300 shadow-lg shadow-indigo-600/30 hover:shadow-xl hover:shadow-indigo-600/40 overflow-hidden"
                 >
                   <span className="relative z-10 flex items-center gap-2">
-                    {getDashboardIcon()}
-                    <span>Open {getDashboardLabel()}</span>
-                    <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
+                    {/* {getDashboardIcon()} */}
+                    <span>Welcome To Your Dashboard</span>
+                    {/* <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" /> */}
                   </span>
                   <motion.div
                     className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent"
