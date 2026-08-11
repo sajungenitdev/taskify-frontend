@@ -491,7 +491,7 @@ export default function KPIManagementPage() {
 
   return (
     <div className="min-h-screen bg-slate-50/60 antialiased">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">

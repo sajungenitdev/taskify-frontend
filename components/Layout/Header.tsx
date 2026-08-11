@@ -446,7 +446,7 @@ const getImageUrl = useCallback(
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 transition-all duration-500 ease-out ${
+      className={`fixed top-0 right-0 z-50 transition-all duration-500 ease-out ${
         sidebarCollapsed ? "left-20" : "left-80"
       }`}
       style={{ backgroundColor: "#122645" }}
