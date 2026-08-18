@@ -119,6 +119,9 @@ export default function KPIDashboardPage() {
   // ============================================================
   // CALCULATE KPI SCORE - EXACT MATCH WITH DETAIL PAGE
   // ============================================================
+  // ============================================================
+  // CALCULATE KPI SCORE - FULLY TASK-BASED (NO RANDOM)
+  // ============================================================
   const calculateKPIFromTasks = useCallback((userTasks: any[]): {
     score: number;
     metrics: {
@@ -137,6 +140,8 @@ export default function KPIDashboardPage() {
       (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
     ).length;
     const inProgressTasks = userTasks.filter((t: any) => t.status === "in_progress").length;
+    const submittedTasks = userTasks.filter((t: any) => t.status === "submitted").length;
+    const rejectedTasks = userTasks.filter((t: any) => t.status === "rejected").length;
 
     if (totalTasks === 0) {
       return {
@@ -152,37 +157,56 @@ export default function KPIDashboardPage() {
       };
     }
 
-    // Calculate component scores (matching detail page)
+    // ============================================================
+    // 1. TASK COMPLETION (25%) - Higher is better
+    // ============================================================
     const taskCompletion = Math.min(100, Math.round((completedTasks / totalTasks) * 100));
-    
-    // Quality: tasks completed without being overdue or rejected
-    const qualityScore = Math.min(100, Math.round(
-      ((completedTasks - overdueTasks * 0.3) / totalTasks) * 100
-    ));
-    
-    // Efficiency: completed + in-progress progress
-    const efficiency = Math.min(100, Math.round(
-      ((completedTasks + inProgressTasks * 0.5) / totalTasks) * 100
-    ));
-    
-    // Collaboration: based on tasks completed in teams
-    const collaboration = Math.min(100, Math.round(50 + Math.random() * 40));
-    
-    // Innovation: based on unique contributions
-    const innovation = Math.min(100, Math.round(45 + Math.random() * 45));
-    
-    // Attendance: based on task completion consistency
-    const attendance = Math.min(100, Math.round(80 + Math.random() * 20));
 
-    // Calculate total score with weights (matching detail page)
-    const totalScore = Math.round(
+    // ============================================================
+    // 2. QUALITY SCORE (20%) - Tasks completed without being overdue or rejected
+    // ============================================================
+    const qualityTasks = completedTasks - overdueTasks - rejectedTasks;
+    const qualityScore = Math.min(100, Math.max(0, Math.round((qualityTasks / totalTasks) * 100)));
+
+    // ============================================================
+    // 3. EFFICIENCY (20%) - Completed + in-progress + submitted progress
+    // ============================================================
+    const efficiency = Math.min(100, Math.round(
+      ((completedTasks + inProgressTasks * 0.5 + submittedTasks * 0.8) / totalTasks) * 100
+    ));
+
+    // ============================================================
+    // 4. COLLABORATION (15%) - Based on team task completion
+    // ============================================================
+    const collaboration = Math.min(100, Math.round(
+      40 + (completedTasks / totalTasks) * 60
+    ));
+
+    // ============================================================
+    // 5. INNOVATION (10%) - Based on unique contributions
+    // ============================================================
+    const innovation = Math.min(100, Math.round(
+      35 + (completedTasks / totalTasks) * 65
+    ));
+
+    // ============================================================
+    // 6. ATTENDANCE (10%) - Based on task completion consistency
+    // ============================================================
+    const attendance = Math.min(100, Math.round(
+      60 + (completedTasks / totalTasks) * 40
+    ));
+
+    // ============================================================
+    // CALCULATE TOTAL SCORE WITH WEIGHTS
+    // ============================================================
+    const totalScore = Math.min(100, Math.round(
       taskCompletion * 0.25 +
       qualityScore * 0.2 +
       efficiency * 0.2 +
       collaboration * 0.15 +
       innovation * 0.1 +
       attendance * 0.1
-    );
+    ));
 
     return {
       score: totalScore,
@@ -215,9 +239,9 @@ export default function KPIDashboardPage() {
       let kpiScores: any[] = [];
       try {
         const kpiRes = await api.get(`/kpi/report/monthly`, {
-          params: { 
-            month: months.indexOf(selectedMonth) + 1, 
-            year: selectedYear 
+          params: {
+            month: months.indexOf(selectedMonth) + 1,
+            year: selectedYear
           }
         });
         if (kpiRes.data.success) {
@@ -241,8 +265,8 @@ export default function KPIDashboardPage() {
         const total = userTasks.length;
         const completed = userTasks.filter((t: any) => t.status === "completed").length;
         const inProgress = userTasks.filter((t: any) => t.status === "in_progress").length;
-        const overdue = userTasks.filter((t: any) => 
-          t.status === "overdue" || 
+        const overdue = userTasks.filter((t: any) =>
+          t.status === "overdue" ||
           (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
         ).length;
 
@@ -297,10 +321,10 @@ export default function KPIDashboardPage() {
       const avgScore = employeesWithScores.length > 0
         ? Math.round(employeesWithScores.reduce((sum, e) => sum + e.totalScore, 0) / employeesWithScores.length)
         : 0;
-      
+
       const top = employeesWithScores.length > 0 ? employeesWithScores[0] : null;
       const needs = employeesWithScores.length > 0 ? employeesWithScores[employeesWithScores.length - 1] : null;
-      
+
       const totalTasks = allTasks.length;
       const completedTasks = allTasks.filter((t: any) => t.status === "completed").length;
 
@@ -331,14 +355,16 @@ export default function KPIDashboardPage() {
   useEffect(() => {
     if (!selectedMonth) {
       setSelectedMonth(currentMonth);
+      setSelectedYear(new Date().getFullYear());
     }
-  }, [selectedMonth, currentMonth]);
+  }, [currentMonth]);
 
   useEffect(() => {
-    if (selectedMonth) {
+    if (selectedMonth && selectedYear) {
       fetchData();
     }
-  }, [selectedMonth, selectedYear, fetchData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth, selectedYear]);
 
   // ============================================================
   // FILTERED EMPLOYEES
@@ -346,7 +372,7 @@ export default function KPIDashboardPage() {
   const filteredEmployees = useMemo(() => {
     return employees.filter(emp => {
       const matchesSearch = emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           emp.email.toLowerCase().includes(searchTerm.toLowerCase());
+        emp.email.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesDepartment = departmentFilter === "all" || emp.department === departmentFilter;
       return matchesSearch && matchesDepartment;
     });
@@ -636,7 +662,7 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                <div 
+                <div
                   className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md transition cursor-pointer"
                   onClick={() => stats.topPerformerId && router.push(`/kpi/employee/${stats.topPerformerId}`)}
                 >
@@ -650,7 +676,7 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                <div 
+                <div
                   className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md transition cursor-pointer"
                   onClick={() => stats.needsAttentionId && router.push(`/kpi/employee/${stats.needsAttentionId}`)}
                 >

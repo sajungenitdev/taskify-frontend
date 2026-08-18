@@ -940,36 +940,56 @@ export default function TaskDetailPage() {
   };
 
   const handleSubmitForReview = () => {
-    if (task?.evidenceRequired && !hasEvidence()) {
-      toast.error("Please upload evidence before submitting for review");
+    console.log("🟢 handleSubmitForReview called");
+
+    if (!task) {
+      toast.error("Task not found");
       return;
     }
 
-    if (isTimerActiveForTask(task!._id) && isTimerRunning) {
+    // If evidence is required and not submitted, open the evidence upload modal
+    if (task.evidenceRequired && !hasEvidence()) {
+      console.log("📋 Evidence required - Opening evidence upload modal");
+      setShowEvidenceModal(true); // ← This opens the modal
+      return;
+    }
+
+    // Check if timer is running
+    if (isTimerActiveForTask(task._id) && isTimerRunning) {
       toast.error("⏹️ Timer will be stopped before submission");
     }
 
+    // If no evidence required, proceed with submission
     setShowEvidenceModal(true);
   };
 
   const handleSubmitWithEvidence = async () => {
-    if (!evidenceText.trim()) {
-      toast.error("Please provide evidence details");
-      return;
-    }
+    // Don't require evidence text if files are uploaded
+    // if (!evidenceText.trim()) {
+    //   toast.error("Please provide evidence details");
+    //   return;
+    // }
 
     setSubmittingEvidence(true);
     try {
+      // If there are attachments, use them as evidence
       const evidenceUrls = evidenceText
         .split("\n")
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
 
-      if (evidenceUrls.length === 0) {
-        toast.error("Please provide at least one evidence item");
+      // If no text evidence but files are uploaded, proceed
+      if (evidenceUrls.length === 0 && attachments.length === 0) {
+        toast.error("Please provide evidence or upload files");
         setSubmittingEvidence(false);
         return;
       }
+
+      // Use file URLs as evidence if available
+      const finalEvidenceUrls = [...evidenceUrls];
+      attachments.forEach((att) => {
+        if (att.url) finalEvidenceUrls.push(att.url);
+      });
 
       let actualMinutes = task?.actualMinutes || 0;
       if (isTimerActiveForTask(task!._id)) {
@@ -982,7 +1002,7 @@ export default function TaskDetailPage() {
 
       const response = await api.patch(`/tasks/${id}/status`, {
         status: "submitted",
-        evidenceUrls: evidenceUrls,
+        evidenceUrls: finalEvidenceUrls,
         actualMinutes: actualMinutes,
       });
 
