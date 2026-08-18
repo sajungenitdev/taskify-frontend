@@ -61,7 +61,7 @@ export const TaskCard = ({
     const isOverdue =
         new Date(task.deadline) < new Date() && task.status !== "completed";
     const isRejected = task.status === "rejected";
-    const hasEvidence = task.evidenceUrls && task.evidenceUrls.length > 0;
+    const hasEvidence = (task.evidenceUrls ?? []).length > 0;
     const rejectionReason = task.rejectionReason || "";
 
     return (
@@ -72,10 +72,10 @@ export const TaskCard = ({
             className={`group relative bg-white rounded-2xl border transition-all duration-300 hover:shadow-2xl hover:shadow-indigo-100/50 shadow-md overflow-hidden ${isRejected ? "border-red-200 hover:border-red-300" : "border-gray-200 hover:border-indigo-300"
                 }`}
         >
-            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-700 pointer-events-none" />
+            <div className="absolute inset-0 bg-linear-to-br from-indigo-500/0 via-purple-500/0 to-pink-500/0 group-hover:from-indigo-500/5 group-hover:via-purple-500/5 group-hover:to-pink-500/5 transition-all duration-700 pointer-events-none" />
 
             <div
-                className={`h-1 bg-gradient-to-r ${isRejected ? "from-red-400 to-red-600" : getPriorityConfig(task.priority).gradient
+                className={`h-1 bg-linear-to-r ${isRejected ? "from-red-400 to-red-600" : getPriorityConfig(task.priority).gradient
                     }`}
             />
 
@@ -159,7 +159,7 @@ export const TaskCard = ({
 
                 <div className="flex items-center gap-2 mb-3 flex-wrap">
                     {task.projectId && (
-                        <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/50">
+                        <div className="flex items-center gap-1 text-[10px] font-medium px-2.5 py-1 rounded-full bg-linear-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200/50">
                             <Briefcase size={10} /> <span>{task.projectId.name}</span>
                         </div>
                     )}
@@ -178,7 +178,7 @@ export const TaskCard = ({
                 <div className="flex items-center justify-between pt-3 border-t border-gray-100/80">
                     <div className="flex items-center gap-2.5">
                         <div className="relative">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-500/25">
+                            <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-md shadow-indigo-500/25">
                                 <span className="text-white text-[10px] font-bold">
                                     {task.assignedTo?.fullName?.charAt(0) || "?"}
                                 </span>
@@ -192,7 +192,7 @@ export const TaskCard = ({
                                 {task.assignedTo?.fullName || "Unassigned"}
                             </p>
                             <p className="text-gray-400 text-[9px] flex items-center gap-1">
-                                <ClockIcon size={8} /> {getRelativeTime(task.createdAt)}
+                                <ClockIcon size={8} /> {getRelativeTime(task.createdAt || new Date().toISOString())}
                             </p>
                         </div>
                     </div>
@@ -211,7 +211,7 @@ export const TaskCard = ({
                         <button
                             onClick={() => onStatusChange(task._id, "in_progress")}
                             disabled={updatingStatus === task._id}
-                            className="flex-1 py-1.5 bg-gradient-to-r from-indigo-50 to-indigo-100/50 hover:from-indigo-600 hover:to-indigo-700 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
+                            className="flex-1 py-1.5 bg-linear-to-r from-indigo-50 to-indigo-100/50 hover:from-indigo-600 hover:to-indigo-700 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
                         >
                             <Play size={12} /> Start
                         </button>
@@ -221,7 +221,7 @@ export const TaskCard = ({
                         <button
                             onClick={() => onStatusChange(task._id, "submitted")}
                             disabled={updatingStatus === task._id}
-                            className="flex-1 py-1.5 bg-gradient-to-r from-purple-50 to-purple-100/50 hover:from-purple-600 hover:to-purple-700 text-purple-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-purple-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
+                            className="flex-1 py-1.5 bg-linear-to-r from-purple-50 to-purple-100/50 hover:from-purple-600 hover:to-purple-700 text-purple-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-purple-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
                         >
                             <Send size={12} /> Submit
                         </button>
@@ -232,13 +232,13 @@ export const TaskCard = ({
                             <button
                                 onClick={() => onApprove(task._id)}
                                 disabled={approving}
-                                className="flex-1 py-1.5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-600 hover:to-emerald-700 text-emerald-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-emerald-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
+                                className="flex-1 py-1.5 bg-linear-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-600 hover:to-emerald-700 text-emerald-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-emerald-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
                             >
                                 <ThumbsUp size={12} /> Approve
                             </button>
                             <button
                                 onClick={() => onRejectClick(task)}
-                                className="flex-1 py-1.5 bg-gradient-to-r from-rose-50 to-rose-100/50 hover:from-rose-600 hover:to-rose-700 text-rose-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-rose-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                                className="flex-1 py-1.5 bg-linear-to-r from-rose-50 to-rose-100/50 hover:from-rose-600 hover:to-rose-700 text-rose-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-rose-200/50 hover:border-transparent shadow-sm hover:shadow-md"
                             >
                                 <ThumbsDown size={12} /> Reject
                             </button>
@@ -249,7 +249,7 @@ export const TaskCard = ({
                         <button
                             onClick={() => onStatusChange(task._id, "pending")}
                             disabled={updatingStatus === task._id}
-                            className="flex-1 py-1.5 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
+                            className="flex-1 py-1.5 bg-linear-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center justify-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md disabled:opacity-50"
                         >
                             <RefreshCw size={12} /> Rework
                         </button>
@@ -257,13 +257,13 @@ export const TaskCard = ({
 
                     <button
                         onClick={() => onViewDetails(task)}
-                        className="py-1.5 px-3 bg-gradient-to-r from-gray-50 to-gray-100/50 hover:from-gray-200 hover:to-gray-300 text-gray-700 text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-gray-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                        className="py-1.5 px-3 bg-linear-to-r from-gray-50 to-gray-100/50 hover:from-gray-200 hover:to-gray-300 text-gray-700 text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-gray-200/50 hover:border-transparent shadow-sm hover:shadow-md"
                     >
                         <Eye size={12} /> View
                     </button>
                     <Link
                         href={`/tasks/${task._id}`}
-                        className="py-1.5 px-3 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-600 hover:to-purple-600 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                        className="py-1.5 px-3 bg-linear-to-r from-indigo-50 to-purple-50 hover:from-indigo-600 hover:to-purple-600 text-indigo-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-indigo-200/50 hover:border-transparent shadow-sm hover:shadow-md"
                     >
                         <ExternalLink size={12} /> Details
                     </Link>
@@ -272,7 +272,7 @@ export const TaskCard = ({
                         task.status !== "rejected" && (
                             <button
                                 onClick={() => onRequestExtension(task)}
-                                className="py-1.5 px-3 bg-gradient-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
+                                className="py-1.5 px-3 bg-linear-to-r from-amber-50 to-amber-100/50 hover:from-amber-600 hover:to-amber-700 text-amber-600 hover:text-white text-[11px] font-medium rounded-lg transition-all duration-300 flex items-center gap-1.5 border border-amber-200/50 hover:border-transparent shadow-sm hover:shadow-md"
                             >
                                 <CalendarClock size={12} /> Extend
                             </button>
