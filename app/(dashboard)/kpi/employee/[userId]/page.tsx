@@ -137,7 +137,7 @@ interface ApiTask {
     status: string;
     priority: string;
     deadline?: string;
-    assignedTo?: string;
+    assignedTo?: string | { _id: string } | null;
     createdAt: string;
     actualMinutes?: number;
 }
