@@ -1360,7 +1360,9 @@ export default function TasksBoardPage() {
                   </div>
                   <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-1">Created</h3>
-                    <p className="text-gray-800 text-sm">{formatDateTime(selectedTask.createdAt)}</p>
+                    <p className="text-gray-800 text-sm">
+                      {selectedTask.createdAt ? formatDateTime(selectedTask.createdAt) : "N/A"}
+                    </p>
                   </div>
                 </div>
 
