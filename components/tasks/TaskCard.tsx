@@ -97,7 +97,7 @@ export const TaskCard = ({
 
                         {hasEvidence && (
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 flex items-center gap-1">
-                                <Paperclip size={10} /> Evidence ({task.evidenceUrls.length})
+                                <Paperclip size={10} /> Evidence ({task.evidenceUrls?.length || 0})
                             </span>
                         )}
 
