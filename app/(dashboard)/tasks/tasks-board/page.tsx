@@ -554,14 +554,23 @@ export default function TasksBoardPage() {
   }, [editingTask, editFormData, fetchTasks]);
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
+    if (!taskId) {
+      toast.error("No task selected");
+      return;
+    }
+
     try {
       const response = await api.delete(`/tasks/${taskId}`);
       if (response.data.success) {
         toast.success("Task deleted successfully");
         setShowDeleteConfirm(null);
-        fetchTasks();
+        // Refresh tasks
+        await fetchTasks();
+      } else {
+        toast.error(response.data.message || "Failed to delete task");
       }
     } catch (error: any) {
+      console.error("Delete task error:", error);
       toast.error(error.response?.data?.message || "Failed to delete task");
     }
   }, [fetchTasks]);
@@ -1037,6 +1046,12 @@ export default function TasksBoardPage() {
                             <RefreshCw size={12} />
                           </button>
                         )}
+                        <button
+                          onClick={() => setShowDeleteConfirm(task._id)}
+                          className="p-1 text-gray-400 hover:text-rose-600"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1090,6 +1105,12 @@ export default function TasksBoardPage() {
                                   <Play size={14} />
                                 </button>
                               )}
+                              <button
+                                onClick={() => setShowDeleteConfirm(task._id)}
+                                className="p-1 text-gray-400 hover:text-rose-600"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1250,25 +1271,305 @@ export default function TasksBoardPage() {
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-6 text-center">
-            <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 className="w-8 h-8 text-rose-500" />
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-rose-500" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Task</h3>
+              <p className="text-slate-500 mb-6 text-sm">
+                Are you sure you want to delete this task? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    if (showDeleteConfirm) {
+                      handleDeleteTask(showDeleteConfirm);
+                    }
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Task</h3>
-            <p className="text-slate-500 mb-6">Are you sure you want to delete this task? This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { if (showDeleteConfirm) handleDeleteTask(showDeleteConfirm); }}
-                className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition"
-              >
-                Delete
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg transition"
-              >
-                Cancel
-              </button>
+          </div>
+        </div>
+      )}
+
+      {/* Task Details Modal */}
+      {selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">{selectedTask.title}</h2>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getPriorityConfig(selectedTask.priority).color}`}>
+                      {getPriorityConfig(selectedTask.priority).icon} {selectedTask.priority.toUpperCase()}
+                    </span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getStatusConfig(selectedTask.status).color}`}>
+                      {getStatusConfig(selectedTask.status).icon} {selectedTask.status.replace("_", " ").toUpperCase()}
+                    </span>
+                    {selectedTask.projectId && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">
+                        {selectedTask.projectId.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-1">Description</h3>
+                  <p className="text-gray-600 text-sm whitespace-pre-wrap">
+                    {selectedTask.description || "No description provided."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-1">Assigned To</h3>
+                    <p className="text-gray-800 text-sm">{selectedTask.assignedTo?.fullName || "Unassigned"}</p>
+                    {selectedTask.assignedTo?.email && (
+                      <p className="text-xs text-gray-400">{selectedTask.assignedTo.email}</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-1">Deadline</h3>
+                    <p className="text-gray-800 text-sm">{formatDate(selectedTask.deadline)}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-1">Estimated Hours</h3>
+                    <p className="text-gray-800 text-sm">{selectedTask.estimatedHours || 0}h</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-1">Created</h3>
+                    <p className="text-gray-800 text-sm">{formatDateTime(selectedTask.createdAt)}</p>
+                  </div>
+                </div>
+
+                {selectedTask.evidenceUrls && selectedTask.evidenceUrls.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-1">Evidence</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTask.evidenceUrls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-indigo-600 hover:text-indigo-800 underline"
+                        >
+                          📎 Evidence {idx + 1}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTask.rejectionReason && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    <h3 className="text-sm font-medium text-rose-700 mb-1">Rejection Reason</h3>
+                    <p className="text-sm text-rose-600">{selectedTask.rejectionReason}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6 pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    const task = selectedTask;
+                    setSelectedTask(null);
+                    openEditModal(task);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Edit2 size={16} />
+                  Edit Task
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(selectedTask._id);
+                    setSelectedTask(null);
+                  }}
+                  className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </button>
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {showEditModal && editingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-800">Edit Task</h2>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingTask(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleUpdateTask(); }} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <input
+                    type="text"
+                    value={editFormData.title}
+                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                    className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={editFormData.description}
+                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                    <select
+                      value={editFormData.priority}
+                      onChange={(e) => setEditFormData({ ...editFormData, priority: e.target.value as any })}
+                      className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    >
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={editFormData.status}
+                      onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value as any })}
+                      className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="submitted">Submitted</option>
+                      <option value="completed">Completed</option>
+                      <option value="overdue">Overdue</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Deadline</label>
+                    <input
+                      type="date"
+                      value={editFormData.deadline}
+                      onChange={(e) => setEditFormData({ ...editFormData, deadline: e.target.value })}
+                      className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Hours</label>
+                    <input
+                      type="number"
+                      value={editFormData.estimatedHours}
+                      onChange={(e) => setEditFormData({ ...editFormData, estimatedHours: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      min="0"
+                      step="0.5"
+                    />
+                  </div>
+                </div>
+
+                {canManage && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                      <select
+                        value={editFormData.assignedTo}
+                        onChange={(e) => setEditFormData({ ...editFormData, assignedTo: e.target.value })}
+                        className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="">Select User</option>
+                        {users.map((u) => (
+                          <option key={u._id} value={u._id}>{u.fullName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                      <select
+                        value={editFormData.projectId}
+                        onChange={(e) => setEditFormData({ ...editFormData, projectId: e.target.value })}
+                        className="w-full px-4 py-2 border text-black border-gray-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                      >
+                        <option value="">Select Project</option>
+                        {projects.map((p) => (
+                          <option key={p._id} value={p._id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                  >
+                    <Check size={16} />
+                    Update Task
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingTask(null);
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
