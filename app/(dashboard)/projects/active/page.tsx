@@ -198,7 +198,8 @@ export default function ProjectsPage() {
   // Function to calculate progress from tasks
   const calculateProgress = (project: Project): number => {
     if (!project.tasksCount || project.tasksCount === 0) return 0;
-    return Math.round((project.completedTasks / project.tasksCount) * 100);
+    const progress = Math.round((project.completedTasks / project.tasksCount) * 100);
+    return Math.min(progress, 100); // 🔥 FIX: Cap at 100%
   };
 
   // Fetch all data
@@ -218,10 +219,14 @@ export default function ProjectsPage() {
 
       if (projectsRes.data.success) {
         const projectData = projectsRes.data.data || [];
-        const projectsWithProgress = projectData.map((project: Project) => ({
-          ...project,
-          progress: calculateProgress(project)
-        }));
+        const projectsWithProgress = projectData.map((project: Project) => {
+          const completedTasks = Math.min(project.completedTasks, project.tasksCount || 0);
+          return {
+            ...project,
+            completedTasks,
+            progress: calculateProgress({ ...project, completedTasks })
+          };
+        });
         setProjects(projectsWithProgress);
       }
       if (deptsRes.data.success) {
@@ -759,7 +764,7 @@ export default function ProjectsPage() {
             <span className={`font-medium ${isComplete ? 'text-emerald-600' : 'text-gray-700'}`}>
               {progress}%
             </span>
-            {isComplete && (
+            {isComplete && (project.budget?.allocated || 0) > 0 && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 pointer-events-none">
                 <CheckCircle size={10} className="text-emerald-500" />
                 Complete

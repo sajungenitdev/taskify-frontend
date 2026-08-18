@@ -50,12 +50,12 @@ interface Task {
   title: string;
   description?: string;
   status:
-    | "pending"
-    | "in_progress"
-    | "submitted"
-    | "completed"
-    | "overdue"
-    | "rejected";
+  | "pending"
+  | "in_progress"
+  | "submitted"
+  | "completed"
+  | "overdue"
+  | "rejected";
   priority?: "low" | "medium" | "high" | "urgent";
   assignedTo?: User | string;
   assignedBy?: User | string;
@@ -147,13 +147,38 @@ export default function TeamTasksPage() {
     deadline: "",
   });
 
+  // app/tasks/page.tsx - Updated useEffect
   useEffect(() => {
-    if (isAuthenticated && user) {
-      fetchMyTeams();
-    } else if (!isAuthenticated && !loading) {
-      router.push("/login");
-    }
-  }, [isAuthenticated, user]);
+    if (!isAuthenticated || !user) return;
+
+    // Use a flag to prevent multiple calls
+    let isLoaded = false;
+
+    const loadAllData = async () => {
+      if (isLoaded) return;
+      isLoaded = true;
+
+      try {
+        await fetchTasks();
+        await Promise.all([
+          fetchUsers(),
+          fetchProjects(),
+          fetchDepartmentUsers(),
+          fetchMyExtensionRequests(user),
+          fetchAllExtensionRequests()
+        ]);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      }
+    };
+
+    loadAllData();
+
+    // Cleanup
+    return () => {
+      isLoaded = true;
+    };
+  }, [isAuthenticated, user]); // Remove filter dependency
 
   const fetchMyTeams = async () => {
     try {
@@ -456,11 +481,10 @@ export default function TeamTasksPage() {
                 // Refetch tasks when switching teams
                 fetchUserTasks();
               }}
-              className={`px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                selectedTeamId === team._id
+              className={`px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 ${selectedTeamId === team._id
                   ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25"
                   : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
-              }`}
+                }`}
             >
               <div
                 className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold"
@@ -470,9 +494,8 @@ export default function TeamTasksPage() {
               </div>
               {team.name}
               <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  selectedTeamId === team._id ? "bg-white" : "bg-emerald-500"
-                }`}
+                className={`w-1.5 h-1.5 rounded-full ${selectedTeamId === team._id ? "bg-white" : "bg-emerald-500"
+                  }`}
               />
             </button>
           ))}
@@ -530,21 +553,19 @@ export default function TeamTasksPage() {
                   <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
                     <button
                       onClick={() => setViewMode("list")}
-                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${
-                        viewMode === "list"
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${viewMode === "list"
                           ? "bg-white shadow-sm text-indigo-600"
                           : "text-gray-500 hover:text-gray-700"
-                      }`}
+                        }`}
                     >
                       <List className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setViewMode("kanban")}
-                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${
-                        viewMode === "kanban"
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${viewMode === "kanban"
                           ? "bg-white shadow-sm text-indigo-600"
                           : "text-gray-500 hover:text-gray-700"
-                      }`}
+                        }`}
                     >
                       <LayoutGrid className="w-4 h-4" />
                     </button>
@@ -589,7 +610,7 @@ export default function TeamTasksPage() {
                           const priority = task.priority || "medium";
                           const priorityClass =
                             priorityColors[
-                              priority as keyof typeof priorityColors
+                            priority as keyof typeof priorityColors
                             ] || priorityColors.medium;
 
                           return (
@@ -725,7 +746,7 @@ export default function TeamTasksPage() {
                               const priority = task.priority || "medium";
                               const priorityClass =
                                 priorityColors[
-                                  priority as keyof typeof priorityColors
+                                priority as keyof typeof priorityColors
                                 ] || priorityColors.medium;
                               return (
                                 <div

@@ -99,6 +99,7 @@ interface Task {
   comments?: number;
   attachments?: number;
   isStarred?: boolean;
+  order?: number; // ← ADD THIS
 }
 
 interface Column {
@@ -254,25 +255,26 @@ export default function TaskBoardPage() {
   }, []);
 
   const fetchTasks = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await api.get("/tasks");
-      if (response.data.success) {
-        const tasksWithMeta = (response.data.data || []).map((task: Task) => ({
-          ...task,
-          comments: Math.floor(Math.random() * 10),
-          attachments: Math.floor(Math.random() * 5),
-          isStarred: false,
-        }));
-        setTasks(tasksWithMeta);
-        if (response.data.stats) setStats(response.data.stats);
-      }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to fetch tasks");
-    } finally {
-      setLoading(false);
+  try {
+    setLoading(true);
+    const response = await api.get("/tasks");
+    if (response.data.success) {
+      const tasksWithMeta = (response.data.data || []).map((task: Task, index: number) => ({
+        ...task,
+        comments: Math.floor(Math.random() * 10),
+        attachments: Math.floor(Math.random() * 5),
+        isStarred: false,
+        order: task.order ?? index, // ← Use existing order or fallback to index
+      }));
+      setTasks(tasksWithMeta);
+      if (response.data.stats) setStats(response.data.stats);
     }
-  }, []);
+  } catch (error: any) {
+    toast.error(error.response?.data?.message || "Failed to fetch tasks");
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   // ============================================================
   // EFFECTS
@@ -556,44 +558,46 @@ useEffect(() => {
   // FILTERED TASKS - DECLARED BEFORE handleExport
   // ============================================================
   const getFilteredTasks = useCallback(() => {
-    const searchLower = searchTerm.toLowerCase();
+  const searchLower = searchTerm.toLowerCase();
 
-    const filtered = tasks.filter((task) => {
-      const matchesSearch =
-        !searchLower ||
-        task.title?.toLowerCase().includes(searchLower) ||
-        task.description?.toLowerCase().includes(searchLower);
+  const filtered = tasks.filter((task) => {
+    const matchesSearch =
+      !searchLower ||
+      task.title?.toLowerCase().includes(searchLower) ||
+      task.description?.toLowerCase().includes(searchLower) ||
+      task.assignedTo?.fullName?.toLowerCase().includes(searchLower) || // ← ADD THIS
+      task.assignedTo?.email?.toLowerCase().includes(searchLower);      // ← ADD THIS (optional)
 
-      const matchesPriority =
-        !selectedPriority || task.priority === selectedPriority;
+    const matchesPriority =
+      !selectedPriority || task.priority === selectedPriority;
 
-      const matchesProject =
-        !selectedProject || task.projectId?._id === selectedProject;
+    const matchesProject =
+      !selectedProject || task.projectId?._id === selectedProject;
 
-      return matchesSearch && matchesPriority && matchesProject;
-    });
+    return matchesSearch && matchesPriority && matchesProject;
+  });
 
-    return [...filtered].sort((a, b) => {
-      let aVal = 0;
-      let bVal = 0;
+  return [...filtered].sort((a, b) => {
+    let aVal = 0;
+    let bVal = 0;
 
-      switch (sortBy) {
-        case "deadline":
-          aVal = a.deadline ? new Date(a.deadline).getTime() : 0;
-          bVal = b.deadline ? new Date(b.deadline).getTime() : 0;
-          break;
-        case "priority":
-          aVal = PRIORITY_ORDER[a.priority] ?? 0;
-          bVal = PRIORITY_ORDER[b.priority] ?? 0;
-          break;
-        default:
-          aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      }
+    switch (sortBy) {
+      case "deadline":
+        aVal = a.deadline ? new Date(a.deadline).getTime() : 0;
+        bVal = b.deadline ? new Date(b.deadline).getTime() : 0;
+        break;
+      case "priority":
+        aVal = PRIORITY_ORDER[a.priority] ?? 0;
+        bVal = PRIORITY_ORDER[b.priority] ?? 0;
+        break;
+      default:
+        aVal = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        bVal = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    }
 
-      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-    });
-  }, [tasks, searchTerm, selectedPriority, selectedProject, sortBy, sortOrder]);
+    return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+  });
+}, [tasks, searchTerm, selectedPriority, selectedProject, sortBy, sortOrder]);
 
   const filteredTasks = getFilteredTasks();
 
@@ -641,41 +645,81 @@ useEffect(() => {
   // ============================================================
   // BUILD COLUMNS
   // ============================================================
+  // const columns = useMemo(() => {
+  //   const visibleColumns = columnSettings.filter((col) => col.visible);
+  //   return visibleColumns.map((col) => {
+  //     const columnTasks = filteredTasks.filter((t) => t.status === col.id);
+  //     const colorMap: Record<string, string> = {
+  //       amber: "amber",
+  //       sky: "sky",
+  //       purple: "purple",
+  //       emerald: "emerald",
+  //       rose: "rose",
+  //       indigo: "indigo",
+  //       pink: "pink",
+  //       cyan: "cyan",
+  //       lime: "lime",
+  //       orange: "orange",
+  //       teal: "teal",
+  //       violet: "violet",
+  //     };
+  //     const iconMap: Record<string, any> = {
+  //       pending: Clock,
+  //       in_progress: Activity,
+  //       submitted: CheckCircle,
+  //       completed: CheckCircle,
+  //       overdue: AlertCircle,
+  //     };
+  //     return {
+  //       id: col.id,
+  //       title: col.title,
+  //       icon: iconMap[col.id] || Clock,
+  //       color: colorMap[col.color] || "gray",
+  //       tasks: columnTasks,
+  //       count: columnTasks.length,
+  //     };
+  //   });
+  // }, [filteredTasks, columnSettings]);
   const columns = useMemo(() => {
-    const visibleColumns = columnSettings.filter((col) => col.visible);
-    return visibleColumns.map((col) => {
-      const columnTasks = filteredTasks.filter((t) => t.status === col.id);
-      const colorMap: Record<string, string> = {
-        amber: "amber",
-        sky: "sky",
-        purple: "purple",
-        emerald: "emerald",
-        rose: "rose",
-        indigo: "indigo",
-        pink: "pink",
-        cyan: "cyan",
-        lime: "lime",
-        orange: "orange",
-        teal: "teal",
-        violet: "violet",
-      };
-      const iconMap: Record<string, any> = {
-        pending: Clock,
-        in_progress: Activity,
-        submitted: CheckCircle,
-        completed: CheckCircle,
-        overdue: AlertCircle,
-      };
-      return {
-        id: col.id,
-        title: col.title,
-        icon: iconMap[col.id] || Clock,
-        color: colorMap[col.color] || "gray",
-        tasks: columnTasks,
-        count: columnTasks.length,
-      };
-    });
-  }, [filteredTasks, columnSettings]);
+  const visibleColumns = columnSettings.filter((col) => col.visible);
+  return visibleColumns.map((col) => {
+    const columnTasks = filteredTasks
+      .filter((t) => t.status === col.id)
+      .sort((a, b) => (a.order || 0) - (b.order || 0)); // ← ADD THIS
+
+    const colorMap: Record<string, string> = {
+      amber: "amber",
+      sky: "sky",
+      purple: "purple",
+      emerald: "emerald",
+      rose: "rose",
+      indigo: "indigo",
+      pink: "pink",
+      cyan: "cyan",
+      lime: "lime",
+      orange: "orange",
+      teal: "teal",
+      violet: "violet",
+    };
+
+    const iconMap: Record<string, any> = {
+      pending: Clock,
+      in_progress: Activity,
+      submitted: CheckCircle,
+      completed: CheckCircle,
+      overdue: AlertCircle,
+    };
+
+    return {
+      id: col.id,
+      title: col.title,
+      icon: iconMap[col.id] || Clock,
+      color: colorMap[col.color] || "gray",
+      tasks: columnTasks,
+      count: columnTasks.length,
+    };
+  });
+}, [filteredTasks, columnSettings]);
 
   const getActiveTask = useCallback(() => {
     return tasks.find((task) => task._id === activeId);
@@ -688,35 +732,117 @@ useEffect(() => {
     setActiveId(event.active.id as string);
   }, []);
 
+  // const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+  //   const { active, over } = event;
+  //   setActiveId(null);
+  //   if (!over) return;
+
+  //   const activeTask = tasks.find((t) => t._id === active.id);
+  //   if (!activeTask) return;
+
+  //   let targetStatus: string | null = null;
+  //   const columnIds = columnSettings
+  //     .filter((col) => col.visible)
+  //     .map((col) => col.id);
+
+  //   for (const colId of columnIds) {
+  //     if (over.id === colId) {
+  //       targetStatus = colId;
+  //       break;
+  //     }
+  //   }
+
+  //   if (!targetStatus) {
+  //     const overTask = tasks.find((t) => t._id === over.id);
+  //     if (overTask) targetStatus = overTask.status;
+  //   }
+
+  //   if (targetStatus && targetStatus !== activeTask.status) {
+  //     await handleStatusChange(activeTask._id, targetStatus);
+  //   }
+  // }, [tasks, columnSettings, handleStatusChange]);
+
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-    if (!over) return;
+  const { active, over } = event;
+  setActiveId(null);
+  
+  if (!over) return;
 
-    const activeTask = tasks.find((t) => t._id === active.id);
-    if (!activeTask) return;
+  const activeTask = tasks.find((t) => t._id === active.id);
+  if (!activeTask) return;
 
-    let targetStatus: string | null = null;
-    const columnIds = columnSettings
-      .filter((col) => col.visible)
-      .map((col) => col.id);
+  // Check if dropped on a column
+  let targetStatus: string | null = null;
+  const columnIds = columnSettings
+    .filter((col) => col.visible)
+    .map((col) => col.id);
 
-    for (const colId of columnIds) {
-      if (over.id === colId) {
-        targetStatus = colId;
-        break;
+  // Check if dropped on a column header
+  for (const colId of columnIds) {
+    if (over.id === colId) {
+      targetStatus = colId;
+      break;
+    }
+  }
+
+  // If not dropped on column, check if dropped on another task
+  if (!targetStatus) {
+    const overTask = tasks.find((t) => t._id === over.id);
+    if (overTask) {
+      // Same column or different column
+      const activeColumn = activeTask.status;
+      const overColumn = overTask.status;
+
+      if (activeColumn === overColumn) {
+        // 🔥 SAME COLUMN REORDER
+        const columnTasks = tasks
+          .filter((t) => t.status === activeColumn)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+        const oldIndex = columnTasks.findIndex((t) => t._id === active.id);
+        const newIndex = columnTasks.findIndex((t) => t._id === over.id);
+
+        if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+
+        // Reorder the array
+        const [removed] = columnTasks.splice(oldIndex, 1);
+        columnTasks.splice(newIndex, 0, removed);
+
+        // Update orders
+        const updatedTasks = tasks.map((task) => {
+          const newOrder = columnTasks.findIndex((t) => t._id === task._id);
+          if (newOrder !== -1 && task.status === activeColumn) {
+            return { ...task, order: newOrder };
+          }
+          return task;
+        });
+
+        setTasks(updatedTasks);
+
+        // 🔥 Optional: Persist order to backend
+        try {
+          await api.patch(`/tasks/${activeTask._id}/reorder`, {
+            order: newIndex,
+            status: activeColumn,
+          });
+        } catch (error) {
+          console.error("Failed to save reorder:", error);
+          // Revert on error
+          await fetchTasks();
+        }
+
+        return;
+      } else {
+        targetStatus = overTask.status;
       }
     }
+  }
 
-    if (!targetStatus) {
-      const overTask = tasks.find((t) => t._id === over.id);
-      if (overTask) targetStatus = overTask.status;
-    }
-
-    if (targetStatus && targetStatus !== activeTask.status) {
-      await handleStatusChange(activeTask._id, targetStatus);
-    }
-  }, [tasks, columnSettings, handleStatusChange]);
+  // Handle column change
+  if (targetStatus && targetStatus !== activeTask.status) {
+    await handleStatusChange(activeTask._id, targetStatus);
+  }
+}, [tasks, columnSettings, handleStatusChange, fetchTasks]);
 
   if (loading) {
     return (

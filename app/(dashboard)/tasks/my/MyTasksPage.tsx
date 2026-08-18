@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -8,7 +7,6 @@ import { useRouter } from "next/navigation";
 import {
   CheckSquare,
   Clock,
-  CheckCircle,
   AlertCircle,
   Eye,
   RefreshCw,
@@ -25,41 +23,26 @@ import {
   ChevronRight,
   LayoutGrid,
   List,
-  Zap,
   AlertTriangle,
   Star,
-  MessageSquare,
   Paperclip,
   Plus,
-  Upload,
   Home,
-  Grid,
   Download,
-  TrendingUp,
-  BarChart3,
-  Activity,
   Award,
-  Target,
-  Rocket,
+  Activity,
   Play,
   Pause,
   Square,
-  StopCircle,
-  Clock as ClockIcon,
-  Timer as TimerIcon,
-  History,
-  PlayCircle,
-  EyeIcon,
-  Sparkles,
-  Gauge,
-  Layers,
-  Orbit,
-  Gem,
   Send,
   Check,
   GitBranch,
+  Gem,
+  Layers,
+  Sparkles,
   ChevronDown,
-  ChevronUp,
+  History,
+  EyeIcon,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -91,7 +74,6 @@ interface Task {
   evidenceUrls?: string[];
   rejectionReason?: string;
   approvalNote?: string;
-  // 🆕 NEW FIELDS
   isMilestone?: boolean;
   parentTaskId?: string | null | { _id: string; title: string; status: string };
   subTaskCount?: number;
@@ -100,105 +82,27 @@ interface Task {
   progress?: number;
 }
 
-// ============ CONSTANTS ============
+// ============ CONFIGURATIONS ============
 const PRIORITY_CONFIG = {
-  urgent: {
-    label: "Urgent",
-    color: "rose",
-    gradient: "from-rose-500 to-pink-600",
-    bg: "bg-linear-to-br from-rose-50 to-pink-50",
-    border: "border-rose-200",
-    icon: AlertTriangle,
-  },
-  high: {
-    label: "High",
-    color: "amber",
-    gradient: "from-amber-500 to-orange-600",
-    bg: "bg-linear-to-br from-amber-50 to-orange-50",
-    border: "border-amber-200",
-    icon: Flag,
-  },
-  normal: {
-    label: "Normal",
-    color: "blue",
-    gradient: "from-blue-500 to-indigo-600",
-    bg: "bg-linear-to-br from-blue-50 to-indigo-50",
-    border: "border-blue-200",
-    icon: Flag,
-  },
-  low: {
-    label: "Low",
-    color: "emerald",
-    gradient: "from-emerald-500 to-teal-600",
-    bg: "bg-linear-to-br from-emerald-50 to-teal-50",
-    border: "border-emerald-200",
-    icon: Flag,
-  },
+  urgent: { label: "Urgent", badge: "bg-rose-50 text-rose-700 border-rose-200", icon: AlertTriangle },
+  high: { label: "High", badge: "bg-amber-50 text-amber-700 border-amber-200", icon: Flag },
+  normal: { label: "Normal", badge: "bg-blue-50 text-blue-700 border-blue-200", icon: Flag },
+  low: { label: "Low", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: Flag },
 } as const;
 
 const STATUS_CONFIG = {
-  pending: {
-    label: "Pending",
-    color: "amber",
-    gradient: "from-amber-500 to-yellow-600",
-    bg: "bg-linear-to-br from-amber-50 to-yellow-50",
-    border: "border-amber-200",
-    icon: Clock,
-  },
-  in_progress: {
-    label: "In Progress",
-    color: "sky",
-    gradient: "from-sky-500 to-blue-600",
-    bg: "bg-linear-to-br from-sky-50 to-blue-50",
-    border: "border-sky-200",
-    icon: Activity,
-  },
-  submitted: {
-    label: "Submitted",
-    color: "purple",
-    gradient: "from-purple-500 to-violet-600",
-    bg: "bg-linear-to-br from-purple-50 to-violet-50",
-    border: "border-purple-200",
-    icon: Send,
-  },
-  completed: {
-    label: "Completed",
-    color: "emerald",
-    gradient: "from-emerald-500 to-green-600",
-    bg: "bg-linear-to-br from-emerald-50 to-green-50",
-    border: "border-emerald-200",
-    icon: Award,
-  },
-  overdue: {
-    label: "Overdue",
-    color: "rose",
-    gradient: "from-rose-500 to-red-600",
-    bg: "bg-linear-to-br from-rose-50 to-red-50",
-    border: "border-rose-200",
-    icon: AlertCircle,
-  },
-  rejected: {
-    label: "Rejected",
-    color: "red",
-    gradient: "from-red-500 to-rose-600",
-    bg: "bg-linear-to-br from-red-50 to-rose-50",
-    border: "border-red-200",
-    icon: X,
-  },
+  pending: { label: "Pending", badge: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock },
+  in_progress: { label: "In Progress", badge: "bg-sky-50 text-sky-700 border-sky-200", icon: Activity },
+  submitted: { label: "Submitted", badge: "bg-purple-50 text-purple-700 border-purple-200", icon: Send },
+  completed: { label: "Completed", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: Award },
+  overdue: { label: "Overdue", badge: "bg-rose-50 text-rose-700 border-rose-200", icon: AlertCircle },
+  rejected: { label: "Rejected", badge: "bg-red-50 text-red-700 border-red-200", icon: X },
 } as const;
 
-// ============ HELPERS ============
-const getPriorityConfig = (priority: string) => {
-  const key = priority as keyof typeof PRIORITY_CONFIG;
-  return PRIORITY_CONFIG[key] || PRIORITY_CONFIG.normal;
-};
+const getPriorityConfig = (p: string) => PRIORITY_CONFIG[p as keyof typeof PRIORITY_CONFIG] || PRIORITY_CONFIG.normal;
+const getStatusConfig = (s: string) => STATUS_CONFIG[s as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
 
-const getStatusConfig = (status: string) => {
-  const key = status as keyof typeof STATUS_CONFIG;
-  return STATUS_CONFIG[key] || STATUS_CONFIG.pending;
-};
-
-// ============ COMPONENTS ============
+// ============ STAT CARD ============
 const StatCard = ({
   icon: Icon,
   label,
@@ -206,7 +110,6 @@ const StatCard = ({
   gradient,
   subtitle,
   delay = 0,
-  pulse = false,
 }: {
   icon: any;
   label: string;
@@ -214,202 +117,94 @@ const StatCard = ({
   gradient: string;
   subtitle?: string;
   delay?: number;
-  pulse?: boolean;
 }) => (
   <motion.div
-    initial={{ opacity: 0, y: 20 }}
+    initial={{ opacity: 0, y: 15 }}
     animate={{ opacity: 1, y: 0 }}
-    transition={{ delay, duration: 0.4, type: "spring", stiffness: 100 }}
-    className={`relative overflow-hidden rounded-2xl p-5 bg-linear-to-br ${gradient} shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}
+    transition={{ delay, duration: 0.3 }}
+    className={`relative overflow-hidden rounded-2xl p-4 bg-linear-to-br ${gradient} shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 group`}
   >
-    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-500" />
-    <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
     <div className="relative z-10 flex items-start justify-between">
       <div>
-        <p className="text-3xl font-bold text-white tracking-tight">{value}</p>
-        <p className="text-sm text-white/80 mt-0.5 font-medium">{label}</p>
-        {subtitle && <p className="text-xs text-white/60 mt-1">{subtitle}</p>}
+        <p className="text-2xl font-black text-white tracking-tight">{value}</p>
+        <p className="text-xs text-white/80 mt-0.5 font-medium">{label}</p>
+        {subtitle && <p className="text-[10px] text-white/60 mt-0.5">{subtitle}</p>}
       </div>
-      <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
-        <Icon className="w-5 h-5 text-white" />
+      <div className="p-2 rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
+        <Icon className="w-4 h-4 text-white" />
       </div>
     </div>
-    {pulse && (
-      <div className="absolute inset-0 rounded-2xl animate-pulse bg-white/5" />
-    )}
   </motion.div>
 );
 
 // ============ SUB-TASK TREE COMPONENT ============
-const SubTaskTree = ({ 
-  task, 
-  onTaskClick,
-  level = 0 
-}: { 
-  task: Task; 
-  onTaskClick: (task: Task) => void;
-  level?: number;
-}) => {
-  const [expanded, setExpanded] = useState(true);
+const SubTaskTree = ({ task, onTaskClick, level = 0 }: { task: Task; onTaskClick: (t: Task) => void; level?: number }) => {
+  const [showSubTasks, setShowSubTasks] = useState(false);
   const [subTasks, setSubTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showSubTasks, setShowSubTasks] = useState(false);
 
   const hasSubTasks = (task.subTaskCount || 0) > 0;
 
-  const fetchSubTasks = useCallback(async () => {
+  const fetchSubTasks = async () => {
     if (!task._id) return;
-    
     setLoading(true);
     try {
-      const response = await api.get(`/tasks/${task._id}/subtasks`);
-      if (response.data.success) {
-        setSubTasks(response.data.data || []);
+      const res = await api.get(`/tasks/${task._id}/subtasks`);
+      if (res.data.success) {
+        setSubTasks(res.data.data || []);
         setShowSubTasks(true);
       }
-    } catch (error) {
-      console.error("Error fetching sub-tasks:", error);
-      toast.error("Failed to load sub-tasks");
+    } catch {
+      toast.error("Failed to fetch sub-tasks");
     } finally {
       setLoading(false);
     }
-  }, [task._id]);
-
-  const toggleExpand = () => {
-    if (!showSubTasks) {
-      fetchSubTasks();
-    } else {
-      setShowSubTasks(!showSubTasks);
-    }
   };
-
-  const isParent = task.isMilestone === false && hasSubTasks;
-  const isMilestone = task.isMilestone === true;
-  const progress = task.progress || 0;
 
   return (
     <div className="relative">
-      {/* Task Row */}
-      <div 
-        className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition cursor-pointer group ${isMilestone ? 'bg-purple-50/50 border-l-4 border-purple-400' : ''}`}
-        style={{ marginLeft: `${level * 24}px` }}
+      <div
+        className={`flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition cursor-pointer group border border-transparent hover:border-slate-100 ${task.isMilestone ? "bg-purple-50/40 border-purple-100" : ""
+          }`}
+        style={{ marginLeft: `${level * 20}px` }}
         onClick={() => onTaskClick(task)}
       >
-        {/* Expand/Collapse Button */}
-        {isParent && (
+        {hasSubTasks && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-              toggleExpand();
+              if (!showSubTasks) fetchSubTasks();
+              else setShowSubTasks(!showSubTasks);
             }}
-            className="p-1 hover:bg-gray-200 rounded-lg transition"
+            className="p-1 hover:bg-slate-200/60 rounded-lg transition"
           >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-            ) : showSubTasks ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
-            )}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" /> : showSubTasks ? <ChevronDown className="w-4 h-4 text-slate-500" /> : <ChevronRight className="w-4 h-4 text-slate-500" />}
           </button>
         )}
-
-        {/* Icon */}
-        {isMilestone ? (
-          <div className="w-6 h-6 flex items-center justify-center">
-            <Gem className="w-4 h-4 text-purple-500" />
-          </div>
-        ) : isParent ? (
-          <div className="w-6 h-6 flex items-center justify-center">
-            <GitBranch className="w-4 h-4 text-blue-500" />
-          </div>
-        ) : (
-          <div className="w-6 h-6 flex items-center justify-center">
-            <CheckSquare className="w-4 h-4 text-gray-400" />
-          </div>
-        )}
-
-        {/* Title & Status */}
+        <div className="w-7 h-7 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+          {task.isMilestone ? <Gem className="w-3.5 h-3.5 text-purple-600" /> : hasSubTasks ? <GitBranch className="w-3.5 h-3.5 text-indigo-600" /> : <CheckSquare className="w-3.5 h-3.5 text-slate-400" />}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-sm font-medium ${isMilestone ? 'text-purple-700' : 'text-gray-800'}`}>
-              {task.title}
-            </span>
-            {isMilestone && (
-              <span className="text-[8px] font-bold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded-full">
-                MILESTONE
-              </span>
-            )}
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border}`}>
+            <span className="text-sm font-bold text-slate-800 truncate">{task.title}</span>
+            <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${getStatusConfig(task.status).badge}`}>
               {task.status.replace("_", " ")}
             </span>
-            {isParent && (
-              <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                {task.completedSubTaskCount || 0}/{task.subTaskCount || 0} sub-tasks
-              </span>
-            )}
-            {progress > 0 && !isMilestone && (
-              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                {progress}%
-              </span>
-            )}
           </div>
-          {task.description && (
-            <p className="text-xs text-gray-400 truncate mt-0.5">{task.description}</p>
-          )}
         </div>
-
-        {/* Project & Deadline */}
-        <div className="flex items-center gap-3 text-xs text-gray-400 shrink-0">
-          {task.projectId && (
-            <span className="flex items-center gap-1">
-              <FolderKanban className="w-3 h-3" />
-              {task.projectId.name}
-            </span>
-          )}
-          {task.deadline && (
-            <span className={`flex items-center gap-1 ${new Date(task.deadline) < new Date() && task.status !== 'completed' ? 'text-rose-500' : ''}`}>
-              <Calendar className="w-3 h-3" />
-              {new Date(task.deadline).toLocaleDateString()}
-            </span>
-          )}
-          <span className="flex items-center gap-1">
-            <User className="w-3 h-3" />
-            {task.assignedTo?.fullName || 'Unassigned'}
-          </span>
+        <div className="flex items-center gap-4 text-xs text-slate-400 shrink-0">
+          {task.deadline && <span>{new Date(task.deadline).toLocaleDateString()}</span>}
         </div>
       </div>
-
-      {/* Sub-tasks */}
-      {isParent && showSubTasks && subTasks.length > 0 && (
-        <div className="mt-1 space-y-1">
-          {subTasks.map((subTask) => (
-            <SubTaskTree
-              key={subTask._id}
-              task={subTask}
-              onTaskClick={onTaskClick}
-              level={level + 1}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* No sub-tasks message */}
-      {isParent && showSubTasks && subTasks.length === 0 && !loading && (
-        <div 
-          className="text-xs text-gray-400 italic p-2"
-          style={{ marginLeft: `${(level + 1) * 24 + 40}px` }}
-        >
-          No sub-tasks found
-        </div>
-      )}
+      {showSubTasks && subTasks.map((st) => <SubTaskTree key={st._id} task={st} onTaskClick={onTaskClick} level={level + 1} />)}
     </div>
   );
 };
 
 // ============ MAIN COMPONENT ============
 export default function MyTasksPage() {
-  const { user, isAuthenticated, hasRole } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
   const {
     timerState,
@@ -424,10 +219,8 @@ export default function MyTasksPage() {
     isTimerActiveForTask,
     isTimerRunning,
     activeTimerTaskId,
-    syncTimerWithBackend,
     resetTimer,
     isTimerValidForUser,
-    getTimerOwner,
   } = useTimer();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -441,98 +234,67 @@ export default function MyTasksPage() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [sortBy, setSortBy] = useState<"deadline" | "priority" | "title">(
-    "deadline",
-  );
+  const [sortBy, setSortBy] = useState<"deadline" | "priority" | "title">("deadline");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [isCompleting, setIsCompleting] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
   const [isReworking, setIsReworking] = useState<string | null>(null);
-  // 🆕 View mode for tasks
   const [showParentOnly, setShowParentOnly] = useState(false);
 
   const itemsPerPage = 9;
 
-  // ============ CHECK IF USER IS TASK ASSIGNEE ============
+  // ============ PERMISSIONS & ASSIGNMENT HELPERS ============
   const isTaskAssignee = useCallback((task: Task): boolean => {
     if (!user || !task) return false;
-
-    if (task.assignedTo && typeof task.assignedTo === 'object') {
-      const assigneeId = task.assignedTo._id || (task.assignedTo as any).id;
-      const userId = user._id || (user as any).id;
-      return assigneeId === userId;
-    }
-
-    if (typeof task.assignedTo === 'string') {
-      return task.assignedTo === (user._id || (user as any).id);
-    }
-
-    return false;
+    const assigneeId = typeof task.assignedTo === 'object' ? task.assignedTo?._id : task.assignedTo;
+    const userId = user._id || (user as any).id;
+    return assigneeId === userId;
   }, [user]);
 
   const isTimerValidForCurrentUser = useCallback((): boolean => {
     if (!user) return false;
-    const userId = user._id || (user as any).id || '';
-    return isTimerValidForUser(userId);
+    return isTimerValidForUser(user._id || (user as any).id || '');
   }, [user, isTimerValidForUser]);
 
-  const hasAssignedTasks = tasks.some(task => isTaskAssignee(task));
+  const hasAssignedTasks = useMemo(() => tasks.some(t => isTaskAssignee(t)), [tasks, isTaskAssignee]);
 
   const hasValidActiveTimer = useCallback((): boolean => {
     if (!activeTimerTaskId) return false;
     const task = tasks.find(t => t._id === activeTimerTaskId);
-    if (!task) return false;
-    return isTaskAssignee(task) && isTimerValidForCurrentUser();
+    return task ? isTaskAssignee(task) && isTimerValidForCurrentUser() : false;
   }, [activeTimerTaskId, tasks, isTaskAssignee, isTimerValidForCurrentUser]);
 
-  // ============ EFFECTS ============
+  // ============ FETCH TASKS ============
+  const fetchMyTasks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await api.get("/tasks/my-tasks");
+      const taskList = res.data.success ? res.data.data : Array.isArray(res.data) ? res.data : [];
+      setTasks(taskList.map((t: Task) => ({ ...t, isStarred: false })));
+    } catch (err: any) {
+      if (err.response?.status === 404) setTasks([]);
+      else toast.error(err.response?.data?.message || "Failed to fetch tasks");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       router.push("/login");
       return;
     }
     fetchMyTasks();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, fetchMyTasks]);
 
-  // ============ FETCH TASKS ============
-  const fetchMyTasks = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get("/tasks/my-tasks");
-      if (response.data.success) {
-        const enrichedTasks = (response.data.data || []).map((task: Task) => ({
-          ...task,
-          isStarred: false,
-        }));
-        setTasks(enrichedTasks);
-      } else if (Array.isArray(response.data)) {
-        const enrichedTasks = response.data.map((task: Task) => ({
-          ...task,
-          isStarred: false,
-        }));
-        setTasks(enrichedTasks);
-      }
-    } catch (error: any) {
-      console.error("Error fetching tasks:", error);
-      if (error.response?.status === 404) {
-        setTasks([]);
-      } else {
-        toast.error(error.response?.data?.message || "Failed to fetch tasks");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ============ MARK COMPLETE ============
+  // ============ ACTIONS: COMPLETE / SUBMIT / STATUS ============
   const handleMarkComplete = async (taskId: string) => {
     if (isCompleting === taskId) return;
-
     const task = tasks.find(t => t._id === taskId);
     if (!task) return;
 
     if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
-      toast.error("⚠️ Evidence required! Please upload evidence before completing this task.");
+      toast.error("⚠️ Evidence required before completing this task.");
       return;
     }
 
@@ -541,676 +303,330 @@ export default function MyTasksPage() {
       let actualMinutes = task.actualMinutes || 0;
       if (isTimerActiveForTask(taskId)) {
         const timerResult = await stopTimerAutomatically(taskId);
-        if (timerResult.success && timerResult.minutes > 0) {
-          actualMinutes = timerResult.minutes;
-          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
-        }
+        if (timerResult.success && timerResult.minutes > 0) actualMinutes = timerResult.minutes;
       }
 
-      const response = await api.patch(`/tasks/${taskId}/status`, {
+      const res = await api.patch(`/tasks/${taskId}/status`, {
         status: "completed",
-        actualMinutes: actualMinutes,
-        approvalNote: "Task marked as complete by assignee",
+        actualMinutes,
+        approvalNote: "Completed by assignee",
       });
 
-      if (response.data.success) {
-        toast.success(`✅ Task marked as complete! ${actualMinutes > 0 ? `Time tracked: ${formatTimeShort(actualMinutes * 60)}` : ''}`);
+      if (res.data.success) {
+        toast.success("✅ Task marked as completed successfully!");
         await fetchMyTasks();
         setSelectedTask(null);
       }
-    } catch (error: any) {
-      console.error("Error marking task complete:", error);
-      toast.error(error.response?.data?.message || "Failed to mark task as complete");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to complete task");
     } finally {
       setIsCompleting(null);
     }
   };
 
-  // ============ SUBMIT FOR REVIEW ============
   const handleSubmitForReview = async (taskId: string) => {
     if (isSubmitting === taskId) return;
-
     const task = tasks.find(t => t._id === taskId);
     if (!task) return;
 
     if (task.evidenceRequired && (!task.evidenceUrls || task.evidenceUrls.length === 0)) {
-      toast.error("⚠️ Evidence required! Please upload evidence before submitting.");
+      toast.error("⚠️ Evidence required before submitting.");
       return;
     }
 
     setIsSubmitting(taskId);
     try {
-      if (isTimerActiveForTask(taskId)) {
-        const timerResult = await stopTimerAutomatically(taskId);
-        if (timerResult.success && timerResult.minutes > 0) {
-          toast.success(`⏱️ Time tracked: ${timerResult.displayTime}`);
-        }
-      }
-
-      const response = await api.patch(`/tasks/${taskId}/status`, {
-        status: "submitted",
-      });
-
-      if (response.data.success) {
-        toast.success(`✅ Task submitted for review!`);
+      if (isTimerActiveForTask(taskId)) await stopTimerAutomatically(taskId);
+      const res = await api.patch(`/tasks/${taskId}/status`, { status: "submitted" });
+      if (res.data.success) {
+        toast.success("🚀 Task submitted for review!");
         await fetchMyTasks();
         setSelectedTask(null);
       }
-    } catch (error: any) {
-      console.error("Error submitting task:", error);
-      toast.error(error.response?.data?.message || "Failed to submit task");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to submit task");
     } finally {
       setIsSubmitting(null);
     }
   };
 
-  // ============ SEND FOR REWORK ============
   const handleSendForRework = async (taskId: string) => {
-    if (isReworking === taskId) return;
-
-    if (!confirm("Send this task back for rework?")) return;
-
+    if (isReworking === taskId || !confirm("Send this task back for rework?")) return;
     setIsReworking(taskId);
     try {
-      const response = await api.patch(`/tasks/${taskId}/status`, {
-        status: "pending",
-      });
-
-      if (response.data.success) {
-        toast.success(`🔄 Task sent back for rework!`);
+      const res = await api.patch(`/tasks/${taskId}/status`, { status: "pending" });
+      if (res.data.success) {
+        toast.success("🔄 Task sent back for rework!");
         await fetchMyTasks();
         setSelectedTask(null);
       }
-    } catch (error: any) {
-      console.error("Error sending for rework:", error);
-      toast.error(error.response?.data?.message || "Failed to send for rework");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update task");
     } finally {
       setIsReworking(null);
     }
   };
 
-  // ============ STATUS CHANGE ============
   const handleStatusChange = async (taskId: string, newStatus: string) => {
     if (updatingStatus === taskId) return;
-
-    if (newStatus === "completed") {
-      await handleMarkComplete(taskId);
-      return;
-    }
-
-    if (newStatus === "submitted") {
-      await handleSubmitForReview(taskId);
-      return;
-    }
+    if (newStatus === "completed") { await handleMarkComplete(taskId); return; }
+    if (newStatus === "submitted") { await handleSubmitForReview(taskId); return; }
 
     setUpdatingStatus(taskId);
     try {
-      const response = await api.patch(`/tasks/${taskId}/status`, {
-        status: newStatus,
-      });
-      if (response.data.success) {
+      const res = await api.patch(`/tasks/${taskId}/status`, { status: newStatus });
+      if (res.data.success) {
         toast.success(`Task moved to ${newStatus.replace("_", " ")}`);
-        setTasks((prev) =>
-          prev.map((task) =>
-            task._id === taskId
-              ? { ...task, status: newStatus as Task["status"] }
-              : task,
-          ),
-        );
-        if (newStatus === "completed" && activeTimerTaskId === taskId) {
-          await stopTimerAutomatically(taskId);
-        }
+        setTasks(prev => prev.map(t => t._id === taskId ? { ...t, status: newStatus as Task["status"] } : t));
+        if (newStatus === "completed" && activeTimerTaskId === taskId) await stopTimerAutomatically(taskId);
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to update status");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to update status");
       await fetchMyTasks();
     } finally {
       setUpdatingStatus(null);
     }
   };
 
-  // ============ START TIMER ============
+  // ============ TIMER ACTIONS ============
   const handleStartTimer = async (taskId: string) => {
-    const task = tasks.find((t) => t._id === taskId);
-    if (!task) {
-      toast.error("Task not found");
+    const task = tasks.find(t => t._id === taskId);
+    if (!task || !isTaskAssignee(task)) {
+      toast.error("Permission denied or task not found");
       return;
     }
-
-    if (!isTaskAssignee(task)) {
-      toast.error("You don't have permission to start timer for this task");
+    if (activeTimerTaskId && activeTimerTaskId !== taskId && isTimerValidForCurrentUser()) {
+      toast.error("Another timer is currently active. Stop it before starting a new one.");
       return;
     }
+    if (timerState.taskId === null && timerState.elapsedSeconds > 0) resetTimer();
 
-    if (activeTimerTaskId && activeTimerTaskId !== taskId) {
-      if (isTimerValidForCurrentUser()) {
-        const currentTask = tasks.find((t) => t._id === activeTimerTaskId);
-        toast.error(
-          `⚠️ A timer is already running for "${currentTask?.title || 'another task'}". Please stop that timer first before starting a new one.`,
-          { duration: 4000 }
-        );
-        return;
-      } else {
-        resetTimer();
-      }
-    }
-
-    if (timerState.taskId === null && timerState.elapsedSeconds > 0) {
-      console.log("🧹 Cleaning up ghost timer state");
-      resetTimer();
-    }
-
-    const baselineSeconds = (task.actualMinutes || 0) * 60;
-    startTimer(taskId, baselineSeconds);
+    startTimer(taskId, (task.actualMinutes || 0) * 60);
     toast.success(`⏱️ Timer started for "${task.title}"`);
   };
 
-  // ============ PAUSE TIMER ============
-  const handlePauseTimer = () => {
-    pauseTimer();
-    toast.success("⏸️ Timer paused");
-  };
-
-  // ============ RESUME TIMER ============
-  const handleResumeTimer = () => {
-    resumeTimer();
-    toast.success("▶️ Timer resumed");
-  };
-
-  // ============ STOP TIMER ============
-  const handleStopTimer = useCallback(
-    async (taskId: string) => {
-      try {
-        const result = await stopTimer(taskId);
-
-        if (result.success) {
-          if (result.minutes > 0) {
-            toast.success(`⏱️ Time tracked: ${result.displayTime}`);
-            await fetchMyTasks();
-          } else {
-            toast.success("⏱️ Timer stopped - no time tracked");
-          }
-          return result;
-        } else {
-          toast.error("Failed to stop timer");
-          return result;
-        }
-      } catch (error) {
-        console.error("Error stopping timer:", error);
-        toast.error("Failed to stop timer");
-        return { success: false, minutes: 0, displayTime: "0m" };
+  const handleStopTimer = useCallback(async (taskId: string) => {
+    try {
+      const result = await stopTimer(taskId);
+      if (result.success) {
+        toast.success(`⏱️ Time tracked: ${result.displayTime}`);
+        await fetchMyTasks();
       }
-    },
-    [stopTimer, fetchMyTasks],
-  );
+      return result;
+    } catch {
+      toast.error("Failed to stop timer");
+      return { success: false, minutes: 0, displayTime: "0m" };
+    }
+  }, [stopTimer, fetchMyTasks]);
 
-  // ============ TOGGLE STAR ============
   const toggleStar = (taskId: string) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task._id === taskId ? { ...task, isStarred: !task.isStarred } : task,
-      ),
-    );
-    const task = tasks.find((t) => t._id === taskId);
-    toast.success(task?.isStarred ? "Unstarred" : "Starred ⭐");
+    setTasks(prev => prev.map(t => t._id === taskId ? { ...t, isStarred: !t.isStarred } : t));
+    toast.success("Star updated ⭐");
   };
 
-  // ============ RESET TIMER ============
-  const handleResetTimer = () => {
-    resetTimer();
-    toast.success("Timer state reset successfully");
-  };
-
-  // ============ FILTER AND SORT TASKS ============
+  // ============ FILTERING & MEMOIZED COMPUTATIONS ============
   const filteredTasks = useMemo(() => {
-    let filtered = tasks.filter((task) => {
-      const matchesSearch =
-        task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        task.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesPriority =
-        !selectedPriority || task.priority === selectedPriority;
+    let list = tasks.filter((task) => {
+      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) || task.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesPriority = !selectedPriority || task.priority === selectedPriority;
       const matchesStatus = !selectedStatus || task.status === selectedStatus;
       return matchesSearch && matchesPriority && matchesStatus;
     });
 
-    // 🆕 Filter: Show only parent tasks (no sub-tasks) or all tasks
     if (showParentOnly) {
-      filtered = filtered.filter(task => 
-        !task.parentTaskId || task.parentTaskId === null || task.parentTaskId === ''
-      );
+      list = list.filter(t => !t.parentTaskId || t.parentTaskId === null || t.parentTaskId === '');
     }
 
-    filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
-      switch (sortBy) {
-        case "deadline":
-          aVal = new Date(a.deadline).getTime();
-          bVal = new Date(b.deadline).getTime();
-          break;
-        case "priority":
-          const priorityOrder = { urgent: 4, high: 3, normal: 2, low: 1 };
-          aVal = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
-          bVal = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
-          break;
-        case "title":
-          aVal = a.title;
-          bVal = b.title;
-          break;
-        default:
-          aVal = a.title;
-          bVal = b.title;
+    list.sort((a, b) => {
+      if (sortBy === "deadline") return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      if (sortBy === "priority") {
+        const order = { urgent: 4, high: 3, normal: 2, low: 1 };
+        return (order[b.priority] || 0) - (order[a.priority] || 0);
       }
-      if (typeof aVal === "string") {
-        return sortOrder === "asc"
-          ? aVal.localeCompare(bVal)
-          : bVal.localeCompare(aVal);
-      }
-      return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+      return a.title.localeCompare(b.title);
     });
 
-    return filtered;
-  }, [tasks, searchTerm, selectedPriority, selectedStatus, sortBy, sortOrder, showParentOnly]);
+    return sortOrder === "asc" ? list : list.reverse();
+  }, [tasks, searchTerm, selectedPriority, selectedStatus, showParentOnly, sortBy, sortOrder]);
 
   const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
-  const paginatedTasks = filteredTasks.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
-  );
+  const paginatedTasks = useMemo(() => filteredTasks.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage), [filteredTasks, currentPage, itemsPerPage]);
 
-  // ============ HELPERS ============
-  const getPriorityIcon = (priority: string) => {
-    const config = getPriorityConfig(priority);
-    const Icon = config.icon || Flag;
-    return <Icon className="w-3 h-3" />;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffDays = Math.ceil(
-      (date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-    );
-    if (diffDays < 0) return "Overdue";
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    return `${diffDays} days left`;
-  };
-
-  const stats = {
+  const stats = useMemo(() => ({
     total: tasks.length,
-    pending: tasks.filter((t) => t.status === "pending").length,
-    inProgress: tasks.filter((t) => t.status === "in_progress").length,
-    submitted: tasks.filter((t) => t.status === "submitted").length,
-    completed: tasks.filter((t) => t.status === "completed").length,
-    overdue: tasks.filter((t) => t.status === "overdue").length,
-    rejected: tasks.filter((t) => t.status === "rejected").length,
-    milestoneCount: tasks.filter((t) => t.isMilestone === true).length,
-    subTaskCount: tasks.filter((t) => t.parentTaskId && t.parentTaskId !== null && t.parentTaskId !== '').length,
-  };
+    pending: tasks.filter(t => t.status === "pending").length,
+    inProgress: tasks.filter(t => t.status === "in_progress").length,
+    submitted: tasks.filter(t => t.status === "submitted").length,
+    completed: tasks.filter(t => t.status === "completed").length,
+    overdue: tasks.filter(t => t.status === "overdue").length,
+    rejected: tasks.filter(t => t.status === "rejected").length,
+    milestoneCount: tasks.filter(t => t.isMilestone === true).length,
+    subTaskCount: tasks.filter(t => t.parentTaskId && t.parentTaskId !== null && t.parentTaskId !== '').length,
+  }), [tasks]);
 
-  const totalTimeTracked = tasks.reduce(
-    (sum, task) => sum + (task.actualMinutes || 0),
-    0,
-  );
+  const totalTimeTracked = useMemo(() => tasks.reduce((sum, t) => sum + (t.actualMinutes || 0), 0), [tasks]);
   const totalHours = Math.floor(totalTimeTracked / 60);
   const totalMinutes = totalTimeTracked % 60;
 
-  // ============ EXPORT ============
+  const getTotalTimeForTask = useCallback((task: Task) => {
+    let mins = task.actualMinutes || 0;
+    if (isTimerActiveForTask(task._id)) mins += Math.floor(timerState.elapsedSeconds / 60);
+    return { minutes: mins, display: formatTimeShort(mins * 60) };
+  }, [timerState, isTimerActiveForTask, formatTimeShort]);
+
   const handleExport = () => {
-    const headers = [
-      "Title",
-      "Priority",
-      "Status",
-      "Project",
-      "Deadline",
-      "Time Tracked (minutes)",
-      "Assigned By",
-      "Created At",
-      "Is Milestone",
-      "Parent Task",
-      "Sub-Task Count",
-    ];
+    const headers = ["Title", "Priority", "Status", "Project", "Deadline", "Time Tracked (mins)"];
     const rows = filteredTasks.map((t) => [
-      t.title,
+      `"${t.title}"`,
       t.priority,
-      t.status.replace("_", " "),
-      t.projectId?.name || "N/A",
+      t.status,
+      `"${t.projectId?.name || "N/A"}"`,
       new Date(t.deadline).toLocaleDateString(),
       t.actualMinutes || 0,
-      t.assignedBy?.fullName || "N/A",
-      new Date(t.createdAt).toLocaleDateString(),
-      t.isMilestone ? "Yes" : "No",
-      typeof t.parentTaskId === 'object' ? t.parentTaskId?.title || "N/A" : "N/A",
-      t.subTaskCount || 0,
     ]);
-    const csvContent = [headers, ...rows]
-      .map((row) => row.join(","))
-      .join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `my_tasks_${new Date().toISOString().split("T")[0]}.csv`;
+    link.setAttribute("download", `tasks_export_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
     toast.success("Tasks exported successfully");
   };
 
-  // ============ GET TOTAL TIME ============
-  const getTotalTimeForTask = useCallback((task: Task) => {
-    if (!task) return { minutes: 0, display: "0m" };
-
-    let totalMinutes = task.actualMinutes || 0;
-
-    if (isTimerActiveForTask(task._id)) {
-      const currentSeconds = timerState.elapsedSeconds;
-      const currentMinutes = Math.floor(currentSeconds / 60);
-      totalMinutes = (task.actualMinutes || 0) + currentMinutes;
-    }
-
-    return {
-      minutes: totalMinutes,
-      display: formatTimeShort(totalMinutes * 60)
-    };
-  }, [timerState, isTimerActiveForTask, formatTimeShort]);
-
-  // ============ LOADING STATE ============
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/30 to-purple-50/30">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 animate-pulse" />
-            <Loader2 className="absolute inset-0 w-16 h-16 animate-spin text-white/80 p-3" />
-          </div>
-          <p className="text-gray-500 text-sm font-medium animate-pulse">
-            Loading your tasks...
-          </p>
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+          <p className="text-xs font-medium text-slate-400">Loading your workspace tasks...</p>
         </div>
       </div>
     );
   }
 
-  // ============ RENDER ============
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 via-indigo-50/20 to-purple-50/20">
-      <div className="container mx-auto px-4 py-6 md:py-8 w-full">
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm mb-6 text-gray-500">
-          <Link
-            href="/dashboard"
-            className="hover:text-gray-700 transition flex items-center gap-1"
-          >
-            <Home className="w-4 h-4" />
-            Dashboard
-          </Link>
-          <ChevronRight className="w-4 h-4 text-gray-300" />
-          <span className="text-gray-900 font-medium">My Tasks</span>
-        </nav>
+    <div className="min-h-screen bg-slate-50/60 antialiased">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold bg-linear-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-              My Tasks
-            </h1>
-            <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
-              View and manage all tasks assigned to you
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-linear-to-r from-indigo-100 to-purple-100 text-indigo-700 text-xs font-semibold border border-indigo-200">
-                {stats.total} total
-              </span>
-              {stats.milestoneCount > 0 && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold border border-purple-200">
-                  <Gem className="w-3 h-3" />
-                  {stats.milestoneCount} milestones
-                </span>
-              )}
-              {stats.subTaskCount > 0 && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200">
-                  <GitBranch className="w-3 h-3" />
-                  {stats.subTaskCount} sub-tasks
-                </span>
-              )}
-            </p>
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+          <Link href="/dashboard" className="hover:text-slate-600 transition flex items-center gap-1">
+            <Home size={13} /> Dashboard
+          </Link>
+          <ChevronRight size={13} />
+          <span className="text-slate-700">My Tasks</span>
+        </div>
+
+        {/* Header Banner */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 sm:p-8 rounded-3xl border border-slate-100 shadow-xs">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-linear-to-tr from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/20 text-white">
+                <CheckSquare className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Assigned Tasks Hub</h1>
+                  <span className="px-2.5 py-0.5 text-xs font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+                    {stats.total} total
+                  </span>
+                </div>
+                <p className="text-slate-500 text-sm font-medium">Track operational deliverables, log active hours, and manage sub-tasks seamlessly.</p>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {/* Reset Timer Button */}
-            {timerState.taskId === null && timerState.elapsedSeconds > 0 && (
-              <button
-                onClick={handleResetTimer}
-                className="px-3 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm flex items-center gap-2 transition shadow-sm"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Reset Stuck Timer
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
+              <button onClick={() => setView("grid")} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${view === "grid" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}>
+                <LayoutGrid size={14} /> Grid
               </button>
-            )}
-            <button
-              onClick={handleExport}
-              className="px-3 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition text-sm flex items-center gap-2 shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </button>
-            <div className="flex bg-white/80 backdrop-blur-sm rounded-xl p-1 border border-gray-200 shadow-sm">
-              <button
-                onClick={() => setView("grid")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "grid"
-                  ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                  : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                <LayoutGrid className="w-4 h-4" />
-                Grid
+              <button onClick={() => setView("list")} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${view === "list" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}>
+                <List size={14} /> List
               </button>
-              <button
-                onClick={() => setView("list")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "list"
-                  ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                  : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                <List className="w-4 h-4" />
-                List
-              </button>
-              <button
-                onClick={() => setView("tree")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5 transition-all ${view === "tree"
-                  ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                  : "text-gray-500 hover:text-gray-700"
-                  }`}
-              >
-                <GitBranch className="w-4 h-4" />
-                Tree
+              <button onClick={() => setView("tree")} className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${view === "tree" ? "bg-white text-slate-900 shadow-xs" : "text-slate-500 hover:text-slate-800"}`}>
+                <GitBranch size={14} /> Tree
               </button>
             </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-3 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition-all shadow-md shadow-indigo-500/25 hover:shadow-lg hover:scale-105"
-            >
-              <Plus className="w-4 h-4" />
-              Create Task
+
+            <button onClick={handleExport} className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl flex items-center gap-2 transition shadow-xs cursor-pointer">
+              <Download size={14} /> Export CSV
             </button>
-            <button
-              onClick={fetchMyTasks}
-              className="px-3 py-2 bg-white/80 backdrop-blur-sm border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-xl transition shadow-sm"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
-              />
+
+            <button onClick={() => setShowCreateModal(true)} className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl flex items-center gap-2 transition shadow-lg shadow-indigo-600/20 cursor-pointer">
+              <Plus size={15} /> Create Task
             </button>
           </div>
+        </motion.div>
+
+        {/* Statistical Counter Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {[
+            { label: "Total", val: stats.total, color: "text-slate-700", bg: "bg-slate-50" },
+            { label: "Pending", val: stats.pending, color: "text-amber-600", bg: "bg-amber-50" },
+            { label: "In Progress", val: stats.inProgress, color: "text-sky-600", bg: "bg-sky-50" },
+            { label: "Submitted", val: stats.submitted, color: "text-purple-600", bg: "bg-purple-50" },
+            { label: "Completed", val: stats.completed, color: "text-emerald-600", bg: "bg-emerald-50" },
+            { label: "Overdue", val: stats.overdue, color: "text-rose-600", bg: "bg-rose-50" },
+            { label: "Rejected", val: stats.rejected, color: "text-red-600", bg: "bg-red-50" },
+            { label: "Milestones", val: stats.milestoneCount, color: "text-violet-600", bg: "bg-violet-50" },
+          ].map((item, idx) => (
+            <div key={idx} className={`${item.bg} p-4 rounded-2xl border border-slate-100 shadow-xs flex flex-col justify-between`}>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{item.label}</span>
+              <p className={`text-xl font-black mt-2 ${item.color}`}>{item.val}</p>
+            </div>
+          ))}
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-4 mb-6">
-          <StatCard
-            icon={Layers}
-            label="Total Tasks"
-            value={stats.total}
-            gradient="from-slate-600 to-gray-700"
-            delay={0}
-          />
-          <StatCard
-            icon={Clock}
-            label="Pending"
-            value={stats.pending}
-            gradient="from-amber-500 to-yellow-600"
-            delay={0.05}
-          />
-          <StatCard
-            icon={Activity}
-            label="In Progress"
-            value={stats.inProgress}
-            gradient="from-sky-500 to-blue-600"
-            delay={0.1}
-          />
-          <StatCard
-            icon={Send}
-            label="Submitted"
-            value={stats.submitted}
-            gradient="from-purple-500 to-violet-600"
-            delay={0.15}
-          />
-          <StatCard
-            icon={Award}
-            label="Completed"
-            value={stats.completed}
-            gradient="from-emerald-500 to-green-600"
-            delay={0.2}
-          />
-          <StatCard
-            icon={AlertCircle}
-            label="Overdue"
-            value={stats.overdue}
-            gradient="from-rose-500 to-red-600"
-            delay={0.25}
-          />
-          <StatCard
-            icon={X}
-            label="Rejected"
-            value={stats.rejected}
-            gradient="from-red-500 to-rose-600"
-            delay={0.3}
-          />
-          <StatCard
-            icon={Gem}
-            label="Milestones"
-            value={stats.milestoneCount}
-            gradient="from-purple-500 to-violet-600"
-            delay={0.35}
-          />
-        </div>
-
-        {/* Time Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
-            <p className="text-sm text-gray-500">Total Time Tracked</p>
-            <p className="text-2xl font-bold text-gray-800">
-              {totalHours > 0 ? `${totalHours}h ${totalMinutes}m` : `${totalMinutes}m`}
-            </p>
-          </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
-            <p className="text-sm text-gray-500">Completion Rate</p>
-            <p className="text-2xl font-bold text-emerald-600">
-              {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
-            </p>
-          </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
-            <p className="text-sm text-gray-500">Active Timer</p>
-            <p className="text-2xl font-bold text-indigo-600">
-              {!hasAssignedTasks ? (
-                "No tasks assigned"
-              ) : hasValidActiveTimer() && isTimerRunning ? (
-                <span className="flex items-center gap-2">
-                  {formatTimeShort(timerState.elapsedSeconds)}
-                  <span className="text-sm font-normal text-emerald-500">● Running</span>
-                </span>
-              ) : hasValidActiveTimer() && activeTimerTaskId ? (
-                <span className="flex items-center gap-2 text-amber-500">
-                  {formatTimeShort(timerState.elapsedSeconds)}
-                  <span className="text-sm font-normal">● Paused</span>
-                </span>
-              ) : (
-                "No active timer"
-              )}
-            </p>
-          </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm">
-            <p className="text-sm text-gray-500">Sub-Tasks</p>
-            <p className="text-2xl font-bold text-blue-600">
-              {stats.subTaskCount}
-            </p>
-          </div>
-        </div>
-
-        {/* Search & Filters */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <div className="flex-1 relative min-w-[200px]">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        {/* Toolbar & Search */}
+        <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xs flex flex-col sm:flex-row gap-3 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search your tasks..."
+              placeholder="Search deliverables by title or description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition shadow-sm"
+              className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200/80 rounded-2xl text-slate-800 text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white transition"
             />
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${showFilters
-              ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white"
-              : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
-              }`}
-          >
-            <Filter className="w-4 h-4" />
-            Filters
-            {showFilters ? (
-              <ChevronLeft className="w-4 h-4" />
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
-          </button>
-          <button
-            onClick={() => {
-              setShowParentOnly(!showParentOnly);
-            }}
-            className={`px-4 py-2.5 rounded-xl flex items-center gap-2 text-sm transition-all shadow-sm ${showParentOnly
-              ? "bg-blue-600 text-white"
-              : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:text-gray-800"
-              }`}
-          >
-            <GitBranch className="w-4 h-4" />
-            {showParentOnly ? "Showing Parents Only" : "Show All"}
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-3 rounded-2xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${showFilters ? "bg-slate-900 text-white border-slate-900" : "bg-slate-50 text-slate-700 border-slate-200"
+                }`}
+            >
+              <Filter size={14} /> Filter Options
+            </button>
+            <button
+              onClick={() => setShowParentOnly(!showParentOnly)}
+              className={`px-4 py-3 rounded-2xl text-xs font-bold transition flex items-center gap-2 border cursor-pointer ${showParentOnly ? "bg-indigo-600 text-white border-indigo-600" : "bg-slate-50 text-slate-700 border-slate-200"
+                }`}
+            >
+              <GitBranch size={14} /> {showParentOnly ? "Parents Only" : "All Tasks"}
+            </button>
+          </div>
         </div>
 
+        {/* Filter Drawer */}
         <AnimatePresence>
           {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0, y: -10 }}
-              animate={{ opacity: 1, height: "auto", y: 0 }}
-              exit={{ opacity: 0, height: 0, y: -10 }}
-              className="overflow-hidden"
-            >
-              <div className="flex flex-wrap gap-3 bg-white/80 backdrop-blur-sm rounded-xl p-4 border border-gray-200 shadow-sm mb-6">
-                <select
-                  value={selectedPriority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
-                >
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+              <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-wrap gap-3 items-center">
+                <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)} className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none">
                   <option value="">All Priorities</option>
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
                   <option value="high">High</option>
                   <option value="urgent">Urgent</option>
                 </select>
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => setSelectedStatus(e.target.value)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
-                >
-                  <option value="">All Status</option>
+                <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none">
+                  <option value="">All Statuses</option>
                   <option value="pending">Pending</option>
                   <option value="in_progress">In Progress</option>
                   <option value="submitted">Submitted</option>
@@ -1218,1132 +634,191 @@ export default function MyTasksPage() {
                   <option value="overdue">Overdue</option>
                   <option value="rejected">Rejected</option>
                 </select>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as any)}
-                  className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
-                >
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 outline-none">
                   <option value="deadline">Sort by Deadline</option>
                   <option value="priority">Sort by Priority</option>
                   <option value="title">Sort by Title</option>
                 </select>
-                <button
-                  onClick={() =>
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                  }
-                  className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition"
-                >
-                  {sortOrder === "asc" ? "↑ Asc" : "↓ Desc"}
+                <button onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")} className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer">
+                  {sortOrder === "asc" ? "ASC ↑" : "DESC ↓"}
                 </button>
-                <button
-                  onClick={() => {
-                    setSearchTerm("");
-                    setSelectedPriority("");
-                    setSelectedStatus("");
-                  }}
-                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm transition"
-                >
-                  Reset Filters
+                <button onClick={() => { setSearchTerm(""); setSelectedPriority(""); setSelectedStatus(""); }} className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold cursor-pointer">
+                  Reset
                 </button>
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Active Timer Warning Banner */}
-        {hasValidActiveTimer() && activeTimerTaskId && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3"
-          >
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm text-amber-800">
-                <strong>Timer Active:</strong> A timer is currently running for a task.
-                Please stop or pause it before starting a new timer.
-                {(() => {
-                  const activeTask = tasks.find(t => t._id === activeTimerTaskId);
-                  return activeTask ? ` (${activeTask.title})` : '';
-                })()}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                if (activeTimerTaskId) {
-                  handleStopTimer(activeTimerTaskId);
-                }
-              }}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition"
-            >
-              Stop Timer
-            </button>
-          </motion.div>
-        )}
-
-        {/* Tasks Views */}
+        {/* Task Viewport */}
         {view === "tree" ? (
-          // 🆕 TREE VIEW - Shows hierarchy
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden shadow-sm"
-          >
-            <div className="p-4 border-b border-gray-200 bg-linear-to-r from-gray-50 to-indigo-50/30">
-              <div className="flex items-center gap-2">
-                <GitBranch className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-sm font-semibold text-gray-700">Task Hierarchy View</h3>
-                <span className="text-xs text-gray-400 ml-2">
-                  {filteredTasks.filter(t => !t.parentTaskId || t.parentTaskId === null || t.parentTaskId === '').length} parent tasks
-                </span>
-              </div>
-            </div>
-            <div className="p-4 space-y-2 max-h-[600px] overflow-y-auto">
-              {filteredTasks.length === 0 ? (
-                <div className="text-center py-16">
-                  <GitBranch className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 font-medium">No tasks found</p>
-                </div>
-              ) : (
-                // Show only parent tasks (no parentTaskId) in tree view
-                filteredTasks
-                  .filter(task => !task.parentTaskId || task.parentTaskId === null || task.parentTaskId === '')
-                  .map((task) => (
-                    <SubTaskTree
-                      key={task._id}
-                      task={task}
-                      onTaskClick={(t) => setSelectedTask(t)}
-                    />
-                  ))
-              )}
-              {filteredTasks.filter(task => !task.parentTaskId || task.parentTaskId === null || task.parentTaskId === '').length === 0 && filteredTasks.length > 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                  <p>All your tasks are sub-tasks. No parent tasks found.</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        ) : view === "grid" ? (
-          // Grid View (unchanged)
-          filteredTasks.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-20 bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-sm"
-            >
-              <div className="w-24 h-24 bg-linear-to-br from-indigo-100 to-purple-100 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-inner">
-                <CheckSquare className="w-12 h-12 text-indigo-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                No tasks found
-              </h3>
-              <p className="text-gray-500 text-sm max-w-md mx-auto">
-                {searchTerm || selectedPriority || selectedStatus
-                  ? "Try adjusting your filters"
-                  : "You don't have any tasks assigned to you."}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-6">
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105"
-                >
-                  <Plus className="w-4 h-4" />
-                  Create Task
-                </button>
-              </div>
-            </motion.div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {paginatedTasks.map((task, index) => {
-                  const isTimerActive = isTimerActiveForTask(task._id);
-                  const isRunning = isTimerActive && timerState.isRunning;
-                  const displayTime = getDisplayTimeForTask(
-                    task._id,
-                    task.actualMinutes,
-                  );
-                  const totalTime = getTotalTimeForTask(task);
-                  const isRejected = task.status === "rejected";
-                  const isTaskTimerActive = activeTimerTaskId === task._id;
-                  const isAssignee = isTaskAssignee(task);
-                  const canShowTimerControls = isAssignee &&
-                    task.status !== "completed" &&
-                    task.status !== "submitted" &&
-                    task.status !== "rejected";
-                  const isTaskTimerValid = isAssignee && isTimerValidForCurrentUser();
-                  const isMilestone = task.isMilestone === true;
-                  const isSubTask = task.parentTaskId && task.parentTaskId !== null && task.parentTaskId !== '';
-                  const hasSubTasks = (task.subTaskCount || 0) > 0;
-
-                  return (
-                    <motion.div
-                      key={task._id}
-                      initial={{ opacity: 0, y: 30, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{
-                        delay: index * 0.04,
-                        duration: 0.3,
-                        type: "spring",
-                        stiffness: 120,
-                      }}
-                      whileHover={{ y: -4, scale: 1.01 }}
-                      className={`group relative bg-white/80 backdrop-blur-sm rounded-2xl p-6 border transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl ${isRejected
-                        ? "border-red-200 hover:border-red-300 hover:shadow-red-500/10"
-                        : isMilestone
-                          ? "border-purple-300 hover:border-purple-400 hover:shadow-purple-500/20 bg-purple-50/30"
-                          : isSubTask
-                            ? "border-blue-100 hover:border-blue-300 hover:shadow-blue-500/10 ml-6"
-                            : "border-gray-200/50 hover:border-indigo-300/50 hover:shadow-indigo-500/10"
-                        } ${isTaskTimerActive && isTaskTimerValid
-                          ? "border-indigo-400 shadow-lg shadow-indigo-500/20 ring-2 ring-indigo-400/50"
-                          : ""
-                        }`}
-                      onClick={() => setSelectedTask(task)}
-                    >
-                      <div className="absolute inset-0 rounded-2xl bg-linear-to-br from-white/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                      <div
-                        className={`absolute top-0 left-4 right-4 h-1 rounded-full bg-linear-to-r ${getPriorityConfig(task.priority).gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}
-                      />
-
-                      <div className="relative z-10">
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {isMilestone && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-purple-100 border-purple-300 text-purple-700">
-                                <Gem className="w-3 h-3" />
-                                MILESTONE
-                              </span>
-                            )}
-                            {isSubTask && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-blue-50 border-blue-200 text-blue-600">
-                                <GitBranch className="w-3 h-3" />
-                                Sub-Task
-                              </span>
-                            )}
-                            {hasSubTasks && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-emerald-50 border-emerald-200 text-emerald-600">
-                                <GitBranch className="w-3 h-3" />
-                                {task.completedSubTaskCount || 0}/{task.subTaskCount} done
-                              </span>
-                            )}
-                            <span
-                              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
-                            >
-                              {getPriorityIcon(task.priority)}
-                              {task.priority.toUpperCase()}
-                            </span>
-                            <span
-                              className={`inline-flex items-center gap-1.5 text-black text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border}`}
-                            >
-                              {task.status.replace("_", " ")}
-                            </span>
-                            {task.evidenceRequired && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
-                                <Paperclip className="w-3 h-3" />
-                                Evidence Required
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleStar(task._id);
-                            }}
-                            className="transition-all duration-300 opacity-0 group-hover:opacity-100"
-                          >
-                            <Star
-                              className={`w-4 h-4 transition-colors ${task.isStarred ? "fill-amber-400 text-amber-400" : "text-gray-300 hover:text-amber-400"}`}
-                            />
-                          </button>
-                        </div>
-
-                        <h3 className="text-gray-800 font-semibold text-base mb-1.5 line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                          {task.title}
-                        </h3>
-                        <p className="text-gray-500 text-sm line-clamp-2 mb-3">
-                          {task.description}
-                        </p>
-
-                        {task.projectId && (
-                          <div className="flex items-center gap-1.5 mb-3">
-                            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border-2 bg-indigo-50 border-indigo-200 text-indigo-700">
-                              <FolderKanban className="w-3 h-3" />
-                              {task.projectId.name}
-                            </span>
-                            {task.parentTaskId && typeof task.parentTaskId === 'object' && (
-                              <span className="inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border-2 bg-blue-50 border-blue-200 text-blue-700">
-                                <GitBranch className="w-3 h-3" />
-                                Parent: {task.parentTaskId.title}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
-                              <span className="text-white text-[10px] font-bold">
-                                {task.assignedBy?.fullName?.charAt(0) || "?"}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-gray-400 truncate max-w-[80px]">
-                              Assigned by:{" "}
-                              {task.assignedBy?.fullName?.split(" ")[0]}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {task.estimatedHours > 0 && (
-                              <div className="flex items-center gap-1 text-gray-400">
-                                <Timer className="w-3 h-3" />
-                                <span className="text-[10px] font-medium text-gray-500">
-                                  {task.estimatedHours}h
-                                </span>
-                              </div>
-                            )}
-                            {task.deadline && (
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3 text-gray-400" />
-                                <span
-                                  className={`text-[10px] font-medium ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-500"}`}
-                                >
-                                  {formatDate(task.deadline)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {canShowTimerControls ? (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {isTimerActive && isTaskTimerValid ? (
-                                <>
-                                  <div className="flex-1 min-w-[100px]">
-                                    <div className="flex items-center gap-2">
-                                      <ClockIcon className="w-3.5 h-3.5 text-indigo-500" />
-                                      <span className="text-xs font-mono font-semibold text-gray-700 tabular-nums">
-                                        {formatTime(
-                                          timerState.elapsedSeconds,
-                                        )}
-                                      </span>
-                                      <span
-                                        className={`text-[10px] font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
-                                      >
-                                        {isRunning ? "●" : "⏸"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    {isRunning ? (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handlePauseTimer();
-                                        }}
-                                        className="px-2.5 py-1 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                                        title="Pause Timer"
-                                      >
-                                        <Pause className="w-3 h-3" />
-                                      </button>
-                                    ) : (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleResumeTimer();
-                                        }}
-                                        className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                                        title="Resume Timer"
-                                      >
-                                        <Play className="w-3 h-3" />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleStopTimer(task._id);
-                                      }}
-                                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded-lg transition-all font-medium hover:scale-105"
-                                      title="Stop Timer"
-                                    >
-                                      <Square className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="flex-1 min-w-[80px]">
-                                    <span className="text-xs text-gray-400">
-                                      {task.actualMinutes
-                                        ? `${task.actualMinutes}m logged`
-                                        : "No time tracked"}
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleStartTimer(task._id);
-                                    }}
-                                    className={`px-3 py-1 bg-linear-to-r cursor-pointer flex items-center text-white text-xs rounded-lg transition-all font-medium shadow-sm hover:shadow-md hover:scale-105 disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== task._id
-                                      ? "from-gray-400 to-gray-500 cursor-not-allowed"
-                                      : "from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
-                                      }`}
-                                    disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
-                                    title={
-                                      activeTimerTaskId && activeTimerTaskId !== task._id
-                                        ? "Another task timer is running"
-                                        : "Start Timer"
-                                    }
-                                  >
-                                    <Play className="w-3 h-3 me-2" />
-                                    Start
-                                  </button>
-                                </>
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleSubmitForReview(task._id);
-                                }}
-                                disabled={isSubmitting === task._id}
-                                className="px-2.5 py-1 bg-purple-500 hover:bg-purple-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
-                                title="Submit for Review"
-                              >
-                                {isSubmitting === task._id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Send className="w-3 h-3" />
-                                )}
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMarkComplete(task._id);
-                                }}
-                                disabled={isCompleting === task._id}
-                                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-lg transition-all font-medium hover:scale-105 disabled:opacity-50"
-                                title="Mark Complete"
-                              >
-                                {isCompleting === task._id ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Check className="w-3 h-3" />
-                                )}
-                              </button>
-                              <Link
-                                href={`/tasks/${task._id}`}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button className="px-2.5 py-1 cursor-pointer flex items-center bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs rounded-lg transition-all font-medium hover:scale-105">
-                                  <EyeIcon className="w-3 h-3 me-2" />
-                                  View
-                                </button>
-                              </Link>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-400">
-                                {task.actualMinutes ? `${task.actualMinutes}m logged` : "No time tracked"}
-                              </span>
-                              {task.actualMinutes > 0 && (
-                                <span className="text-xs text-gray-400">
-                                  <History className="w-3 h-3 inline mr-1" />
-                                  {task.actualMinutes}m
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center justify-between pt-6 flex-wrap gap-3"
-                >
-                  <p className="text-sm text-gray-500">
-                    Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                    {Math.min(currentPage * itemsPerPage, filteredTasks.length)}{" "}
-                    of {filteredTasks.length} tasks
-                  </p>
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="p-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50 transition shadow-sm disabled:cursor-not-allowed"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum: number;
-                      if (totalPages <= 5) pageNum = i + 1;
-                      else if (currentPage <= 3) pageNum = i + 1;
-                      else if (currentPage >= totalPages - 2)
-                        pageNum = totalPages - 4 + i;
-                      else pageNum = currentPage - 2 + i;
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3.5 py-2 rounded-xl text-sm font-medium transition-all ${currentPage === pageNum
-                            ? "bg-linear-to-r from-indigo-600 to-purple-600 text-white shadow-md"
-                            : "bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-600 hover:bg-gray-50"
-                            }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() =>
-                        setCurrentPage((p) => Math.min(totalPages, p + 1))
-                      }
-                      disabled={currentPage === totalPages}
-                      className="p-2 rounded-xl bg-white/80 backdrop-blur-sm border border-gray-200 text-gray-500 disabled:opacity-40 hover:bg-gray-50 transition shadow-sm disabled:cursor-not-allowed"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </>
-          )
-        ) : (
-          // List View (unchanged, but with sub-task indicators)
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white/80 backdrop-blur-sm rounded-2xl border border-gray-200 overflow-hidden shadow-sm"
-          >
+          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xs space-y-2">
+            {filteredTasks.filter((t) => !t.parentTaskId || t.parentTaskId === null || t.parentTaskId === '').length === 0 ? (
+              <div className="text-center py-16 text-slate-400 text-xs">No hierarchical parent tasks found.</div>
+            ) : (
+              filteredTasks.filter((t) => !t.parentTaskId || t.parentTaskId === null || t.parentTaskId === '').map((task) => (
+                <SubTaskTree key={task._id} task={task} onTaskClick={(t) => setSelectedTask(t)} />
+              ))
+            )}
+          </div>
+        ) : view === "list" ? (
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-linear-to-r from-gray-50 to-indigo-50/50 border-b border-gray-200">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Task
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Type
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Priority
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Project
-                    </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Deadline
-                    </th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Time
-                    </th>
-                    <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    <th className="px-6 py-4">Deliverable Title</th>
+                    <th className="px-6 py-4">Priority</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Deadline</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-16">
-                        <CheckSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                        <p className="text-gray-500 font-medium">
-                          No tasks found
-                        </p>
+                <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                  {paginatedTasks.map((task) => (
+                    <tr key={task._id} onClick={() => setSelectedTask(task)} className="hover:bg-slate-50/50 transition cursor-pointer">
+                      <td className="px-6 py-4 font-bold text-slate-900">{task.title}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border ${getPriorityConfig(task.priority).badge}`}>
+                          {task.priority.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full border ${getStatusConfig(task.status).badge}`}>
+                          {task.status.replace("_", " ").toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-500">{new Date(task.deadline).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedTask(task); }} className="p-2 text-slate-400 hover:text-indigo-600 rounded-xl transition cursor-pointer">
+                          <Eye size={16} />
+                        </button>
                       </td>
                     </tr>
-                  ) : (
-                    paginatedTasks.map((task) => {
-                      const isTimerActive = isTimerActiveForTask(task._id);
-                      const isRunning = isTimerActive && timerState.isRunning;
-                      const displayTime = getDisplayTimeForTask(
-                        task._id,
-                        task.actualMinutes,
-                      );
-                      const totalTime = getTotalTimeForTask(task);
-                      const isRejected = task.status === "rejected";
-                      const isAssignee = isTaskAssignee(task);
-                      const isTaskTimerValid = isAssignee && isTimerValidForCurrentUser();
-                      const isMilestone = task.isMilestone === true;
-                      const isSubTask = task.parentTaskId && task.parentTaskId !== null && task.parentTaskId !== '';
-                      const hasSubTasks = (task.subTaskCount || 0) > 0;
-
-                      return (
-                        <motion.tr
-                          key={task._id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          className={`hover:bg-indigo-50/30 transition cursor-pointer group ${isRejected ? "bg-red-50/20" : ""
-                            } ${isMilestone ? "bg-purple-50/30" : ""} ${isSubTask ? "bg-blue-50/10" : ""}`}
-                          onClick={() => setSelectedTask(task)}
-                        >
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              {isMilestone ? (
-                                <Gem className="w-4 h-4 text-purple-500" />
-                              ) : isSubTask ? (
-                                <GitBranch className="w-4 h-4 text-blue-400" />
-                              ) : hasSubTasks ? (
-                                <GitBranch className="w-4 h-4 text-emerald-400" />
-                              ) : (
-                                <CheckSquare className="w-4 h-4 text-gray-300" />
-                              )}
-                              <div>
-                                <p className="text-gray-800 text-sm font-medium line-clamp-1">
-                                  {task.title}
-                                </p>
-                                <p className="text-gray-400 text-xs line-clamp-1">
-                                  {task.description}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${isMilestone
-                              ? "bg-purple-100 border-purple-300 text-purple-700"
-                              : isSubTask
-                                ? "bg-blue-50 border-blue-200 text-blue-600"
-                                : "bg-gray-50 border-gray-200 text-gray-600"
-                              }`}>
-                              {isMilestone ? "Milestone" : isSubTask ? "Sub-Task" : "Task"}
-                            </span>
-                            {hasSubTasks && (
-                              <span className="ml-1 text-[10px] text-emerald-600">
-                                ({task.completedSubTaskCount || 0}/{task.subTaskCount})
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex items-center gap-1.5 text-taupe-950 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(task.priority).bg} ${getPriorityConfig(task.priority).border}`}
-                            >
-                              {getPriorityIcon(task.priority)}
-                              {task.priority}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <select
-                              value={task.status}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                handleStatusChange(task._id, e.target.value);
-                              }}
-                              className={`text-[10px] font-semibold text-taupe-950 px-2.5 py-1 rounded-full border-2 ${getStatusConfig(task.status).bg} ${getStatusConfig(task.status).border} bg-white cursor-pointer outline-none focus:ring-2 focus:ring-indigo-300`}
-                              onClick={(e) => e.stopPropagation()}
-                              disabled={
-                                updatingStatus === task._id ||
-                                isCompleting === task._id ||
-                                isSubmitting === task._id
-                              }
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="in_progress">In Progress</option>
-                              <option value="submitted">Submitted</option>
-                              <option value="completed">Completed</option>
-                              <option value="overdue">Overdue</option>
-                              <option value="rejected">Rejected</option>
-                            </select>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-500">
-                            {task.projectId?.name || "-"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`text-xs font-medium ${formatDate(task.deadline) === "Overdue" ? "text-rose-500" : "text-gray-500"}`}
-                            >
-                              {new Date(task.deadline).toLocaleDateString()}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              {isTimerActive && isTaskTimerValid ? (
-                                <>
-                                  <span
-                                    className={`text-xs font-medium ${isRunning ? "text-emerald-600" : "text-amber-600"}`}
-                                  >
-                                    {displayTime}
-                                  </span>
-                                  <span
-                                    className={`w-1.5 h-1.5 rounded-full ${isRunning ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
-                                  />
-                                </>
-                              ) : (
-                                <span className="text-xs text-gray-400">
-                                  {totalTime.minutes > 0 ? `${totalTime.display}` : "-"}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-1 flex-wrap">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedTask(task);
-                                }}
-                                className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                                title="View"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-                              {isAssignee && task.status !== "completed" &&
-                                task.status !== "submitted" &&
-                                task.status !== "rejected" && (
-                                  <>
-                                    {isTimerActive && isTaskTimerValid ? (
-                                      <>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            isRunning
-                                              ? handlePauseTimer()
-                                              : handleResumeTimer();
-                                          }}
-                                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                                          title={isRunning ? "Pause" : "Resume"}
-                                        >
-                                          {isRunning ? (
-                                            <Pause className="w-4 h-4" />
-                                          ) : (
-                                            <Play className="w-4 h-4" />
-                                          )}
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleStopTimer(task._id);
-                                          }}
-                                          className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                          title="Stop Timer"
-                                        >
-                                          <Square className="w-4 h-4" />
-                                        </button>
-                                      </>
-                                    ) : (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleStartTimer(task._id);
-                                        }}
-                                        className={`p-1.5 rounded-lg transition disabled:opacity-40 ${activeTimerTaskId && activeTimerTaskId !== task._id
-                                          ? "text-gray-400 cursor-not-allowed"
-                                          : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
-                                          }`}
-                                        disabled={!!activeTimerTaskId && activeTimerTaskId !== task._id}
-                                        title={
-                                          activeTimerTaskId && activeTimerTaskId !== task._id
-                                            ? "Another task timer is running"
-                                            : "Start Timer"
-                                        }
-                                      >
-                                        <Play className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleSubmitForReview(task._id);
-                                      }}
-                                      disabled={isSubmitting === task._id}
-                                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition disabled:opacity-40"
-                                      title="Submit for Review"
-                                    >
-                                      {isSubmitting === task._id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <Send className="w-4 h-4" />
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleMarkComplete(task._id);
-                                      }}
-                                      disabled={isCompleting === task._id}
-                                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-40"
-                                      title="Mark Complete"
-                                    >
-                                      {isCompleting === task._id ? (
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                      ) : (
-                                        <Check className="w-4 h-4" />
-                                      )}
-                                    </button>
-                                  </>
-                                )}
-                              {task.status === "rejected" && isAssignee && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSendForRework(task._id);
-                                  }}
-                                  disabled={isReworking === task._id}
-                                  className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition disabled:opacity-40"
-                                  title="Send for Rework"
-                                >
-                                  {isReworking === task._id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="w-4 h-4" />
-                                  )}
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </motion.tr>
-                      );
-                    })
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
-          </motion.div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {paginatedTasks.map((task, index) => {
+              const isMilestone = task.isMilestone === true;
+
+              return (
+                <motion.div
+                  key={task._id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  onClick={() => setSelectedTask(task)}
+                  className={`bg-white rounded-3xl border p-6 shadow-xs hover:shadow-xl transition-all cursor-pointer relative group flex flex-col justify-between ${isMilestone ? "border-purple-200 bg-purple-50/20" : "border-slate-100 hover:border-slate-200"
+                    }`}
+                >
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isMilestone && (
+                          <span className="px-2.5 py-0.5 text-[9px] font-black bg-purple-100 text-purple-700 rounded-full">MILESTONE</span>
+                        )}
+                        <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${getPriorityConfig(task.priority).badge}`}>
+                          {task.priority.toUpperCase()}
+                        </span>
+                        <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${getStatusConfig(task.status).badge}`}>
+                          {task.status.replace("_", " ").toUpperCase()}
+                        </span>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); toggleStar(task._id); }} className="text-slate-300 hover:text-amber-400 transition cursor-pointer">
+                        <Star size={15} className={task.isStarred ? "fill-amber-400 text-amber-400" : ""} />
+                      </button>
+                    </div>
+
+                    <h3 className="font-extrabold text-slate-900 text-base tracking-tight group-hover:text-indigo-600 transition line-clamp-1">{task.title}</h3>
+                    <p className="text-xs text-slate-400 font-medium line-clamp-2">{task.description || "No description provided."}</p>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                    <span className="flex items-center gap-1 font-semibold">
+                      <Calendar size={13} /> {new Date(task.deadline).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTask(task);
+                      }}
+                      className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Eye size={12} /> View
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
         )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 bg-white px-6 py-4 rounded-2xl border border-slate-100 shadow-xs">
+            <p className="text-xs font-semibold text-slate-500">
+              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredTasks.length)} of {filteredTasks.length} tasks
+            </p>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-xl border border-slate-200 disabled:opacity-40 cursor-pointer">
+                <ChevronLeft size={14} />
+              </button>
+              <span className="px-3 py-1 text-xs font-bold text-slate-700">Page {currentPage} of {totalPages}</span>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-xl border border-slate-200 disabled:opacity-40 cursor-pointer">
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
 
-      {/* Task Details Modal */}
+      {/* Task Details Modal with "Check Details" Page Link */}
       <AnimatePresence>
         {selectedTask && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="w-full max-w-2xl bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-linear-to-r from-indigo-50/80 to-purple-50/80 sticky top-0">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`p-2.5 rounded-xl bg-linear-to-br ${getPriorityConfig(selectedTask.priority).gradient} shadow-md`}
-                  >
-                    {getPriorityIcon(selectedTask.priority)}
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-800">
-                      {selectedTask.title}
-                    </h2>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getPriorityConfig(selectedTask.priority).bg} ${getPriorityConfig(selectedTask.priority).border}`}
-                      >
-                        {selectedTask.priority.toUpperCase()}
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 ${getStatusConfig(selectedTask.status).bg} ${getStatusConfig(selectedTask.status).border}`}
-                      >
-                        {selectedTask.status.replace("_", " ").toUpperCase()}
-                      </span>
-                      {selectedTask.isMilestone && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-purple-100 border-purple-300 text-purple-700">
-                          <Gem className="w-3 h-3" />
-                          MILESTONE
-                        </span>
-                      )}
-                      {selectedTask.parentTaskId && typeof selectedTask.parentTaskId === 'object' && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-blue-50 border-blue-200 text-blue-600">
-                          <GitBranch className="w-3 h-3" />
-                          Sub-Task of: {selectedTask.parentTaskId.title}
-                        </span>
-                      )}
-                      {selectedTask.evidenceRequired && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border-2 bg-amber-50 border-amber-200 text-amber-700">
-                          <Paperclip className="w-3 h-3" />
-                          Evidence Required
-                        </span>
-                      )}
-                    </div>
-                  </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                <div>
+                  <h2 className="text-lg font-extrabold text-slate-900">{selectedTask.title}</h2>
+                  <p className="text-xs text-slate-400 font-medium">{selectedTask.projectId?.name || "General Task"}</p>
                 </div>
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition"
-                >
-                  <X className="w-5 h-5" />
+                <button onClick={() => setSelectedTask(null)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl transition cursor-pointer">
+                  <X size={20} />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
-                <div className="bg-linear-to-br from-gray-50 to-indigo-50/30 rounded-xl p-4 border border-gray-100">
-                  <p className="text-gray-500 text-sm mb-2 font-medium">
-                    Description
-                  </p>
-                  <p className="text-gray-800">{selectedTask.description}</p>
+
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs font-medium text-slate-600">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2">
+                  <p className="text-slate-700">{selectedTask.description || "No description provided."}</p>
                 </div>
 
-                {/* Progress bar for parent tasks */}
-                {(selectedTask.subTaskCount || 0) > 0 && (
-                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-blue-600 font-medium">Sub-Task Progress</p>
-                      <span className="text-xs font-bold text-blue-700">
-                        {selectedTask.completedSubTaskCount || 0}/{selectedTask.subTaskCount} complete
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
-                        style={{
-                          width: `${(selectedTask.subTaskCount ?? 0) > 0
-                            ? ((selectedTask.completedSubTaskCount ?? 0) / (selectedTask.subTaskCount ?? 0)) * 100
-                            : 0}%`
-                        }}
-                      />
-                    </div>
-                    <p className="text-xs text-blue-500 mt-1">
-                      {selectedTask.subTasksProgress || 0}% complete
-                    </p>
-                  </div>
-                )}
-
-                {selectedTask.rejectionReason && (
-                  <div className="bg-red-50 rounded-xl p-4 border border-red-200">
-                    <p className="text-xs text-red-500 font-medium mb-1">Rejection Reason</p>
-                    <p className="text-sm text-red-700">{selectedTask.rejectionReason}</p>
-                  </div>
-                )}
-
-                {selectedTask.approvalNote && (
-                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
-                    <p className="text-xs text-emerald-500 font-medium mb-1">Approval Note</p>
-                    <p className="text-sm text-emerald-700">{selectedTask.approvalNote}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">Project</p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
-                      {selectedTask.projectId?.name || "-"}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Assigned By
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
-                      {selectedTask.assignedBy?.fullName || "-"}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Deadline
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
-                      {new Date(selectedTask.deadline).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Estimated Hours
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
-                      {selectedTask.estimatedHours}h
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">
-                      Time Logged
-                    </p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
-                      {getDisplayTimeForTask(
-                        selectedTask._id,
-                        selectedTask.actualMinutes,
-                      )}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <p className="text-xs text-gray-500 font-medium">Created</p>
-                    <p className="text-gray-800 text-sm mt-1 font-semibold">
-                      {new Date(selectedTask.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <div><span>Priority:</span> <p className="font-bold text-slate-900 uppercase">{selectedTask.priority}</p></div>
+                  <div><span>Status:</span> <p className="font-bold text-slate-900 uppercase">{selectedTask.status.replace("_", " ")}</p></div>
+                  <div><span>Deadline:</span> <p className="font-bold text-slate-900">{new Date(selectedTask.deadline).toLocaleDateString()}</p></div>
+                  <div><span>Assigned By:</span> <p className="font-bold text-slate-900">{selectedTask.assignedBy?.fullName || "N/A"}</p></div>
                 </div>
 
-                {/* Timer Controls in Modal */}
-                {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
-                  selectedTask.status !== "submitted" &&
-                  selectedTask.status !== "rejected" && (
-                    <div className="bg-linear-to-br from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100">
-                      <p className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                        <TimerIcon className="w-4 h-4 text-indigo-600" />
-                        Time Tracking
-                      </p>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {isTimerActiveForTask(selectedTask._id) && isTimerValidForCurrentUser() ? (
-                          <>
-                            <div className="flex-1">
-                              <div className="flex items-center gap-3">
-                                <span className="text-2xl font-mono font-bold text-indigo-700 tabular-nums">
-                                  {formatTime(timerState.elapsedSeconds)}
-                                </span>
-                                <span
-                                  className={`text-xs font-medium ${isTimerRunning ? "text-emerald-600" : "text-amber-600"}`}
-                                >
-                                  {isTimerRunning ? "● Running" : "● Paused"}
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              {isTimerRunning ? (
-                                <button
-                                  onClick={() => {
-                                    handlePauseTimer();
-                                    setSelectedTask(null);
-                                  }}
-                                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg"
-                                >
-                                  <Pause className="w-4 h-4" />
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => {
-                                    handleResumeTimer();
-                                    setSelectedTask(null);
-                                  }}
-                                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg"
-                                >
-                                  <Play className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => {
-                                  handleStopTimer(selectedTask._id);
-                                  setSelectedTask(null);
-                                }}
-                                className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg"
-                              >
-                                <Square className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex-1">
-                              <span className="text-sm text-gray-500">
-                                {selectedTask.actualMinutes
-                                  ? `${selectedTask.actualMinutes} minutes logged`
-                                  : "No time tracked yet"}
-                              </span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                handleStartTimer(selectedTask._id);
-                                setSelectedTask(null);
-                              }}
-                              className={`px-4 py-2 text-white text-sm rounded-xl transition-all shadow-md hover:shadow-lg disabled:opacity-50 ${activeTimerTaskId && activeTimerTaskId !== selectedTask._id
-                                ? "bg-gray-400 cursor-not-allowed"
-                                : "bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-                                }`}
-                              disabled={!!activeTimerTaskId && activeTimerTaskId !== selectedTask._id}
-                              title={
-                                activeTimerTaskId && activeTimerTaskId !== selectedTask._id
-                                  ? "Another task timer is running"
-                                  : "Start Timer"
-                              }
-                            >
-                              <Play className="w-4 h-4" />
-                              Start Timer
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                <div className="flex gap-3 pt-4 border-t border-gray-200 flex-wrap">
-                  <select
-                    value={selectedTask.status}
-                    onChange={(e) => {
-                      handleStatusChange(selectedTask._id, e.target.value);
-                      setSelectedTask(null);
-                    }}
-                    disabled={
-                      updatingStatus === selectedTask._id ||
-                      isCompleting === selectedTask._id ||
-                      isSubmitting === selectedTask._id
-                    }
-                    className="cursor-pointer flex-1 min-w-[150px] px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="submitted">Submitted</option>
-                    <option value="completed">Completed</option>
-                    <option value="overdue">Overdue</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                  {selectedTask.status === "rejected" && isTaskAssignee(selectedTask) && (
-                    <button
-                      onClick={() => {
-                        handleSendForRework(selectedTask._id);
-                      }}
-                      disabled={isReworking === selectedTask._id}
-                      className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {isReworking === selectedTask._id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                      Send for Rework
-                    </button>
-                  )}
-                  {isTaskAssignee(selectedTask) && selectedTask.status !== "completed" &&
-                    selectedTask.status !== "submitted" &&
-                    selectedTask.status !== "rejected" && (
-                      <>
-                        <button
-                          onClick={() => {
-                            handleSubmitForReview(selectedTask._id);
-                          }}
-                          disabled={isSubmitting === selectedTask._id}
-                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                          {isSubmitting === selectedTask._id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
-                          Submit Review
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleMarkComplete(selectedTask._id);
-                          }}
-                          disabled={isCompleting === selectedTask._id}
-                          className="cursor-pointer flex-1 min-w-[120px] px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
-                        >
-                          {isCompleting === selectedTask._id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Check className="w-4 h-4" />
-                          )}
-                          Complete
-                        </button>
-                      </>
-                    )}
-                  <button
-                    onClick={() => setSelectedTask(null)}
-                    className="cursor-pointer flex-1 min-w-[100px] bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-xl transition"
-                  >
-                    Close
-                  </button>
+                {/* Task Details Page Link */}
+                <div className="pt-4 border-t border-slate-100 flex gap-3">
                   <Link
                     href={`/tasks/${selectedTask._id}`}
                     onClick={(e) => e.stopPropagation()}
-                    className="cursor-pointer flex-1 min-w-[100px] bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 py-2.5 rounded-xl transition flex items-center justify-center gap-2"
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 text-xs flex items-center justify-center gap-2 cursor-pointer text-center"
                   >
-                    <Eye className="w-4 h-4" />
-                    Check Details
+                    <Eye size={15} /> Check Details Page
                   </Link>
+                  <button
+                    onClick={() => setSelectedTask(null)}
+                    className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition text-xs cursor-pointer"
+                  >
+                    Close
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -2351,33 +826,8 @@ export default function MyTasksPage() {
         )}
       </AnimatePresence>
 
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onTaskCreated={() => {
-          fetchMyTasks();
-          setShowCreateModal(false);
-        }}
-      />
-
-      <style jsx global>{`
-        .line-clamp-1 {
-          display: -webkit-box;
-          -webkit-line-clamp: 1;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-        .tabular-nums {
-          font-variant-numeric: tabular-nums;
-        }
-      `}</style>
+      {/* Task Creation Modal */}
+      <CreateTaskModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onTaskCreated={() => { fetchMyTasks(); setShowCreateModal(false); }} />
     </div>
   );
 }
