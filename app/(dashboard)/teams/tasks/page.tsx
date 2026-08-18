@@ -147,11 +147,9 @@ export default function TeamTasksPage() {
     deadline: "",
   });
 
-  // app/tasks/page.tsx - Updated useEffect
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
-    // Use a flag to prevent multiple calls
     let isLoaded = false;
 
     const loadAllData = async () => {
@@ -159,14 +157,7 @@ export default function TeamTasksPage() {
       isLoaded = true;
 
       try {
-        await fetchTasks();
-        await Promise.all([
-          fetchUsers(),
-          fetchProjects(),
-          fetchDepartmentUsers(),
-          fetchMyExtensionRequests(user),
-          fetchAllExtensionRequests()
-        ]);
+        await fetchMyTeams();
       } catch (error) {
         console.error("Error loading data:", error);
       }
@@ -174,11 +165,10 @@ export default function TeamTasksPage() {
 
     loadAllData();
 
-    // Cleanup
     return () => {
       isLoaded = true;
     };
-  }, [isAuthenticated, user]); // Remove filter dependency
+  }, [isAuthenticated, user]);
 
   const fetchMyTeams = async () => {
     try {
@@ -482,8 +472,8 @@ export default function TeamTasksPage() {
                 fetchUserTasks();
               }}
               className={`px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2 ${selectedTeamId === team._id
-                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25"
-                  : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
+                ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25"
+                : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
                 }`}
             >
               <div
@@ -554,8 +544,8 @@ export default function TeamTasksPage() {
                     <button
                       onClick={() => setViewMode("list")}
                       className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${viewMode === "list"
-                          ? "bg-white shadow-sm text-indigo-600"
-                          : "text-gray-500 hover:text-gray-700"
+                        ? "bg-white shadow-sm text-indigo-600"
+                        : "text-gray-500 hover:text-gray-700"
                         }`}
                     >
                       <List className="w-4 h-4" />
@@ -563,8 +553,8 @@ export default function TeamTasksPage() {
                     <button
                       onClick={() => setViewMode("kanban")}
                       className={`px-3 py-1.5 rounded-lg transition-all duration-200 ${viewMode === "kanban"
-                          ? "bg-white shadow-sm text-indigo-600"
-                          : "text-gray-500 hover:text-gray-700"
+                        ? "bg-white shadow-sm text-indigo-600"
+                        : "text-gray-500 hover:text-gray-700"
                         }`}
                     >
                       <LayoutGrid className="w-4 h-4" />
