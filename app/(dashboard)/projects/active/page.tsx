@@ -2398,53 +2398,59 @@ export default function ProjectsPage() {
               {/* Footer Actions */}
               <div className="flex gap-3 p-5 border-t border-gray-200 bg-gray-50">
                 {selectedProject.status === "archived" ? (
-                  <button
-                    onClick={() => {
-                      setShowViewModal(false);
-                      setShowUnarchiveConfirm(selectedProject._id);
-                    }}
-                    className="flex-1 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
-                  >
-                    <ArchiveRestore size={16} />
-                    Restore from Archive
-                  </button>
+                  // Show Restore button only for managers
+                  canManage && (
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false);
+                        setShowUnarchiveConfirm(selectedProject._id);
+                      }}
+                      className="flex-1 bg-linear-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <ArchiveRestore size={16} />
+                      Restore from Archive
+                    </button>
+                  )
                 ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowViewModal(false);
-                        openEditModal(selectedProject);
-                      }}
-                      className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <Edit2 size={16} />
-                      Edit Project
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowViewModal(false);
-                        openAssignModal(selectedProject);
-                      }}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <Users size={16} />
-                      Assign Team
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowViewModal(false);
-                        setShowArchiveConfirm(selectedProject._id);
-                      }}
-                      className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
-                    >
-                      <Archive size={16} />
-                      Archive Project
-                    </button>
-                  </>
+                  // Only show these buttons for managers
+                  canManage && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false);
+                          openEditModal(selectedProject);
+                        }}
+                        className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <Edit2 size={16} />
+                        Edit Project
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false);
+                          openAssignModal(selectedProject);
+                        }}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <Users size={16} />
+                        Assign Team
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowViewModal(false);
+                          setShowArchiveConfirm(selectedProject._id);
+                        }}
+                        className="flex-1 bg-amber-600 hover:bg-amber-700 text-white py-2.5 rounded-lg transition flex items-center justify-center gap-2 shadow-sm"
+                      >
+                        <Archive size={16} />
+                        Archive Project
+                      </button>
+                    </>
+                  )
                 )}
                 <button
                   onClick={() => setShowViewModal(false)}
-                  className="flex-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 py-2.5 rounded-lg transition"
+                  className={`${canManage ? "flex-1" : "w-[100px]"} bg-indigo-500 text-white border border-gray-200 hover:bg-gray-50 hover:text-black  py-2.5 rounded-lg transition`}
                 >
                   Close
                 </button>
