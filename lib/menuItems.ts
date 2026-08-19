@@ -645,7 +645,7 @@ export const SUB_ITEMS = {
       ROLES.EMPLOYEE,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      // ROLES.EMPLOYEE
+      ROLES.EMPLOYEE
     ],
     { description: "View performance rankings and achievements" },
   ),
@@ -661,6 +661,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Generate and export KPI reports" },
   ),
@@ -676,6 +677,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Advanced analytics for KPIs" },
   ),
