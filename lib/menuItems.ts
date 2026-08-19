@@ -381,7 +381,14 @@ export const MAIN_ITEMS = {
     "KPI Dashboard",
     "/kpi/management",
     Trophy,
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER, ROLES.EMPLOYEE],
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.HR_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
+    ],
     { section: "kpi", description: "Define and track Key Performance Indicators" },
   ),
 
@@ -606,7 +613,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      // ROLES.EMPLOYEE
+      ROLES.EMPLOYEE
     ],
     { description: "View KPI performance overview" },
   ),
@@ -622,6 +629,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Configure and manage KPIs" },
   ),
@@ -686,6 +694,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE
     ],
     { description: "Track KPI trends over time" },
   ),
@@ -929,7 +938,7 @@ export const SUB_ITEMS = {
   allTeams: createSubNavItem(
     "all-teams",
     "All Teams",
-    "/teams/all-teams",
+    "/teams",
     UsersRound,
     "Team",
     [
