@@ -381,14 +381,7 @@ export const MAIN_ITEMS = {
     "KPI Dashboard",
     "/kpi/management",
     Trophy,
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.DEPT_MANAGER,
-      ROLES.HR_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      // ROLES.EMPLOYEE
-    ],
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER, ROLES.EMPLOYEE],
     { section: "kpi", description: "Define and track Key Performance Indicators" },
   ),
 
