@@ -934,7 +934,7 @@ export const SUB_ITEMS = {
   allTeams: createSubNavItem(
     "all-teams",
     "All Teams",
-    "/teams",
+    "/teams/all-teams",
     UsersRound,
     "Team",
     [

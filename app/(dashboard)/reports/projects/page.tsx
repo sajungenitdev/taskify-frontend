@@ -1139,7 +1139,7 @@ export default function ProjectsReportPage() {
                     Close
                   </button>
                   <Link
-                    href={`/projects/${selectedProject._id}`}
+                    href={`/projects/${selectedProject._id}/dashboard`}
                     className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
                   >
                     <Eye size={16} />

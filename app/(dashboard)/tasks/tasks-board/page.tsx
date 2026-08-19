@@ -13,7 +13,8 @@ import {
   RefreshCw, Search, Filter,
   Star, Eye, Edit2, Trash2, Play, Send,
   Check, X, Loader2, ThumbsUp, ThumbsDown, AlertCircle,
-  Clock
+  Clock,
+  ExternalLink
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
@@ -1034,10 +1035,10 @@ export default function TasksBoardPage() {
                         {task.status === "submitted" && canApprove && (
                           <>
                             <button onClick={() => handleApprove(task._id)} className="p-1 text-gray-400 hover:text-emerald-600">
-                              <ThumbsUp size={12} />
+                              <Check size={12} />
                             </button>
                             <button onClick={() => { setSelectedTask(task); setShowRejectModal(true); }} className="p-1 text-gray-400 hover:text-rose-600">
-                              <ThumbsDown size={12} />
+                              <X size={12} />
                             </button>
                           </>
                         )}
@@ -1046,6 +1047,9 @@ export default function TasksBoardPage() {
                             <RefreshCw size={12} />
                           </button>
                         )}
+                        <Link href={`/tasks/${task._id}`} className="p-1 text-gray-400 hover:text-purple-600">
+                          <ExternalLink size={12} />
+                        </Link>
                         <button
                           onClick={() => setShowDeleteConfirm(task._id)}
                           className="p-1 text-gray-400 hover:text-rose-600"

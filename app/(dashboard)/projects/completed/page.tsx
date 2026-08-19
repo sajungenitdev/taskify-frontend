@@ -569,7 +569,7 @@ export default function CompletedProjectsPage() {
                       </span>
                     )}
                     <Link
-                      href={`/projects/${project._id}`}
+                      href={`/projects/${project._id}/dashboard`}
                       className="text-indigo-600 hover:text-indigo-700 text-xs font-medium flex items-center gap-1"
                     >
                       View Details

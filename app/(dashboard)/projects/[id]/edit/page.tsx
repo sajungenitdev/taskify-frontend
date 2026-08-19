@@ -353,7 +353,7 @@ export default function EditProjectPage() {
           >
             <div className="flex items-center gap-3">
               <Link
-                href={`/projects/${projectId}`}
+                href={`/projects/active`}
                 className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-gray-600 hover:text-gray-800"
               >
                 <ArrowLeft size={18} />
