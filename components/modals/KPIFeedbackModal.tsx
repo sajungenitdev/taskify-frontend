@@ -267,8 +267,8 @@ export default function KPIFeedbackModal({
             >
                 <Star
                     className={`w-5 h-5 ${starIdx <= (hoverRating || rating)
-                            ? "fill-amber-400 text-amber-400"
-                            : "text-gray-200"
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-gray-200"
                         } transition-colors`}
                 />
             </button>
@@ -418,8 +418,13 @@ export default function KPIFeedbackModal({
                             <div className="space-y-3">
                                 {feedbackList.map((item) => {
                                     const creator = item.createdBy || { fullName: "Anonymous", role: "employee" };
-                                    const isCreator = currentUserId ? creator._id === currentUserId : true;
-                                    const canManage = !isLocked && (isCreator || ["super_admin", "admin"].includes(currentUserRole));
+
+                                    const isCreator = currentUserId ? creator._id === currentUserId : false;
+                                    const isAdmin = ["super_admin", "admin"].includes(currentUserRole);
+                                    const isManager = ["hr_manager", "dept_manager", "project_manager"].includes(currentUserRole);
+
+                                    // Only the creator or admins/managers can manage feedback
+                                    const canManage = !isLocked && (isCreator || isAdmin || isManager);
                                     const isExpanded = expandedFeedbackId === item._id;
                                     const isConfirmingDelete = deletingId === item._id;
 
@@ -462,8 +467,8 @@ export default function KPIFeedbackModal({
                                                                         <Star
                                                                             key={s}
                                                                             className={`w-3.5 h-3.5 ${s <= item.rating!
-                                                                                    ? "fill-amber-400 text-amber-400"
-                                                                                    : "text-gray-200"
+                                                                                ? "fill-amber-400 text-amber-400"
+                                                                                : "text-gray-200"
                                                                                 }`}
                                                                         />
                                                                     ))}

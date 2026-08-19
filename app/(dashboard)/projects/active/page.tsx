@@ -180,8 +180,20 @@ export default function ProjectsPage() {
     "admin",
     "dept_manager",
     "project_manager",
-    "employee"
   ]);
+
+  // Employee role - limited access
+  const isEmployee = hasRole(["employee"]);
+
+  // Check if user can manage (edit/delete/archive)
+  const canManageProjects = canManage;
+
+  // Check if user can view all projects or only their assigned ones
+  const canViewAllProjects = canManage;
+  const canViewAssignedOnly = isEmployee;
+
+  // Check if user can perform actions (edit/delete)
+  const canPerformActions = canManage;
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -204,6 +216,52 @@ export default function ProjectsPage() {
   };
 
   // Fetch all data
+  // const fetchData = useCallback(async (showLoading = true) => {
+  //   try {
+  //     if (showLoading) {
+  //       setLoading(true);
+  //     } else {
+  //       setIsRefreshing(true);
+  //     }
+
+  //     const [projectsRes, deptsRes, usersRes] = await Promise.all([
+  //       api.get("/projects"),
+  //       api.get("/departments"),
+  //       api.get("/auth/users"),
+  //     ]);
+
+  //     if (projectsRes.data.success) {
+  //       const projectData = projectsRes.data.data || [];
+  //       const projectsWithProgress = projectData.map((project: Project) => {
+  //         const completedTasks = Math.min(project.completedTasks, project.tasksCount || 0);
+  //         return {
+  //           ...project,
+  //           completedTasks,
+  //           progress: calculateProgress({ ...project, completedTasks })
+  //         };
+  //       });
+  //       setProjects(projectsWithProgress);
+  //     }
+  //     if (deptsRes.data.success) {
+  //       setDepartments(deptsRes.data.data || []);
+  //     }
+  //     if (usersRes.data.success) {
+  //       setUsers(usersRes.data.data || []);
+  //       setAllUsers(usersRes.data.data || []);
+  //     }
+
+  //     setLastUpdated(new Date());
+  //   } catch (error: any) {
+  //     console.error("Error fetching data:", error);
+  //     toast.error(error.response?.data?.message || "Failed to fetch data");
+  //   } finally {
+  //     if (showLoading) {
+  //       setLoading(false);
+  //     } else {
+  //       setIsRefreshing(false);
+  //     }
+  //   }
+  // }, []);
   const fetchData = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) {
@@ -212,14 +270,30 @@ export default function ProjectsPage() {
         setIsRefreshing(true);
       }
 
-      const [projectsRes, deptsRes, usersRes] = await Promise.all([
-        api.get("/projects"),
+      // Use Promise.allSettled to handle partial failures
+      const results = await Promise.allSettled([
         api.get("/departments"),
         api.get("/auth/users"),
+        isEmployee && user?._id
+          ? api.get("/projects/my")
+          : api.get("/projects"),
       ]);
 
-      if (projectsRes.data.success) {
-        const projectData = projectsRes.data.data || [];
+      // Handle departments
+      if (results[0].status === "fulfilled" && results[0].value.data.success) {
+        setDepartments(results[0].value.data.data || []);
+      }
+
+      // Handle users
+      if (results[1].status === "fulfilled" && results[1].value.data.success) {
+        const usersData = results[1].value.data.data || [];
+        setUsers(usersData);
+        setAllUsers(usersData);
+      }
+
+      // Handle projects
+      if (results[2].status === "fulfilled" && results[2].value.data.success) {
+        const projectData = results[2].value.data.data || [];
         const projectsWithProgress = projectData.map((project: Project) => {
           const completedTasks = Math.min(project.completedTasks, project.tasksCount || 0);
           return {
@@ -229,13 +303,24 @@ export default function ProjectsPage() {
           };
         });
         setProjects(projectsWithProgress);
-      }
-      if (deptsRes.data.success) {
-        setDepartments(deptsRes.data.data || []);
-      }
-      if (usersRes.data.success) {
-        setUsers(usersRes.data.data || []);
-        setAllUsers(usersRes.data.data || []);
+      } else if (results[2].status === "rejected") {
+        console.error("Projects fetch failed:", results[2].reason);
+        // Check if it's a 404 for /projects/my (employee with no projects)
+        if (results[2].reason?.response?.status === 404) {
+          setProjects([]);
+          toast("You don't have any projects assigned yet.", {
+            icon: '📋',
+            duration: 4000,
+            style: {
+              background: '#3b82f6',
+              color: '#fff',
+              padding: '16px',
+              borderRadius: '8px',
+            },
+          });
+        } else {
+          toast.error("Failed to fetch projects. Please try again.");
+        }
       }
 
       setLastUpdated(new Date());
@@ -249,23 +334,25 @@ export default function ProjectsPage() {
         setIsRefreshing(false);
       }
     }
-  }, []);
+  }, [isEmployee, user?._id]);
 
   // Initial fetch
   useEffect(() => {
-    if (canManage) {
+    if (canManage || isEmployee) {
       fetchData(true);
     }
-  }, [canManage, fetchData]);
+  }, [canManage, isEmployee, fetchData]);
 
   // Auto-refresh effect
+  // Update the auto-refresh effect
   useEffect(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
 
-    if (autoRefresh && canManage) {
+    // Only auto-refresh for managers, not employees (to reduce load)
+    if (autoRefresh && canManage && !isEmployee) {
       intervalRef.current = setInterval(() => {
         fetchData(false);
       }, 15000);
@@ -277,7 +364,7 @@ export default function ProjectsPage() {
         intervalRef.current = null;
       }
     };
-  }, [autoRefresh, canManage, fetchData]);
+  }, [autoRefresh, canManage, isEmployee, fetchData]);
 
   // Archive project
   const handleArchiveProject = async (id: string) => {
@@ -810,7 +897,9 @@ export default function ProjectsPage() {
     );
   };
 
-  if (!canManage) {
+  // Replace the existing access check at the top of the component
+
+  if (!canManage && !isEmployee) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <motion.div
@@ -891,17 +980,20 @@ export default function ProjectsPage() {
                 {viewMode === "grid" ? <List size={14} /> : <Grid size={14} />}
                 {viewMode === "grid" ? "List View" : "Grid View"}
               </button>
-              <button
-                onClick={() => {
-                  setEditingProject(null);
-                  resetForm();
-                  setShowCreateModal(true);
-                }}
-                className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
-              >
-                <Plus size={16} />
-                Create Project
-              </button>
+              {/* Create Project button - only for managers */}
+              {canManage && (
+                <button
+                  onClick={() => {
+                    setEditingProject(null);
+                    resetForm();
+                    setShowCreateModal(true);
+                  }}
+                  className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-sm rounded-xl flex items-center gap-2 transition shadow-md shadow-indigo-500/20"
+                >
+                  <Plus size={16} />
+                  Create Project
+                </button>
+              )}
               <button
                 onClick={() => {
                   fetchData(false);
@@ -1359,6 +1451,7 @@ export default function ProjectsPage() {
                         </div>
 
                         {/* Action buttons - Added Assign Team button */}
+                        {/* Action buttons - Hide edit/delete for employees */}
                         <div
                           className="flex items-center gap-1"
                           onClick={(e) => e.stopPropagation()}
@@ -1373,26 +1466,39 @@ export default function ProjectsPage() {
                             </button>
                           ) : (
                             <>
-                              <button
-                                onClick={() => openAssignModal(project)}
-                                className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                title="Assign team members"
-                              >
-                                <Users size={14} />
-                              </button>
-                              <button
-                                onClick={() => router.push(`/projects/${project._id}/edit`)}
-                                className="p-1 cursor-pointer text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              <button
-                                onClick={() => setShowArchiveConfirm(project._id)}
-                                className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                                title="Archive project"
-                              >
-                                <Archive size={14} />
-                              </button>
+                              {/* Assign Team - only for managers */}
+                              {canManage && (
+                                <button
+                                  onClick={() => openAssignModal(project)}
+                                  className="p-1 cursor-pointer text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                  title="Assign team members"
+                                >
+                                  <Users size={14} />
+                                </button>
+                              )}
+
+                              {/* Edit - only for managers */}
+                              {canManage && (
+                                <button
+                                  onClick={() => router.push(`/projects/${project._id}/edit`)}
+                                  className="p-1 cursor-pointer text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                              )}
+
+                              {/* Archive - only for managers */}
+                              {canManage && (
+                                <button
+                                  onClick={() => setShowArchiveConfirm(project._id)}
+                                  className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                  title="Archive project"
+                                >
+                                  <Archive size={14} />
+                                </button>
+                              )}
+
+                              {/* View - everyone can view */}
                               <Link
                                 href={`/projects/${project._id}/dashboard`}
                                 className="p-1 cursor-pointer text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
@@ -1402,12 +1508,16 @@ export default function ProjectsPage() {
                               </Link>
                             </>
                           )}
-                          <button
-                            onClick={() => setShowDeleteConfirm(project._id)}
-                            className="p-1 cursor-pointer text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+
+                          {/* Delete - only for managers */}
+                          {canManage && (
+                            <button
+                              onClick={() => setShowDeleteConfirm(project._id)}
+                              className="p-1 cursor-pointer text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1610,6 +1720,7 @@ export default function ProjectsPage() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-end gap-1">
+                              {/* View - everyone */}
                               <button
                                 onClick={() => openViewModal(project)}
                                 className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
@@ -1617,50 +1728,65 @@ export default function ProjectsPage() {
                               >
                                 <Eye size={16} />
                               </button>
+
                               {project.status === "archived" ? (
-                                <button
-                                  onClick={() =>
-                                    setShowUnarchiveConfirm(project._id)
-                                  }
-                                  className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                  title="Restore from archive"
-                                >
-                                  <ArchiveRestore size={16} />
-                                </button>
+                                /* Unarchive - only for managers */
+                                canManage && (
+                                  <button
+                                    onClick={() => setShowUnarchiveConfirm(project._id)}
+                                    className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                    title="Restore from archive"
+                                  >
+                                    <ArchiveRestore size={16} />
+                                  </button>
+                                )
                               ) : (
                                 <>
-                                  <button
-                                    onClick={() => openAssignModal(project)}
-                                    className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                                    title="Assign team members"
-                                  >
-                                    <Users size={16} />
-                                  </button>
-                                  <Link
-                                    href={`/projects/${project._id}/edit`}
-                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                    title="Edit Project"
-                                  >
-                                    <Edit2 size={16} />
-                                  </Link>
-                                  <button
-                                    onClick={() =>
-                                      setShowArchiveConfirm(project._id)
-                                    }
-                                    className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                                    title="Archive Project"
-                                  >
-                                    <Archive size={16} />
-                                  </button>
+                                  {/* Assign Team - only for managers */}
+                                  {canManage && (
+                                    <button
+                                      onClick={() => openAssignModal(project)}
+                                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
+                                      title="Assign team members"
+                                    >
+                                      <Users size={16} />
+                                    </button>
+                                  )}
+
+                                  {/* Edit - only for managers */}
+                                  {canManage && (
+                                    <Link
+                                      href={`/projects/${project._id}/edit`}
+                                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                      title="Edit Project"
+                                    >
+                                      <Edit2 size={16} />
+                                    </Link>
+                                  )}
+
+                                  {/* Archive - only for managers */}
+                                  {canManage && (
+                                    <button
+                                      onClick={() => setShowArchiveConfirm(project._id)}
+                                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                      title="Archive Project"
+                                    >
+                                      <Archive size={16} />
+                                    </button>
+                                  )}
                                 </>
                               )}
-                              <button
-                                onClick={() => setShowDeleteConfirm(project._id)}
-                                className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                                title="Delete Project"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+
+                              {/* Delete - only for managers */}
+                              {canManage && (
+                                <button
+                                  onClick={() => setShowDeleteConfirm(project._id)}
+                                  className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                  title="Delete Project"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </motion.tr>

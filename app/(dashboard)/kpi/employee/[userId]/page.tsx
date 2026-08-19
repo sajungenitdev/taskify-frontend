@@ -394,7 +394,7 @@
 //             const completed = userTasks.filter((t) => t.status === "completed").length;
 //             return userTasks.length > 0 ? Math.round((completed / userTasks.length) * 100) : 0;
 //         });
-        
+
 //         // Sort and find rank
 //         const sortedScores = [...allScores].sort((a, b) => b - a);
 //         const rank = sortedScores.indexOf(totalScore) + 1 || 1;
@@ -1233,11 +1233,15 @@ export default function EmployeeKPIDetailPage() {
     // ============ ADD THIS STATE ============
     const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
+    // Update the permission check to allow employees to view their own KPI
     const canManage = hasRole([
         "super_admin", "admin", "hr_manager", "dept_manager",
-        "project_manager", "line_manager", "employee"
+        "project_manager", "line_manager"
     ]);
 
+    const isEmployee = hasRole(["employee"]);
+    // Allow employees to view their own KPI page
+    const canView = canManage || (isEmployee && user?._id === userId);
     const isInitialized = useRef(false);
     const isFetching = useRef(false);
 
@@ -1558,23 +1562,41 @@ export default function EmployeeKPIDetailPage() {
 
             const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
 
-            // 1. Fetch user details
+            // 1. Fetch user details - use /auth/me for employees
             let userData: UserData | null = null;
             try {
-                const userResponse = await api.get(`/users/${userId}`);
-                if (userResponse.data.success) {
-                    userData = userResponse.data.data;
+                // Try to get the user via the me endpoint first
+                const meResponse = await api.get('/auth/me');
+                if (meResponse.data.success) {
+                    const meData = meResponse.data.data;
+                    // If the logged-in user is the one we're viewing, use it
+                    if (meData._id === userId) {
+                        userData = meData;
+                    }
                 }
-            } catch (err: any) {
-                console.error("Error fetching user:", err);
-                if (err.response?.status === 403) {
-                    try {
-                        const meResponse = await api.get('/auth/me');
-                        if (meResponse.data.success && meResponse.data.data._id === userId) {
-                            userData = meResponse.data.data;
+            } catch (meError) {
+                console.error("Error fetching /me:", meError);
+            }
+
+            // If /me didn't work or we're viewing someone else, try /users/:id
+            if (!userData) {
+                try {
+                    const userResponse = await api.get(`/users/${userId}`);
+                    if (userResponse.data.success) {
+                        userData = userResponse.data.data;
+                    }
+                } catch (err: any) {
+                    console.error("Error fetching user:", err);
+                    // If 403, try /auth/me as fallback
+                    if (err.response?.status === 403) {
+                        try {
+                            const meResponse = await api.get('/auth/me');
+                            if (meResponse.data.success && meResponse.data.data._id === userId) {
+                                userData = meResponse.data.data;
+                            }
+                        } catch (e) {
+                            console.error("Error fetching /me:", e);
                         }
-                    } catch (e) {
-                        console.error("Error fetching /me:", e);
                     }
                 }
             }
@@ -1611,13 +1633,17 @@ export default function EmployeeKPIDetailPage() {
                 console.error("Error fetching tasks:", err);
             }
 
-            // 4. Fetch all users for ranking
+            // 4. Fetch all users for ranking - skip if employee (they don't need to see rankings)
             let allUsers: UserData[] = [];
-            try {
-                const usersResponse = await api.get("/users");
-                allUsers = usersResponse.data?.data || [];
-            } catch (err) {
-                console.error("Error fetching users for ranking:", err);
+            const isEmployee = user?.role === "employee";
+
+            if (!isEmployee) {
+                try {
+                    const usersResponse = await api.get("/users");
+                    allUsers = usersResponse.data?.data || [];
+                } catch (err) {
+                    console.error("Error fetching users for ranking:", err);
+                }
             }
 
             // 5. If no KPI data, calculate from tasks
@@ -1742,7 +1768,7 @@ export default function EmployeeKPIDetailPage() {
     // ============================================================
     // RENDER
     // ============================================================
-    if (!canManage) {
+    if (!canView) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center bg-white rounded-2xl p-8 border border-gray-200 shadow-sm max-w-md">
