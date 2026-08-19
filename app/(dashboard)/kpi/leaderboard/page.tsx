@@ -136,7 +136,7 @@ export default function KPLeaderboardPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
+  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager", "employee"]);
   console.log(scores, "scores")
   // ============================================================
   // HELPER: GET DEPARTMENT OBJECT

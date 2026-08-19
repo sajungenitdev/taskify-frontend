@@ -162,7 +162,7 @@ export default function KPIAnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"insights" | "comparisons" | "heatmap" | "predictions">("insights");
   const [isGeneratingSample, setIsGeneratingSample] = useState(false);
 
-  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
+  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager", "employee"]);
   const currentMonth = MONTHS[new Date().getMonth()];
 
   // Refs for race-condition management and cleanup

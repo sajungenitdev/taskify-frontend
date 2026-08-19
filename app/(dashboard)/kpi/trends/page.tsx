@@ -109,7 +109,7 @@ export default function KPITrendsPage() {
   // Refs to prevent duplicate concurrent network calls
   const isFetching = useRef<boolean>(false);
 
-  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
+  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager", "employee"]);
 
   // ============================================================
   // DATE CALCULATOR HELPER

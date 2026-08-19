@@ -180,6 +180,7 @@ export default function ProjectsPage() {
     "admin",
     "dept_manager",
     "project_manager",
+    "employee"
   ]);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);

@@ -170,6 +170,7 @@ export default function KPLeaderboardPage() {
     "admin",
     "hr_manager",
     "dept_manager",
+    "employee"
   ]);
 
   const months = [

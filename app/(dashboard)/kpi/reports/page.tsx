@@ -157,7 +157,7 @@ export default function KPIReportsPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [availableYears, setAvailableYears] = useState<number[]>([2024, 2025, 2026, 2027]);
 
-  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
+  const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager", "employee"]);
   const isFetching = useRef(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
