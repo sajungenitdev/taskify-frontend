@@ -748,7 +748,7 @@ export default function BulkUploadPage() {
             <p className="text-sm text-gray-400 mb-6">
               Redirecting to tasks page...
             </p>
-            <div className="flex justify-center gap-3">
+            {/* <div className="flex justify-center gap-3">
               <button
                 onClick={() => router.push("/tasks/tasks-board")}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
@@ -761,7 +761,7 @@ export default function BulkUploadPage() {
               >
                 Upload More
               </button>
-            </div>
+            </div> */}
           </motion.div>
         )}
 

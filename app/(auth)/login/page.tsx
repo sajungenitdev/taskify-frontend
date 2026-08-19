@@ -297,7 +297,7 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full max-w-[420px] bg-white/95 backdrop-blur-sm rounded-3xl p-8 sm:p-10 shadow-2xl border border-white/20"
+        className="w-full max-w-[420px] bg-white backdrop-blur-sm rounded-3xl p-8 sm:p-10 shadow-2xl border border-white/20"
       >
         {/* Header */}
         <motion.div 
@@ -306,9 +306,9 @@ export default function LoginPage() {
           transition={{ delay: 0.1 }}
           className="text-center mb-8"
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#1A60FF] to-[#4A8CFF] rounded-2xl mb-4 shadow-lg shadow-blue-500/30">
+          {/* <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-[#1A60FF] to-[#4A8CFF] rounded-2xl mb-4 shadow-lg shadow-blue-500/30">
             <Shield className="w-8 h-8 text-white" />
-          </div>
+          </div> */}
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">
             Task<span className="text-[#1A60FF]">Flow</span> Pro
           </h1>
@@ -503,16 +503,9 @@ export default function LoginPage() {
           transition={{ delay: 0.6 }}
           className="mt-8 text-center space-y-3"
         >
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Don't have an account? Contact your system administrator.
+          <p className="text-xs text-[#6b7280] leading-relaxed">
+            Don't have an account? Contact your admin.
           </p>
-          <div className="flex items-center justify-center gap-4 text-[10px] text-gray-300">
-            <span>🔒 Secure Login</span>
-            <span className="w-px h-3 bg-gray-300" />
-            <span>256-bit SSL</span>
-            <span className="w-px h-3 bg-gray-300" />
-            <span>Protected</span>
-          </div>
         </motion.div>
       </motion.div>
     </div>
