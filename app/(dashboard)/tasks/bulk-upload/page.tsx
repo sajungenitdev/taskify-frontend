@@ -273,7 +273,7 @@ export default function BulkUploadPage() {
             const deadlineRaw = task.deadline || task["Deadline"] || task["due"] || task["Due Date"] || task["date"] || "";
             const priority = task.priority || task["Priority"] || "normal";
             const estimatedHours = parseFloat(task.estimatedHours || task["EstimatedHours"] || task["estimated"] || task["Estimated"] || task["Hours"] || task["hours"] || "0");
-            
+
             const parseBoolean = (val: any): boolean => {
               if (typeof val === "boolean") return val;
               if (typeof val === "string") {
@@ -282,7 +282,7 @@ export default function BulkUploadPage() {
               }
               return false;
             };
-            
+
             const isApprovalRequired = parseBoolean(task.isApprovalRequired || task["IsApprovalRequired"] || task["Approval Required"] || task["approval"]);
             const evidenceRequired = parseBoolean(task.evidenceRequired || task["EvidenceRequired"] || task["Evidence Required"] || task["evidence"]);
 
@@ -537,26 +537,26 @@ export default function BulkUploadPage() {
       const blob =
         format === "json"
           ? new Blob([JSON.stringify(template, null, 2)], {
-              type: "application/json",
-            })
+            type: "application/json",
+          })
           : new Blob(
-              [
-                Object.keys(template[0]).join(",") +
-                  "\n" +
-                  template
-                    .map((row) =>
-                      Object.values(row)
-                        .map((v) =>
-                          typeof v === "string" && (v.includes(",") || v.includes(" "))
-                            ? `"${v}"`
-                            : v
-                        )
-                        .join(",")
+            [
+              Object.keys(template[0]).join(",") +
+              "\n" +
+              template
+                .map((row) =>
+                  Object.values(row)
+                    .map((v) =>
+                      typeof v === "string" && (v.includes(",") || v.includes(" "))
+                        ? `"${v}"`
+                        : v
                     )
-                    .join("\n"),
-              ],
-              { type: "text/csv" }
-            );
+                    .join(",")
+                )
+                .join("\n"),
+            ],
+            { type: "text/csv" }
+          );
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -680,11 +680,10 @@ export default function BulkUploadPage() {
         {/* Upload Area */}
         {!showPreview && !showSuccess && (
           <div
-            className={`border-2 border-dashed rounded-xl p-8 md:p-12 text-center transition-all ${
-              dragActive
+            className={`border-2 border-dashed rounded-xl p-8 md:p-12 text-center transition-all ${dragActive
                 ? "border-indigo-400 bg-indigo-50 scale-[1.02]"
                 : "border-gray-300 bg-white hover:border-indigo-300 hover:bg-indigo-50/30"
-            }`}
+              }`}
             onDragEnter={() => setDragActive(true)}
             onDragLeave={() => setDragActive(false)}
             onDragOver={(e) => {
@@ -843,9 +842,8 @@ export default function BulkUploadPage() {
                         return (
                           <tr
                             key={index}
-                            className={`transition-colors group ${
-                              hasError ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-gray-50/80"
-                            }`}
+                            className={`transition-colors group ${hasError ? "bg-amber-50/50 hover:bg-amber-50" : "hover:bg-gray-50/80"
+                              }`}
                           >
                             <td className="px-4 py-3 text-sm text-gray-400 font-mono align-top pt-4">
                               #{index + 1}
@@ -867,9 +865,8 @@ export default function BulkUploadPage() {
                               ) : (
                                 <div>
                                   <div
-                                    className={`text-sm font-medium truncate max-w-[180px] ${
-                                      !task.title ? "text-rose-500 italic" : "text-gray-800"
-                                    }`}
+                                    className={`text-sm font-medium truncate max-w-[180px] ${!task.title ? "text-rose-500 italic" : "text-gray-800"
+                                      }`}
                                     title={task.title || "Missing title"}
                                   >
                                     {task.title || "Missing title"}
@@ -892,9 +889,8 @@ export default function BulkUploadPage() {
                                 />
                               ) : (
                                 <div
-                                  className={`text-sm truncate max-w-[230px] ${
-                                    !task.description ? "text-rose-500 italic" : "text-gray-600"
-                                  }`}
+                                  className={`text-sm truncate max-w-[230px] ${!task.description ? "text-rose-500 italic" : "text-gray-600"
+                                    }`}
                                   title={task.description || "Missing description"}
                                 >
                                   {task.description || "Missing description"}
@@ -925,7 +921,7 @@ export default function BulkUploadPage() {
                                   <span
                                     className={
                                       !task.assignedTo ||
-                                      !users.some((u) => u._id === task.assignedTo)
+                                        !users.some((u) => u._id === task.assignedTo)
                                         ? "text-rose-500 italic truncate max-w-[140px]"
                                         : "text-gray-700 truncate max-w-[140px]"
                                     }
@@ -972,9 +968,9 @@ export default function BulkUploadPage() {
                                     setEditData((prev) =>
                                       prev
                                         ? {
-                                            ...prev,
-                                            priority: e.target.value as BulkTask["priority"],
-                                          }
+                                          ...prev,
+                                          priority: e.target.value as BulkTask["priority"],
+                                        }
                                         : null
                                     )
                                   }
@@ -988,11 +984,10 @@ export default function BulkUploadPage() {
                                 </select>
                               ) : (
                                 <span
-                                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
-                                    PRIORITY_COLORS[
-                                      task.priority as keyof typeof PRIORITY_COLORS
+                                  className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${PRIORITY_COLORS[
+                                    task.priority as keyof typeof PRIORITY_COLORS
                                     ] || PRIORITY_COLORS.normal
-                                  }`}
+                                    }`}
                                 >
                                   <Flag className="w-3 h-3" />
                                   {task.priority || "normal"}
@@ -1008,9 +1003,9 @@ export default function BulkUploadPage() {
                                     setEditData((prev) =>
                                       prev
                                         ? {
-                                            ...prev,
-                                            estimatedHours: parseFloat(e.target.value) || 0,
-                                          }
+                                          ...prev,
+                                          estimatedHours: parseFloat(e.target.value) || 0,
+                                        }
                                         : null
                                     )
                                   }
@@ -1145,7 +1140,7 @@ export default function BulkUploadPage() {
                   Upload Failed
                 </h3>
                 <p className="text-sm text-rose-600 mt-1">{result.message}</p>
-                {result.errors?.length > 0 && (
+                {result.errors && result.errors.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {result.errors.map((err: any, idx: number) => (
                       <li key={idx} className="text-xs text-rose-500">
