@@ -347,25 +347,6 @@ export default function ProjectsReportPage() {
     });
   };
 
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const response = await api.get(`/reports/projects/export?range=${dateRange}`, {
-        responseType: "blob",
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `projects_report_${new Date().toISOString().split("T")[0]}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-      toast.success("Report exported successfully");
-    } catch (error) {
-      toast.error("Failed to export report");
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const handleSort = (field: "name" | "progress" | "budget") => {
     if (sortBy === field) {
@@ -377,7 +358,7 @@ export default function ProjectsReportPage() {
   };
 
   const filteredProjects = useMemo(() => {
-    let filtered = projects.filter((p) =>
+    const filtered = projects.filter((p) =>
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.code.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -410,6 +391,100 @@ export default function ProjectsReportPage() {
     return filtered;
   }, [projects, searchTerm, sortBy, sortOrder]);
 
+
+  const exportToCSV = (projectsToExport: Project[]) => {
+    // Define CSV headers
+    const headers = [
+      'Project Code',
+      'Project Name',
+      'Status',
+      'Priority',
+      'Progress (%)',
+      'Tasks',
+      'Completed Tasks',
+      'Budget (USD)',
+      'Manager',
+      'Department',
+      'Start Date',
+      'End Date',
+      'Created At'
+    ];
+
+    // Convert projects to CSV rows
+    const rows = projectsToExport.map(project => [
+      project.code,
+      `"${project.name}"`,
+      project.status.replace('_', ' '),
+      project.priority,
+      project.progress,
+      project.tasksCount,
+      project.completedTasks,
+      project.budget?.allocated || 0,
+      project.managerId?.fullName || 'N/A',
+      project.departmentId?.name || 'N/A',
+      new Date(project.startDate).toLocaleDateString(),
+      new Date(project.endDate).toLocaleDateString(),
+      new Date(project.createdAt).toLocaleDateString()
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Add BOM for UTF-8 encoding
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `projects_report_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Exported ${projectsToExport.length} projects successfully`);
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+
+    try {
+      const response = await api.get(`/reports/projects/export?range=${dateRange}`, {
+        responseType: "blob",
+        timeout: 5000,
+      });
+
+      // Success - download
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `projects_report_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Report exported successfully");
+    } catch (error: any) {
+      // Check if it's our special 404 error - SILENTLY handle
+      if (error?.__isExport404 || error?.isExport404 || error?.silent) {
+        // No error toast, just use client-side export
+        console.log('📊 Using client-side export');
+      } else {
+        // Real error
+        toast.error(error?.message || "Failed to export report");
+      }
+
+      // Always fallback to client-side export
+      setTimeout(() => {
+        exportToCSV(filteredProjects);
+      }, 300);
+    } finally {
+      setExporting(false);
+    }
+  };
   const getStatusColor = (status: string) => {
     const colors = {
       planning: "bg-amber-50 text-amber-700 border-amber-200",
@@ -593,11 +668,10 @@ export default function ProjectsReportPage() {
                   <button
                     key={range}
                     onClick={() => setDateRange(range as any)}
-                    className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${
-                      dateRange === range
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${dateRange === range
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
                   >
                     {range}
                   </button>
@@ -669,11 +743,10 @@ export default function ProjectsReportPage() {
                 <button
                   key={tab.id}
                   onClick={() => setViewType(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    viewType === tab.id
-                      ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                  }`}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewType === tab.id
+                    ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    }`}
                 >
                   <Icon size={16} />
                   {tab.label}
@@ -958,13 +1031,12 @@ export default function ProjectsReportPage() {
                             <div className="flex items-center gap-2 justify-center">
                               <div className="w-16 bg-gray-200 rounded-full h-2">
                                 <div
-                                  className={`h-2 rounded-full ${
-                                    project.progress > 70
-                                      ? "bg-emerald-500"
-                                      : project.progress > 40
+                                  className={`h-2 rounded-full ${project.progress > 70
+                                    ? "bg-emerald-500"
+                                    : project.progress > 40
                                       ? "bg-amber-500"
                                       : "bg-rose-500"
-                                  }`}
+                                    }`}
                                   style={{ width: `${Math.min(project.progress, 100)}%` }}
                                 />
                               </div>

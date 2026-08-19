@@ -18,8 +18,9 @@ export interface ApiResponse<T = any> {
 
 // ============ ENVIRONMENT CONFIGURATION ============
 const API_BASE_URL: string =
-  // process.env.NEXT_PUBLIC_API_URL || "https://taskify-server-5gat.onrender.com/api/v1";
-"http://localhost:5000/api/v1";
+  process.env.NEXT_PUBLIC_API_URL || "https://taskify-server-5gat.onrender.com/api/v1";
+  // "http://localhost:5000/api/v1";
+
 
 // ============ CREATE AXIOS INSTANCE =============
 const api: AxiosInstance = axios.create({
@@ -32,13 +33,43 @@ const api: AxiosInstance = axios.create({
   timeout: 60000,
 });
 
-// ============ TOKEN INTERCEPTOR ============
+// ============ IGNORE 404 FOR EXPORT ENDPOINT ============
+// This runs BEFORE the main response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Check if it's a 404 error for the export endpoint
+    const isExportEndpoint = error?.config?.url?.includes('/reports/projects/export');
+    
+    // If it's a 404 for export endpoint, silently return null response
+    if (error?.response?.status === 404 && isExportEndpoint) {
+      // Return a special response that our handleExport can detect
+      return Promise.reject({
+        ...error,
+        __isExport404: true, // Add a flag to identify this error
+        isExport404: true,
+      });
+    }
+    
+    // For all other errors, continue with the normal flow
+    return Promise.reject(error);
+  }
+);
+
+// ============ TOKEN INTERCEPTOR - FIXED ============
+// This runs BEFORE every request and ensures the token is always sent
 api.interceptors.request.use(
   (config) => {
+    // Get the latest token from localStorage
     const token = localStorage.getItem("token");
 
+    // ALWAYS set the token if it exists
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      // Log for debugging
+      console.log(`🔑 Token attached to request: ${config.url}`);
+    } else {
+      console.log(`⚠️ No token for request: ${config.url}`);
     }
 
     return config;
@@ -92,21 +123,24 @@ const isRetryableError = (error: AxiosError): boolean => {
   return false;
 };
 
-// ============ REQUEST INTERCEPTOR ============
+// ============ REQUEST INTERCEPTOR (with logging) ============
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const requestId = Math.random().toString(36).substring(2, 10);
     config.headers["X-Request-ID"] = requestId;
 
+    // Double-check token is set
     const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Increase timeout for specific endpoints
     if (config.url?.includes("/tasks") && config.method === "post") {
       config.timeout = 120000;
     }
 
+    // For multipart/form-data (file uploads)
     if (config.data instanceof FormData) {
       delete config.headers["Content-Type"];
       config.timeout = 180000;
@@ -127,7 +161,7 @@ api.interceptors.request.use(
   },
 );
 
-// ============ RESPONSE INTERCEPTOR - FIXED ============
+// ============ RESPONSE INTERCEPTOR ============
 api.interceptors.response.use(
   (response: AxiosResponse): AxiosResponse => {
     const requestId = response.config.headers["X-Request-ID"] || "unknown";
@@ -153,22 +187,6 @@ api.interceptors.response.use(
   async (error: AxiosError): Promise<any> => {
     const requestId =
       (error.config?.headers as any)?.["X-Request-ID"] || "unknown";
-
-    // ============================================================
-    // FIX: Check if this is the export endpoint with 404 error
-    // ============================================================
-    const isExportEndpoint = error?.config?.url?.includes('/reports/projects/export');
-
-    // If it's a 404 for export endpoint, silently return without logging
-    if (error?.response?.status === 404 && isExportEndpoint) {
-      // Return a special error that our handleExport can detect
-      return Promise.reject({
-        ...error,
-        __isExport404: true,
-        isExport404: true,
-        silent: true,
-      });
-    }
 
     // Network errors
     if (!error.response) {
@@ -209,20 +227,6 @@ api.interceptors.response.use(
     }
     retryCount = 0;
 
-    // ============================================================
-    // FIX: Skip logging for export endpoint 404
-    // ============================================================
-    // Don't log 404 for export endpoint
-    if (status === 404 && isExportEndpoint) {
-      return Promise.reject({
-        ...error,
-        __isExport404: true,
-        isExport404: true,
-        silent: true,
-      });
-    }
-
-    // Log all other errors
     console.error(`❌ [${requestId}] API Error:`, {
       status,
       data: data,
@@ -305,7 +309,6 @@ api.interceptors.response.use(
         break;
 
       case 404:
-        // This will only run for non-export endpoints
         console.error("❌ Not Found:", data?.message);
         break;
 
