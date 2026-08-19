@@ -750,7 +750,7 @@ export default function BulkUploadPage() {
             </p>
             <div className="flex justify-center gap-3">
               <button
-                onClick={() => router.push("tasks/tasks-board")}
+                onClick={() => router.push("/tasks/tasks-board")}
                 className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition shadow-sm"
               >
                 View Tasks
