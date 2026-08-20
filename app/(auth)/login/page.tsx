@@ -4,10 +4,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  Eye, 
-  EyeOff, 
-  Loader2, 
+import {
+  Eye,
+  EyeOff,
+  Loader2,
   AlertCircle,
   CheckCircle2,
   XCircle,
@@ -106,7 +106,7 @@ export default function LoginPage() {
 
   const handleFieldBlur = (field: 'email' | 'password') => {
     setTouchedFields({ ...touchedFields, [field]: true });
-    
+
     // Only validate on blur when field has content
     if (field === 'email' && formData.email) {
       const result = validateEmail(formData.email);
@@ -116,7 +116,7 @@ export default function LoginPage() {
         setFieldErrors({ ...fieldErrors, email: undefined });
       }
     }
-    
+
     if (field === 'password' && formData.password) {
       const result = validatePassword(formData.password);
       if (!result.isValid) {
@@ -130,12 +130,12 @@ export default function LoginPage() {
   const handleFieldChange = (field: 'email' | 'password', value: string) => {
     setFormData({ ...formData, [field]: value });
     setLoginError(null);
-    
+
     // Only clear field error when user starts typing
     if (fieldErrors[field]) {
       setFieldErrors({ ...fieldErrors, [field]: undefined });
     }
-    
+
     // Real-time validation only for email when it's complete enough
     if (field === 'email' && value && touchedFields.email) {
       // Only show error if email is complete or has @ and domain
@@ -151,7 +151,7 @@ export default function LoginPage() {
         setFieldErrors({ ...fieldErrors, email: undefined });
       }
     }
-    
+
     // Real-time validation for password
     if (field === 'password' && value && touchedFields.password) {
       const result = validatePassword(value);
@@ -202,11 +202,11 @@ export default function LoginPage() {
             color: '#fff',
           },
         });
-        
+
         if (userData) {
           localStorage.setItem('user', JSON.stringify(userData));
         }
-        
+
         setTimeout(() => {
           router.push("/dashboard");
         }, 500);
@@ -216,14 +216,14 @@ export default function LoginPage() {
       }
     } catch (error: unknown) {
       let errorMessage = "Invalid credentials. Please check your email and password.";
-      
+
       if (error instanceof Error && error.message?.includes('network')) {
         errorMessage = "Network error. Please check your internet connection.";
       }
-      
+
       if (error && typeof error === 'object' && 'status' in error) {
         const err = error as { status?: number; response?: { data?: { message?: string } } };
-        
+
         if (err.status === 401) {
           if (formData.password.length > 0) {
             errorMessage = "Invalid password. Please try again.";
@@ -242,14 +242,14 @@ export default function LoginPage() {
           document.getElementById('email-field')?.focus();
         } else if (err.response?.data?.message) {
           errorMessage = err.response.data.message;
-          
-          if (errorMessage.toLowerCase().includes('password') || 
-              errorMessage.toLowerCase().includes('incorrect')) {
+
+          if (errorMessage.toLowerCase().includes('password') ||
+            errorMessage.toLowerCase().includes('incorrect')) {
             setFieldErrors({ password: "Invalid password. Please try again." });
             document.getElementById('password-field')?.focus();
-          } else if (errorMessage.toLowerCase().includes('email') || 
-                     errorMessage.toLowerCase().includes('user') ||
-                     errorMessage.toLowerCase().includes('account')) {
+          } else if (errorMessage.toLowerCase().includes('email') ||
+            errorMessage.toLowerCase().includes('user') ||
+            errorMessage.toLowerCase().includes('account')) {
             setFieldErrors({ email: "Invalid email address. Please check and try again." });
             document.getElementById('email-field')?.focus();
           }
@@ -273,7 +273,7 @@ export default function LoginPage() {
           document.getElementById('email-field')?.focus();
         }
       }
-      
+
       if (!fieldErrors.email && !fieldErrors.password) {
         setLoginError(errorMessage);
         toast.error(errorMessage, {
@@ -284,7 +284,7 @@ export default function LoginPage() {
           },
         });
       }
-      
+
       setFormData((prev) => ({ ...prev, password: "" }));
     } finally {
       setIsSubmitting(false);
@@ -300,7 +300,7 @@ export default function LoginPage() {
         className="w-full max-w-[420px] bg-white backdrop-blur-sm rounded-3xl p-8 sm:p-10 shadow-2xl border border-white/20"
       >
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -336,14 +336,14 @@ export default function LoginPage() {
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Email */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
           >
             <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Mail className="w-3 h-3" />
-              EMAIL ADDRESS
+              {/* <Mail className="w-3 h-3" /> */}
+              WORK EMAIL
             </label>
             <div className="relative">
               <input
@@ -352,13 +352,12 @@ export default function LoginPage() {
                 value={formData.email}
                 onChange={(e) => handleFieldChange('email', e.target.value)}
                 onBlur={() => handleFieldBlur('email')}
-                className={`w-full px-4 py-3 text-sm text-gray-800 bg-white border-2 ${
-                  fieldErrors.email 
-                    ? 'border-red-500 focus:border-red-500' 
+                className={`w-full px-4 py-3 text-sm text-gray-800 bg-white border-2 ${fieldErrors.email
+                    ? 'border-red-500 focus:border-red-500'
                     : formData.email && !fieldErrors.email && touchedFields.email
-                    ? 'border-green-500 focus:border-green-500'
-                    : 'border-gray-200 focus:border-[#1A60FF]'
-                } rounded-xl outline-none transition-all duration-200 pr-10`}
+                      ? 'border-green-500 focus:border-green-500'
+                      : 'border-gray-200 focus:border-[#1A60FF]'
+                  } rounded-xl outline-none transition-all duration-200 pr-10`}
                 placeholder="you@company.com"
                 required
                 disabled={isSubmitting || isLoading}
@@ -391,13 +390,13 @@ export default function LoginPage() {
           </motion.div>
 
           {/* Password */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
           >
             <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Lock className="w-3 h-3" />
+              {/* <Lock className="w-3 h-3" /> */}
               PASSWORD
             </label>
             <div className="relative">
@@ -407,13 +406,12 @@ export default function LoginPage() {
                 value={formData.password}
                 onChange={(e) => handleFieldChange('password', e.target.value)}
                 onBlur={() => handleFieldBlur('password')}
-                className={`w-full pl-4 pr-12 py-3 text-sm text-gray-800 bg-white border-2 ${
-                  fieldErrors.password 
-                    ? 'border-red-500 focus:border-red-500' 
+                className={`w-full pl-4 pr-12 py-3 text-sm text-gray-800 bg-white border-2 ${fieldErrors.password
+                    ? 'border-red-500 focus:border-red-500'
                     : formData.password && !fieldErrors.password && touchedFields.password
-                    ? 'border-green-500 focus:border-green-500'
-                    : 'border-gray-200 focus:border-[#1A60FF]'
-                } rounded-xl outline-none transition-all duration-200`}
+                      ? 'border-green-500 focus:border-green-500'
+                      : 'border-gray-200 focus:border-[#1A60FF]'
+                  } rounded-xl outline-none transition-all duration-200`}
                 placeholder="Enter your password"
                 required
                 disabled={isSubmitting || isLoading}
@@ -444,7 +442,7 @@ export default function LoginPage() {
           </motion.div>
 
           {/* Remember Me & Forgot Password */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
@@ -470,7 +468,7 @@ export default function LoginPage() {
           </motion.div>
 
           {/* Submit Button */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
@@ -488,7 +486,7 @@ export default function LoginPage() {
                 </>
               ) : (
                 <>
-                  <Shield className="w-4 h-4" />
+                  {/* <Shield className="w-4 h-4" /> */}
                   <span>Sign In</span>
                 </>
               )}
@@ -497,7 +495,7 @@ export default function LoginPage() {
         </form>
 
         {/* Footer */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.6 }}

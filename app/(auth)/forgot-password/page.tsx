@@ -93,9 +93,9 @@ export default function ForgotPasswordPage() {
           <>
             {/* Header with Lock Icon */}
             <div className="text-center mb-8">
-              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-amber-100">
+              {/* <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-amber-100">
                 <span className="text-2xl">🔒</span>
-              </div>
+              </div> */}
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">
                 Reset Password
               </h1>

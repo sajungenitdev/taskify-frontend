@@ -171,7 +171,7 @@ export default function ResetPasswordPage() {
         <div className="bg-white rounded-[32px] shadow-2xl p-8 sm:p-10">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="text-4xl mb-3">🔑</div>
+            {/* <div className="text-4xl mb-3">🔑</div> */}
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
               New Password
             </h1>

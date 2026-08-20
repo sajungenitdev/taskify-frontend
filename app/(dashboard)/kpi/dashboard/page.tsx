@@ -5,43 +5,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Award,
   Search,
   Loader2,
-  Download,
   RefreshCw,
   Eye,
-  ChevronRight,
   X,
-  Crown,
-  Medal,
-  Settings,
-  Home,
-  Shield,
-  Users as UsersIcon,
-  ExternalLink,
-  ChevronLeft,
   AlertCircle,
-  Building2,
-  Calendar,
-  Clock,
   CheckCircle,
-  Zap,
-  Star,
   ArrowUpRight,
-  ArrowDownRight,
+  Award,
   FileText,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import { motion } from "framer-motion";
 import Link from "next/link";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// ============================================================
+// TYPES
+// ============================================================
 interface EmployeeKPI {
   _id: string;
   fullName: string;
@@ -56,8 +39,44 @@ interface EmployeeKPI {
   totalTasks: number;
   tasksInProgress: number;
   overdueTasks: number;
-  avatar?: string;
+  scores?: {
+    taskCompletion: number;
+    qualityScore: number;
+    efficiency: number;
+    collaboration: number;
+    innovation: number;
+    attendance: number;
+  };
 }
+
+interface TaskStats {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
+  overdue: number;
+  rejected: number;
+  submitted: number;
+}
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+const YEARS = [2023, 2024, 2025, 2026];
+
+const COMPONENT_WEIGHTS = {
+  taskCompletion: 0.25,
+  qualityScore: 0.20,
+  efficiency: 0.20,
+  collaboration: 0.15,
+  innovation: 0.10,
+  attendance: 0.10,
+};
 
 export default function KPIDashboardPage() {
   const { user, hasRole } = useAuth();
@@ -82,19 +101,16 @@ export default function KPIDashboardPage() {
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  const years = [2023, 2024, 2025, 2026];
-
   const canManage = hasRole([
     "super_admin", "admin", "hr_manager", "dept_manager",
     "project_manager", "employee",
   ]);
 
-  const currentMonth = months[new Date().getMonth()];
+  const currentMonth = MONTHS[new Date().getMonth()];
 
+  // ============================================================
+  // HELPERS
+  // ============================================================
   const getDepartmentName = (dept: any): string => {
     if (!dept) return "Unassigned";
     if (typeof dept === 'string') return dept;
@@ -117,12 +133,9 @@ export default function KPIDashboardPage() {
   };
 
   // ============================================================
-  // CALCULATE KPI SCORE - EXACT MATCH WITH DETAIL PAGE
+  // EXACT KPI CALCULATION - SAME AS DETAIL PAGE
   // ============================================================
-  // ============================================================
-  // CALCULATE KPI SCORE - FULLY TASK-BASED (NO RANDOM)
-  // ============================================================
-  const calculateKPIFromTasks = useCallback((userTasks: any[]): {
+  const calculateKPIFromTasks = useCallback((tasks: any[]): {
     score: number;
     metrics: {
       taskCompletion: number;
@@ -133,15 +146,15 @@ export default function KPIDashboardPage() {
       attendance: number;
     };
   } => {
-    const totalTasks = userTasks.length;
-    const completedTasks = userTasks.filter((t: any) => t.status === "completed").length;
-    const overdueTasks = userTasks.filter((t: any) =>
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t: any) => t.status === "completed").length;
+    const inProgressTasks = tasks.filter((t: any) => t.status === "in_progress").length;
+    const submittedTasks = tasks.filter((t: any) => t.status === "submitted").length;
+    const overdueTasks = tasks.filter((t: any) =>
       t.status === "overdue" ||
       (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
     ).length;
-    const inProgressTasks = userTasks.filter((t: any) => t.status === "in_progress").length;
-    const submittedTasks = userTasks.filter((t: any) => t.status === "submitted").length;
-    const rejectedTasks = userTasks.filter((t: any) => t.status === "rejected").length;
+    const rejectedTasks = tasks.filter((t: any) => t.status === "rejected").length;
 
     if (totalTasks === 0) {
       return {
@@ -157,55 +170,44 @@ export default function KPIDashboardPage() {
       };
     }
 
-    // ============================================================
-    // 1. TASK COMPLETION (25%) - Higher is better
-    // ============================================================
-    const taskCompletion = Math.min(100, Math.round((completedTasks / totalTasks) * 100));
+    // 1. TASK COMPLETION (25%)
+    const effectiveCompleted = completedTasks + (inProgressTasks * 0.5) + (submittedTasks * 0.8);
+    const taskCompletion = Math.min(100, Math.round((effectiveCompleted / totalTasks) * 100));
 
-    // ============================================================
-    // 2. QUALITY SCORE (20%) - Tasks completed without being overdue or rejected
-    // ============================================================
-    const qualityTasks = completedTasks - overdueTasks - rejectedTasks;
-    const qualityScore = Math.min(100, Math.max(0, Math.round((qualityTasks / totalTasks) * 100)));
+    // 2. QUALITY SCORE (20%)
+    let qualityScore = 0;
+    if (completedTasks > 0) {
+      const qualityTasks = completedTasks - overdueTasks - rejectedTasks;
+      qualityScore = Math.min(100, Math.max(0, Math.round((qualityTasks / totalTasks) * 100)));
+    } else if (inProgressTasks + submittedTasks > 0) {
+      const activeTasks = inProgressTasks + submittedTasks;
+      qualityScore = Math.min(70, Math.round(30 + (activeTasks / totalTasks) * 40));
+    } else {
+      qualityScore = 20;
+    }
 
-    // ============================================================
-    // 3. EFFICIENCY (20%) - Completed + in-progress + submitted progress
-    // ============================================================
-    const efficiency = Math.min(100, Math.round(
-      ((completedTasks + inProgressTasks * 0.5 + submittedTasks * 0.8) / totalTasks) * 100
-    ));
+    // 3. EFFICIENCY (20%)
+    const progress = (completedTasks + inProgressTasks * 0.5 + submittedTasks * 0.8) / totalTasks;
+    const efficiency = Math.min(100, Math.round(Math.max(15, progress * 100)));
 
-    // ============================================================
-    // 4. COLLABORATION (15%) - Based on team task completion
-    // ============================================================
-    const collaboration = Math.min(100, Math.round(
-      40 + (completedTasks / totalTasks) * 60
-    ));
+    // 4. COLLABORATION (15%)
+    const engagementRatio = (completedTasks + inProgressTasks + submittedTasks) / totalTasks;
+    const collaboration = Math.min(100, Math.round(30 + engagementRatio * 70));
 
-    // ============================================================
-    // 5. INNOVATION (10%) - Based on unique contributions
-    // ============================================================
-    const innovation = Math.min(100, Math.round(
-      35 + (completedTasks / totalTasks) * 65
-    ));
+    // 5. INNOVATION (10%)
+    const innovation = Math.min(100, Math.round(25 + engagementRatio * 75));
 
-    // ============================================================
-    // 6. ATTENDANCE (10%) - Based on task completion consistency
-    // ============================================================
-    const attendance = Math.min(100, Math.round(
-      60 + (completedTasks / totalTasks) * 40
-    ));
+    // 6. ATTENDANCE (10%)
+    const attendance = Math.min(100, Math.round(50 + engagementRatio * 50));
 
-    // ============================================================
-    // CALCULATE TOTAL SCORE WITH WEIGHTS
-    // ============================================================
+    // TOTAL SCORE
     const totalScore = Math.min(100, Math.round(
-      taskCompletion * 0.25 +
-      qualityScore * 0.2 +
-      efficiency * 0.2 +
-      collaboration * 0.15 +
-      innovation * 0.1 +
-      attendance * 0.1
+      taskCompletion * COMPONENT_WEIGHTS.taskCompletion +
+      qualityScore * COMPONENT_WEIGHTS.qualityScore +
+      efficiency * COMPONENT_WEIGHTS.efficiency +
+      collaboration * COMPONENT_WEIGHTS.collaboration +
+      innovation * COMPONENT_WEIGHTS.innovation +
+      attendance * COMPONENT_WEIGHTS.attendance
     ));
 
     return {
@@ -222,7 +224,7 @@ export default function KPIDashboardPage() {
   }, []);
 
   // ============================================================
-  // FETCH DATA - DYNAMIC AND EXACT
+  // FETCH DATA - FULLY DYNAMIC
   // ============================================================
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -231,68 +233,58 @@ export default function KPIDashboardPage() {
       const usersRes = await api.get("/users");
       const users = usersRes.data?.data || [];
 
-      // 2. Fetch all tasks
+      // 2. Fetch ALL tasks
       const tasksRes = await api.get("/tasks");
       const allTasks = tasksRes.data?.data || [];
 
-      // 3. Fetch KPI scores from database if available
-      let kpiScores: any[] = [];
-      try {
-        const kpiRes = await api.get(`/kpi/report/monthly`, {
-          params: {
-            month: months.indexOf(selectedMonth) + 1,
-            year: selectedYear
-          }
-        });
-        if (kpiRes.data.success) {
-          kpiScores = kpiRes.data.data?.allScores || [];
-        }
-      } catch (e) {
-        console.log("No KPI data found, calculating from tasks");
-      }
+      // 3. Calculate date range for selected month
+      const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
+      const startDate = new Date(selectedYear, monthIndex - 1, 1);
+      const endDate = new Date(selectedYear, monthIndex, 0);
 
-      // 4. Build employee data with exact calculations
+      console.log(`=== KPI Dashboard - ${selectedMonth} ${selectedYear} ===`);
+      console.log(`Total users: ${users.length}, Total tasks: ${allTasks.length}`);
+
+      // 4. Build employee data with EXACT calculations
       const employeeData: EmployeeKPI[] = users.map((user: any) => {
-        // Find KPI score from API
-        const kpi = kpiScores.find((k: any) => k.userId?._id === user._id);
-
-        // Get user's tasks
+        // Get ALL tasks for this user
         const userTasks = allTasks.filter((t: any) => {
           const assignedTo = typeof t.assignedTo === 'string' ? t.assignedTo : t.assignedTo?._id;
           return assignedTo === user._id;
         });
 
-        const total = userTasks.length;
-        const completed = userTasks.filter((t: any) => t.status === "completed").length;
-        const inProgress = userTasks.filter((t: any) => t.status === "in_progress").length;
-        const overdue = userTasks.filter((t: any) =>
+        // Filter tasks by selected month/year
+        const monthTasks = userTasks.filter((t: any) => {
+          const taskDate = new Date(t.createdAt);
+          return taskDate >= startDate && taskDate <= endDate;
+        });
+
+        const total = monthTasks.length;
+        const completed = monthTasks.filter((t: any) => t.status === "completed").length;
+        const inProgress = monthTasks.filter((t: any) => t.status === "in_progress").length;
+        const overdue = monthTasks.filter((t: any) =>
           t.status === "overdue" ||
           (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
         ).length;
 
-        // Calculate KPI score
-        let score = 0;
-        if (kpi?.totalScore) {
-          score = kpi.totalScore;
-        } else if (total > 0) {
-          const calculated = calculateKPIFromTasks(userTasks);
-          score = calculated.score;
-        }
+        // Calculate KPI score from MONTH-FILTERED tasks
+        const result = calculateKPIFromTasks(monthTasks);
+        const score = result.score;
 
         const deptName = getDepartmentName(user.departmentId || user.department);
 
         // Determine performance level
         const performanceLevel = score >= 85 ? "excellent"
           : score >= 70 ? "good"
-            : score >= 55 ? "average"
-              : score >= 10 ? "needs_improvement"
-                : "not_calculated";
+          : score >= 55 ? "average"
+          : score >= 10 ? "needs_improvement"
+          : "not_calculated";
 
         const status = score >= 85 ? "promotion_ready"
           : score >= 70 ? "on_track"
-            : score >= 55 ? "training_needed"
-              : score >= 10 ? "warning_review"
-                : "not_calculated";
+          : score >= 55 ? "training_needed"
+          : score >= 10 ? "warning_review"
+          : "not_calculated";
 
         return {
           _id: user._id,
@@ -308,6 +300,7 @@ export default function KPIDashboardPage() {
           totalTasks: total,
           tasksInProgress: inProgress,
           overdueTasks: overdue,
+          scores: result.metrics,
         };
       });
 
@@ -325,8 +318,12 @@ export default function KPIDashboardPage() {
       const top = employeesWithScores.length > 0 ? employeesWithScores[0] : null;
       const needs = employeesWithScores.length > 0 ? employeesWithScores[employeesWithScores.length - 1] : null;
 
-      const totalTasks = allTasks.length;
-      const completedTasks = allTasks.filter((t: any) => t.status === "completed").length;
+      // Calculate total tasks for the month
+      const allMonthTasks = allTasks.filter((t: any) => {
+        const taskDate = new Date(t.createdAt);
+        return taskDate >= startDate && taskDate <= endDate;
+      });
+      const completedTasks = allMonthTasks.filter((t: any) => t.status === "completed").length;
 
       setStats({
         deptAvg: avgScore,
@@ -338,7 +335,16 @@ export default function KPIDashboardPage() {
         needsAttentionId: needs?._id || "",
         tasksDone: completedTasks,
         totalEmployees: totalEmployees,
-        totalTasks: totalTasks,
+        totalTasks: allMonthTasks.length,
+      });
+
+      console.log("Dashboard Stats:", {
+        avgScore,
+        topPerformer: top?.fullName,
+        topScore: top?.totalScore,
+        totalEmployees,
+        totalTasks: allMonthTasks.length,
+        completedTasks
       });
 
     } catch (error: any) {
@@ -363,7 +369,6 @@ export default function KPIDashboardPage() {
     if (selectedMonth && selectedYear) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear]);
 
   // ============================================================
@@ -545,7 +550,7 @@ export default function KPIDashboardPage() {
       <div className="p-4 md:p-6 lg:p-8">
         <div className="container mx-auto space-y-6">
 
-          {/* Top Header Bar with Month buttons & Export */}
+          {/* Top Header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
@@ -557,29 +562,26 @@ export default function KPIDashboardPage() {
             </div>
 
             <div className="flex items-center gap-2.5 flex-wrap">
-              {/* Month Selector */}
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               >
-                {months.map((month) => (
+                {MONTHS.map((month) => (
                   <option key={month} value={month}>{month}</option>
                 ))}
               </select>
 
-              {/* Year Selector */}
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
                 className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition"
               >
-                {years.map((year) => (
+                {YEARS.map((year) => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
 
-              {/* Export Button */}
               <button
                 onClick={handleExportPDF}
                 disabled={employees.length === 0}
@@ -589,7 +591,6 @@ export default function KPIDashboardPage() {
                 Export PDF
               </button>
 
-              {/* Refresh Button */}
               <button
                 onClick={fetchData}
                 className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -597,7 +598,6 @@ export default function KPIDashboardPage() {
                 <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               </button>
 
-              {/* Filter Toggle */}
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
@@ -644,7 +644,7 @@ export default function KPIDashboardPage() {
             </div>
           )}
 
-          {/* Stats Summary Cards */}
+          {/* Stats Summary */}
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
@@ -652,7 +652,7 @@ export default function KPIDashboardPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm">
                   <div className="flex justify-between items-start">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">DEPT AVG</span>
                     <BarChart3 size={16} className="text-gray-400" />
@@ -663,7 +663,7 @@ export default function KPIDashboardPage() {
                 </div>
 
                 <div
-                  className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm hover:shadow-md transition cursor-pointer"
                   onClick={() => stats.topPerformerId && router.push(`/kpi/employee/${stats.topPerformerId}`)}
                 >
                   <div className="flex justify-between items-start">
@@ -677,7 +677,7 @@ export default function KPIDashboardPage() {
                 </div>
 
                 <div
-                  className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md transition cursor-pointer"
+                  className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm hover:shadow-md transition cursor-pointer"
                   onClick={() => stats.needsAttentionId && router.push(`/kpi/employee/${stats.needsAttentionId}`)}
                 >
                   <div className="flex justify-between items-start">
@@ -690,7 +690,7 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                <div className="bg-white rounded-xl p-5 border border-gray-200/80 shadow-sm">
                   <div className="flex justify-between items-start">
                     <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">TASKS DONE</span>
                     <CheckCircle size={16} className="text-gray-400" />
@@ -702,9 +702,8 @@ export default function KPIDashboardPage() {
                 </div>
               </div>
 
-              {/* Main Employee Score Section */}
+              {/* Employee Cards */}
               <div className="bg-white rounded-2xl border border-gray-200/80 shadow-sm p-6 space-y-6">
-
                 <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                   <h2 className="text-base font-bold text-gray-900">
                     Employee KPI Scores — {selectedMonth} {selectedYear}
@@ -724,7 +723,6 @@ export default function KPIDashboardPage() {
                   </div>
                 </div>
 
-                {/* Employee Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   {filteredEmployees.map((employee) => {
                     const statusConfig = getStatusConfig(employee.status);

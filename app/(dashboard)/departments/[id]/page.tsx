@@ -673,7 +673,7 @@ export default function DepartmentDetailPage() {
                     <Download size={14} />
                   </button>
 
-                  {canManage && (
+                  {/* {canManage && (
                     <Link
                       href={`/departments/${departmentId}/members/add`}
                       className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl transition flex items-center gap-1 shrink-0"
@@ -681,7 +681,7 @@ export default function DepartmentDetailPage() {
                       <Plus size={14} />
                       Add Member
                     </Link>
-                  )}
+                  )} */}
                 </div>
               </div>
 

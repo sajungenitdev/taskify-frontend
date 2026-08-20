@@ -213,7 +213,7 @@ export default function EditProjectPage() {
 
       if (response.data.success) {
         toast.success("Project updated successfully!");
-        router.push(`/projects/${projectId}`);
+        router.push(`/projects/active`);
       }
     } catch (error: any) {
       console.error("Error updating project:", error);
