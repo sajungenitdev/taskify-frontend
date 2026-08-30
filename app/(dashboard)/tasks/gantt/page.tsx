@@ -1385,7 +1385,7 @@ export default function GanttChartPage() {
                                             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Task
                                             </span>
-                                            <button
+                                            {/* <button
                                                 onClick={() => {
                                                     if (ganttData.tasks.length > 0) {
                                                         openDependencyEditor(ganttData.tasks[0]._id);
@@ -1395,7 +1395,7 @@ export default function GanttChartPage() {
                                             >
                                                 <Link2 className="w-3 h-3" />
                                                 Dependencies
-                                            </button>
+                                            </button> */}
                                         </div>
                                         <div className="flex-1 relative overflow-hidden">
                                             <div

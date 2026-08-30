@@ -329,7 +329,7 @@ export default function DependencyEditor({
                                         placeholder="Search tasks..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                        className="w-full pl-9 text-black pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                                     />
                                 </div>
                                 <div className="relative mt-2">
@@ -337,7 +337,7 @@ export default function DependencyEditor({
                                     <select
                                         value={selectedTaskId}
                                         onChange={(e) => setSelectedTaskId(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
+                                        className="w-full pl-9 text-black pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition appearance-none cursor-pointer"
                                         disabled={loading}
                                     >
                                         <option value="">{loading ? "Loading tasks..." : "Select a task..."}</option>
@@ -370,7 +370,7 @@ export default function DependencyEditor({
                                     <select
                                         value={selectedType}
                                         onChange={(e) => setSelectedType(e.target.value as any)}
-                                        className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                        className="w-full px-4 text-black py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                                     >
                                         {DEPENDENCY_TYPES.map((type) => (
                                             <option key={type.value} value={type.value}>
@@ -389,7 +389,7 @@ export default function DependencyEditor({
                                         max="365"
                                         value={lag}
                                         onChange={(e) => setLag(parseInt(e.target.value) || 0)}
-                                        className="w-full px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
+                                        className="w-full text-black px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
                                     />
                                 </div>
                             </div>

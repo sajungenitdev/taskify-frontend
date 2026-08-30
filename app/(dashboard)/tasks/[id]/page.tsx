@@ -1847,7 +1847,7 @@ export default function TaskDetailPage() {
                         {/* Dependencies Button - সবসময় Visible */}
                         <button
                           onClick={() => setShowDependencyEditor(true)}
-                          className="w-full py-2.5 mb-0 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition flex items-center justify-center gap-2 shadow-sm border border-indigo-200"
+                          className="w-full py-2.5 mb-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition flex items-center justify-center gap-2 shadow-sm border border-indigo-200"
                         >
                           <Link2 size={16} />
                           Manage Dependencies
