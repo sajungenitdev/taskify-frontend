@@ -212,7 +212,7 @@ export default function LoginPage() {
         }, 500);
       } else {
         setLoginError("Login failed. Please try again.");
-        toast.error("Login failed. Please try again.");
+        // toast.error("Login failed. Please try again.");
       }
     } catch (error: unknown) {
       let errorMessage = "Invalid credentials. Please check your email and password.";
@@ -276,13 +276,13 @@ export default function LoginPage() {
 
       if (!fieldErrors.email && !fieldErrors.password) {
         setLoginError(errorMessage);
-        toast.error(errorMessage, {
-          duration: 5000,
-          style: {
-            background: '#EF4444',
-            color: '#fff',
-          },
-        });
+        // toast.error(errorMessage, {
+        //   duration: 5000,
+        //   style: {
+        //     background: '#EF4444',
+        //     color: '#fff',
+        //   },
+        // });
       }
 
       setFormData((prev) => ({ ...prev, password: "" }));
@@ -318,7 +318,7 @@ export default function LoginPage() {
         </motion.div>
 
         {/* Login Error */}
-        <AnimatePresence mode="wait">
+        {/* <AnimatePresence mode="wait">
           {loginError && (
             <motion.div
               initial={{ opacity: 0, height: 0, y: -10 }}
@@ -331,7 +331,7 @@ export default function LoginPage() {
               <p className="text-xs text-red-600 font-medium">{loginError}</p>
             </motion.div>
           )}
-        </AnimatePresence>
+        </AnimatePresence> */}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -353,10 +353,10 @@ export default function LoginPage() {
                 onChange={(e) => handleFieldChange('email', e.target.value)}
                 onBlur={() => handleFieldBlur('email')}
                 className={`w-full px-4 py-3 text-sm text-gray-800 bg-white border-2 ${fieldErrors.email
-                    ? 'border-red-500 focus:border-red-500'
-                    : formData.email && !fieldErrors.email && touchedFields.email
-                      ? 'border-green-500 focus:border-green-500'
-                      : 'border-gray-200 focus:border-[#1A60FF]'
+                  ? 'border-red-500 focus:border-red-500'
+                  : formData.email && !fieldErrors.email && touchedFields.email
+                    ? 'border-green-500 focus:border-green-500'
+                    : 'border-gray-200 focus:border-[#1A60FF]'
                   } rounded-xl outline-none transition-all duration-200 pr-10`}
                 placeholder="you@company.com"
                 required
@@ -407,10 +407,10 @@ export default function LoginPage() {
                 onChange={(e) => handleFieldChange('password', e.target.value)}
                 onBlur={() => handleFieldBlur('password')}
                 className={`w-full pl-4 pr-12 py-3 text-sm text-gray-800 bg-white border-2 ${fieldErrors.password
-                    ? 'border-red-500 focus:border-red-500'
-                    : formData.password && !fieldErrors.password && touchedFields.password
-                      ? 'border-green-500 focus:border-green-500'
-                      : 'border-gray-200 focus:border-[#1A60FF]'
+                  ? 'border-red-500 focus:border-red-500'
+                  : formData.password && !fieldErrors.password && touchedFields.password
+                    ? 'border-green-500 focus:border-green-500'
+                    : 'border-gray-200 focus:border-[#1A60FF]'
                   } rounded-xl outline-none transition-all duration-200`}
                 placeholder="Enter your password"
                 required

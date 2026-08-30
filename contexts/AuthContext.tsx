@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error.response?.data?.message || "Invalid Credentials");
+      // toast.error(error.response?.data?.message || "Invalid Credentials");
       throw error;
     }
   };
