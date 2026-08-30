@@ -285,39 +285,90 @@ export default function NotificationsPage() {
     }
   };
 
-  const deleteNotification = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this notification?")) return;
+  const deleteNotification = (id: string) => {
+    toast.custom(
+      (t) => (
+        <div
+          className={`${t.visible ? "animate-enter" : "animate-leave"
+            } max-w-sm w-full bg-white shadow-lg rounded-2xl pointer-events-auto border border-slate-200/80 p-4 space-y-3`}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-bold text-slate-800">
+                Delete notification?
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                This action cannot be undone.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                await executeDelete(id);
+              }}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg transition shadow-xs cursor-pointer"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 5000, position: "top-center" }
+    );
+  };
+
+  const executeDelete = async (id: string) => {
+    const loadingToast = toast.loading("Deleting notification...");
 
     try {
       const response = await api.delete(`/notifications/${id}`);
-      if (response.data.success) {
+
+      if (response.data?.success) {
         const deleted = notifications.find((n) => n._id === id);
         setNotifications((prev) => prev.filter((n) => n._id !== id));
+
         if (deleted) {
           setStats((prev) => ({
             ...prev,
-            total: prev.total - 1,
+            total: Math.max(0, prev.total - 1),
             unread: deleted.isRead ? prev.unread : Math.max(0, prev.unread - 1),
             read: deleted.isRead ? Math.max(0, prev.read - 1) : prev.read,
             byCategory: {
               ...prev.byCategory,
               [deleted.category]: Math.max(
                 0,
-                prev.byCategory[deleted.category] - 1,
+                (prev.byCategory?.[deleted.category] || 1) - 1
               ),
             },
             byType: {
               ...prev.byType,
-              [deleted.type]: Math.max(0, prev.byType[deleted.type] - 1),
+              [deleted.type]: Math.max(
+                0,
+                (prev.byType?.[deleted.type] || 1) - 1
+              ),
             },
           }));
         }
-        toast.success("Notification deleted");
+
+        toast.success("Notification deleted", { id: loadingToast });
       }
     } catch (error: any) {
       console.error("Error deleting notification:", error);
       toast.error(
         error.response?.data?.message || "Failed to delete notification",
+        { id: loadingToast }
       );
     }
   };
@@ -345,29 +396,98 @@ export default function NotificationsPage() {
     }
   };
 
-  const deleteAllRead = async () => {
-    if (
-      !confirm("Delete all read notifications? This action cannot be undone.")
-    )
-      return;
+  const deleteAllRead = () => {
+    const readCount = notifications.filter((n) => n.isRead).length;
 
+    if (readCount === 0) {
+      toast.error("No read notifications to delete");
+      return;
+    }
+
+    toast.custom(
+      (t) => (
+        <div
+          className={`${t.visible ? "animate-enter" : "animate-leave"
+            } max-w-sm w-full bg-white shadow-lg rounded-2xl pointer-events-auto border border-slate-200/80 p-4 space-y-3`}
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <Trash2 className="w-4 h-4" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-bold text-slate-800">
+                Delete all read notifications?
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                This will permanently remove {readCount} read notification{readCount > 1 ? "s" : ""}.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                toast.dismiss(t.id);
+                await executeDeleteAllRead();
+              }}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-lg transition shadow-xs cursor-pointer"
+            >
+              Delete All Read
+            </button>
+          </div>
+        </div>
+      ),
+      { duration: 5000, position: "top-center" }
+    );
+  };
+
+  const executeDeleteAllRead = async () => {
+    const loadingToast = toast.loading("Deleting read notifications...");
     setBulkActionLoading(true);
+
     try {
       const response = await api.delete("/notifications/read");
-      if (response.data.success) {
+
+      if (response.data?.success) {
+        const readNotifications = notifications.filter((n) => n.isRead);
+
         setNotifications((prev) => prev.filter((n) => !n.isRead));
-        const readCount = stats.read;
-        setStats((prev) => ({
-          ...prev,
-          total: prev.total - readCount,
-          read: 0,
-        }));
-        toast.success("Read notifications deleted");
+
+        setStats((prev) => {
+          const nextCategory = { ...prev.byCategory };
+          const nextType = { ...prev.byType };
+
+          readNotifications.forEach((n) => {
+            if (nextCategory[n.category]) {
+              nextCategory[n.category] = Math.max(0, nextCategory[n.category] - 1);
+            }
+            if (nextType[n.type]) {
+              nextType[n.type] = Math.max(0, nextType[n.type] - 1);
+            }
+          });
+
+          return {
+            ...prev,
+            total: Math.max(0, prev.total - readNotifications.length),
+            read: 0,
+            byCategory: nextCategory,
+            byType: nextType,
+          };
+        });
+
+        toast.success("Read notifications deleted", { id: loadingToast });
       }
     } catch (error: any) {
       console.error("Error deleting read notifications:", error);
       toast.error(
         error.response?.data?.message || "Failed to delete read notifications",
+        { id: loadingToast }
       );
     } finally {
       setBulkActionLoading(false);
@@ -807,11 +927,10 @@ export default function NotificationsPage() {
                 <button
                   key={option.value}
                   onClick={() => setFilter(option.value)}
-                  className={`px-3 py-1.5 text-xs rounded-lg capitalize transition-all flex items-center gap-1.5 ${
-                    filter === option.value
-                      ? "bg-indigo-600 text-white shadow-sm"
-                      : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                  }`}
+                  className={`px-3 py-1.5 text-xs rounded-lg capitalize transition-all flex items-center gap-1.5 ${filter === option.value
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "bg-white border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                    }`}
                 >
                   <option.icon size={12} />
                   {option.label}
@@ -922,11 +1041,10 @@ export default function NotificationsPage() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     transition={{ delay: index * 0.03 }}
-                    className={`group bg-white rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md ${
-                      !notification.isRead
-                        ? "border-indigo-200 bg-indigo-50/30"
-                        : "border-gray-200 hover:border-indigo-200"
-                    } ${viewMode === "compact" ? "p-3" : "p-4"}`}
+                    className={`group bg-white rounded-xl border transition-all duration-300 shadow-sm hover:shadow-md ${!notification.isRead
+                      ? "border-indigo-200 bg-indigo-50/30"
+                      : "border-gray-200 hover:border-indigo-200"
+                      } ${viewMode === "compact" ? "p-3" : "p-4"}`}
                   >
                     <div className="flex items-start gap-3">
                       {/* Checkbox */}
@@ -962,15 +1080,14 @@ export default function NotificationsPage() {
                                 {notification.title}
                               </h4>
                               <span
-                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                                  notification.type === "success"
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : notification.type === "warning"
-                                      ? "bg-amber-50 text-amber-700"
-                                      : notification.type === "error"
-                                        ? "bg-rose-50 text-rose-700"
-                                        : "bg-blue-50 text-blue-700"
-                                }`}
+                                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${notification.type === "success"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : notification.type === "warning"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : notification.type === "error"
+                                      ? "bg-rose-50 text-rose-700"
+                                      : "bg-blue-50 text-blue-700"
+                                  }`}
                               >
                                 {notification.type}
                               </span>
@@ -1065,11 +1182,10 @@ export default function NotificationsPage() {
                     <button
                       key={pageNum}
                       onClick={() => setPage(pageNum)}
-                      className={`w-8 h-8 text-sm rounded-lg transition ${
-                        page === pageNum
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                      }`}
+                      className={`w-8 h-8 text-sm rounded-lg transition ${page === pageNum
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+                        }`}
                     >
                       {pageNum}
                     </button>

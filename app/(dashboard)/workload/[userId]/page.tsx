@@ -540,6 +540,147 @@ export default function IndividualWorkloadPage() {
       setLoading(false);
     }
   };
+  // ============ EXPORT FUNCTION ============
+  const handleExportReport = async () => {
+    try {
+      const toastId = toast.loading("Generating report...");
+
+      // Prepare data for export
+      const reportData = {
+        employee: {
+          name: data?.user.fullName,
+          email: data?.user.email,
+          employeeId: data?.user.employeeId,
+          department: getDepartmentDisplay(data?.user.department || null),
+          role: data?.user.role,
+          joinDate: data?.user.joinDate ? formatDate(data?.user.joinDate) : "N/A",
+        },
+        metrics: {
+          totalTasks: data?.metrics.totalTasks || 0,
+          activeTasks: data?.metrics.activeTasks || 0,
+          completedTasks: data?.metrics.completedTasks || 0,
+          totalEstimatedHours: data?.metrics.totalEstimatedHours?.toFixed(1) || 0,
+          totalActualHours: data?.metrics.totalActualHours?.toFixed(1) || 0,
+          completionRate: `${data?.metrics.completionRate || 0}%`,
+          productivityScore: `${data?.metrics.productivityScore || 0}%`,
+          efficiencyRate: `${data?.metrics.efficiencyRate || 0}%`,
+          avgTaskCompletionTime: `${data?.metrics.avgTaskCompletionTime?.toFixed(1) || 0}h`,
+          onTimeDeliveryRate: `${data?.metrics.onTimeDeliveryRate || 0}%`,
+        },
+        tasks: data?.tasksByProject?.flatMap(p =>
+          p.tasks.map((task: Task) => ({
+            title: task.title,
+            project: p.project?.name || "Unassigned",
+            status: getStatusLabel(task.status || 'pending'),
+            priority: getPriorityLabel(task.priority || 'normal'),
+            estimatedHours: task.estimatedHours || 0,
+            actualHours: ((task.actualMinutes || 0) / 60).toFixed(1),
+            deadline: task.deadline ? formatDate(task.deadline) : "N/A",
+            createdAt: formatDate(task.createdAt),
+          }))
+        ) || [],
+        summary: {
+          totalProjects: data?.tasksByProject?.length || 0,
+          totalTasksCompleted: data?.metrics.completedTasks || 0,
+          totalActiveTasks: data?.metrics.activeTasks || 0,
+          overdueTasks: data?.overdueTasks?.length || 0,
+        }
+      };
+
+      // Generate CSV
+      const headers = [
+        "Employee Name", "Email", "Employee ID", "Department", "Role", "Join Date",
+        "Total Tasks", "Active Tasks", "Completed Tasks", "Total Estimated Hours", "Total Actual Hours",
+        "Completion Rate", "Productivity Score", "Efficiency Rate", "Avg Completion Time", "On-Time Delivery Rate",
+        "Task Title", "Project", "Task Status", "Task Priority", "Estimated Hours", "Actual Hours", "Deadline", "Created At"
+      ];
+
+      // Build rows for each task
+      const taskRows = reportData.tasks.map((task: any) => [
+        reportData.employee.name,
+        reportData.employee.email,
+        reportData.employee.employeeId,
+        reportData.employee.department,
+        reportData.employee.role,
+        reportData.employee.joinDate,
+        reportData.metrics.totalTasks,
+        reportData.metrics.activeTasks,
+        reportData.metrics.completedTasks,
+        reportData.metrics.totalEstimatedHours,
+        reportData.metrics.totalActualHours,
+        reportData.metrics.completionRate,
+        reportData.metrics.productivityScore,
+        reportData.metrics.efficiencyRate,
+        reportData.metrics.avgTaskCompletionTime,
+        reportData.metrics.onTimeDeliveryRate,
+        task.title || "",
+        task.project || "",
+        task.status || "",
+        task.priority || "",
+        task.estimatedHours || 0,
+        task.actualHours || 0,
+        task.deadline || "N/A",
+        task.createdAt || "N/A"
+      ]);
+
+      // If no tasks, create a single row with only employee data
+      if (taskRows.length === 0) {
+        taskRows.push([
+          reportData.employee.name,
+          reportData.employee.email,
+          reportData.employee.employeeId,
+          reportData.employee.department,
+          reportData.employee.role,
+          reportData.employee.joinDate,
+          reportData.metrics.totalTasks,
+          reportData.metrics.activeTasks,
+          reportData.metrics.completedTasks,
+          reportData.metrics.totalEstimatedHours,
+          reportData.metrics.totalActualHours,
+          reportData.metrics.completionRate,
+          reportData.metrics.productivityScore,
+          reportData.metrics.efficiencyRate,
+          reportData.metrics.avgTaskCompletionTime,
+          reportData.metrics.onTimeDeliveryRate,
+          "No tasks assigned",
+          "",
+          "",
+          "",
+          0,
+          0,
+          "",
+          ""
+        ]);
+      }
+
+      // Build CSV content
+      const csvContent = [
+        headers.join(","),
+        ...taskRows.map(row => row.join(","))
+      ].join("\n");
+
+      // Add BOM for UTF-8
+      const csvWithBOM = "\uFEFF" + csvContent;
+
+      // Create and download the file
+      const blob = new Blob([csvWithBOM], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const fileName = `workload_report_${data?.user.fullName?.replace(/\s/g, "_") || "employee"}_${new Date().toISOString().split("T")[0]}.csv`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.dismiss(toastId);
+      toast.success(`Report downloaded successfully as ${fileName}`);
+    } catch (error: any) {
+      console.error("Export error:", error);
+      toast.error(error.message || "Failed to generate report");
+    }
+  };
 
   // ============= Memoized Chart Data =============
   const weeklyChartData = useMemo(() => {
@@ -710,9 +851,7 @@ export default function IndividualWorkloadPage() {
                 Refresh
               </button>
               <button
-                onClick={() => {
-                  toast.success("Report generated successfully!");
-                }}
+                onClick={handleExportReport}
                 className="px-4 py-2 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl transition flex items-center gap-2 shadow-md shadow-indigo-500/25"
               >
                 <Download size={16} />
@@ -862,8 +1001,8 @@ export default function IndividualWorkloadPage() {
                     key={tab.id}
                     onClick={() => setSelectedTab(tab.id as any)}
                     className={`flex items-center gap-2 px-5 py-3 text-sm font-medium transition whitespace-nowrap border-b-2 ${selectedTab === tab.id
-                        ? "text-indigo-600 border-indigo-600 bg-indigo-50/30"
-                        : "text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50"
+                      ? "text-indigo-600 border-indigo-600 bg-indigo-50/30"
+                      : "text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50"
                       }`}
                   >
                     <Icon size={16} />
@@ -1021,8 +1160,8 @@ export default function IndividualWorkloadPage() {
                           key={filter.id}
                           onClick={() => setTaskFilter(filter.id as any)}
                           className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${taskFilter === filter.id
-                              ? "bg-white text-indigo-600 shadow-sm"
-                              : "text-gray-500 hover:bg-white/50"
+                            ? "bg-white text-indigo-600 shadow-sm"
+                            : "text-gray-500 hover:bg-white/50"
                             }`}
                         >
                           {filter.label}
@@ -1182,12 +1321,12 @@ export default function IndividualWorkloadPage() {
                                 <div className="flex items-center gap-2">
                                   <span
                                     className={`w-2 h-2 rounded-full ${task.status === "completed" || task.status === "done"
-                                        ? "bg-emerald-500"
-                                        : task.status === "in_progress"
-                                          ? "bg-amber-500"
-                                          : task.status === "submitted"
-                                            ? "bg-purple-500"
-                                            : "bg-gray-400"
+                                      ? "bg-emerald-500"
+                                      : task.status === "in_progress"
+                                        ? "bg-amber-500"
+                                        : task.status === "submitted"
+                                          ? "bg-purple-500"
+                                          : "bg-gray-400"
                                       }`}
                                   />
                                   <span className="text-gray-700">{task.title}</span>

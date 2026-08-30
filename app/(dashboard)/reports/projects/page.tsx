@@ -1,3 +1,4 @@
+// app/(dashboard)/reports/projects/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -153,14 +154,14 @@ interface ProjectReport {
   }>;
 }
 
-const PRIORITY_COLORS = {
+const PRIORITY_COLORS: Record<string, string> = {
   low: "#10b981",
   normal: "#3b82f6",
   high: "#f59e0b",
   critical: "#ef4444",
 };
 
-const STATUS_COLORS = {
+const STATUS_COLORS: Record<string, string> = {
   planning: "#f59e0b",
   active: "#3b82f6",
   on_hold: "#8b5cf6",
@@ -185,6 +186,57 @@ export default function ProjectsReportPage() {
 
   const canViewReports = hasRole(["super_admin", "admin", "dept_manager", "project_manager", "hr_manager"]);
 
+  // 🔥 Filter projects by date range
+  const filterProjectsByDateRange = (projectsData: Project[], range: string): Project[] => {
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (range) {
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "quarter":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+
+    return projectsData.filter(project => {
+      const createdAt = new Date(project.createdAt);
+      return createdAt >= startDate && createdAt <= now;
+    });
+  };
+
+  // 🔥 Get date range label
+  const getDateRangeLabel = (range: string): string => {
+    const now = new Date();
+    let startDate = new Date();
+    switch (range) {
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "quarter":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+    return `${startDate.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+  };
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
@@ -198,6 +250,13 @@ export default function ProjectsReportPage() {
     fetchProjects();
   }, [isAuthenticated, isLoading, canViewReports]);
 
+  // 🔥 Refetch when dateRange changes
+  useEffect(() => {
+    if (isAuthenticated && canViewReports && projects.length > 0) {
+      generateReport(projects, dateRange);
+    }
+  }, [dateRange]);
+
   const fetchProjects = async () => {
     setLoading(true);
     try {
@@ -205,7 +264,7 @@ export default function ProjectsReportPage() {
       if (response.data.success) {
         const projectsData = response.data.data || [];
         setProjects(projectsData);
-        generateReport(projectsData);
+        generateReport(projectsData, dateRange);
       }
     } catch (error: any) {
       console.error("Error fetching projects:", error);
@@ -215,25 +274,28 @@ export default function ProjectsReportPage() {
     }
   };
 
-  const generateReport = (projectsData: Project[]) => {
-    const total = projectsData.length;
-    const active = projectsData.filter(p => p.status === "active").length;
-    const planning = projectsData.filter(p => p.status === "planning").length;
-    const onHold = projectsData.filter(p => p.status === "on_hold").length;
-    const completed = projectsData.filter(p => p.status === "completed").length;
-    const cancelled = projectsData.filter(p => p.status === "cancelled").length;
+  const generateReport = (projectsData: Project[], range: string = "month") => {
+    // 🔥 Filter projects by date range
+    const filteredProjects = filterProjectsByDateRange(projectsData, range);
 
-    const totalBudget = projectsData.reduce((sum, p) => sum + (p.budget?.allocated || 0), 0);
-    const totalSpent = projectsData.reduce((sum, p) => sum + (p.budget?.spent || 0), 0);
-    const avgProgress = total > 0 ? Math.round(projectsData.reduce((sum, p) => sum + p.progress, 0) / total) : 0;
-    const totalTasks = projectsData.reduce((sum, p) => sum + p.tasksCount, 0);
-    const completedTasks = projectsData.reduce((sum, p) => sum + p.completedTasks, 0);
+    const total = filteredProjects.length;
+    const active = filteredProjects.filter(p => p.status === "active").length;
+    const planning = filteredProjects.filter(p => p.status === "planning").length;
+    const onHold = filteredProjects.filter(p => p.status === "on_hold").length;
+    const completed = filteredProjects.filter(p => p.status === "completed").length;
+    const cancelled = filteredProjects.filter(p => p.status === "cancelled").length;
+
+    const totalBudget = filteredProjects.reduce((sum, p) => sum + (p.budget?.allocated || 0), 0);
+    const totalSpent = filteredProjects.reduce((sum, p) => sum + (p.budget?.spent || 0), 0);
+    const avgProgress = total > 0 ? Math.round(filteredProjects.reduce((sum, p) => sum + p.progress, 0) / total) : 0;
+    const totalTasks = filteredProjects.reduce((sum, p) => sum + p.tasksCount, 0);
+    const completedTasks = filteredProjects.reduce((sum, p) => sum + p.completedTasks, 0);
 
     const projectsByPriority = {
-      low: projectsData.filter(p => p.priority === "low").length,
-      normal: projectsData.filter(p => p.priority === "normal").length,
-      high: projectsData.filter(p => p.priority === "high").length,
-      critical: projectsData.filter(p => p.priority === "critical").length,
+      low: filteredProjects.filter(p => p.priority === "low").length,
+      normal: filteredProjects.filter(p => p.priority === "normal").length,
+      high: filteredProjects.filter(p => p.priority === "high").length,
+      critical: filteredProjects.filter(p => p.priority === "critical").length,
     };
 
     const projectsByStatus = {
@@ -245,8 +307,8 @@ export default function ProjectsReportPage() {
     };
 
     // Projects by department
-    const deptMap = new Map();
-    for (const project of projectsData) {
+    const deptMap = new Map<string, { departmentId: string; departmentName: string; total: number; completed: number }>();
+    for (const project of filteredProjects) {
       const deptId = project.departmentId?._id || "unassigned";
       const deptName = project.departmentId?.name || "Unassigned";
       if (!deptMap.has(deptId)) {
@@ -257,18 +319,18 @@ export default function ProjectsReportPage() {
           completed: 0,
         });
       }
-      const dept = deptMap.get(deptId);
+      const dept = deptMap.get(deptId)!;
       dept.total++;
       if (project.status === "completed") dept.completed++;
     }
-    const projectsByDepartment = Array.from(deptMap.values()).map((d: any) => ({
+    const projectsByDepartment = Array.from(deptMap.values()).map((d) => ({
       ...d,
       completionRate: d.total > 0 ? Math.round((d.completed / d.total) * 100 * 10) / 10 : 0,
     }));
 
     // Projects by manager
-    const managerMap = new Map();
-    for (const project of projectsData) {
+    const managerMap = new Map<string, { managerId: string; managerName: string; total: number; completed: number }>();
+    for (const project of filteredProjects) {
       const managerId = project.managerId?._id || "unassigned";
       const managerName = project.managerId?.fullName || "Unassigned";
       if (!managerMap.has(managerId)) {
@@ -279,19 +341,20 @@ export default function ProjectsReportPage() {
           completed: 0,
         });
       }
-      const manager = managerMap.get(managerId);
+      const manager = managerMap.get(managerId)!;
       manager.total++;
       if (project.status === "completed") manager.completed++;
     }
-    const projectsByManager = Array.from(managerMap.values()).map((m: any) => ({
+    const projectsByManager = Array.from(managerMap.values()).map((m) => ({
       ...m,
       completionRate: m.total > 0 ? Math.round((m.completed / m.total) * 100 * 10) / 10 : 0,
     }));
 
-    // Monthly trend
+    // Monthly trend - based on filtered projects
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const monthMap = new Map();
-    for (let i = 0; i < 6; i++) {
+    const monthMap = new Map<string, { month: string; created: number; completed: number }>();
+    // Get last 6 months
+    for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const monthKey = date.getFullYear() + "-" + date.getMonth();
@@ -301,17 +364,17 @@ export default function ProjectsReportPage() {
         completed: 0,
       });
     }
-    for (const project of projectsData) {
+    for (const project of filteredProjects) {
       const createdAt = new Date(project.createdAt);
       const monthKey = createdAt.getFullYear() + "-" + createdAt.getMonth();
       if (monthMap.has(monthKey)) {
-        const data = monthMap.get(monthKey);
+        const data = monthMap.get(monthKey)!;
         data.created++;
         if (project.status === "completed") data.completed++;
         monthMap.set(monthKey, data);
       }
     }
-    const monthlyTrend = Array.from(monthMap.values()).reverse();
+    const monthlyTrend = Array.from(monthMap.values());
 
     // Progress distribution
     const ranges = [
@@ -323,7 +386,7 @@ export default function ProjectsReportPage() {
     ];
     const progressDistribution = ranges.map((r) => ({
       range: r.range,
-      count: projectsData.filter(p => p.progress >= r.min && p.progress <= r.max).length,
+      count: filteredProjects.filter(p => p.progress >= r.min && p.progress <= r.max).length,
     }));
 
     setReportData({
@@ -346,7 +409,6 @@ export default function ProjectsReportPage() {
       progressDistribution,
     });
   };
-
 
   const handleSort = (field: "name" | "progress" | "budget") => {
     if (sortBy === field) {
@@ -390,7 +452,6 @@ export default function ProjectsReportPage() {
 
     return filtered;
   }, [projects, searchTerm, sortBy, sortOrder]);
-
 
   const exportToCSV = (projectsToExport: Project[]) => {
     // Define CSV headers
@@ -485,25 +546,26 @@ export default function ProjectsReportPage() {
       setExporting(false);
     }
   };
+
   const getStatusColor = (status: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       planning: "bg-amber-50 text-amber-700 border-amber-200",
       active: "bg-blue-50 text-blue-700 border-blue-200",
       on_hold: "bg-purple-50 text-purple-700 border-purple-200",
       completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
       cancelled: "bg-gray-50 text-gray-700 border-gray-200",
     };
-    return colors[status as keyof typeof colors] || colors.planning;
+    return colors[status] || colors.planning;
   };
 
   const getPriorityColor = (priority: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       low: "bg-emerald-50 text-emerald-700 border-emerald-200",
       normal: "bg-blue-50 text-blue-700 border-blue-200",
       high: "bg-amber-50 text-amber-700 border-amber-200",
       critical: "bg-rose-50 text-rose-700 border-rose-200",
     };
-    return colors[priority as keyof typeof colors] || colors.normal;
+    return colors[priority] || colors.normal;
   };
 
   const formatDate = (dateString: string) => {
@@ -660,6 +722,9 @@ export default function ProjectsReportPage() {
               </div>
               <p className="text-gray-500 text-sm">
                 Comprehensive overview of project performance and analytics
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                📅 Showing: {getDateRangeLabel(dateRange)}
               </p>
             </div>
             <div className="flex flex-wrap gap-3">

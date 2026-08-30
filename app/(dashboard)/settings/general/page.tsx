@@ -247,8 +247,8 @@ const sections = [
     { id: "security", label: "Security", icon: Shield },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "preferences", label: "Preferences", icon: Palette },
-    { id: "features", label: "Features", icon: ZapIcon },
-    { id: "integrations", label: "Integrations", icon: Cloud },
+    // { id: "features", label: "Features", icon: ZapIcon },
+    // { id: "integrations", label: "Integrations", icon: Cloud },
 ];
 
 // ============================================================
@@ -549,7 +549,7 @@ export default function GeneralSettingsPage() {
                         </Link>
                         <ChevronRight size={14} className="text-gray-300" />
                         <Link
-                            href="/settings"
+                            href="/settings/general"
                             className="text-gray-400 hover:text-gray-600 transition"
                         >
                             Settings
@@ -705,20 +705,20 @@ export default function GeneralSettingsPage() {
                                     )}
 
                                     {/* Features Settings */}
-                                    {activeSection === "features" && (
+                                    {/* {activeSection === "features" && (
                                         <FeaturesSection
                                             settings={settings}
                                             updateSettings={updateSettings}
                                         />
-                                    )}
+                                    )} */}
 
                                     {/* Integrations Settings */}
-                                    {activeSection === "integrations" && (
+                                    {/* {activeSection === "integrations" && (
                                         <IntegrationsSection
                                             settings={settings}
                                             updateSettings={updateSettings}
                                         />
-                                    )}
+                                    )} */}
                                 </AnimatePresence>
                             </div>
                         </motion.div>
@@ -925,7 +925,7 @@ function BrandingSection({
             </div>
 
             {/* Theme Preview */}
-            <div className="bg-gray-50/80 rounded-xl p-4 border border-gray-200">
+            {/* <div className="bg-gray-50/80 rounded-xl p-4 border border-gray-200">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Theme Preview</h4>
                 <div className="flex items-center gap-4">
                     <button
@@ -959,7 +959,7 @@ function BrandingSection({
                         <span className="text-xs text-gray-600 mt-1 block">System</span>
                     </button>
                 </div>
-            </div>
+            </div> */}
         </motion.div>
     );
 }

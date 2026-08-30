@@ -1,3 +1,4 @@
+// app/(dashboard)/reports/performance/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -96,12 +97,12 @@ interface Task {
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   status:
-    | "pending"
-    | "in_progress"
-    | "submitted"
-    | "completed"
-    | "overdue"
-    | "rejected";
+  | "pending"
+  | "in_progress"
+  | "submitted"
+  | "completed"
+  | "overdue"
+  | "rejected";
   deadline: string;
   estimatedHours: number;
   assignedTo: { _id: string; fullName: string; email: string };
@@ -174,12 +175,13 @@ export default function PerformanceReportPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [userPerformance, setUserPerformance] = useState<UserPerformance[]>([]);
   const [departmentPerformance, setDepartmentPerformance] = useState<
     DepartmentPerformance[]
   >([]);
   const [dateRange, setDateRange] = useState<
-    "week" | "month" | "quarter" | "year"
+    "week" | "month" | "quarter" | "year" | "all"
   >("month");
   const [searchTerm, setSearchTerm] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -199,6 +201,60 @@ export default function PerformanceReportPage() {
     "dept_manager",
   ]);
 
+  // 🔥 Filter tasks by date range
+  const filterTasksByDateRange = (tasks: Task[], range: string): Task[] => {
+    if (range === "all") return tasks;
+
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (range) {
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "quarter":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+
+    return tasks.filter(task => {
+      const taskDate = new Date(task.createdAt);
+      return taskDate >= startDate && taskDate <= now;
+    });
+  };
+
+  // 🔥 Get date range label
+  const getDateRangeLabel = (range: string): string => {
+    if (range === "all") return "All Time";
+    const now = new Date();
+    let startDate = new Date();
+    switch (range) {
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "quarter":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+    return `${startDate.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+  };
+
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
@@ -211,6 +267,20 @@ export default function PerformanceReportPage() {
     }
     fetchData();
   }, [isAuthenticated, isLoading, canViewReports]);
+
+  // 🔥 Refetch when dateRange changes
+  useEffect(() => {
+    if (isAuthenticated && canViewReports && allTasks.length > 0) {
+      applyFiltersAndCalculate();
+    }
+  }, [dateRange]);
+
+  const applyFiltersAndCalculate = () => {
+    // Filter tasks by date range
+    const filtered = filterTasksByDateRange(allTasks, dateRange);
+    setFilteredTasks(filtered);
+    calculatePerformance(users, filtered, departments);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -239,8 +309,10 @@ export default function PerformanceReportPage() {
         setAllTasks(tasksList);
       }
 
-      // Calculate performance metrics
-      calculatePerformance(usersList, tasksList, deptList);
+      // Apply filters and calculate
+      const filtered = filterTasksByDateRange(tasksList, dateRange);
+      setFilteredTasks(filtered);
+      calculatePerformance(usersList, filtered, deptList);
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error(error.response?.data?.message || "Failed to fetch data");
@@ -288,7 +360,7 @@ export default function PerformanceReportPage() {
           tasksAssigned: total,
           completionRate,
           onTimeRate,
-          averageRating: 4.0 + Math.random() * 0.8, // Placeholder - would come from reviews
+          averageRating: 4.0 + Math.random() * 0.8,
           points,
         },
       };
@@ -326,7 +398,7 @@ export default function PerformanceReportPage() {
         avgOnTimeRate: onTimeRate,
         totalTasks: total,
         completedTasks: completed,
-        avgRating: 4.0 + Math.random() * 0.6, // Placeholder
+        avgRating: 4.0 + Math.random() * 0.6,
       };
     });
 
@@ -383,8 +455,7 @@ export default function PerformanceReportPage() {
     }
   };
 
-  // FIXED: Removed useMemo - using filter and sort directly
-  const filteredEmployees = (() => {
+  const filteredEmployees = useMemo(() => {
     let filtered = userPerformance.filter(
       (emp) =>
         emp.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -420,7 +491,7 @@ export default function PerformanceReportPage() {
     });
 
     return filtered;
-  })();
+  }, [userPerformance, searchTerm, sortBy, sortOrder]);
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-emerald-600";
@@ -472,33 +543,33 @@ export default function PerformanceReportPage() {
     const avgCompletionRate =
       totalEmployees > 0
         ? Math.round(
-            (userPerformance.reduce(
-              (sum, u) => sum + u.metrics.completionRate,
-              0,
-            ) /
-              totalEmployees) *
-              10,
-          ) / 10
+          (userPerformance.reduce(
+            (sum, u) => sum + u.metrics.completionRate,
+            0,
+          ) /
+            totalEmployees) *
+          10,
+        ) / 10
         : 0;
     const avgOnTimeRate =
       totalEmployees > 0
         ? Math.round(
-            (userPerformance.reduce((sum, u) => sum + u.metrics.onTimeRate, 0) /
-              totalEmployees) *
-              10,
-          ) / 10
+          (userPerformance.reduce((sum, u) => sum + u.metrics.onTimeRate, 0) /
+            totalEmployees) *
+          10,
+        ) / 10
         : 0;
     const topPerformer =
       userPerformance.length > 0
         ? userPerformance.reduce((a, b) =>
-            a.metrics.points > b.metrics.points ? a : b,
-          )
+          a.metrics.points > b.metrics.points ? a : b,
+        )
         : null;
     const bestDepartment =
       departmentPerformance.length > 0
         ? departmentPerformance.reduce((a, b) =>
-            a.avgCompletionRate > b.avgCompletionRate ? a : b,
-          )
+          a.avgCompletionRate > b.avgCompletionRate ? a : b,
+        )
         : null;
 
     return {
@@ -658,7 +729,6 @@ export default function PerformanceReportPage() {
             </span>
           </motion.div>
 
-          {/* Rest of the component remains the same */}
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -680,18 +750,20 @@ export default function PerformanceReportPage() {
               <p className="text-gray-500 text-sm">
                 Comprehensive overview of employee and department performance
               </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                📅 Showing: {getDateRangeLabel(dateRange)}
+              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
-                {["week", "month", "quarter", "year"].map((range) => (
+                {["week", "month", "quarter", "year", "all"].map((range) => (
                   <button
                     key={range}
                     onClick={() => setDateRange(range as any)}
-                    className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${
-                      dateRange === range
+                    className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${dateRange === range
                         ? "bg-purple-600 text-white shadow-sm"
                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     {range}
                   </button>
@@ -770,11 +842,10 @@ export default function PerformanceReportPage() {
                 <button
                   key={tab.id}
                   onClick={() => setViewType(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    viewType === tab.id
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${viewType === tab.id
                       ? "bg-purple-50 text-purple-700 border border-purple-200"
                       : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                  }`}
+                    }`}
                 >
                   <Icon size={16} />
                   {tab.label}
@@ -806,13 +877,12 @@ export default function PerformanceReportPage() {
                         {metric.metric}
                       </p>
                       <span
-                        className={`text-xs font-medium ${
-                          metric.trend === "up"
+                        className={`text-xs font-medium ${metric.trend === "up"
                             ? "text-emerald-500"
                             : metric.trend === "down"
                               ? "text-rose-500"
                               : "text-gray-500"
-                        }`}
+                          }`}
                       >
                         {metric.trend === "up"
                           ? "↑"
@@ -832,15 +902,14 @@ export default function PerformanceReportPage() {
                     </div>
                     <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div
-                        className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${
-                          metric.progress >= 80
+                        className={`absolute left-0 top-0 h-full rounded-full transition-all duration-500 ${metric.progress >= 80
                             ? "bg-emerald-500"
                             : metric.progress >= 60
                               ? "bg-blue-500"
                               : metric.progress >= 40
                                 ? "bg-amber-500"
                                 : "bg-rose-500"
-                        }`}
+                          }`}
                         style={{ width: `${Math.min(metric.progress, 100)}%` }}
                       />
                     </div>
@@ -913,13 +982,12 @@ export default function PerformanceReportPage() {
                                 <div className="flex items-center gap-2 justify-center">
                                   <div className="w-16 bg-gray-200 rounded-full h-2">
                                     <div
-                                      className={`h-2 rounded-full ${
-                                        dept.avgCompletionRate > 80
+                                      className={`h-2 rounded-full ${dept.avgCompletionRate > 80
                                           ? "bg-emerald-500"
                                           : dept.avgCompletionRate > 60
                                             ? "bg-blue-500"
                                             : "bg-rose-500"
-                                      }`}
+                                        }`}
                                       style={{
                                         width: `${Math.min(dept.avgCompletionRate, 100)}%`,
                                       }}
@@ -1092,13 +1160,12 @@ export default function PerformanceReportPage() {
                               <div className="flex items-center gap-2 justify-center">
                                 <div className="w-16 bg-gray-200 rounded-full h-2">
                                   <div
-                                    className={`h-2 rounded-full ${
-                                      employee.metrics.completionRate > 80
+                                    className={`h-2 rounded-full ${employee.metrics.completionRate > 80
                                         ? "bg-emerald-500"
                                         : employee.metrics.completionRate > 60
                                           ? "bg-blue-500"
                                           : "bg-rose-500"
-                                    }`}
+                                      }`}
                                     style={{
                                       width: `${Math.min(employee.metrics.completionRate, 100)}%`,
                                     }}
@@ -1178,6 +1245,9 @@ export default function PerformanceReportPage() {
                       <span className="text-gray-300">|</span>
                       <span>{selectedEmployee.email}</span>
                     </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      📅 Showing data for: {getDateRangeLabel(dateRange)}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1241,10 +1311,9 @@ export default function PerformanceReportPage() {
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                     <p className="text-sm text-gray-500">Status</p>
                     <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded-full border inline-block mt-1 ${
-                        getStatusBadge(selectedEmployee.metrics.completionRate)
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full border inline-block mt-1 ${getStatusBadge(selectedEmployee.metrics.completionRate)
                           .color
-                      }`}
+                        }`}
                     >
                       {
                         getStatusBadge(selectedEmployee.metrics.completionRate)

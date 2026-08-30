@@ -1,3 +1,4 @@
+// app/(dashboard)/reports/tasks/page.tsx
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -80,12 +81,12 @@ interface Task {
   description: string;
   priority: "low" | "normal" | "high" | "urgent";
   status:
-    | "pending"
-    | "in_progress"
-    | "submitted"
-    | "completed"
-    | "overdue"
-    | "rejected";
+  | "pending"
+  | "in_progress"
+  | "submitted"
+  | "completed"
+  | "overdue"
+  | "rejected";
   deadline: string;
   estimatedHours: number;
   assignedTo: { _id: string; fullName: string; email: string };
@@ -158,12 +159,22 @@ const PRIORITY_COLORS = {
   urgent: "#ef4444",
 };
 
+const STATUS_COLORS = {
+  pending: "#f59e0b",
+  in_progress: "#3b82f6",
+  submitted: "#8b5cf6",
+  completed: "#10b981",
+  overdue: "#ef4444",
+  rejected: "#dc2626",
+};
+
 export default function TasksReportsPage() {
   const { user, isAuthenticated, isLoading, hasRole } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [employeeStatsMap, setEmployeeStatsMap] = useState<
     Map<string, EmployeeTaskStats>
   >(new Map());
@@ -172,7 +183,7 @@ export default function TasksReportsPage() {
   const [employeeDetailStats, setEmployeeDetailStats] =
     useState<EmployeeTaskStats | null>(null);
   const [dateRange, setDateRange] = useState<
-    "week" | "month" | "quarter" | "year"
+    "week" | "month" | "quarter" | "year" | "all"
   >("month");
   const [searchTerm, setSearchTerm] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -190,10 +201,67 @@ export default function TasksReportsPage() {
     submitted: 0,
     overdue: 0,
     rejected: 0,
+    completionRate: 0,
   });
 
   // Role checks - Only Admin/Super Admin/HR can view
   const canViewReports = hasRole(["super_admin", "admin", "hr_manager"]);
+
+  // 🔥 Filter tasks by date range
+  const filterTasksByDateRange = (tasks: Task[], range: string): Task[] => {
+    const now = new Date();
+    let startDate = new Date();
+
+    if (range === "all") {
+      return tasks;
+    }
+
+    switch (range) {
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "quarter":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+
+    return tasks.filter(task => {
+      const taskDate = new Date(task.createdAt);
+      return taskDate >= startDate && taskDate <= now;
+    });
+  };
+
+  // 🔥 Get date range label
+  const getDateRangeLabel = (range: string): string => {
+    if (range === "all") return "All Time";
+    const now = new Date();
+    let startDate = new Date();
+    switch (range) {
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "quarter":
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+    return `${startDate.toLocaleDateString()} - ${now.toLocaleDateString()}`;
+  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -208,75 +276,12 @@ export default function TasksReportsPage() {
     fetchData();
   }, [isAuthenticated, isLoading, canViewReports]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      // Fetch all employees
-      const usersRes = await api.get("/auth/users");
-      let employeesList: Employee[] = [];
-      if (usersRes.data.success) {
-        employeesList = usersRes.data.data.filter(
-          (u: any) => u.role === "employee" || u.role === "line_manager",
-        );
-        setEmployees(employeesList);
-      }
-
-      // Fetch all tasks
-      const tasksRes = await api.get("/tasks");
-      let allTasksData: Task[] = [];
-      if (tasksRes.data.success) {
-        allTasksData = tasksRes.data.data || [];
-        setAllTasks(allTasksData);
-
-        // Calculate overall stats
-        const total = allTasksData.length;
-        const completed = allTasksData.filter(
-          (t) => t.status === "completed",
-        ).length;
-        const pending = allTasksData.filter(
-          (t) => t.status === "pending",
-        ).length;
-        const inProgress = allTasksData.filter(
-          (t) => t.status === "in_progress",
-        ).length;
-        const submitted = allTasksData.filter(
-          (t) => t.status === "submitted",
-        ).length;
-        const overdue = allTasksData.filter(
-          (t) => t.status === "overdue",
-        ).length;
-        const rejected = allTasksData.filter(
-          (t) => t.status === "rejected",
-        ).length;
-
-        setOverallStats({
-          total,
-          completed,
-          pending,
-          inProgress,
-          submitted,
-          overdue,
-          rejected,
-        });
-      }
-
-      // Calculate stats for each employee
-      const statsMap = new Map<string, EmployeeTaskStats>();
-      for (const emp of employeesList) {
-        const empTasks = allTasksData.filter(
-          (t: any) => t.assignedTo?._id === emp._id,
-        );
-        const stats = calculateEmployeeStats(empTasks);
-        statsMap.set(emp._id, stats);
-      }
-      setEmployeeStatsMap(statsMap);
-    } catch (error: any) {
-      console.error("Error fetching data:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch data");
-    } finally {
-      setLoading(false);
+  // 🔥 Refetch when dateRange changes
+  useEffect(() => {
+    if (isAuthenticated && canViewReports && allTasks.length > 0) {
+      applyFiltersAndCalculate();
     }
-  };
+  }, [dateRange]);
 
   const calculateEmployeeStats = (tasks: Task[]): EmployeeTaskStats => {
     const total = tasks.length;
@@ -351,17 +356,17 @@ export default function TasksReportsPage() {
         p.total > 0 ? Math.round((p.completed / p.total) * 100 * 10) / 10 : 0,
     }));
 
-    // Daily trend
+    // Daily trend - last 14 days
     const dailyMap = new Map();
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    for (let i = 0; i < 14; i++) {
+    for (let i = 13; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dateKey = date.toISOString().split("T")[0];
       const dayName = dayNames[date.getDay()];
       dailyMap.set(dateKey, {
-        date: dayName,
+        date: dayName + " " + (date.getDate()),
         created: 0,
         completed: 0,
       });
@@ -378,9 +383,9 @@ export default function TasksReportsPage() {
       }
     }
 
-    const dailyTrend = Array.from(dailyMap.values()).reverse();
+    const dailyTrend = Array.from(dailyMap.values());
 
-    // Monthly stats
+    // Monthly stats - last 6 months
     const monthNames = [
       "Jan",
       "Feb",
@@ -397,12 +402,12 @@ export default function TasksReportsPage() {
     ];
     const monthMap = new Map();
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 5; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const monthKey = date.getFullYear() + "-" + date.getMonth();
       monthMap.set(monthKey, {
-        month: monthNames[date.getMonth()],
+        month: monthNames[date.getMonth()] + " " + date.getFullYear(),
         created: 0,
         completed: 0,
         totalHours: 0,
@@ -423,17 +428,15 @@ export default function TasksReportsPage() {
       }
     }
 
-    const monthlyStats = Array.from(monthMap.values())
-      .reverse()
-      .map((data: any) => ({
-        month: data.month,
-        created: data.created,
-        completed: data.completed,
-        avgCompletionTime:
-          data.taskCount > 0
-            ? Math.round((data.totalHours / data.taskCount / 24) * 10) / 10
-            : 0,
-      }));
+    const monthlyStats = Array.from(monthMap.values()).map((data: any) => ({
+      month: data.month,
+      created: data.created,
+      completed: data.completed,
+      avgCompletionTime:
+        data.taskCount > 0
+          ? Math.round((data.totalHours / data.taskCount / 24) * 10) / 10
+          : 0,
+    }));
 
     return {
       total,
@@ -454,13 +457,115 @@ export default function TasksReportsPage() {
     };
   };
 
+  const applyFiltersAndCalculate = () => {
+    // Filter tasks by date range
+    const filtered = filterTasksByDateRange(allTasks, dateRange);
+    setFilteredTasks(filtered);
+
+    // Calculate overall stats
+    const total = filtered.length;
+    const completed = filtered.filter((t) => t.status === "completed").length;
+    const pending = filtered.filter((t) => t.status === "pending").length;
+    const inProgress = filtered.filter((t) => t.status === "in_progress").length;
+    const submitted = filtered.filter((t) => t.status === "submitted").length;
+    const overdue = filtered.filter((t) => t.status === "overdue").length;
+    const rejected = filtered.filter((t) => t.status === "rejected").length;
+    const completionRate = total > 0 ? (completed / total) * 100 : 0;
+
+    setOverallStats({
+      total,
+      completed,
+      pending,
+      inProgress,
+      submitted,
+      overdue,
+      rejected,
+      completionRate: Math.round(completionRate * 10) / 10,
+    });
+
+    // Calculate stats for each employee
+    const statsMap = new Map<string, EmployeeTaskStats>();
+    for (const emp of employees) {
+      const empTasks = filtered.filter(
+        (t: any) => t.assignedTo?._id === emp._id,
+      );
+      const stats = calculateEmployeeStats(empTasks);
+      statsMap.set(emp._id, stats);
+    }
+    setEmployeeStatsMap(statsMap);
+  };
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch all employees
+      const usersRes = await api.get("/auth/users");
+      let employeesList: Employee[] = [];
+      if (usersRes.data.success) {
+        employeesList = usersRes.data.data.filter(
+          (u: any) => u.role === "employee" || u.role === "line_manager",
+        );
+        setEmployees(employeesList);
+      }
+
+      // Fetch all tasks
+      const tasksRes = await api.get("/tasks");
+      let allTasksData: Task[] = [];
+      if (tasksRes.data.success) {
+        allTasksData = tasksRes.data.data || [];
+        setAllTasks(allTasksData);
+      }
+
+      // Apply filters and calculate
+      const filtered = filterTasksByDateRange(allTasksData, dateRange);
+      setFilteredTasks(filtered);
+
+      // Calculate overall stats
+      const total = filtered.length;
+      const completed = filtered.filter((t) => t.status === "completed").length;
+      const pending = filtered.filter((t) => t.status === "pending").length;
+      const inProgress = filtered.filter((t) => t.status === "in_progress").length;
+      const submitted = filtered.filter((t) => t.status === "submitted").length;
+      const overdue = filtered.filter((t) => t.status === "overdue").length;
+      const rejected = filtered.filter((t) => t.status === "rejected").length;
+      const completionRate = total > 0 ? (completed / total) * 100 : 0;
+
+      setOverallStats({
+        total,
+        completed,
+        pending,
+        inProgress,
+        submitted,
+        overdue,
+        rejected,
+        completionRate: Math.round(completionRate * 10) / 10,
+      });
+
+      // Calculate stats for each employee
+      const statsMap = new Map<string, EmployeeTaskStats>();
+      for (const emp of employeesList) {
+        const empTasks = filtered.filter(
+          (t: any) => t.assignedTo?._id === emp._id,
+        );
+        const stats = calculateEmployeeStats(empTasks);
+        statsMap.set(emp._id, stats);
+      }
+      setEmployeeStatsMap(statsMap);
+    } catch (error: any) {
+      console.error("Error fetching data:", error);
+      toast.error(error.response?.data?.message || "Failed to fetch data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchEmployeeDetails = async (employee: Employee) => {
     setLoadingEmployee(true);
     setSelectedEmployeeForDetail(employee);
     setShowEmployeeModal(true);
 
     try {
-      const empTasks = allTasks.filter(
+      const empTasks = filteredTasks.filter(
         (t: any) => t.assignedTo?._id === employee._id,
       );
       const stats = calculateEmployeeStats(empTasks);
@@ -498,6 +603,67 @@ export default function TasksReportsPage() {
     } finally {
       setExporting(false);
     }
+  };
+  // Add this new function after the existing handleExport function
+const handleExportEmployee = async () => {
+  if (!selectedEmployeeForDetail) return;
+  
+  setExporting(true);
+  try {
+    // Get the employee's tasks
+    const empTasks = filteredTasks.filter(
+      (t: any) => t.assignedTo?._id === selectedEmployeeForDetail._id,
+    );
+    
+    // Create CSV data
+    const headers = [
+      "Task Title",
+      "Status",
+      "Priority",
+      "Deadline",
+      "Created At",
+      "Completed At",
+      "Estimated Hours",
+      "Project"
+    ];
+    
+    const rows = empTasks.map((task) => [
+      `"${task.title}"`,
+      task.status,
+      task.priority,
+      task.deadline ? new Date(task.deadline).toLocaleDateString() : "N/A",
+      new Date(task.createdAt).toLocaleDateString(),
+      task.status === "completed" ? new Date(task.updatedAt).toLocaleDateString() : "N/A",
+      task.estimatedHours || 0,
+      task.projectId?.name || "Unassigned"
+    ]);
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n");
+    
+    // Create and download the file
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `employee_${selectedEmployeeForDetail.fullName.replace(/\s/g, "_")}_tasks_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    toast.success(`Report exported for ${selectedEmployeeForDetail.fullName}`);
+  } catch (error) {
+    console.error("Error exporting employee report:", error);
+    toast.error("Failed to export employee report");
+  } finally {
+    setExporting(false);
+  }
+};
+
+  const handleRefresh = async () => {
+    await fetchData();
+    toast.success("Data refreshed");
   };
 
   const handleSort = (field: "name" | "completionRate" | "total") => {
@@ -576,6 +742,13 @@ export default function TasksReportsPage() {
       bgColor: "bg-emerald-50",
     },
     {
+      label: "Completion Rate",
+      value: `${overallStats.completionRate}%`,
+      icon: Target,
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50",
+    },
+    {
       label: "Pending",
       value: overallStats.pending,
       icon: Clock,
@@ -602,13 +775,6 @@ export default function TasksReportsPage() {
       icon: AlertCircle,
       color: "text-rose-600",
       bgColor: "bg-rose-50",
-    },
-    {
-      label: "Rejected",
-      value: overallStats.rejected,
-      icon: X,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
     },
   ];
 
@@ -678,18 +844,20 @@ export default function TasksReportsPage() {
               <p className="text-gray-500 text-sm">
                 View task performance for all employees
               </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                📅 Showing: {getDateRangeLabel(dateRange)}
+              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <div className="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
-                {["week", "month", "quarter", "year"].map((range) => (
+                {["week", "month", "quarter", "year", "all"].map((range) => (
                   <button
                     key={range}
                     onClick={() => setDateRange(range as any)}
-                    className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${
-                      dateRange === range
+                    className={`px-3 py-1.5 rounded-lg text-sm capitalize transition-all ${dateRange === range
                         ? "bg-indigo-600 text-white shadow-sm"
                         : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                    }`}
+                      }`}
                   >
                     {range}
                   </button>
@@ -708,23 +876,20 @@ export default function TasksReportsPage() {
                 Export
               </button>
               <button
-                onClick={fetchData}
+                onClick={handleRefresh}
                 className="px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 hover:text-gray-800 rounded-lg transition shadow-sm"
               >
-                <RefreshCw
-                  size={16}
-                  className={loading ? "animate-spin" : ""}
-                />
+                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               </button>
             </div>
           </motion.div>
 
-          {/* Stats Cards - Now showing all statuses */}
+          {/* Stats Cards */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-4"
+            className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4"
           >
             {displayStats.map((stat, idx) => {
               const Icon = stat.icon;
@@ -741,7 +906,7 @@ export default function TasksReportsPage() {
                       <Icon className={`w-4 h-4 ${stat.color}`} />
                     </div>
                   </div>
-                  <p className="text-2xl font-bold text-gray-800">
+                  <p className="text-xl font-bold text-gray-800">
                     {stat.value}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
@@ -908,13 +1073,12 @@ export default function TasksReportsPage() {
                           <div className="flex items-center gap-2 justify-center">
                             <div className="w-16 bg-gray-200 rounded-full h-2">
                               <div
-                                className={`h-2 rounded-full ${
-                                  (stats?.completionRate || 0) > 70
+                                className={`h-2 rounded-full ${(stats?.completionRate || 0) > 70
                                     ? "bg-emerald-500"
                                     : (stats?.completionRate || 0) > 50
                                       ? "bg-amber-500"
                                       : "bg-rose-500"
-                                }`}
+                                  }`}
                                 style={{
                                   width: `${Math.min(stats?.completionRate || 0, 100)}%`,
                                 }}
@@ -965,7 +1129,7 @@ export default function TasksReportsPage() {
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto"
             >
-              <div className="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start">
+              <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-200 p-5 flex justify-between items-start">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
                     <span className="text-white text-xl font-bold">
@@ -1004,6 +1168,9 @@ export default function TasksReportsPage() {
                           : "Inactive"}
                       </span>
                     </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      📅 Showing data for: {getDateRangeLabel(dateRange)}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -1057,6 +1224,18 @@ export default function TasksReportsPage() {
                         {employeeDetailStats.onTimeRate}%
                       </p>
                       <p className="text-xs text-amber-500">On-Time Rate</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3 text-center border border-purple-100">
+                      <p className="text-2xl font-bold text-purple-600">
+                        {employeeDetailStats.inProgress}
+                      </p>
+                      <p className="text-xs text-purple-500">In Progress</p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-3 text-center border border-red-100">
+                      <p className="text-2xl font-bold text-red-600">
+                        {employeeDetailStats.rejected}
+                      </p>
+                      <p className="text-xs text-red-500">Rejected</p>
                     </div>
                   </div>
 
@@ -1166,7 +1345,7 @@ export default function TasksReportsPage() {
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                         <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                           <TrendingUp size={14} className="text-blue-500" />
-                          Daily Task Trend
+                          Daily Task Trend (Last 14 Days)
                         </h4>
                         <div className="h-56">
                           <ResponsiveContainer width="100%" height="100%">
@@ -1253,7 +1432,7 @@ export default function TasksReportsPage() {
                       <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                         <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                           <Calendar size={14} className="text-indigo-500" />
-                          Monthly Performance
+                          Monthly Performance (Last 6 Months)
                         </h4>
                         <div className="h-56">
                           <ResponsiveContainer width="100%" height="100%">
@@ -1350,13 +1529,12 @@ export default function TasksReportsPage() {
                                       <div className="flex items-center gap-2 justify-center">
                                         <div className="w-16 bg-gray-200 rounded-full h-1.5">
                                           <div
-                                            className={`h-1.5 rounded-full ${
-                                              project.completionRate > 70
+                                            className={`h-1.5 rounded-full ${project.completionRate > 70
                                                 ? "bg-emerald-500"
                                                 : project.completionRate > 50
                                                   ? "bg-amber-500"
                                                   : "bg-rose-500"
-                                            }`}
+                                              }`}
                                             style={{
                                               width: `${Math.min(project.completionRate, 100)}%`,
                                             }}
@@ -1384,7 +1562,7 @@ export default function TasksReportsPage() {
                       Close
                     </button>
                     <button
-                      onClick={handleExport}
+                      onClick={handleExportEmployee}
                       className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-lg transition shadow-sm flex items-center justify-center gap-2"
                     >
                       <Download size={16} />
@@ -1396,7 +1574,7 @@ export default function TasksReportsPage() {
                 <div className="p-8 text-center">
                   <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
                   <p className="text-gray-500">
-                    No tasks found for this employee
+                    No tasks found for this employee in the selected date range
                   </p>
                 </div>
               )}

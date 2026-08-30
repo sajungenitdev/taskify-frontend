@@ -324,37 +324,35 @@ export default function ExportReportsPage() {
     try {
       // Build export parameters
       const params = new URLSearchParams();
-      params.append("type", selectedType);
+      params.append("range", dateRange);
       params.append("format", selectedFormat);
-      params.append("dateRange", dateRange);
+      if (selectedFields.length > 0) {
+        params.append("fields", selectedFields.join(","));
+      }
       if (selectedDepartment) params.append("department", selectedDepartment);
       if (selectedProject) params.append("project", selectedProject);
       if (selectedStatus) params.append("status", selectedStatus);
-      if (selectedFields.length > 0)
-        params.append("fields", selectedFields.join(","));
-      params.append("includeHeaders", String(includeHeaders));
-      if (fileName) params.append("fileName", fileName);
 
       // Determine which endpoint to use based on selected type
       let endpoint = "";
       switch (selectedType) {
         case "tasks":
-          endpoint = "/tasks/export";
+          endpoint = `/reports/tasks/export`;
           break;
         case "projects":
-          endpoint = "/projects/export";
+          endpoint = `/reports/projects/export`;
           break;
         case "users":
-          endpoint = "/auth/users/export";
+          endpoint = `/reports/users/export`;
           break;
         case "departments":
-          endpoint = "/departments/export";
+          endpoint = `/reports/departments/export`;
           break;
         case "performance":
-          endpoint = "/performance/export";
+          endpoint = `/reports/performance/export`;
           break;
         default:
-          endpoint = "/tasks/export";
+          endpoint = `/reports/tasks/export`;
       }
 
       const response = await api.get(`${endpoint}?${params.toString()}`, {
@@ -362,27 +360,32 @@ export default function ExportReportsPage() {
       });
 
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(
+        new Blob([response.data], {
+          type: selectedFormat === "csv"
+            ? "text/csv;charset=utf-8;"
+            : selectedFormat === "json"
+              ? "application/json"
+              : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        })
+      );
       const link = document.createElement("a");
       link.href = url;
 
-      const extension =
-        selectedFormat === "csv"
-          ? "csv"
-          : selectedFormat === "json"
-            ? "json"
-            : "xlsx";
-      const downloadName =
-        fileName ||
+      const extension = selectedFormat === "csv"
+        ? "csv"
+        : selectedFormat === "json"
+          ? "json"
+          : "xlsx";
+      const downloadName = fileName ||
         `${selectedType}_report_${new Date().toISOString().split("T")[0]}.${extension}`;
       link.download = downloadName;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
       toast.success(`Report exported successfully as ${downloadName}`);
-
-      // Update export history
-      await fetchExportHistory();
     } catch (error: any) {
       console.error("Export error:", error);
       toast.error(error.response?.data?.message || "Failed to export report");
@@ -521,11 +524,10 @@ export default function ExportReportsPage() {
                     setSelectedType(option.id);
                     setSelectedFields([]);
                   }}
-                  className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${
-                    isSelected
+                  className={`cursor-pointer rounded-xl border p-4 transition-all shadow-sm ${isSelected
                       ? `${option.borderColor} ${option.bgColor} ring-2 ring-offset-2 ring-${option.color}`
                       : "border-gray-200 bg-white hover:border-gray-300 hover:shadow-md"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg ${option.bgColor}`}>
@@ -580,11 +582,10 @@ export default function ExportReportsPage() {
                         <button
                           key={format.value}
                           onClick={() => setSelectedFormat(format.value)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${
-                            selectedFormat === format.value
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 ${selectedFormat === format.value
                               ? "bg-indigo-600 text-white shadow-sm"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                            }`}
                         >
                           <FormatIcon size={14} />
                           {format.label}
@@ -605,11 +606,10 @@ export default function ExportReportsPage() {
                         <button
                           key={range}
                           onClick={() => setDateRange(range as any)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition capitalize ${
-                            dateRange === range
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition capitalize ${dateRange === range
                               ? "bg-indigo-600 text-white shadow-sm"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                            }`}
                         >
                           {range === "all" ? "All Time" : range}
                         </button>
@@ -824,11 +824,10 @@ export default function ExportReportsPage() {
                         <button
                           key={freq}
                           onClick={() => setScheduleFrequency(freq as any)}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${
-                            scheduleFrequency === freq
+                          className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition ${scheduleFrequency === freq
                               ? "bg-indigo-600 text-white shadow-sm"
                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                          }`}
+                            }`}
                         >
                           {freq}
                         </button>

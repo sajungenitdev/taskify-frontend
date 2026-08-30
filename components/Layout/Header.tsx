@@ -495,7 +495,7 @@ const getImageUrl = useCallback(
 
         {/* Center - Search Bar */}
         <div className="hidden md:block flex-1 max-w-md mx-4 lg:mx-8">
-          <div className="relative group">
+          {/* <div className="relative group">
             <div className="absolute inset-0 rounded-xl bg-white/5 blur-xl group-focus-within:bg-indigo-500/10 transition-all duration-500" />
             <div className="relative flex items-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl transition-all duration-300 group-focus-within:border-indigo-400/50 group-focus-within:bg-white/10 group-focus-within:shadow-lg group-focus-within:shadow-indigo-500/5">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-indigo-400 transition-colors duration-300" />
@@ -529,7 +529,7 @@ const getImageUrl = useCallback(
                 ⌘K
               </kbd>
             </div>
-          </div>
+          </div> */}
 
           {/* Search Results Dropdown */}
           <AnimatePresence>
@@ -941,23 +941,7 @@ const getImageUrl = useCallback(
                           className="ml-auto text-white/10 group-hover:text-white/20"
                         />
                       </Link>
-                      <Link
-                        href="/settings"
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all duration-300 group"
-                        onClick={() => setShowProfileDropdown(false)}
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-white/5 group-hover:bg-indigo-500/20 flex items-center justify-center transition-colors">
-                          <Settings
-                            size={14}
-                            className="text-white/30 group-hover:text-indigo-400"
-                          />
-                        </div>
-                        <span>Settings</span>
-                        <ChevronRight
-                          size={14}
-                          className="ml-auto text-white/10 group-hover:text-white/20"
-                        />
-                      </Link>
+                      
                       <Link
                         href="/notifications"
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all duration-300 group"

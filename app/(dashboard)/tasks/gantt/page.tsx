@@ -1300,31 +1300,7 @@ export default function GanttChartPage() {
                         {/* Navigation Controls */}
                         <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-100">
                             <div className="flex items-center gap-2">
-                                <button
-                                    onClick={() => navigateDate("prev")}
-                                    className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                >
-                                    <ChevronLeft size={18} />
-                                </button>
-                                <button
-                                    onClick={today}
-                                    className="px-3 py-1.5 text-sm font-medium text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                                >
-                                    Today
-                                </button>
-                                <button
-                                    onClick={() => navigateDate("next")}
-                                    className="p-2 hover:bg-gray-100 rounded-lg transition"
-                                >
-                                    <ChevronRight size={18} />
-                                </button>
-                                <span className="text-sm font-medium text-gray-700 ml-2">
-                                    {viewMode === "day"
-                                        ? formatDate(currentDate)
-                                        : viewMode === "week"
-                                            ? `Week of ${formatDate(currentDate)}`
-                                            : formatDate(currentDate)}
-                                </span>
+                                <span className="text-black">Gant Chart View: </span>
                             </div>
 
                             <div className="flex items-center gap-2">

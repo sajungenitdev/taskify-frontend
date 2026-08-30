@@ -412,7 +412,7 @@ export default function TeamCalendarPage() {
               Join a team to see your task calendar and stay organized.
             </p>
             <button
-              onClick={() => router.push("/dashboard/teams")}
+              onClick={() => router.push("/teams/all-teams")}
               className="mt-6 px-6 py-2.5 bg-linear-to-r from-indigo-600 to-indigo-500 text-white rounded-xl hover:from-indigo-700 hover:to-indigo-600 transition-all font-medium shadow-lg shadow-indigo-500/25"
             >
               Browse All Teams
