@@ -18,9 +18,9 @@ import {
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import Link from "next/link";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { calculateDashboardKPI } from "@/lib/kpi-utils";
 
 // ============================================================
 // TYPES
@@ -39,24 +39,27 @@ interface EmployeeKPI {
   totalTasks: number;
   tasksInProgress: number;
   overdueTasks: number;
-  scores?: {
-    taskCompletion: number;
-    qualityScore: number;
-    efficiency: number;
-    collaboration: number;
-    innovation: number;
-    attendance: number;
-  };
 }
 
-interface TaskStats {
-  total: number;
-  completed: number;
-  inProgress: number;
-  pending: number;
-  overdue: number;
-  rejected: number;
-  submitted: number;
+interface UserData {
+  _id: string;
+  fullName: string;
+  email: string;
+  employeeId: string;
+  role: string;
+  departmentId: any;
+  department?: string;
+}
+
+interface ApiTask {
+  _id: string;
+  title: string;
+  status: string;
+  priority: string;
+  deadline?: string;
+  assignedTo?: string | { _id: string } | null;
+  createdAt: string;
+  actualMinutes?: number;
 }
 
 // ============================================================
@@ -69,13 +72,28 @@ const MONTHS = [
 
 const YEARS = [2023, 2024, 2025, 2026];
 
-const COMPONENT_WEIGHTS = {
-  taskCompletion: 0.25,
-  qualityScore: 0.20,
-  efficiency: 0.20,
-  collaboration: 0.15,
-  innovation: 0.10,
-  attendance: 0.10,
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+const getDepartmentName = (dept: any): string => {
+  if (!dept) return "Unassigned";
+  if (typeof dept === 'string') return dept;
+  if (dept.name) return dept.name;
+  if (dept._id) return dept._id;
+  return "Unassigned";
+};
+
+const getRoleDisplayName = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    super_admin: "Super Admin",
+    admin: "Admin",
+    hr_manager: "HR Manager",
+    dept_manager: "Department Manager",
+    project_manager: "Project Manager",
+    line_manager: "Line Manager",
+    employee: "Employee",
+  };
+  return roleMap[role] || role.replace(/_/g, " ");
 };
 
 export default function KPIDashboardPage() {
@@ -109,122 +127,7 @@ export default function KPIDashboardPage() {
   const currentMonth = MONTHS[new Date().getMonth()];
 
   // ============================================================
-  // HELPERS
-  // ============================================================
-  const getDepartmentName = (dept: any): string => {
-    if (!dept) return "Unassigned";
-    if (typeof dept === 'string') return dept;
-    if (dept.name) return dept.name;
-    if (dept._id) return dept._id;
-    return "Unassigned";
-  };
-
-  const getRoleDisplayName = (role: string): string => {
-    const roleMap: Record<string, string> = {
-      super_admin: "Super Admin",
-      admin: "Admin",
-      hr_manager: "HR Manager",
-      dept_manager: "Department Manager",
-      project_manager: "Project Manager",
-      line_manager: "Line Manager",
-      employee: "Employee",
-    };
-    return roleMap[role] || role.replace(/_/g, " ");
-  };
-
-  // ============================================================
-  // EXACT KPI CALCULATION - SAME AS DETAIL PAGE
-  // ============================================================
-  const calculateKPIFromTasks = useCallback((tasks: any[]): {
-    score: number;
-    metrics: {
-      taskCompletion: number;
-      qualityScore: number;
-      efficiency: number;
-      collaboration: number;
-      innovation: number;
-      attendance: number;
-    };
-  } => {
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter((t: any) => t.status === "completed").length;
-    const inProgressTasks = tasks.filter((t: any) => t.status === "in_progress").length;
-    const submittedTasks = tasks.filter((t: any) => t.status === "submitted").length;
-    const overdueTasks = tasks.filter((t: any) =>
-      t.status === "overdue" ||
-      (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
-    ).length;
-    const rejectedTasks = tasks.filter((t: any) => t.status === "rejected").length;
-
-    if (totalTasks === 0) {
-      return {
-        score: 0,
-        metrics: {
-          taskCompletion: 0,
-          qualityScore: 0,
-          efficiency: 0,
-          collaboration: 0,
-          innovation: 0,
-          attendance: 0,
-        }
-      };
-    }
-
-    // 1. TASK COMPLETION (25%)
-    const effectiveCompleted = completedTasks + (inProgressTasks * 0.5) + (submittedTasks * 0.8);
-    const taskCompletion = Math.min(100, Math.round((effectiveCompleted / totalTasks) * 100));
-
-    // 2. QUALITY SCORE (20%)
-    let qualityScore = 0;
-    if (completedTasks > 0) {
-      const qualityTasks = completedTasks - overdueTasks - rejectedTasks;
-      qualityScore = Math.min(100, Math.max(0, Math.round((qualityTasks / totalTasks) * 100)));
-    } else if (inProgressTasks + submittedTasks > 0) {
-      const activeTasks = inProgressTasks + submittedTasks;
-      qualityScore = Math.min(70, Math.round(30 + (activeTasks / totalTasks) * 40));
-    } else {
-      qualityScore = 20;
-    }
-
-    // 3. EFFICIENCY (20%)
-    const progress = (completedTasks + inProgressTasks * 0.5 + submittedTasks * 0.8) / totalTasks;
-    const efficiency = Math.min(100, Math.round(Math.max(15, progress * 100)));
-
-    // 4. COLLABORATION (15%)
-    const engagementRatio = (completedTasks + inProgressTasks + submittedTasks) / totalTasks;
-    const collaboration = Math.min(100, Math.round(30 + engagementRatio * 70));
-
-    // 5. INNOVATION (10%)
-    const innovation = Math.min(100, Math.round(25 + engagementRatio * 75));
-
-    // 6. ATTENDANCE (10%)
-    const attendance = Math.min(100, Math.round(50 + engagementRatio * 50));
-
-    // TOTAL SCORE
-    const totalScore = Math.min(100, Math.round(
-      taskCompletion * COMPONENT_WEIGHTS.taskCompletion +
-      qualityScore * COMPONENT_WEIGHTS.qualityScore +
-      efficiency * COMPONENT_WEIGHTS.efficiency +
-      collaboration * COMPONENT_WEIGHTS.collaboration +
-      innovation * COMPONENT_WEIGHTS.innovation +
-      attendance * COMPONENT_WEIGHTS.attendance
-    ));
-
-    return {
-      score: totalScore,
-      metrics: {
-        taskCompletion,
-        qualityScore,
-        efficiency,
-        collaboration,
-        innovation,
-        attendance,
-      }
-    };
-  }, []);
-
-  // ============================================================
-  // FETCH DATA - FULLY DYNAMIC
+  // FETCH DATA - Fetch tasks PER USER (same as detail page)
   // ============================================================
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -233,76 +136,82 @@ export default function KPIDashboardPage() {
       const usersRes = await api.get("/users");
       const users = usersRes.data?.data || [];
 
-      // 2. Fetch ALL tasks
-      const tasksRes = await api.get("/tasks");
-      const allTasks = tasksRes.data?.data || [];
 
-      // 3. Calculate date range for selected month
+      // 2. Calculate date range for selected month
       const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
       const startDate = new Date(selectedYear, monthIndex - 1, 1);
       const endDate = new Date(selectedYear, monthIndex, 0);
+      endDate.setHours(23, 59, 59, 999);
 
-      console.log(`=== KPI Dashboard - ${selectedMonth} ${selectedYear} ===`);
-      console.log(`Total users: ${users.length}, Total tasks: ${allTasks.length}`);
+      // 3. Fetch tasks for EACH user individually (SAME as detail page)
+      const employeeData: EmployeeKPI[] = [];
 
-      // 4. Build employee data with EXACT calculations
-      const employeeData: EmployeeKPI[] = users.map((user: any) => {
-        // Get ALL tasks for this user
-        const userTasks = allTasks.filter((t: any) => {
-          const assignedTo = typeof t.assignedTo === 'string' ? t.assignedTo : t.assignedTo?._id;
-          return assignedTo === user._id;
-        });
+      for (const userData of users) {
+        try {
+          // Fetch tasks for this specific user - EXACTLY like detail page
+          const tasksResponse = await api.get("/tasks", {
+            params: {
+              assignedTo: userData._id,
+              limit: 10000 // Get all tasks for this user
+            }
+          });
 
-        // Filter tasks by selected month/year
-        const monthTasks = userTasks.filter((t: any) => {
-          const taskDate = new Date(t.createdAt);
-          return taskDate >= startDate && taskDate <= endDate;
-        });
+          const userTasks = tasksResponse.data?.data || [];
 
-        const total = monthTasks.length;
-        const completed = monthTasks.filter((t: any) => t.status === "completed").length;
-        const inProgress = monthTasks.filter((t: any) => t.status === "in_progress").length;
-        const overdue = monthTasks.filter((t: any) =>
-          t.status === "overdue" ||
-          (t.deadline && new Date(t.deadline) < new Date() && t.status !== "completed")
-        ).length;
+          // Filter tasks by month - SAME as detail page
+          const monthTasks = userTasks.filter((t: ApiTask) => {
+            const taskDate = new Date(t.createdAt);
+            return taskDate >= startDate && taskDate <= endDate;
+          });
 
-        // Calculate KPI score from MONTH-FILTERED tasks
-        const result = calculateKPIFromTasks(monthTasks);
-        const score = result.score;
 
-        const deptName = getDepartmentName(user.departmentId || user.department);
 
-        // Determine performance level
-        const performanceLevel = score >= 85 ? "excellent"
-          : score >= 70 ? "good"
-          : score >= 55 ? "average"
-          : score >= 10 ? "needs_improvement"
-          : "not_calculated";
+          // Calculate KPI
+          const result = calculateDashboardKPI(
+            monthTasks,
+            userData as any,
+            selectedMonth,
+            selectedYear
+          );
 
-        const status = score >= 85 ? "promotion_ready"
-          : score >= 70 ? "on_track"
-          : score >= 55 ? "training_needed"
-          : score >= 10 ? "warning_review"
-          : "not_calculated";
 
-        return {
-          _id: user._id,
-          fullName: user.fullName,
-          email: user.email,
-          employeeId: user.employeeId || `EMP${String(Math.random()).substring(2, 8)}`,
-          role: user.role,
-          department: deptName,
-          totalScore: score,
-          performanceLevel,
-          status,
-          tasksCompleted: completed,
-          totalTasks: total,
-          tasksInProgress: inProgress,
-          overdueTasks: overdue,
-          scores: result.metrics,
-        };
-      });
+          const deptName = getDepartmentName(userData.departmentId || userData.department);
+
+          employeeData.push({
+            _id: userData._id,
+            fullName: userData.fullName,
+            email: userData.email,
+            employeeId: userData.employeeId || `EMP${String(Math.random()).substring(2, 8)}`,
+            role: userData.role,
+            department: deptName,
+            totalScore: result.totalScore,
+            performanceLevel: result.performanceLevel as any,
+            status: result.status as any,
+            tasksCompleted: result.tasksCompleted,
+            totalTasks: result.totalTasks,
+            tasksInProgress: result.tasksInProgress,
+            overdueTasks: result.overdueTasks,
+          });
+        } catch (error) {
+          // Still add user with 0 score
+          const deptName = getDepartmentName(userData.departmentId || userData.department);
+          employeeData.push({
+            _id: userData._id,
+            fullName: userData.fullName,
+            email: userData.email,
+            employeeId: userData.employeeId || `EMP${String(Math.random()).substring(2, 8)}`,
+            role: userData.role,
+            department: deptName,
+            totalScore: 0,
+            performanceLevel: "not_calculated",
+            status: "not_calculated",
+            tasksCompleted: 0,
+            totalTasks: 0,
+            tasksInProgress: 0,
+            overdueTasks: 0,
+          });
+        }
+      }
 
       // Sort by score (higher first)
       const sorted = [...employeeData].sort((a, b) => b.totalScore - a.totalScore);
@@ -318,12 +227,11 @@ export default function KPIDashboardPage() {
       const top = employeesWithScores.length > 0 ? employeesWithScores[0] : null;
       const needs = employeesWithScores.length > 0 ? employeesWithScores[employeesWithScores.length - 1] : null;
 
-      // Calculate total tasks for the month
-      const allMonthTasks = allTasks.filter((t: any) => {
-        const taskDate = new Date(t.createdAt);
-        return taskDate >= startDate && taskDate <= endDate;
-      });
-      const completedTasks = allMonthTasks.filter((t: any) => t.status === "completed").length;
+      // Calculate total tasks for the month (sum of all users)
+      const totalMonthTasks = employeeData.reduce((sum, e) => sum + e.totalTasks, 0);
+      const totalCompletedTasks = employeeData.reduce((sum, e) => sum + e.tasksCompleted, 0);
+
+      
 
       setStats({
         deptAvg: avgScore,
@@ -333,18 +241,9 @@ export default function KPIDashboardPage() {
         needsAttention: needs?.fullName || "N/A",
         needsScore: needs?.totalScore || 0,
         needsAttentionId: needs?._id || "",
-        tasksDone: completedTasks,
+        tasksDone: totalCompletedTasks,
         totalEmployees: totalEmployees,
-        totalTasks: allMonthTasks.length,
-      });
-
-      console.log("Dashboard Stats:", {
-        avgScore,
-        topPerformer: top?.fullName,
-        topScore: top?.totalScore,
-        totalEmployees,
-        totalTasks: allMonthTasks.length,
-        completedTasks
+        totalTasks: totalMonthTasks,
       });
 
     } catch (error: any) {
@@ -353,7 +252,7 @@ export default function KPIDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, selectedYear, calculateKPIFromTasks]);
+  }, [selectedMonth, selectedYear]);
 
   // ============================================================
   // INITIALIZE
@@ -369,7 +268,7 @@ export default function KPIDashboardPage() {
     if (selectedMonth && selectedYear) {
       fetchData();
     }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, fetchData]);
 
   // ============================================================
   // FILTERED EMPLOYEES

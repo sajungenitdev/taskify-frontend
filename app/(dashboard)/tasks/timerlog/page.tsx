@@ -727,13 +727,13 @@ export default function TimerLogPage() {
                             >
                                 <Plus className="w-4 h-4" /> Add Manual Entry
                             </button>
-                            <button
+                            {/* <button
                                 onClick={fetchTimerData}
                                 className="p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 rounded-xl transition"
                                 title="Refresh"
                             >
                                 <RefreshCw className="w-4 h-4" />
-                            </button>
+                            </button> */}
                         </div>
                     </div>
 

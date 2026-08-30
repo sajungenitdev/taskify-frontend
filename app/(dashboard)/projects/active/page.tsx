@@ -216,52 +216,6 @@ export default function ProjectsPage() {
   };
 
   // Fetch all data
-  // const fetchData = useCallback(async (showLoading = true) => {
-  //   try {
-  //     if (showLoading) {
-  //       setLoading(true);
-  //     } else {
-  //       setIsRefreshing(true);
-  //     }
-
-  //     const [projectsRes, deptsRes, usersRes] = await Promise.all([
-  //       api.get("/projects"),
-  //       api.get("/departments"),
-  //       api.get("/auth/users"),
-  //     ]);
-
-  //     if (projectsRes.data.success) {
-  //       const projectData = projectsRes.data.data || [];
-  //       const projectsWithProgress = projectData.map((project: Project) => {
-  //         const completedTasks = Math.min(project.completedTasks, project.tasksCount || 0);
-  //         return {
-  //           ...project,
-  //           completedTasks,
-  //           progress: calculateProgress({ ...project, completedTasks })
-  //         };
-  //       });
-  //       setProjects(projectsWithProgress);
-  //     }
-  //     if (deptsRes.data.success) {
-  //       setDepartments(deptsRes.data.data || []);
-  //     }
-  //     if (usersRes.data.success) {
-  //       setUsers(usersRes.data.data || []);
-  //       setAllUsers(usersRes.data.data || []);
-  //     }
-
-  //     setLastUpdated(new Date());
-  //   } catch (error: any) {
-  //     console.error("Error fetching data:", error);
-  //     toast.error(error.response?.data?.message || "Failed to fetch data");
-  //   } finally {
-  //     if (showLoading) {
-  //       setLoading(false);
-  //     } else {
-  //       setIsRefreshing(false);
-  //     }
-  //   }
-  // }, []);
   const fetchData = useCallback(async (showLoading = true) => {
     try {
       if (showLoading) {
@@ -270,30 +224,14 @@ export default function ProjectsPage() {
         setIsRefreshing(true);
       }
 
-      // Use Promise.allSettled to handle partial failures
-      const results = await Promise.allSettled([
+      const [projectsRes, deptsRes, usersRes] = await Promise.all([
+        api.get("/projects"),
         api.get("/departments"),
         api.get("/auth/users"),
-        isEmployee && user?._id
-          ? api.get("/projects/my")
-          : api.get("/projects"),
       ]);
 
-      // Handle departments
-      if (results[0].status === "fulfilled" && results[0].value.data.success) {
-        setDepartments(results[0].value.data.data || []);
-      }
-
-      // Handle users
-      if (results[1].status === "fulfilled" && results[1].value.data.success) {
-        const usersData = results[1].value.data.data || [];
-        setUsers(usersData);
-        setAllUsers(usersData);
-      }
-
-      // Handle projects
-      if (results[2].status === "fulfilled" && results[2].value.data.success) {
-        const projectData = results[2].value.data.data || [];
+      if (projectsRes.data.success) {
+        const projectData = projectsRes.data.data || [];
         const projectsWithProgress = projectData.map((project: Project) => {
           const completedTasks = Math.min(project.completedTasks, project.tasksCount || 0);
           return {
@@ -303,24 +241,13 @@ export default function ProjectsPage() {
           };
         });
         setProjects(projectsWithProgress);
-      } else if (results[2].status === "rejected") {
-        console.error("Projects fetch failed:", results[2].reason);
-        // Check if it's a 404 for /projects/my (employee with no projects)
-        if (results[2].reason?.response?.status === 404) {
-          setProjects([]);
-          toast("You don't have any projects assigned yet.", {
-            icon: '📋',
-            duration: 4000,
-            style: {
-              background: '#3b82f6',
-              color: '#fff',
-              padding: '16px',
-              borderRadius: '8px',
-            },
-          });
-        } else {
-          toast.error("Failed to fetch projects. Please try again.");
-        }
+      }
+      if (deptsRes.data.success) {
+        setDepartments(deptsRes.data.data || []);
+      }
+      if (usersRes.data.success) {
+        setUsers(usersRes.data.data || []);
+        setAllUsers(usersRes.data.data || []);
       }
 
       setLastUpdated(new Date());
@@ -334,7 +261,8 @@ export default function ProjectsPage() {
         setIsRefreshing(false);
       }
     }
-  }, [isEmployee, user?._id]);
+  }, []);
+  
 
   // Initial fetch
   useEffect(() => {
@@ -1186,7 +1114,7 @@ export default function ProjectsPage() {
             <button
               onClick={() => {
                 setShowArchived(false);
-                setStatusFilter("all");
+                setStatusFilter("all"); // Keep as "all" for active projects
               }}
               className={`px-3 py-1.5 text-sm rounded-lg transition ${!showArchived
                 ? "bg-indigo-600 text-white shadow-sm"
@@ -1198,7 +1126,7 @@ export default function ProjectsPage() {
             <button
               onClick={() => {
                 setShowArchived(true);
-                setStatusFilter("all");
+                setStatusFilter("archived"); // 🔥 CHANGE THIS to "archived"
               }}
               className={`px-3 py-1.5 text-sm rounded-lg transition flex items-center gap-2 ${showArchived
                 ? "bg-indigo-600 text-white shadow-sm"

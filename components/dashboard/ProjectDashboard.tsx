@@ -75,22 +75,24 @@ interface UserType {
   employeeId?: string;
 }
 
+// 🔥 FIX: Updated Project interface to match backend
 interface Project {
   _id: string;
   name: string;
   code: string;
   description: string;
-  projectManager: { _id: string; fullName: string; email: string };
+  managerId: { _id: string; fullName: string; email: string }; // Changed from projectManager
   departmentId: { _id: string; name: string; code: string };
   teamMembers: { userId: { _id: string; fullName: string; email: string }; role: string }[];
   tasksCount: number;
   completedTasks: number;
   progress: number;
-  status: "planning" | "active" | "on_hold" | "completed" | "archived";
+  status: "planning" | "active" | "on_hold" | "completed" | "cancelled" | "archived";
   startDate: string;
   endDate: string;
   createdAt: string;
   updatedAt: string;
+  isActive: boolean;
 }
 
 export default function ProjectDashboard() {
@@ -145,14 +147,8 @@ export default function ProjectDashboard() {
       console.log("📋 All Tasks:", allTasksData.length);
       console.log("📁 All Projects:", allProjects.length);
 
-      // Log all users to see department data
-      console.log("👥 All Users with departments:");
-      allUsers.forEach((u: any) => {
-        console.log(`  - ${u.fullName}: departmentId=${u.departmentId}, department=${u.department?._id || u.department}`);
-      });
-
       // ============================================================
-      // 1. FIND DEPARTMENT ID - CRITICAL FIX
+      // 1. FIND DEPARTMENT ID
       // ============================================================
       let deptId = null;
       let deptName = "";
@@ -169,28 +165,22 @@ export default function ProjectDashboard() {
       console.log("👤 Current User from API:", currentUser);
 
       if (currentUser) {
-        // Check if user has department object with _id
         if (currentUser.department && typeof currentUser.department === 'object' && currentUser.department._id) {
           deptId = currentUser.department._id;
           deptName = currentUser.department.name || "";
           deptCode = currentUser.department.code || "";
           console.log("🏢 Found department from user.department._id:", { deptId, deptName, deptCode });
-        }
-        // Check if user has departmentId string
-        else if (currentUser.departmentId) {
+        } else if (currentUser.departmentId) {
           deptId = currentUser.departmentId;
           console.log("🏢 Found departmentId from user.departmentId:", deptId);
-        }
-        // Check if user has department as string
-        else if (typeof currentUser.department === 'string') {
+        } else if (typeof currentUser.department === 'string') {
           deptId = currentUser.department;
           console.log("🏢 Found department as string:", deptId);
         }
       }
 
-      // 🔥 FIX: If we still don't have a department ID, try to find the SQA department
+      // If we still don't have a department ID, try to find the SQA department
       if (!deptId) {
-        // Try to find department by name "SQA" or "SQA Department"
         const sqaUsers = allUsers.filter((u: any) => {
           const deptName = u.department?.name || "";
           return deptName.toLowerCase().includes("sqa");
@@ -206,27 +196,18 @@ export default function ProjectDashboard() {
       }
 
       // ============================================================
-      // 2. FILTER DEPARTMENT USERS - SHOW ALL USERS IN DEPARTMENT
+      // 2. FILTER DEPARTMENT USERS
       // ============================================================
       let deptUsers = [];
 
       if (deptId) {
-        // 🔥 CRITICAL: Filter users by department ID - SHOW ALL USERS
         deptUsers = allUsers.filter((u: any) => {
-          // Check multiple possible department field locations
           const uDeptId = u.departmentId || u.department?._id || u.department;
-          // Convert both to string for comparison
-          const match = String(uDeptId) === String(deptId);
-          if (match) {
-            console.log(`✅ Found user ${u.fullName} in department`);
-          }
-          return match;
+          return String(uDeptId) === String(deptId);
         });
-
         console.log("👥 All Department Users (filtered by ID):", deptUsers.length);
       }
 
-      // If no users found by ID, try by department name
       if (deptUsers.length === 0 && deptName) {
         deptUsers = allUsers.filter((u: any) => {
           const uDeptName = u.department?.name || u.departmentName || "";
@@ -235,7 +216,6 @@ export default function ProjectDashboard() {
         console.log("👥 Department Users (filtered by name):", deptUsers.length);
       }
 
-      // 🔥 FALLBACK: If still no users, try to find users with department name containing "SQA"
       if (deptUsers.length === 0) {
         deptUsers = allUsers.filter((u: any) => {
           const uDeptName = u.department?.name || "";
@@ -244,9 +224,7 @@ export default function ProjectDashboard() {
         console.log("👥 Department Users (SQA fallback):", deptUsers.length);
       }
 
-      // 🔥 FINAL FALLBACK: Show all users if department is SQA
       if (deptUsers.length === 0) {
-        // Check if current user's department name contains SQA
         const currentUserDeptName = currentUser?.department?.name || "";
         if (currentUserDeptName.toLowerCase().includes("sqa")) {
           deptUsers = allUsers.filter((u: any) => {
@@ -257,7 +235,6 @@ export default function ProjectDashboard() {
         }
       }
 
-      // Set department name from the users or use fallback
       if (deptUsers.length > 0) {
         const firstUser = deptUsers[0];
         deptName = firstUser.department?.name || deptName || "SQA Department";
@@ -270,7 +247,6 @@ export default function ProjectDashboard() {
       setDepartmentName(deptName);
       setDepartmentCode(deptCode);
 
-      // Get department user IDs
       const deptUserIds = deptUsers.map((u: any) => u._id);
       console.log("👥 Department User IDs:", deptUserIds);
       console.log("👥 Total Department Users:", deptUsers.length);
@@ -281,7 +257,6 @@ export default function ProjectDashboard() {
       let deptTasks = [];
 
       if (deptUserIds.length > 0) {
-        // Tasks assigned to department users
         deptTasks = allTasksData.filter((t: any) => {
           const taskAssigneeId = t.assignedTo?._id || t.assignedTo;
           return deptUserIds.includes(taskAssigneeId);
@@ -289,7 +264,6 @@ export default function ProjectDashboard() {
         console.log("📋 Tasks assigned to department users:", deptTasks.length);
       }
 
-      // Also get tasks with departmentId matching
       let deptTasksByDeptId = [];
       if (deptId) {
         deptTasksByDeptId = allTasksData.filter((t: any) => {
@@ -299,7 +273,6 @@ export default function ProjectDashboard() {
         console.log("📋 Tasks with department ID:", deptTasksByDeptId.length);
       }
 
-      // Combine and remove duplicates
       const taskMap = new Map();
       [...deptTasks, ...deptTasksByDeptId].forEach((task: any) => {
         taskMap.set(task._id, task);
@@ -308,11 +281,11 @@ export default function ProjectDashboard() {
       console.log("📋 Combined Tasks:", combinedTasks.length);
 
       // ============================================================
-      // 4. GET PROJECTS
+      // 4. GET PROJECTS - FIXED
       // ============================================================
-      // Projects managed by this user
+      // Projects managed by this user (using managerId)
       const managedProjects = allProjects.filter((p: any) => {
-        const pmId = p.projectManager?._id || p.projectManager || p.projectManagerId;
+        const pmId = p.managerId?._id || p.managerId || p.managerId;
         return String(pmId) === String(user?._id);
       });
       console.log("📁 Managed Projects:", managedProjects.length);
@@ -362,7 +335,9 @@ export default function ProjectDashboard() {
         rejectedTasks,
         completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
         totalTeamMembers: deptUsers.length,
-        activeProjects: combinedProjects.filter((p: any) => p.status === "active").length,
+        activeProjects: combinedProjects.filter((p: any) => 
+          p.status === "active" && p.isActive !== false
+        ).length,
       });
 
       setDepartmentUsers(deptUsers);
@@ -756,7 +731,7 @@ export default function ProjectDashboard() {
               </div>
             )}
 
-            {/* Team Members Preview - Shows ALL department members */}
+            {/* Team Members Preview */}
             {departmentUsers.length > 0 && (
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -987,12 +962,15 @@ export default function ProjectDashboard() {
                         <h4 className="font-semibold text-gray-800">{project.name}</h4>
                         <p className="text-xs text-gray-500">{project.code}</p>
                       </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${project.status === "active" ? "bg-emerald-100 text-emerald-700" :
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        project.status === "active" ? "bg-emerald-100 text-emerald-700" :
                         project.status === "planning" ? "bg-amber-100 text-amber-700" :
-                          project.status === "on_hold" ? "bg-rose-100 text-rose-700" :
-                            project.status === "completed" ? "bg-blue-100 text-blue-700" :
-                              "bg-gray-100 text-gray-700"
-                        }`}>
+                        project.status === "on_hold" ? "bg-rose-100 text-rose-700" :
+                        project.status === "completed" ? "bg-blue-100 text-blue-700" :
+                        project.status === "archived" ? "bg-gray-100 text-gray-500" :
+                        project.status === "cancelled" ? "bg-red-100 text-red-700" :
+                        "bg-gray-100 text-gray-700"
+                      }`}>
                         {project.status?.replace("_", " ") || "Active"}
                       </span>
                     </div>

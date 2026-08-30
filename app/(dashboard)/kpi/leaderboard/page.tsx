@@ -22,6 +22,8 @@ import api from "@/lib/axios";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import Link from "next/link";
+// IMPORT THE SHARED CALCULATION FUNCTION
+import { calculateKPIFromTasks, EmployeeKPI } from "@/lib/kpi-utils";
 
 // ============================================================
 // TYPES
@@ -72,8 +74,8 @@ interface User {
   employeeId: string;
   role: string;
   isActive: boolean;
-  profilePhoto?: string; // optional
-  avatar?: string; // optional
+  profilePhoto?: string;
+  avatar?: string;
   departmentId?: {
     _id: string;
     name: string;
@@ -86,23 +88,15 @@ interface User {
   } | string;
 }
 
-interface Task {
+interface ApiTask {
   _id: string;
   title: string;
   status: string;
   priority: string;
-  deadline: string;
-  assignedTo: string | { _id: string };
-  completedAt?: string;
-  updatedAt?: string;
-  createdAt?: string;
-  rejected?: boolean;
-  comments?: any[];
-  attachments?: any[];
-  assignedTeam?: string[];
-  isInnovative?: boolean;
-  creativeSolution?: boolean;
-  processImprovement?: boolean;
+  deadline?: string;
+  assignedTo?: string | { _id: string } | null;
+  createdAt: string;
+  actualMinutes?: number;
 }
 
 interface LeaderboardStats {
@@ -137,7 +131,7 @@ export default function KPLeaderboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager", "employee"]);
-  console.log(scores, "scores")
+
   // ============================================================
   // HELPER: GET DEPARTMENT OBJECT
   // ============================================================
@@ -167,249 +161,156 @@ export default function KPLeaderboardPage() {
   };
 
   // ============================================================
-  // REAL DATA KPI CALCULATION ALGORITHM
+  // FETCH DATA - Using the SAME calculation as dashboard and detail page
   // ============================================================
-  const calculateKPIScoresFromTasks = useCallback((
-    users: User[],
-    tasks: Task[],
-    month: string,
-    year: number,
-  ): KPIScore[] => {
-    const calculatedScores: KPIScore[] = [];
-    const monthIndex = MONTHS.indexOf(month);
-
-    // Get tasks for the selected month
-    const monthTasks = tasks.filter((task) => {
-      if (!task.createdAt && !task.deadline) return false;
-      const taskDate = new Date(task.createdAt || task.deadline);
-      return taskDate.getMonth() === monthIndex && taskDate.getFullYear() === year;
-    });
-
-    users.forEach((user) => {
-      // Get user's tasks for the month
-      const userTasks = monthTasks.filter((task) => {
-        const assignedToId = typeof task.assignedTo === "string"
-          ? task.assignedTo
-          : task.assignedTo?._id;
-        return assignedToId === user._id;
-      });
-
-      const totalTasks = userTasks.length;
-
-      // ✅ Create userId object with avatar ONCE and reuse for all users
-      const userIdObj = {
-        _id: user._id,
-        fullName: user.fullName,
-        email: user.email,
-        employeeId: user.employeeId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
-        role: user.role,
-        avatar: user.profilePhoto || user.avatar || undefined,
-      };
-
-      // If no tasks, return default zero scores
-      if (totalTasks === 0) {
-        calculatedScores.push({
-          _id: `calc_${user._id}_${month}_${year}`,
-          userId: userIdObj,
-          departmentId: getDepartmentObject(user),
-          month,
-          year,
-          totalScore: 0,
-          performanceLevel: "needs_improvement",
-          percentile: 0,
-          rank: 0,
-          totalEmployees: users.length,
-          scores: {
-            taskCompletion: { score: 0, weight: 30, weightedScore: 0 },
-            qualityScore: { score: 0, weight: 25, weightedScore: 0 },
-            efficiency: { score: 0, weight: 20, weightedScore: 0 },
-            collaboration: { score: 0, weight: 10, weightedScore: 0 },
-            innovation: { score: 0, weight: 10, weightedScore: 0 },
-            attendance: { score: 0, weight: 5, weightedScore: 0 },
-          },
-          calculatedAt: new Date().toISOString(),
-        });
-        return;
-      }
-
-      // ============================================================
-      // 1. TASK COMPLETION SCORE
-      // ============================================================
-      const completedTasks = userTasks.filter((t) => t.status === "completed").length;
-      const taskCompletionScore = Math.min(100, Math.round((completedTasks / totalTasks) * 100));
-
-      // ============================================================
-      // 2. QUALITY SCORE
-      // ============================================================
-      const approvedTasks = userTasks.filter((t) => t.status === "completed" && !t.rejected);
-      const submittedTasks = userTasks.filter((t) => t.status === "completed" || t.status === "submitted");
-      const qualityScore = submittedTasks.length > 0
-        ? Math.min(100, Math.round((approvedTasks.length / submittedTasks.length) * 100))
-        : 0;
-
-      // ============================================================
-      // 3. EFFICIENCY SCORE
-      // ============================================================
-      const onTimeTasks = userTasks.filter((t) => {
-        if (t.status !== "completed" || !t.deadline) return false;
-        const completedDate = t.completedAt
-          ? new Date(t.completedAt)
-          : new Date(t.updatedAt || t.createdAt || Date.now());
-        const deadline = new Date(t.deadline);
-        return completedDate <= deadline;
-      });
-      const efficiencyScore = Math.min(100, Math.round((onTimeTasks.length / totalTasks) * 100));
-
-      // ============================================================
-      // 4. COLLABORATION SCORE
-      // ============================================================
-      const collaborativeTasks = userTasks.filter((t) => {
-        const hasComments = t.comments && t.comments.length > 0;
-        const hasAttachments = t.attachments && t.attachments.length > 0;
-        const isTeamTask = t.assignedTeam && t.assignedTeam.length > 1;
-        return hasComments || hasAttachments || isTeamTask;
-      });
-      const collaborationScore = Math.min(100, Math.round((collaborativeTasks.length / totalTasks) * 100));
-
-      // ============================================================
-      // 5. INNOVATION SCORE
-      // ============================================================
-      const innovativeTasks = userTasks.filter((t) => {
-        return t.isInnovative || t.creativeSolution || t.processImprovement;
-      });
-      const innovationScore = Math.min(100, Math.round((innovativeTasks.length / totalTasks) * 100));
-
-      // ============================================================
-      // 6. ATTENDANCE SCORE (Proxy based on volume and consistency)
-      // ============================================================
-      const hasConsistentWork = userTasks.length >= 10;
-      const attendanceScore = hasConsistentWork
-        ? 95
-        : Math.min(80, Math.round((userTasks.length / 10) * 100));
-
-      // ============================================================
-      // CALCULATE WEIGHTED SCORES
-      // ============================================================
-      const weightedScores = {
-        taskCompletion: {
-          score: taskCompletionScore,
-          weight: 30,
-          weightedScore: Math.round((taskCompletionScore * 30) / 100),
-        },
-        qualityScore: {
-          score: qualityScore,
-          weight: 25,
-          weightedScore: Math.round((qualityScore * 25) / 100),
-        },
-        efficiency: {
-          score: efficiencyScore,
-          weight: 20,
-          weightedScore: Math.round((efficiencyScore * 20) / 100),
-        },
-        collaboration: {
-          score: collaborationScore,
-          weight: 10,
-          weightedScore: Math.round((collaborationScore * 10) / 100),
-        },
-        innovation: {
-          score: innovationScore,
-          weight: 10,
-          weightedScore: Math.round((innovationScore * 10) / 100),
-        },
-        attendance: {
-          score: attendanceScore,
-          weight: 5,
-          weightedScore: Math.round((attendanceScore * 5) / 100),
-        },
-      };
-
-      // ============================================================
-      // CALCULATE TOTAL SCORE
-      // ============================================================
-      const totalScore = Math.round(
-        weightedScores.taskCompletion.weightedScore +
-        weightedScores.qualityScore.weightedScore +
-        weightedScores.efficiency.weightedScore +
-        weightedScores.collaboration.weightedScore +
-        weightedScores.innovation.weightedScore +
-        weightedScores.attendance.weightedScore
-      );
-
-      // ============================================================
-      // DETERMINE PERFORMANCE LEVEL
-      // ============================================================
-      let performanceLevel: "excellent" | "good" | "average" | "needs_improvement" = "average";
-      if (totalScore >= 90) performanceLevel = "excellent";
-      else if (totalScore >= 75) performanceLevel = "good";
-      else if (totalScore >= 60) performanceLevel = "average";
-      else performanceLevel = "needs_improvement";
-
-      // ============================================================
-      // CREATE SCORE OBJECT WITH AVATAR
-      // ============================================================
-      calculatedScores.push({
-        _id: `calc_${user._id}_${month}_${year}`,
-        userId: userIdObj, // ✅ Includes avatar
-        departmentId: getDepartmentObject(user),
-        month,
-        year,
-        totalScore,
-        performanceLevel,
-        percentile: 0,
-        rank: 0,
-        totalEmployees: users.length,
-        scores: weightedScores,
-        calculatedAt: new Date().toISOString(),
-      });
-    });
-
-    // ============================================================
-    // SORT AND CALCULATE RANKS & PERCENTILES
-    // ============================================================
-    const sorted = [...calculatedScores].sort((a, b) => b.totalScore - a.totalScore);
-    sorted.forEach((score, index) => {
-      score.rank = index + 1;
-      score.percentile = Math.round(((sorted.length - index) / sorted.length) * 100);
-    });
-
-    return sorted;
-  }, []);
-
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [usersRes, tasksRes] = await Promise.all([
-        api.get("/users").catch(() => ({ data: { success: false, data: [] } })),
-        api.get("/tasks").catch(() => ({ data: { success: false, data: [] } })),
-      ]);
+      // 1. Fetch all users
+      const usersRes = await api.get("/users");
+      const users = usersRes.data?.data || [];
 
-      const usersData: User[] = usersRes.data.success ? usersRes.data.data || [] : [];
-      const tasksData: Task[] = tasksRes.data.success ? tasksRes.data.data || [] : [];
+      // 2. Calculate date range for selected month
+      const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
+      const startDate = new Date(selectedYear, monthIndex - 1, 1);
+      const endDate = new Date(selectedYear, monthIndex, 0);
+      endDate.setHours(23, 59, 59, 999);
 
-      let allScores: KPIScore[] = [];
-      if (usersData.length > 0) {
-        allScores = calculateKPIScoresFromTasks(usersData, tasksData, selectedMonth, selectedYear);
+      // 3. Fetch tasks for EACH user individually (SAME as detail page)
+      const allScores: KPIScore[] = [];
+
+      for (const userData of users) {
+        try {
+          // Fetch tasks for this specific user
+          const tasksResponse = await api.get("/tasks", {
+            params: {
+              assignedTo: userData._id,
+              limit: 10000
+            }
+          });
+
+          const userTasks = tasksResponse.data?.data || [];
+
+          // Filter tasks by month
+          const monthTasks = userTasks.filter((t: ApiTask) => {
+            const taskDate = new Date(t.createdAt);
+            return taskDate >= startDate && taskDate <= endDate;
+          });
+
+          // Create user object for the shared function
+          const userObj = {
+            _id: userData._id,
+            fullName: userData.fullName,
+            email: userData.email,
+            employeeId: userData.employeeId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+            role: userData.role,
+            position: userData.position || "Employee",
+            departmentId: userData.departmentId || userData.department,
+            department: userData.department,
+          };
+
+          // Calculate KPI using the SHARED function from kpi-utils.ts
+          const result = calculateKPIFromTasks(
+            monthTasks,
+            userObj as any,
+            selectedMonth,
+            selectedYear,
+            users as any
+          );
+
+
+          // Convert to KPIScore format
+          allScores.push({
+            _id: result._id,
+            userId: {
+              _id: userData._id,
+              fullName: userData.fullName,
+              email: userData.email,
+              employeeId: userData.employeeId || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+              role: userData.role,
+              avatar: userData.profilePhoto || userData.avatar || undefined,
+            },
+            departmentId: getDepartmentObject(userData),
+            month: selectedMonth,
+            year: selectedYear,
+            totalScore: result.totalScore,
+            performanceLevel: result.performanceLevel,
+            percentile: result.percentile,
+            rank: result.rank,
+            totalEmployees: result.totalEmployees,
+            scores: {
+              taskCompletion: {
+                score: result.scores.taskCompletion.score,
+                weight: 25,
+                weightedScore: result.scores.taskCompletion.weightedScore,
+              },
+              qualityScore: {
+                score: result.scores.qualityScore.score,
+                weight: 20,
+                weightedScore: result.scores.qualityScore.weightedScore,
+              },
+              efficiency: {
+                score: result.scores.efficiency.score,
+                weight: 20,
+                weightedScore: result.scores.efficiency.weightedScore,
+              },
+              collaboration: {
+                score: result.scores.collaboration.score,
+                weight: 15,
+                weightedScore: result.scores.collaboration.weightedScore,
+              },
+              innovation: {
+                score: result.scores.innovation.score,
+                weight: 10,
+                weightedScore: result.scores.innovation.weightedScore,
+              },
+              attendance: {
+                score: result.scores.attendance.score,
+                weight: 10,
+                weightedScore: result.scores.attendance.weightedScore,
+              },
+            },
+            calculatedAt: result.calculatedAt,
+          });
+        } catch (error) {
+          console.error(`Error fetching tasks for user ${userData.fullName}:`, error);
+        }
       }
 
-      setScores(allScores);
+      // Sort by score (higher first)
+      const sorted = [...allScores].sort((a, b) => b.totalScore - a.totalScore);
 
-      const depts = [...new Set(allScores.map((s) => s.departmentId?.name || "Unassigned"))];
+      // Update ranks
+      sorted.forEach((score, index) => {
+        score.rank = index + 1;
+        score.percentile = sorted.length > 0
+          ? Math.round(((sorted.length - index) / sorted.length) * 100)
+          : 0;
+      });
+
+      setScores(sorted);
+
+      // Extract departments
+      const depts = [...new Set(sorted.map((s) => s.departmentId?.name || "Unassigned"))];
       setDepartments(depts.length > 0 ? depts : ["Unassigned"]);
 
-      const total = allScores.length;
-      const topScore = allScores.length > 0 ? Math.max(...allScores.map((s) => s.totalScore)) : 0;
-      const avgScore = allScores.length > 0 ? Math.round(allScores.reduce((sum, s) => sum + s.totalScore, 0) / allScores.length) : 0;
+      // Calculate stats
+      const total = sorted.length;
+      const topScore = sorted.length > 0 ? sorted[0].totalScore : 0;
+      const avgScore = sorted.length > 0
+        ? Math.round(sorted.reduce((sum, s) => sum + s.totalScore, 0) / sorted.length)
+        : 0;
 
       setStats({
         totalEmployees: total,
         averageScore: avgScore,
         topScore,
-        excellentCount: allScores.filter((s) => s.performanceLevel === "excellent").length,
+        excellentCount: sorted.filter((s) => s.performanceLevel === "excellent").length,
       });
 
-      if (allScores.length === 0) {
+      if (sorted.length === 0) {
         setError("No KPI metrics registered for this timeframe.");
       }
     } catch (err: any) {
@@ -418,7 +319,7 @@ export default function KPLeaderboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMonth, selectedYear, calculateKPIScoresFromTasks]);
+  }, [selectedMonth, selectedYear]);
 
   useEffect(() => {
     if (canManage) {
@@ -426,6 +327,9 @@ export default function KPLeaderboardPage() {
     }
   }, [canManage, fetchAllData]);
 
+  // ============================================================
+  // EXPORT CSV
+  // ============================================================
   const handleExport = () => {
     if (scores.length === 0) {
       toast.error("No data available to export");
@@ -455,6 +359,9 @@ export default function KPLeaderboardPage() {
     toast.success("Leaderboard exported successfully");
   };
 
+  // ============================================================
+  // FILTERS
+  // ============================================================
   const filteredScores = useMemo(() => {
     let filtered = [...scores];
 
@@ -628,144 +535,122 @@ export default function KPLeaderboardPage() {
             ))}
           </div>
         )}
+
         {/* Top 3 Podium Cards */}
         {topThree.length >= 3 && (
           <div className="relative pt-12 pb-6 px-4">
-            {/* Floating Crown for 1st Place (Center) */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center animate-bounce">
               <svg className="w-10 h-10 text-amber-400 drop-shadow-md" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z" />
               </svg>
             </div>
 
-            {/* Podium Container - Side-by-Side arrangement mimicking the vector illustration */}
             <div className="flex items-end justify-center gap-4 sm:gap-8 max-w-2xl mx-auto">
 
-              {/* 2nd Place (Left) */}
-              {[topThree[1]].map((score) => {
-                if (!score) return null;
-                return (
-                  <motion.div
-                    key={score._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    onClick={() => router.push(`/kpi/employee/${score.userId._id}`)}
-                    className="flex flex-col items-center group cursor-pointer relative z-10 -mr-2 sm:-mr-4 mb-2"
-                  >
-                    {/* Circular Avatar Node with Outside Badge */}
-                    <div className="relative">
-                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-[#f4f1de] border-4 border-white shadow-lg flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
-                        {score.userId.avatar ? (
-                          <img src={score.userId.avatar} alt={score.userId.fullName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-[#d0cbd0] flex items-center justify-center text-slate-700 font-extrabold text-xl shadow-inner">
-                            {score.userId.fullName.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      {/* Rank Badge Indicator (Outside using z-30) */}
-                      <div className="absolute -bottom-2 -right-2 z-30 w-8 h-8 rounded-full bg-[#f2cc8f] border-2 border-white flex items-center justify-center text-xs font-black text-slate-800 shadow-lg">
-                        2
-                      </div>
+              {/* 2nd Place */}
+              {topThree[1] && (
+                <motion.div
+                  key={topThree[1]._id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  onClick={() => router.push(`/kpi/employee/${topThree[1].userId._id}`)}
+                  className="flex flex-col items-center group cursor-pointer relative z-10 -mr-2 sm:-mr-4 mb-2"
+                >
+                  <div className="relative">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-[#f4f1de] border-4 border-white shadow-lg flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+                      {topThree[1].userId.avatar ? (
+                        <img src={topThree[1].userId.avatar} alt={topThree[1].userId.fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[#d0cbd0] flex items-center justify-center text-slate-700 font-extrabold text-xl shadow-inner">
+                          {topThree[1].userId.fullName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
+                    <div className="absolute -bottom-2 -right-2 z-30 w-8 h-8 rounded-full bg-[#f2cc8f] border-2 border-white flex items-center justify-center text-xs font-black text-slate-800 shadow-lg">
+                      2
+                    </div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight max-w-[100px] sm:max-w-[120px] truncate">
+                      {topThree[1].userId.fullName}
+                    </h4>
+                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 inline-block border border-emerald-100">
+                      {formatScore(topThree[1].totalScore)}%
+                    </span>
+                  </div>
+                </motion.div>
+              )}
 
-                    {/* Label details */}
-                    <div className="mt-3 text-center">
-                      <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight max-w-[100px] sm:max-w-[120px] truncate">
-                        {score.userId.fullName}
-                      </h4>
-                      <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 inline-block border border-emerald-100">
-                        {formatScore(score.totalScore)}%
-                      </span>
+              {/* 1st Place */}
+              {topThree[0] && (
+                <motion.div
+                  key={topThree[0]._id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.05 }}
+                  onClick={() => router.push(`/kpi/employee/${topThree[0].userId._id}`)}
+                  className="flex flex-col items-center group cursor-pointer relative z-30 -translate-y-6"
+                >
+                  <div className="relative">
+                    <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-[#f4f1de] border-4 border-white shadow-xl flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+                      {topThree[0].userId.avatar ? (
+                        <img src={topThree[0].userId.avatar} alt={topThree[0].userId.fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[#e07a5f] flex items-center justify-center text-white font-extrabold text-2xl shadow-inner">
+                          {topThree[0].userId.fullName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
-                  </motion.div>
-                );
-              })}
+                    <div className="absolute -bottom-2 -right-2 z-30 w-9 h-9 rounded-full bg-[#f2cc8f] border-2 border-white flex items-center justify-center text-sm font-black text-slate-800 shadow-lg">
+                      1
+                    </div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <h4 className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight max-w-[120px] sm:max-w-[140px] truncate">
+                      {topThree[0].userId.fullName}
+                    </h4>
+                    <span className="text-xs font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg mt-1 inline-block border border-amber-200 shadow-xs">
+                      {formatScore(topThree[0].totalScore)}%
+                    </span>
+                  </div>
+                </motion.div>
+              )}
 
-              {/* 1st Place (Center - Elevated) */}
-              {[topThree[0]].map((score) => {
-                if (!score) return null;
-                return (
-                  <motion.div
-                    key={score._id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.05 }}
-                    onClick={() => router.push(`/kpi/employee/${score.userId._id}`)}
-                    className="flex flex-col items-center group cursor-pointer relative z-30 -translate-y-6"
-                  >
-                    {/* Larger Circular Avatar Node with Outside Badge */}
-                    <div className="relative">
-                      <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full bg-[#f4f1de] border-4 border-white shadow-xl flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
-                        {score.userId.avatar ? (
-                          <img src={score.userId.avatar} alt={score.userId.fullName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-[#e07a5f] flex items-center justify-center text-white font-extrabold text-2xl shadow-inner">
-                            {score.userId.fullName.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      {/* Rank Badge Indicator (Outside using z-30) */}
-                      <div className="absolute -bottom-2 -right-2 z-30 w-9 h-9 rounded-full bg-[#f2cc8f] border-2 border-white flex items-center justify-center text-sm font-black text-slate-800 shadow-lg">
-                        1
-                      </div>
+              {/* 3rd Place */}
+              {topThree[2] && (
+                <motion.div
+                  key={topThree[2]._id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  onClick={() => router.push(`/kpi/employee/${topThree[2].userId._id}`)}
+                  className="flex flex-col items-center group cursor-pointer relative z-10 -ml-2 sm:-ml-4 mb-2"
+                >
+                  <div className="relative">
+                    <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-[#f4f1de] border-4 border-white shadow-lg flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+                      {topThree[2].userId.avatar ? (
+                        <img src={topThree[2].userId.avatar} alt={topThree[2].userId.fullName} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-[#3d405b] flex items-center justify-center text-white font-extrabold text-xl shadow-inner">
+                          {topThree[2].userId.fullName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Label details */}
-                    <div className="mt-3 text-center">
-                      <h4 className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight max-w-[120px] sm:max-w-[140px] truncate">
-                        {score.userId.fullName}
-                      </h4>
-                      <span className="text-xs font-black text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg mt-1 inline-block border border-amber-200 shadow-xs">
-                        {formatScore(score.totalScore)}%
-                      </span>
+                    <div className="absolute -bottom-2 -right-2 z-30 w-8 h-8 rounded-full bg-[#f2cc8f] border-2 border-white flex items-center justify-center text-xs font-black text-slate-800 shadow-lg">
+                      3
                     </div>
-                  </motion.div>
-                );
-              })}
-
-              {/* 3rd Place (Right) */}
-              {[topThree[2]].map((score) => {
-                if (!score) return null;
-                return (
-                  <motion.div
-                    key={score._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 }}
-                    onClick={() => router.push(`/kpi/employee/${score.userId._id}`)}
-                    className="flex flex-col items-center group cursor-pointer relative z-10 -ml-2 sm:-ml-4 mb-2"
-                  >
-                    {/* Circular Avatar Node with Outside Badge */}
-                    <div className="relative">
-                      <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-[#f4f1de] border-4 border-white shadow-lg flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
-                        {score.userId.avatar ? (
-                          <img src={score.userId.avatar} alt={score.userId.fullName} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full bg-[#3d405b] flex items-center justify-center text-white font-extrabold text-xl shadow-inner">
-                            {score.userId.fullName.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      {/* Rank Badge Indicator (Outside using z-30) */}
-                      <div className="absolute -bottom-2 -right-2 z-30 w-8 h-8 rounded-full bg-[#f2cc8f] border-2 border-white flex items-center justify-center text-xs font-black text-slate-800 shadow-lg">
-                        3
-                      </div>
-                    </div>
-
-                    {/* Label details */}
-                    <div className="mt-3 text-center">
-                      <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight max-w-[100px] sm:max-w-[120px] truncate">
-                        {score.userId.fullName}
-                      </h4>
-                      <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 inline-block border border-emerald-100">
-                        {formatScore(score.totalScore)}%
-                      </span>
-                    </div>
-                  </motion.div>
-                );
-              })}
+                  </div>
+                  <div className="mt-3 text-center">
+                    <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm tracking-tight max-w-[100px] sm:max-w-[120px] truncate">
+                      {topThree[2].userId.fullName}
+                    </h4>
+                    <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md mt-1 inline-block border border-emerald-100">
+                      {formatScore(topThree[2].totalScore)}%
+                    </span>
+                  </div>
+                </motion.div>
+              )}
 
             </div>
           </div>
@@ -867,7 +752,6 @@ export default function KPLeaderboardPage() {
                                 alt={score.userId.fullName}
                                 className="w-9 h-9 rounded-xl object-cover shrink-0 border border-slate-200"
                                 onError={(e) => {
-                                  // Fallback if image fails to load
                                   e.currentTarget.style.display = 'none';
                                   const parent = e.currentTarget.parentElement;
                                   const fallback = document.createElement('div');

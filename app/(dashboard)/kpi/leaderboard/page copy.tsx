@@ -303,21 +303,21 @@ export default function KPLeaderboardPage() {
       const qualityScore =
         totalTasks > 0
           ? Math.min(
-              100,
-              Math.round(
-                ((completedTasks - rejectedTasks * 0.5) / totalTasks) * 100,
-              ),
-            )
+            100,
+            Math.round(
+              ((completedTasks - rejectedTasks * 0.5) / totalTasks) * 100,
+            ),
+          )
           : 50;
 
       const efficiency =
         totalTasks > 0
           ? Math.min(
-              100,
-              Math.round(
-                ((completedTasks - overdueTasks * 0.3) / totalTasks) * 100,
-              ),
-            )
+            100,
+            Math.round(
+              ((completedTasks - overdueTasks * 0.3) / totalTasks) * 100,
+            ),
+          )
           : 50;
 
       // Collaboration, Innovation, Attendance - based on role and task completion
@@ -349,11 +349,11 @@ export default function KPLeaderboardPage() {
       // Calculate total score with proper weighting
       const totalScore = Math.round(
         taskCompletion * 0.25 +
-          qualityScore * 0.2 +
-          efficiency * 0.2 +
-          collaboration * 0.15 +
-          innovation * 0.1 +
-          attendance * 0.1,
+        qualityScore * 0.2 +
+        efficiency * 0.2 +
+        collaboration * 0.15 +
+        innovation * 0.1 +
+        attendance * 0.1,
       );
 
       calculatedScores.push(
@@ -537,11 +537,11 @@ export default function KPLeaderboardPage() {
       const avgScore =
         allScores.length > 0
           ? Math.round(
-              allScores.reduce(
-                (sum: number, s: KPIScore) => sum + s.totalScore,
-                0,
-              ) / allScores.length,
-            )
+            allScores.reduce(
+              (sum: number, s: KPIScore) => sum + s.totalScore,
+              0,
+            ) / allScores.length,
+          )
           : 0;
 
       setStats({
@@ -608,24 +608,24 @@ export default function KPLeaderboardPage() {
       filteredScores.length > 0
         ? filteredScores
         : filteredUsers.map((user, index) => ({
-            rank: index + 1,
-            userId: user,
-            departmentId: user.departmentId || {
-              name: "Unassigned",
-              code: "NA",
-            },
-            totalScore: 0,
-            performanceLevel: "not_calculated",
-            percentile: 0,
-            scores: {
-              taskCompletion: { score: 0, weight: 0, weightedScore: 0 },
-              qualityScore: { score: 0, weight: 0, weightedScore: 0 },
-              efficiency: { score: 0, weight: 0, weightedScore: 0 },
-              collaboration: { score: 0, weight: 0, weightedScore: 0 },
-              innovation: { score: 0, weight: 0, weightedScore: 0 },
-              attendance: { score: 0, weight: 0, weightedScore: 0 },
-            },
-          }));
+          rank: index + 1,
+          userId: user,
+          departmentId: user.departmentId || {
+            name: "Unassigned",
+            code: "NA",
+          },
+          totalScore: 0,
+          performanceLevel: "not_calculated",
+          percentile: 0,
+          scores: {
+            taskCompletion: { score: 0, weight: 0, weightedScore: 0 },
+            qualityScore: { score: 0, weight: 0, weightedScore: 0 },
+            efficiency: { score: 0, weight: 0, weightedScore: 0 },
+            collaboration: { score: 0, weight: 0, weightedScore: 0 },
+            innovation: { score: 0, weight: 0, weightedScore: 0 },
+            attendance: { score: 0, weight: 0, weightedScore: 0 },
+          },
+        }));
 
     const rows = dataToExport.map((item: any) => [
       item.rank || "N/A",
@@ -789,10 +789,10 @@ export default function KPLeaderboardPage() {
   const displayDepartments = hasScores
     ? departments
     : [
-        ...new Set(
-          allUsers.map((u: User) => u.departmentId?.name || "Unassigned"),
-        ),
-      ];
+      ...new Set(
+        allUsers.map((u: User) => u.departmentId?.name || "Unassigned"),
+      ),
+    ];
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -1221,11 +1221,10 @@ export default function KPLeaderboardPage() {
                         return (
                           <tr
                             key={score._id || index}
-                            className={`hover:bg-gray-50 transition cursor-pointer ${
-                              isTopThree
+                            className={`hover:bg-gray-50 transition cursor-pointer ${isTopThree
                                 ? "bg-linear-to-r from-amber-50/50 to-transparent"
                                 : ""
-                            }`}
+                              }`}
                             onClick={() =>
                               router.push(`/kpi/employee/${score.userId._id}`)
                             }
@@ -1264,15 +1263,14 @@ export default function KPLeaderboardPage() {
                                 </span>
                                 <div className="w-16 bg-gray-200 rounded-full h-1.5">
                                   <div
-                                    className={`h-1.5 rounded-full ${
-                                      score.totalScore >= 90
+                                    className={`h-1.5 rounded-full ${score.totalScore >= 90
                                         ? "bg-emerald-500"
                                         : score.totalScore >= 75
                                           ? "bg-blue-500"
                                           : score.totalScore >= 60
                                             ? "bg-amber-500"
                                             : "bg-red-500"
-                                    }`}
+                                      }`}
                                     style={{ width: `${score.totalScore}%` }}
                                   />
                                 </div>
@@ -1468,11 +1466,10 @@ export default function KPLeaderboardPage() {
                         <button
                           key={pageNum}
                           onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-2 rounded-lg text-sm transition ${
-                            currentPage === pageNum
+                          className={`px-3 py-2 rounded-lg text-sm transition ${currentPage === pageNum
                               ? "bg-indigo-600 text-white shadow-sm"
                               : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
-                          }`}
+                            }`}
                         >
                           {pageNum}
                         </button>

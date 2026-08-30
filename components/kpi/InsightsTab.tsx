@@ -469,7 +469,7 @@ function InsightsTab({
                     <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Deviation
                     </th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="text-left w-[300px] px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
                     <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -534,10 +534,8 @@ function InsightsTab({
                             {anomaly.deviation}%
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`text-xs font-medium px-2.5 py-1 rounded-full border ${perfConfig.bg} ${perfConfig.border} ${perfConfig.color}`}
-                          >
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          <span>
                             {isHighPerformer ? (
                               <span className="flex items-center gap-1">
                                 <TrendingUp size={12} />
