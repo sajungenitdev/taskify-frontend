@@ -224,8 +224,8 @@ export default function AuditLogsPage() {
 
             const response = await apiService.get(`/audit-logs?${params.toString()}`);
 
-            if (response && (response.success || response.status === "success" || response.data)) {
-                const payload = response.data || response;
+            if (response && (response.success === true || response.data !== undefined)) {
+                const payload = response.data ?? response;
                 const fetchedLogs = payload.logs || payload.data || [];
                 const fetchedStats = payload.stats || null;
                 const fetchedTotal = payload.pagination?.total || payload.total || fetchedLogs.length;
@@ -262,7 +262,7 @@ export default function AuditLogsPage() {
         try {
             setDeletingId(logId);
             const res = await apiService.delete(`/audit-logs/${logId}`);
-            if (res && (res.success || res.status === "success")) {
+            if (res && (res.success === true || res.data !== undefined)) {
                 toast.success("Audit log entry deleted");
                 setLogs((prev) => prev.filter((item) => item._id !== logId));
                 setTotal((prev) => Math.max(0, prev - 1));
