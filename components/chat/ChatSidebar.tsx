@@ -1133,9 +1133,9 @@ export default function ChatSidebar({
             <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="relative shrink-0">
-                        {user?.profilePhoto || user?.avatar ? (
+                        {user?.profilePhoto ? (
                             <img
-                                src={user?.profilePhoto || user?.avatar || ""}
+                                src={user.profilePhoto}
                                 alt={user?.fullName || "User"}
                                 className="w-9 h-9 rounded-full object-cover"
                             />
