@@ -419,7 +419,7 @@ export default function ChatSidebar({
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to start direct message");
         }
-    }, [channels, user?._id, onSelectChannel, joinChannel, markAsRead, updateChannelCounts, handleUnarchiveChannel]);
+    }, [channels, user, onSelectChannel, joinChannel, markAsRead, updateChannelCounts, handleUnarchiveChannel]);
 
     // ============================================================
     // IS USER ONLINE
@@ -638,7 +638,7 @@ export default function ChatSidebar({
                                                 </div>
                                                 {hasUnread && !isArchived && (
                                                     <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center px-1 animate-pulse">
-                                                        {ch.unreadCount > 9 ? '9+' : ch.unreadCount}
+                                                        {(ch.unreadCount ?? 0) > 9 ? '9+' : (ch.unreadCount ?? 0)}
                                                     </span>
                                                 )}
                                             </div>
