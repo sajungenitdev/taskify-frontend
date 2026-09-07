@@ -180,20 +180,7 @@ export default function ChatSidebar({
     // ============================================================
     // UPDATE CHANNELS FROM EXTERNAL PROP
     // ============================================================
-    useEffect(() => {
-        if (externalChannels && externalChannels.length > 0) {
-            setChannels(externalChannels);
-            updateChannelCounts(externalChannels);
-        }
-    }, [externalChannels]);
-
-    useEffect(() => {
-        setLoading(externalLoading);
-    }, [externalLoading]);
-
-    // ============================================================
-    // UPDATE CHANNEL COUNTS
-    // ============================================================
+    // ✅ FIX: Memoize updateChannelCounts with useCallback
     const updateChannelCounts = useCallback((channelList: ChannelItem[]) => {
         const counts = {
             total: channelList.length,
@@ -204,7 +191,15 @@ export default function ChatSidebar({
             online: onlineMembers.length,
         };
         setChannelCounts(counts);
-    }, [onlineMembers]);
+    }, [onlineMembers]); // ✅ Only re-create when onlineMembers changes
+
+    // Then use it in useEffect
+    useEffect(() => {
+        if (externalChannels && externalChannels.length > 0) {
+            setChannels(externalChannels);
+            updateChannelCounts(externalChannels);
+        }
+    }, [externalChannels, updateChannelCounts]); // ✅ Add updateChannelCounts to deps
 
     // ============================================================
     // FETCH USERS

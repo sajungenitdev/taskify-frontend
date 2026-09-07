@@ -384,6 +384,10 @@ export default function ChatDetailsSidebar({
     // EDIT CHANNEL
     // ============================================================
 
+    // ============================================================
+    // EDIT CHANNEL - FIXED (Use PUT instead of PATCH)
+    // ============================================================
+
     const handleEditChannel = async () => {
         if (!channelId || !editName.trim()) {
             toast.error("Channel name is required");
@@ -398,6 +402,7 @@ export default function ChatDetailsSidebar({
                 description: editDescription.trim(),
             });
 
+            // ✅ Use PUT instead of PATCH
             const response = await api.put(`/channels/${channelId}`, {
                 name: editName.trim(),
                 description: editDescription.trim(),
@@ -434,6 +439,8 @@ export default function ChatDetailsSidebar({
                     errorMessage = "Channel not found";
                 } else if (error.response.status === 409) {
                     errorMessage = "Channel name already exists";
+                } else if (error.response.status === 400) {
+                    errorMessage = error.response.data?.message || "Invalid channel data";
                 } else {
                     errorMessage = error.response.data?.message || "Server error";
                 }
