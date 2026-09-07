@@ -171,6 +171,8 @@ export default function ChatSidebar({
     const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
     const [archivingChannelId, setArchivingChannelId] = useState<string | null>(null);
     const [showDMActions, setShowDMActions] = useState<string | null>(null);
+    const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
+    const [loadingPinned, setLoadingPinned] = useState(false);
 
     const currentUserId = user?._id;
 
@@ -215,6 +217,29 @@ export default function ChatSidebar({
             console.error("Error fetching users:", error);
         }
     }, [user?._id]);
+
+    // Add fetch function
+    const fetchPinnedMessages = useCallback(async () => {
+        if (!selectedChannelId) return;
+        setLoadingPinned(true);
+        try {
+            const response = await api.get(`/messages/channel/${selectedChannelId}/pinned`);
+            if (response.data?.success) {
+                setPinnedMessages(response.data.data || []);
+            }
+        } catch (error) {
+            console.error("Failed to fetch pinned messages:", error);
+        } finally {
+            setLoadingPinned(false);
+        }
+    }, [selectedChannelId]);
+
+    // Call it when selected channel changes
+    useEffect(() => {
+        if (selectedChannelId) {
+            fetchPinnedMessages();
+        }
+    }, [selectedChannelId, fetchPinnedMessages]);
 
     // ============================================================
     // UNARCHIVE CHANNEL
@@ -620,21 +645,36 @@ export default function ChatSidebar({
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center justify-between mt-0.5">
-                                                <div className="flex items-center gap-1.5 min-w-0">
+                                            <div className="flex items-center justify-between gap-2 mt-1">
+                                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                                     {ch.lastMessage?.senderId && !isArchived && (
-                                                        <span className="text-[10px] text-slate-400 font-medium shrink-0">
-                                                            {ch.lastMessage.senderId.fullName.split(' ')[0]}:
+                                                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 shrink-0">
+                                                            {ch.lastMessage.senderId.fullName?.split(" ")[0]}:
                                                         </span>
                                                     )}
-                                                    <p className={`text-[11px] truncate leading-tight ${isArchived ? "text-slate-400" : "text-slate-500"}`}>
-                                                        {isArchived ? "Archived conversation" : (ch.lastMessage?.content || "No messages yet")}
+                                                    <p
+                                                        className={`text-xs truncate ${isArchived
+                                                            ? "text-slate-400 italic"
+                                                            : (ch.unreadCount ?? 0) > 0
+                                                                ? "text-slate-900 font-medium dark:text-slate-100"
+                                                                : "text-slate-500 dark:text-slate-400"
+                                                            }`}
+                                                    >
+                                                        {isArchived ? "Archived conversation" : ch.lastMessage?.content || "No messages yet"}
                                                     </p>
                                                 </div>
-                                                {hasUnread && !isArchived && (
-                                                    <span className="shrink-0 min-w-[18px] h-[18px] rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center px-1 animate-pulse">
-                                                        {(ch.unreadCount ?? 0) > 9 ? '9+' : (ch.unreadCount ?? 0)}
-                                                    </span>
+
+                                                {/* Safely check and render only if unreadCount exists and is > 0 */}
+                                                {!isArchived && (ch.unreadCount ?? 0) > 0 && (
+                                                    <div className="relative flex items-center justify-center shrink-0">
+                                                        {/* Subtle background glow pulse */}
+                                                        <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-30 animate-ping" />
+
+                                                        {/* Main Badge */}
+                                                        <span className="relative inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 rounded-full shadow-sm shadow-indigo-500/30 ring-2 ring-white dark:ring-slate-900">
+                                                            {(ch.unreadCount ?? 0) > 99 ? "99+" : ch.unreadCount}
+                                                        </span>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -1161,24 +1201,6 @@ export default function ChatSidebar({
                             )}
                         </p>
                     </div>
-                    <button
-                        onClick={() => window.location.href = "/settings"}
-                        className="p-1.5 hover:bg-slate-200 rounded-lg transition text-slate-400 hover:text-slate-600 shrink-0"
-                        title="Settings"
-                    >
-                        <Settings className="w-4 h-4" />
-                    </button>
-                    <button
-                        onClick={() => {
-                            localStorage.removeItem("token");
-                            localStorage.removeItem("user");
-                            window.location.href = "/login";
-                        }}
-                        className="p-1.5 hover:bg-red-100 rounded-lg transition text-slate-400 hover:text-red-600 shrink-0"
-                        title="Logout"
-                    >
-                        <LogOut className="w-4 h-4" />
-                    </button>
                 </div>
             </div>
         </aside>

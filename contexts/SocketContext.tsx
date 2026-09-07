@@ -82,6 +82,8 @@ interface SocketContextType {
     onMessageUpdated: (callback: (data: { channelId: string; message: Message }) => void) => () => void;
     onUserOnline: (callback: (data: { userId: string }) => void) => () => void;
     onUserOffline: (callback: (data: { userId: string }) => void) => () => void;
+    // ✅ NEW: Add pinned update listener
+    onPinnedUpdated: (callback: (data: { channelId: string; messageId: string; isPinned: boolean }) => void) => () => void;
     removeAllListeners: () => void;
 }
 
@@ -108,6 +110,7 @@ const SocketContext = createContext<SocketContextType>({
     onMessageUpdated: () => () => { },
     onUserOnline: () => () => { },
     onUserOffline: () => () => { },
+    onPinnedUpdated: () => () => { }, // ✅ NEW
     removeAllListeners: () => { },
 });
 
@@ -133,6 +136,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     const messageUpdatedCallbacks = useRef<Set<(data: any) => void>>(new Set());
     const userOnlineCallbacks = useRef<Set<(data: any) => void>>(new Set());
     const userOfflineCallbacks = useRef<Set<(data: any) => void>>(new Set());
+    // ✅ NEW: Pinned updated callbacks
+    const pinnedUpdatedCallbacks = useRef<Set<(data: any) => void>>(new Set());
 
     // ============================================================
     // SOCKET INITIALIZATION
@@ -162,16 +167,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             socketRef.current = null;
         }
 
-        const SOCKET_URL = "https://taskify-server-5gat.onrender.com";
+        const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "https://taskify-server-5gat.onrender.com";
 
         console.log(`🔌 [SOCKET] Connecting to: ${SOCKET_URL}`);
         console.log(`🔑 [SOCKET] Token exists: ${!!token}`);
         console.log(`🔑 [SOCKET] Token length: ${token?.length || 0}`);
-        console.log(`🔑 [SOCKET] Token preview: ${token?.substring(0, 20)}...`);
 
         const socketInstance = io(SOCKET_URL, {
             auth: { token },
-            query: { token }, // Also pass in query for fallback
+            query: { token },
             transports: ["websocket", "polling"],
             reconnection: true,
             reconnectionAttempts: 10,
@@ -234,15 +238,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
                 callbacksCount: messageCallbacks.current.size
             });
 
-            let callbackIndex = 0;
             messageCallbacks.current.forEach((callback) => {
                 try {
-                    console.log(`📩 [SOCKET] → Calling callback #${callbackIndex + 1}`);
                     callback(data);
                 } catch (error) {
                     console.error("❌ [SOCKET] Error in message callback:", error);
                 }
-                callbackIndex++;
             });
         };
 
@@ -323,6 +324,20 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             });
         };
 
+        // ✅ NEW: Handle pinned:updated events
+        const handlePinnedUpdated = (data: any) => {
+            console.log("📌 [SOCKET] 🔔 GLOBAL: pinned:updated received!", data);
+            console.log("📌 [SOCKET] Callbacks count:", pinnedUpdatedCallbacks.current.size);
+
+            pinnedUpdatedCallbacks.current.forEach((callback) => {
+                try {
+                    callback(data);
+                } catch (error) {
+                    console.error("❌ [SOCKET] Error in pinned updated callback:", error);
+                }
+            });
+        };
+
         // Register global handlers
         socketInstance.on("message:new", handleNewMessage);
         socketInstance.on("typing:start", handleTypingStart);
@@ -332,6 +347,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         socketInstance.on("message:updated", handleMessageUpdated);
         socketInstance.on("user:online", handleUserOnline);
         socketInstance.on("user:offline", handleUserOffline);
+        socketInstance.on("pinned:updated", handlePinnedUpdated); // ✅ NEW
 
         // Log all incoming events for debugging (skip ping/pong)
         socketInstance.onAny((event, ...args) => {
@@ -355,6 +371,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             socketInstance.off("message:updated", handleMessageUpdated);
             socketInstance.off("user:online", handleUserOnline);
             socketInstance.off("user:offline", handleUserOffline);
+            socketInstance.off("pinned:updated", handlePinnedUpdated); // ✅ NEW
 
             // Clear all callbacks
             messageCallbacks.current.clear();
@@ -364,6 +381,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             messageUpdatedCallbacks.current.clear();
             userOnlineCallbacks.current.clear();
             userOfflineCallbacks.current.clear();
+            pinnedUpdatedCallbacks.current.clear(); // ✅ NEW
 
             if (socketRef.current) {
                 socketRef.current.disconnect();
@@ -372,7 +390,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
             setSocket(null);
             setIsConnected(false);
         };
-    }, [token, user]); // ✅ Now token is properly tracked
+    }, [token, user]);
 
     // ============================================================
     // SOCKET ACTION METHODS
@@ -510,6 +528,16 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
+    // ✅ NEW: Pinned updated listener
+    const onPinnedUpdated = useCallback((callback: (data: { channelId: string; messageId: string; isPinned: boolean }) => void) => {
+        console.log("📌 [SOCKET] Registering pinned:updated listener, total:", pinnedUpdatedCallbacks.current.size + 1);
+        pinnedUpdatedCallbacks.current.add(callback);
+        return () => {
+            console.log("📌 [SOCKET] Unregistering pinned:updated listener");
+            pinnedUpdatedCallbacks.current.delete(callback);
+        };
+    }, []);
+
     const removeAllListeners = useCallback(() => {
         console.log("🧹 [SOCKET] Removing all listeners");
         messageCallbacks.current.clear();
@@ -519,6 +547,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         messageUpdatedCallbacks.current.clear();
         userOnlineCallbacks.current.clear();
         userOfflineCallbacks.current.clear();
+        pinnedUpdatedCallbacks.current.clear(); // ✅ NEW
         if (socketRef.current) {
             socketRef.current.removeAllListeners();
         }
@@ -547,6 +576,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         onMessageUpdated,
         onUserOnline,
         onUserOffline,
+        onPinnedUpdated, // ✅ NEW
         removeAllListeners,
     };
 

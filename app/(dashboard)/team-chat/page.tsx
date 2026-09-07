@@ -1,14 +1,14 @@
 // app/(dashboard)/team-chat/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
 import ChatSidebar from "@/components/chat/ChatSidebar";
 import ChatMessages from "@/components/chat/ChatMessages";
 import ChatDetailsSidebar from "@/components/chat/ChatDetailsSidebar";
 import CreateRoomModal from "@/components/chat/CreateRoomModal";
-import { Plus, Loader2, MessageSquare } from "lucide-react";
+import { Plus, Loader2, MessageSquare, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
 
@@ -25,6 +25,8 @@ export default function TeamChatPage() {
     const [onlineCount, setOnlineCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
+    // ✅ NEW: Track if user has left the channel
+    const [hasLeftChannel, setHasLeftChannel] = useState(false);
 
     // ============================================================
     // FETCH CHANNELS
@@ -40,7 +42,8 @@ export default function TeamChatPage() {
                 const channelData = response.data.data || [];
                 setChannels(channelData);
 
-                if (channelData.length > 0 && !selectedChannelId) {
+                // ✅ Only auto-select first channel if user hasn't left
+                if (channelData.length > 0 && !selectedChannelId && !hasLeftChannel) {
                     const firstChannel = channelData[0];
                     const displayName =
                         firstChannel.type === "direct"
@@ -64,7 +67,7 @@ export default function TeamChatPage() {
         } finally {
             setLoadingChannels(false);
         }
-    }, [selectedChannelId, joinChannel, markAsRead, user?._id]);
+    }, [selectedChannelId, joinChannel, markAsRead, user?._id, hasLeftChannel]);
 
     // ============================================================
     // FETCH CHANNEL MEMBERS
@@ -119,8 +122,8 @@ export default function TeamChatPage() {
 
             if (response.data.success) {
                 toast.success(
-                    roomData.type === "project" 
-                        ? "Project channel created successfully!" 
+                    roomData.type === "project"
+                        ? "Project channel created successfully!"
                         : "Channel created successfully!"
                 );
                 setIsModalOpen(false);
@@ -137,6 +140,8 @@ export default function TeamChatPage() {
                             ? newChannel.members?.find((m: any) => m.userId?._id !== user?._id)?.userId?.fullName || "Direct"
                             : newChannel.name;
 
+                    // ✅ Reset hasLeftChannel when creating/joining a new channel
+                    setHasLeftChannel(false);
                     setSelectedChannelId(newChannel._id);
                     setSelectedChannelName(displayName);
                     joinChannel(newChannel._id);
@@ -149,15 +154,15 @@ export default function TeamChatPage() {
             }
         } catch (err: any) {
             console.error("❌ [TeamChat] Error creating channel:", err);
-            
+
             let errorMessage = "Failed to create channel";
-            
+
             if (err.response) {
                 console.error("❌ [TeamChat] Response data:", err.response.data);
                 console.error("❌ [TeamChat] Response status:", err.response.status);
-                errorMessage = err.response.data?.message || 
-                              err.response.data?.error || 
-                              `Server error: ${err.response.status}`;
+                errorMessage = err.response.data?.message ||
+                    err.response.data?.error ||
+                    `Server error: ${err.response.status}`;
             } else if (err.request) {
                 console.error("❌ [TeamChat] No response received:", err.request);
                 errorMessage = "No response from server. Please check your connection.";
@@ -179,6 +184,8 @@ export default function TeamChatPage() {
             leaveChannel(selectedChannelId);
         }
 
+        // ✅ Reset hasLeftChannel when selecting a channel
+        setHasLeftChannel(false);
         setSelectedChannelId(id);
         setSelectedChannelName(name);
 
@@ -194,9 +201,104 @@ export default function TeamChatPage() {
     };
 
     // ============================================================
-    // HANDLE PINNED UPDATED - Refresh sidebar
+    // ✅ HANDLE LEAVE CHANNEL - Clear selection and show blank screen
+    // ============================================================
+    const handleLeaveChannel = useCallback(() => {
+        console.log("👋 [TeamChat] User left channel, showing blank screen");
+
+        // Leave the channel via socket
+        if (selectedChannelId) {
+            leaveChannel(selectedChannelId);
+        }
+
+        // ✅ Clear selected channel to show blank screen
+        setSelectedChannelId("");
+        setSelectedChannelName("");
+        setChannelMembers([]);
+        setOnlineCount(0);
+        setHasLeftChannel(true);
+
+        // Refresh the channel list (the channel will be removed or show as left)
+        fetchChannels();
+
+        toast.success("You have left the channel");
+    }, [selectedChannelId, leaveChannel, fetchChannels]);
+
+    // ============================================================
+    // 🔥 HANDLE PINNED MESSAGE CLICK - SCROLL TO MESSAGE
+    // ============================================================
+    const handlePinnedMessageClick = useCallback(async (messageId: string) => {
+        console.log("📌 [TeamChat] Looking for pinned message:", messageId);
+
+        // Try to find the message in the DOM
+        const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+
+        if (messageElement) {
+            // Message found - scroll to it
+            messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageElement.classList.add('ring-2', 'ring-indigo-400', 'bg-indigo-50/50');
+            setTimeout(() => {
+                messageElement.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-50/50');
+            }, 3000);
+            toast.success('📍 Scrolled to pinned message');
+            return;
+        }
+
+        // Message not in DOM - try to load it
+        try {
+            const loadingId = toast.loading('Loading message...');
+
+            // Try to fetch the message
+            const response = await api.get(`/messages/${messageId}`).catch(() => null);
+
+            if (response?.data?.success) {
+                const message = response.data.data;
+
+                // Check if in current channel
+                if (message.channelId !== selectedChannelId) {
+                    const channel = channels.find(c => c._id === message.channelId);
+                    if (channel) {
+                        const displayName = channel.type === 'direct'
+                            ? channel.members?.find((m: any) => m.userId?._id !== user?._id)?.userId?.fullName || 'Direct'
+                            : channel.name;
+                        handleSelectChannel(channel._id, displayName);
+                        toast.success('Switched to channel with pinned message', { id: loadingId });
+                        return;
+                    }
+                }
+
+                // Message found - show and scroll
+                toast.success('Message loaded! Scroll to see it.', { id: loadingId });
+
+                // If you have a way to refetch messages, do it here
+                // For now, just show the message
+                setTimeout(() => {
+                    const el = document.querySelector(`[data-message-id="${messageId}"]`);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        el.classList.add('ring-2', 'ring-indigo-400', 'bg-indigo-50/50');
+                        setTimeout(() => {
+                            el.classList.remove('ring-2', 'ring-indigo-400', 'bg-indigo-50/50');
+                        }, 3000);
+                        toast.success('📍 Scrolled to pinned message', { id: loadingId });
+                    }
+                }, 500);
+
+            } else {
+                // Message not found
+                toast.error('Message not found', { id: loadingId });
+            }
+        } catch (error) {
+            console.error('Error fetching pinned message:', error);
+            toast.error('Could not load message');
+        }
+    }, [selectedChannelId, channels, user?._id, handleSelectChannel]);
+
+    // ============================================================
+    // ✅ HANDLE PINNED UPDATED - Refresh sidebar and messages
     // ============================================================
     const handlePinnedUpdated = useCallback(() => {
+        console.log("🔄 [TeamChat] Pinned updated, refreshing components");
         setRefreshKey(prev => prev + 1);
     }, []);
 
@@ -269,6 +371,7 @@ export default function TeamChatPage() {
             if (selectedChannelId === data.channelId) {
                 setSelectedChannelId("");
                 setSelectedChannelName("");
+                setHasLeftChannel(true);
             }
             toast.success(`Channel "${data.channelName}" was deleted`);
         };
@@ -376,7 +479,7 @@ export default function TeamChatPage() {
                     />
                 </div>
 
-                {/* Center Messages */}
+                {/* Center Messages - Shows blank screen when no channel selected */}
                 <div className="col-span-7 h-full min-h-0 overflow-hidden">
                     {selectedChannelId ? (
                         <ChatMessages
@@ -384,26 +487,44 @@ export default function TeamChatPage() {
                             channelName={selectedChannelName || "general"}
                             members={channelMembers}
                             onlineCount={onlineCount}
-                            onToggleDetails={() => {}}
+                            onToggleDetails={() => { }}
                             onPinnedUpdated={handlePinnedUpdated}
                         />
                     ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm">
-                            <MessageSquare className="w-12 h-12 text-slate-300 mb-2" />
-                            <span>Select or create a channel to start messaging</span>
+                        // ✅ BLANK SCREEN - Shows when user leaves or no channel selected
+                        <div className="flex flex-col items-center justify-center h-full bg-white">
+                            <div className="flex flex-col items-center gap-4 max-w-md text-center px-4">
+                                <div className="w-20 h-20 rounded-full bg-indigo-50 flex items-center justify-center">
+                                    <Users className="w-10 h-10 text-indigo-400" />
+                                </div>
+                                <h2 className="text-xl font-bold text-slate-700">No Channel Selected</h2>
+                                <p className="text-sm text-slate-400 max-w-sm">
+                                    Select a channel from the sidebar to start messaging, or create a new room to collaborate with your team.
+                                </p>
+                                <button
+                                    onClick={() => setIsModalOpen(true)}
+                                    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Create New Room
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Right Details */}
+                {/* Right Details Sidebar */}
                 <div className="col-span-2 h-full min-h-0 overflow-hidden border-l border-slate-200">
                     <ChatDetailsSidebar
                         key={refreshKey}
                         channelId={selectedChannelId}
                         members={channelMembers}
                         onlineCount={onlineCount}
-                        onClose={() => {}}
+                        onClose={() => { }}
                         onChannelUpdated={fetchChannels}
+                        onPinnedMessageClick={handlePinnedMessageClick}
+                        onPinnedUpdated={handlePinnedUpdated}
+                        onLeaveChannel={handleLeaveChannel} // ✅ ADD THIS
                     />
                 </div>
             </div>

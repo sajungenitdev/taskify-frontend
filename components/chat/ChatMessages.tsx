@@ -30,6 +30,9 @@ import {
     ChevronUp,
     FolderOpen,
     ExternalLink,
+    AtSign,
+    User,
+    ArrowUp,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/axios";
@@ -66,6 +69,11 @@ export interface ReadReceipt {
     readAt?: string;
 }
 
+export interface Mention {
+    userId: string;
+    name: string;
+}
+
 export interface Message {
     _id: string;
     content: string;
@@ -80,6 +88,7 @@ export interface Message {
             fullName: string;
         };
     };
+    mentions?: Mention[];
     reactions: Reaction[];
     readBy?: Array<ReadReceipt | string>;
     isRead?: boolean;
@@ -118,7 +127,7 @@ interface ChatMessagesProps {
     members?: ChannelMemberItem[];
     onlineCount?: number;
     onToggleDetails?: () => void;
-    onPinnedUpdated?: () => void; // ✅ Add this
+    onPinnedUpdated?: () => void;
 }
 
 const EMOJI_OPTIONS = ["👍", "❤️", "😂", "🎉", "🔥", "👏"];
@@ -171,6 +180,14 @@ const extractReaderId = (item: ReadReceipt | string): string => {
     return "";
 };
 
+const extractUserId = (item: any): string => {
+    if (!item) return "";
+    if (typeof item === "string") return item;
+    if (item._id) return item._id.toString();
+    if (item.userId) return extractUserId(item.userId);
+    return "";
+};
+
 // ============================================================
 // MEMOIZED MESSAGE BUBBLE COMPONENT
 // ============================================================
@@ -183,6 +200,7 @@ interface MessageBubbleProps {
     onDelete: (id: string) => void;
     onReaction: (id: string, emoji: string) => void;
     onPin: (id: string) => void;
+    messageRef?: (el: HTMLDivElement | null) => void;
 }
 
 const MessageBubble = memo(({
@@ -193,6 +211,7 @@ const MessageBubble = memo(({
     onDelete,
     onReaction,
     onPin,
+    messageRef,
 }: MessageBubbleProps) => {
     const isDeleted = Boolean(message.isDeleted);
     const isPinned = Boolean(message.isPinned);
@@ -217,8 +236,17 @@ const MessageBubble = memo(({
         }, {} as Record<string, number>);
     }, [message.reactions]);
 
+    // Highlight mentions of current user
+    const hasMention = useMemo(() => {
+        if (!message.mentions || !currentUserId) return false;
+        return message.mentions.some(m => m.userId === currentUserId || m.userId?._id === currentUserId);
+    }, [message.mentions, currentUserId]);
+
     return (
-        <div className={`group relative flex items-start gap-2.5 my-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+        <div
+            ref={messageRef}
+            className={`group relative flex items-start gap-2.5 my-2 ${isOwn ? "flex-row-reverse" : "flex-row"} ${hasMention ? "bg-indigo-50/30 -mx-4 px-4 py-1 rounded-lg border-l-4 border-indigo-400" : ""}`}
+        >
             {/* Avatar */}
             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 select-none">
                 {message.senderId?.avatar ? (
@@ -244,6 +272,7 @@ const MessageBubble = memo(({
                     <div className="text-[11px] text-slate-400 mb-1 flex items-center gap-1.5 px-1">
                         <span className="font-semibold text-slate-700">{message.senderId?.fullName || "Member"}</span>
                         {isPinned && <Pin className="w-3 h-3 text-amber-500" />}
+                        {hasMention && <span className="text-[9px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">@mentioned</span>}
                     </div>
                 )}
 
@@ -279,12 +308,26 @@ const MessageBubble = memo(({
                                 </div>
                             )}
 
+                            {/* Message Content with Mention Highlighting */}
                             {message.content && (
                                 <p className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words selection:bg-indigo-200 selection:text-indigo-900">
-                                    {message.content}
+                                    {message.content.split(/(@\w+)/g).map((part, idx) => {
+                                        if (part.startsWith('@')) {
+                                            const isMention = message.mentions?.some(m =>
+                                                part === `@${m.name}` || part === `@${m.name.split(' ')[0]}`
+                                            );
+                                            return isMention ? (
+                                                <span key={idx} className="text-indigo-500 font-medium">{part}</span>
+                                            ) : (
+                                                <span key={idx}>{part}</span>
+                                            );
+                                        }
+                                        return <span key={idx}>{part}</span>;
+                                    })}
                                 </p>
                             )}
 
+                            {/* Attachments */}
                             {message.attachments && message.attachments.length > 0 && (
                                 <div className="mt-2 space-y-1.5">
                                     {message.attachments.map((att, idx) => {
@@ -339,7 +382,7 @@ const MessageBubble = memo(({
                                 <button
                                     type="button"
                                     onClick={() => onReply(message)}
-                                    className="p-1 hover:bg-slate-100 hover:text-slate-800 rounded transition"
+                                    className="p-1 hover:bg-slate-100 cursor-pointer hover:text-slate-800 rounded transition"
                                     title="Reply"
                                 >
                                     <Reply className="w-3.5 h-3.5" />
@@ -348,7 +391,7 @@ const MessageBubble = memo(({
                                 <button
                                     type="button"
                                     onClick={() => onPin(message._id)}
-                                    className="p-1 hover:bg-amber-50 hover:text-amber-600 rounded transition"
+                                    className="p-1 hover:bg-amber-50 cursor-pointer hover:text-amber-600 rounded transition"
                                     title={isPinned ? "Unpin" : "Pin"}
                                 >
                                     {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
@@ -359,7 +402,7 @@ const MessageBubble = memo(({
                                         key={emoji}
                                         type="button"
                                         onClick={() => onReaction(message._id, emoji)}
-                                        className="p-1 hover:bg-slate-100 rounded text-xs transition"
+                                        className="p-1 hover:bg-slate-100 cursor-pointer rounded text-xs transition"
                                         title={`React with ${emoji}`}
                                     >
                                         {emoji}
@@ -370,7 +413,7 @@ const MessageBubble = memo(({
                                     <button
                                         type="button"
                                         onClick={() => onDelete(message._id)}
-                                        className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition"
+                                        className="p-1 hover:bg-rose-50 cursor-pointer text-slate-400 hover:text-rose-600 rounded transition"
                                         title="Delete"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
@@ -428,7 +471,7 @@ export default function ChatMessages({
     members = [],
     onlineCount = 0,
     onToggleDetails,
-    onPinnedUpdated,
+    onPinnedUpdated: parentOnPinnedUpdated,
 }: ChatMessagesProps) {
     const { user } = useAuth();
     const {
@@ -441,6 +484,7 @@ export default function ChatMessages({
         onMessageUpdated,
         onUserOnline,
         onUserOffline,
+        onPinnedUpdated, // ✅ FROM CONTEXT
         startTyping,
         stopTyping,
         markAsRead,
@@ -471,6 +515,21 @@ export default function ChatMessages({
     const [showPinnedFiles, setShowPinnedFiles] = useState(false);
     const [loadingPinned, setLoadingPinned] = useState(false);
 
+    // ============================================================
+    // MENTION STATE
+    // ============================================================
+    const [showMentionPopup, setShowMentionPopup] = useState(false);
+    const [mentionSearch, setMentionSearch] = useState("");
+    const [mentionPosition, setMentionPosition] = useState({ x: 0, y: 0 });
+    const [selectedMentionIndex, setSelectedMentionIndex] = useState(-1);
+
+    // ============================================================
+    // PINNED MESSAGES STATE
+    // ============================================================
+    const [pinnedMessages, setPinnedMessages] = useState<Message[]>([]);
+    const [showPinnedBar, setShowPinnedBar] = useState(false);
+    const [loadingPinnedMessages, setLoadingPinnedMessages] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -479,6 +538,8 @@ export default function ChatMessages({
     const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const mentionPopupRef = useRef<HTMLDivElement>(null);
+    const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     const scrollToBottom = useCallback((smooth = true) => {
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
@@ -532,7 +593,6 @@ export default function ChatMessages({
             const response = await api.get(`/channels/${cleanChannelId}/pinned`);
             if (response.data?.success) {
                 setPinnedFiles(response.data.data || []);
-                // Also show pinned files section if there are any
                 if (response.data.data.length > 0) {
                     setShowPinnedFiles(true);
                 }
@@ -544,10 +604,55 @@ export default function ChatMessages({
         }
     }, [cleanChannelId]);
 
+    // ============================================================
+    // FETCH PINNED MESSAGES
+    // ============================================================
+
+    const fetchPinnedMessages = useCallback(async () => {
+        if (!cleanChannelId) return;
+        setLoadingPinnedMessages(true);
+        try {
+            console.log("📌 [ChatMessages] Fetching pinned messages for channel:", cleanChannelId);
+            const response = await api.get(`/messages/channel/${cleanChannelId}/pinned`);
+            console.log("📌 [ChatMessages] Pinned messages response:", response.data);
+
+            if (response.data?.success) {
+                const pinnedMsgs = response.data.data || [];
+                setPinnedMessages(pinnedMsgs);
+                setShowPinnedBar(pinnedMsgs.length > 0);
+                console.log(`📌 [ChatMessages] Loaded ${pinnedMsgs.length} pinned messages`);
+            }
+        } catch (error: any) {
+            console.error("❌ Failed to fetch pinned messages:", error);
+            if (error.response?.status === 404) {
+                setPinnedMessages([]);
+                setShowPinnedBar(false);
+            }
+        } finally {
+            setLoadingPinnedMessages(false);
+        }
+    }, [cleanChannelId]);
+
     useEffect(() => {
         fetchMessages();
         fetchPinnedFiles();
-    }, [fetchMessages, fetchPinnedFiles]);
+        fetchPinnedMessages();
+    }, [fetchMessages, fetchPinnedFiles, fetchPinnedMessages]);
+
+    // ============================================================
+    // SCROLL TO MESSAGE
+    // ============================================================
+    const scrollToMessage = useCallback((messageId: string) => {
+        const el = messageRefs.current.get(messageId);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'background-color 0.5s';
+            el.style.backgroundColor = 'rgba(99, 102, 241, 0.15)';
+            setTimeout(() => {
+                el.style.backgroundColor = '';
+            }, 2000);
+        }
+    }, []);
 
     // ============================================================
     // SEARCH FUNCTION
@@ -591,11 +696,149 @@ export default function ChatMessages({
     }, [searchQuery, handleSearch]);
 
     // ============================================================
-    // SOCKET EVENTS
+    // MENTION HANDLING
+    // ============================================================
+    const getMentionableUsers = useCallback(() => {
+        return members
+            .map(m => {
+                const userId = typeof m.userId === 'string' ? m.userId : m.userId?._id;
+                const fullName = typeof m.userId === 'string' ? '' : m.userId?.fullName;
+                return { _id: userId, fullName: fullName || 'Unknown' };
+            })
+            .filter(u => u._id && u._id !== currentUserId);
+    }, [members, currentUserId]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        setInputText(value);
+
+        // Auto-resize
+        e.target.style.height = "auto";
+        e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+
+        if (!cleanChannelId) return;
+
+        // Typing indicator
+        if (value.trim()) {
+            startTyping(cleanChannelId);
+            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = setTimeout(() => {
+                stopTyping(cleanChannelId);
+            }, 2000);
+        } else {
+            stopTyping(cleanChannelId);
+        }
+
+        // Mention detection
+        const cursorPos = e.target.selectionStart || 0;
+        const textBeforeCursor = value.slice(0, cursorPos);
+        const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+        if (lastAtIndex !== -1) {
+            const afterAt = textBeforeCursor.slice(lastAtIndex + 1);
+            if (!afterAt.includes(' ')) {
+                const searchTerm = afterAt.toLowerCase();
+                setMentionSearch(searchTerm);
+                setShowMentionPopup(true);
+                setSelectedMentionIndex(-1);
+
+                const inputRect = inputRef.current?.getBoundingClientRect();
+                if (inputRect) {
+                    const xPos = inputRect.left + 10;
+                    const yPos = inputRect.top - 10;
+
+                    setMentionPosition({
+                        x: Math.max(xPos, 10),
+                        y: Math.max(yPos, 10)
+                    });
+                }
+            } else {
+                setShowMentionPopup(false);
+            }
+        } else {
+            setShowMentionPopup(false);
+        }
+    };
+
+    const handleSelectMention = (user: { _id: string; fullName: string }) => {
+        const value = inputText;
+        const cursorPos = inputRef.current?.selectionStart || 0;
+        const lastAtIndex = value.lastIndexOf('@', cursorPos - 1);
+
+        if (lastAtIndex !== -1) {
+            const beforeAt = value.slice(0, lastAtIndex);
+            const afterAt = value.slice(cursorPos);
+            const newText = `${beforeAt}@${user.fullName} ${afterAt}`;
+            setInputText(newText);
+
+            if (inputRef.current) {
+                const newCursorPos = lastAtIndex + user.fullName.length + 2;
+                setTimeout(() => {
+                    inputRef.current?.focus();
+                    inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+                }, 10);
+            }
+        }
+        setShowMentionPopup(false);
+        setMentionSearch("");
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (showMentionPopup) {
+            const users = filteredMentionUsers;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedMentionIndex(prev =>
+                    prev < users.length - 1 ? prev + 1 : prev
+                );
+                const selectedEl = document.querySelector(`[data-mention-index="${selectedMentionIndex + 1}"]`);
+                if (selectedEl) {
+                    selectedEl.scrollIntoView({ block: 'nearest' });
+                }
+                return;
+            }
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedMentionIndex(prev =>
+                    prev > 0 ? prev - 1 : -1
+                );
+                const selectedEl = document.querySelector(`[data-mention-index="${selectedMentionIndex - 1}"]`);
+                if (selectedEl) {
+                    selectedEl.scrollIntoView({ block: 'nearest' });
+                }
+                return;
+            }
+
+            if (e.key === 'Enter' && selectedMentionIndex >= 0 && users[selectedMentionIndex]) {
+                e.preventDefault();
+                handleSelectMention(users[selectedMentionIndex]);
+                return;
+            }
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                setShowMentionPopup(false);
+                setMentionSearch("");
+                return;
+            }
+        }
+
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    // ============================================================
+    // SOCKET EVENTS - COMPLETE WITH PINNED UPDATES
     // ============================================================
 
     useEffect(() => {
         if (!socket || !cleanChannelId) return;
+
+        console.log(`📌 [ChatMessages] Setting up socket listeners for channel: ${cleanChannelId}`);
 
         joinChannel(cleanChannelId);
         socket.emit("channel:join", { channelId: cleanChannelId });
@@ -695,7 +938,53 @@ export default function ChatMessages({
             setOnlineUsers((prev) => prev.filter((id) => id !== data.userId));
         });
 
+        // ============================================================
+        // ✅ FIX: USE CONTEXT'S onPinnedUpdated INSTEAD OF socket.on
+        // ============================================================
+        const unsubscribePinned = onPinnedUpdated((data: any) => {
+            console.log("📌 [ChatMessages] 🔔 Pinned updated via CONTEXT:", data);
+
+            if (data.channelId === cleanChannelId && data.messageId) {
+                console.log(`📌 [ChatMessages] ✅ Updating message ${data.messageId} isPinned: ${data.isPinned ?? false}`);
+
+                // ✅ Update message pinned status in messages list
+                setMessages(prev => {
+                    const updated = prev.map(msg => {
+                        if (msg._id?.toString() === data.messageId) {
+                            return { ...msg, isPinned: data.isPinned ?? false };
+                        }
+                        return msg;
+                    });
+                    return updated;
+                });
+
+                // ✅ Update pinned messages list
+                if (data.isPinned === false) {
+                    setPinnedMessages(prev => {
+                        const filtered = prev.filter(msg => msg._id?.toString() !== data.messageId);
+                        if (filtered.length === 0) {
+                            setShowPinnedBar(false);
+                        }
+                        return filtered;
+                    });
+                } else if (data.isPinned === true) {
+                    fetchPinnedMessages();
+                }
+
+                // ✅ Notify parent to refresh sidebar
+                if (parentOnPinnedUpdated) {
+                    console.log("📌 [ChatMessages] Notifying parent via parentOnPinnedUpdated");
+                    parentOnPinnedUpdated();
+                }
+            } else {
+                console.log("📌 [ChatMessages] ⚠️ Event ignored - channel mismatch");
+                console.log(`  Event channel: ${data.channelId}, Current: ${cleanChannelId}`);
+            }
+        });
+
         return () => {
+            console.log(`📌 [ChatMessages] Cleaning up socket listeners for channel: ${cleanChannelId}`);
+
             unsubscribeMessage?.();
             unsubscribeTyping?.();
             unsubscribeReaction?.();
@@ -703,9 +992,12 @@ export default function ChatMessages({
             unsubscribeUpdated?.();
             unsubscribeUserOnline?.();
             unsubscribeUserOffline?.();
+            unsubscribePinned?.(); // ✅ Clean up pinned listener
+
             socket.off("message:read", handleMessageRead);
             socket.off("messages:read", handleMessageRead);
             socket.off("channel:read", handleMessageRead);
+
             socket.emit("channel:leave", { channelId: cleanChannelId });
         };
     }, [
@@ -722,6 +1014,9 @@ export default function ChatMessages({
         onMessageUpdated,
         onUserOnline,
         onUserOffline,
+        onPinnedUpdated, // ✅ Now properly in dependencies
+        fetchPinnedMessages,
+        parentOnPinnedUpdated,
     ]);
 
     // ============================================================
@@ -736,6 +1031,25 @@ export default function ChatMessages({
             return;
         }
 
+        // Extract mentions from text
+        const mentionRegex = /@(\w+)/g;
+        const mentionMatches = text.match(mentionRegex);
+        const mentions: Mention[] = [];
+
+        if (mentionMatches) {
+            const mentionableUsers = getMentionableUsers();
+            for (const match of mentionMatches) {
+                const name = match.slice(1);
+                const user = mentionableUsers.find(u =>
+                    u.fullName.toLowerCase().includes(name.toLowerCase()) ||
+                    u.fullName.split(' ')[0].toLowerCase() === name.toLowerCase()
+                );
+                if (user) {
+                    mentions.push({ userId: user._id, name: user.fullName });
+                }
+            }
+        }
+
         setSending(true);
         try {
             let response;
@@ -743,11 +1057,13 @@ export default function ChatMessages({
                 response = await api.post(`/messages/channel/${cleanChannelId}`, {
                     content: text,
                     replyTo: replyingTo?._id || null,
+                    mentions: mentions.length > 0 ? mentions : undefined,
                 });
             } else {
                 const formData = new FormData();
                 formData.append("content", text);
                 if (replyingTo?._id) formData.append("replyTo", replyingTo._id);
+                if (mentions.length > 0) formData.append("mentions", JSON.stringify(mentions));
 
                 attachments.forEach((file) => formData.append("attachments", file));
 
@@ -785,9 +1101,7 @@ export default function ChatMessages({
         } finally {
             setSending(false);
         }
-    }, [inputText, attachments, audioBlob, cleanChannelId, replyingTo, stopTyping, scrollToBottom]);
-
-    // In ChatMessages.tsx - Update the pin handler
+    }, [inputText, attachments, audioBlob, cleanChannelId, replyingTo, stopTyping, scrollToBottom, getMentionableUsers]);
 
     const handlePinMessage = useCallback(async (messageId: string) => {
         try {
@@ -804,12 +1118,11 @@ export default function ChatMessages({
                             : m
                     )
                 );
-                // Refresh pinned files in the message header
                 await fetchPinnedFiles();
+                await fetchPinnedMessages();
 
-                // ✅ Notify parent component (TeamChatPage) to refresh sidebar
-                if (onPinnedUpdated) {
-                    onPinnedUpdated();
+                if (parentOnPinnedUpdated) {
+                    parentOnPinnedUpdated();
                 }
             } else {
                 toast.error(response.data?.message || "Failed to pin message");
@@ -818,7 +1131,7 @@ export default function ChatMessages({
             console.error("❌ [ChatMessages] Pin error:", error);
             toast.error(error.response?.data?.message || "Failed to pin message");
         }
-    }, [fetchPinnedFiles, onPinnedUpdated]);
+    }, [fetchPinnedFiles, fetchPinnedMessages, parentOnPinnedUpdated]);
 
     const handleReaction = useCallback(async (messageId: string, emoji: string) => {
         try {
@@ -891,37 +1204,6 @@ export default function ChatMessages({
     };
 
     // ============================================================
-    // TYPING HANDLERS
-    // ============================================================
-
-    const handleTyping = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const value = e.target.value;
-        setInputText(value);
-
-        e.target.style.height = "auto";
-        e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
-
-        if (!cleanChannelId) return;
-
-        if (value.trim()) {
-            startTyping(cleanChannelId);
-            if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-            typingTimeoutRef.current = setTimeout(() => {
-                stopTyping(cleanChannelId);
-            }, 2000);
-        } else {
-            stopTyping(cleanChannelId);
-        }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
-        }
-    };
-
-    // ============================================================
     // FILE HANDLING
     // ============================================================
 
@@ -951,6 +1233,14 @@ export default function ChatMessages({
         return `${names[0]} and ${names.length - 1} others are typing`;
     }, [typingUsers]);
 
+    const mentionableUsers = useMemo(() => getMentionableUsers(), [getMentionableUsers]);
+    const filteredMentionUsers = useMemo(() => {
+        if (!mentionSearch) return mentionableUsers;
+        return mentionableUsers.filter(u =>
+            u.fullName.toLowerCase().includes(mentionSearch.toLowerCase())
+        );
+    }, [mentionableUsers, mentionSearch]);
+
     // ============================================================
     // RENDER
     // ============================================================
@@ -970,10 +1260,9 @@ export default function ChatMessages({
             <header className="border-b border-slate-100 bg-white shrink-0">
                 <div className="h-14 px-4 flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
-                        <button
-                            type="button"
+                        <div
                             onClick={onToggleDetails}
-                            className="flex items-center gap-3 min-w-0 text-left hover:opacity-85 transition"
+                            className="flex items-center gap-3 min-w-0 text-left hover:opacity-85 transition cursor-pointer"
                         >
                             <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
                                 <Laptop className="w-4 h-4" />
@@ -996,21 +1285,21 @@ export default function ChatMessages({
                                         <Circle className="w-1.5 h-1.5 fill-emerald-500 text-emerald-500" />
                                         {resolvedOnlineCount} online
                                     </span>
-                                    {pinnedFiles.length > 0 && (
+                                    {pinnedMessages.length > 0 && (
                                         <>
                                             <span>•</span>
                                             <button
-                                                onClick={() => setShowPinnedFiles(!showPinnedFiles)}
+                                                onClick={() => setShowPinnedBar(!showPinnedBar)}
                                                 className="flex items-center gap-0.5 text-amber-600 hover:text-amber-700 transition"
                                             >
                                                 <Pin className="w-3 h-3" />
-                                                {pinnedFiles.length}
+                                                {pinnedMessages.length} pinned
                                             </button>
                                         </>
                                     )}
                                 </p>
                             </div>
-                        </button>
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -1024,7 +1313,38 @@ export default function ChatMessages({
                     </div>
                 </div>
 
-                {/* 🔥 Expandable Search Bar */}
+                {/* PINNED MESSAGES BAR */}
+                {showPinnedBar && pinnedMessages.length > 0 && (
+                    <div className="px-4 py-1.5 border-t border-b border-amber-100 bg-amber-50/80 flex items-center gap-2 overflow-x-auto">
+                        <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span className="text-[10px] font-medium text-amber-600 shrink-0">Pinned</span>
+                        <div className="flex items-center gap-2 flex-1 overflow-x-auto">
+                            {pinnedMessages.slice(0, 3).map((msg) => (
+                                <button
+                                    key={msg._id}
+                                    onClick={() => scrollToMessage(msg._id)}
+                                    className="flex items-center gap-1.5 px-2 py-0.5 bg-white border border-amber-200 rounded-full text-[10px] text-slate-600 hover:bg-amber-50 hover:border-amber-300 transition shrink-0 max-w-[200px]"
+                                >
+                                    <span className="truncate">
+                                        {msg.senderId?.fullName}: {msg.content || "📎 Attachment"}
+                                    </span>
+                                    <ArrowUp className="w-3 h-3 text-amber-400" />
+                                </button>
+                            ))}
+                            {pinnedMessages.length > 3 && (
+                                <span className="text-[10px] text-slate-400 shrink-0">+{pinnedMessages.length - 3} more</span>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => setShowPinnedBar(false)}
+                            className="text-slate-400 hover:text-slate-600 shrink-0"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+                )}
+
+                {/* Expandable Search Bar */}
                 {isSearchOpen && (
                     <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/80">
                         <div className="flex items-center gap-2">
@@ -1071,6 +1391,7 @@ export default function ChatMessages({
                                                 setSearchQuery("");
                                                 setSearchResults([]);
                                                 setIsSearchOpen(false);
+                                                scrollToMessage(msg._id);
                                             }}
                                         >
                                             <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold shrink-0">
@@ -1082,44 +1403,12 @@ export default function ChatMessages({
                                                     {msg.senderId?.fullName} · {formatMessageTime(msg.createdAt)}
                                                 </p>
                                             </div>
+                                            {msg.isPinned && <Pin className="w-3 h-3 text-amber-400 shrink-0" />}
                                         </div>
                                     ))
                                 )}
                             </div>
                         )}
-                    </div>
-                )}
-
-                {/* Pinned Files Toggle */}
-                {showPinnedFiles && pinnedFiles.length > 0 && (
-                    <div className="px-4 py-2 border-t border-slate-100 bg-amber-50/50">
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1">
-                                <Pin className="w-3 h-3" /> Pinned Files
-                            </span>
-                            <button
-                                onClick={() => setShowPinnedFiles(false)}
-                                className="text-slate-400 hover:text-slate-600"
-                            >
-                                <X className="w-3 h-3" />
-                            </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {pinnedFiles.map((file) => (
-                                <a
-                                    key={file._id}
-                                    href={file.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs hover:bg-slate-50 transition"
-                                >
-                                    {getFileIcon(file.type)}
-                                    <span className="truncate max-w-[120px]">{file.name}</span>
-                                    <span className="text-[9px] text-slate-400">{formatFileSize(file.size)}</span>
-                                    <ExternalLink className="w-3 h-3 text-slate-400" />
-                                </a>
-                            ))}
-                        </div>
                     </div>
                 )}
             </header>
@@ -1154,15 +1443,27 @@ export default function ChatMessages({
                                     </div>
                                 )}
 
-                                <MessageBubble
-                                    message={message}
-                                    isOwn={isOwn}
-                                    currentUserId={currentUserId}
-                                    onReply={setReplyingTo}
-                                    onDelete={handleDeleteMessage}
-                                    onReaction={handleReaction}
-                                    onPin={handlePinMessage}
-                                />
+                                <div
+                                    data-message-id={message._id}
+                                    className={isOwn ? "flex flex-col items-end" : "flex flex-col items-start"}
+                                >
+                                    <MessageBubble
+                                        message={message}
+                                        isOwn={isOwn}
+                                        currentUserId={currentUserId}
+                                        onReply={setReplyingTo}
+                                        onDelete={handleDeleteMessage}
+                                        onReaction={handleReaction}
+                                        onPin={handlePinMessage}
+                                        messageRef={(el) => {
+                                            if (el) {
+                                                messageRefs.current.set(message._id, el);
+                                            } else {
+                                                messageRefs.current.delete(message._id);
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </React.Fragment>
                         );
                     })
@@ -1184,8 +1485,8 @@ export default function ChatMessages({
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Footer */}
-            <footer className="p-3 border-t border-slate-100 bg-white shrink-0">
+            {/* Input Footer with Mention Popup */}
+            <footer className="p-3 border-t border-slate-100 bg-white shrink-0 relative">
                 {/* Reply Preview */}
                 {replyingTo && (
                     <div className="bg-slate-50 border border-slate-200/80 rounded-lg px-3 py-1.5 mb-2 flex items-center justify-between text-xs">
@@ -1251,7 +1552,7 @@ export default function ChatMessages({
                         </div>
                     </div>
                 ) : (
-                    <div className="flex items-end gap-2 border border-slate-200 rounded-xl px-3 py-1.5 bg-slate-50/50 focus-within:bg-white focus-within:border-indigo-500 transition shadow-2xs">
+                    <div className="flex items-end gap-2 border border-slate-200 rounded-xl px-3 py-1.5 bg-slate-50/50 focus-within:bg-white focus-within:border-indigo-500 transition shadow-2xs relative">
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
@@ -1268,15 +1569,75 @@ export default function ChatMessages({
                             className="hidden"
                         />
 
-                        <textarea
-                            ref={inputRef}
-                            placeholder="Write a message..."
-                            value={inputText}
-                            onChange={handleTyping}
-                            onKeyDown={handleKeyDown}
-                            rows={1}
-                            className="flex-1 bg-transparent text-xs sm:text-sm outline-none text-slate-800 placeholder-slate-400 resize-none py-1.5 max-h-32 min-h-[34px]"
-                        />
+                        <div className="relative flex-1">
+                            <textarea
+                                ref={inputRef}
+                                placeholder="Write a message... @ to mention"
+                                value={inputText}
+                                onChange={handleInputChange}
+                                onKeyDown={handleKeyDown}
+                                rows={1}
+                                className="w-full bg-transparent text-xs sm:text-sm outline-none text-slate-800 placeholder-slate-400 resize-none py-1.5 max-h-32 min-h-[34px]"
+                            />
+
+                            {/* Mention Popup */}
+                            {showMentionPopup && filteredMentionUsers.length > 0 && (
+                                <div
+                                    ref={mentionPopupRef}
+                                    className="absolute bottom-full left-0 mb-2 w-72 max-h-48 overflow-y-auto bg-white border border-slate-200/80 rounded-2xl shadow-xl z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                                >
+                                    <div className="sticky top-0 bg-white/95 backdrop-blur-sm rounded-t-2xl px-4 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100/80 flex items-center gap-2">
+                                        <AtSign className="w-3.5 h-3.5 text-indigo-400" />
+                                        <span>Mention a user</span>
+                                        <span className="ml-auto text-[9px] text-slate-300 font-normal bg-slate-50 px-2 py-0.5 rounded-full">
+                                            {filteredMentionUsers.length}
+                                        </span>
+                                    </div>
+
+                                    <div className="py-1">
+                                        {filteredMentionUsers.map((user, idx) => (
+                                            <button
+                                                key={user._id}
+                                                type="button"
+                                                onClick={() => handleSelectMention(user)}
+                                                onMouseEnter={() => setSelectedMentionIndex(idx)}
+                                                data-mention-index={idx}
+                                                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-all duration-150 ${selectedMentionIndex === idx
+                                                    ? 'bg-indigo-50/80 text-indigo-700 font-medium'
+                                                    : 'text-slate-700 hover:bg-slate-50/80'
+                                                    }`}
+                                            >
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${selectedMentionIndex === idx
+                                                    ? 'bg-indigo-500 text-white'
+                                                    : 'bg-slate-200 text-slate-600'
+                                                    }`}>
+                                                    {getInitials(user.fullName)}
+                                                </div>
+                                                <span className="truncate flex-1 text-left">{user.fullName}</span>
+                                                {selectedMentionIndex === idx && (
+                                                    <Check className="w-4 h-4 text-indigo-400" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm rounded-b-2xl border-t border-slate-100/80 px-4 py-1.5 text-[9px] text-slate-400 flex items-center gap-4">
+                                        <span className="flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] font-mono text-slate-500">↑↓</kbd>
+                                            <span>Navigate</span>
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] font-mono text-slate-500">Enter</kbd>
+                                            <span>Select</span>
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                            <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-[8px] font-mono text-slate-500">Esc</kbd>
+                                            <span>Close</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {audioBlob ? (
                             <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md mb-1 shrink-0">
