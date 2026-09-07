@@ -201,6 +201,7 @@ interface MessageBubbleProps {
     onReaction: (id: string, emoji: string) => void;
     onPin: (id: string) => void;
     messageRef?: (el: HTMLDivElement | null) => void;
+    highlight?: boolean;
 }
 
 const MessageBubble = memo(({
@@ -212,6 +213,7 @@ const MessageBubble = memo(({
     onReaction,
     onPin,
     messageRef,
+    highlight = false,
 }: MessageBubbleProps) => {
     const isDeleted = Boolean(message.isDeleted);
     const isPinned = Boolean(message.isPinned);
@@ -236,11 +238,13 @@ const MessageBubble = memo(({
         }, {} as Record<string, number>);
     }, [message.reactions]);
 
+    // Check if current user has reacted with a specific emoji
+    const hasUserReacted = useCallback((emoji: string) => {
+        if (!currentUserId) return false;
+        return message.reactions.some(r => r.emoji === emoji && r.userId === currentUserId);
+    }, [message.reactions, currentUserId]);
+
     // Highlight mentions of current user
-    // const hasMention = useMemo(() => {
-    //     if (!message.mentions || !currentUserId) return false;
-    //     return message.mentions.some(m => m.userId === currentUserId || m.userId?._id === currentUserId);
-    // }, [message.mentions, currentUserId]);
     const hasMention = useMemo(() => {
         if (!message.mentions || !currentUserId) return false;
         return message.mentions.some(m => m.userId === currentUserId);
@@ -249,7 +253,11 @@ const MessageBubble = memo(({
     return (
         <div
             ref={messageRef}
-            className={`group relative flex items-start gap-2.5 my-2 ${isOwn ? "flex-row-reverse" : "flex-row"} ${hasMention ? "bg-indigo-50/30 -mx-4 px-4 py-1 rounded-lg border-l-4 border-indigo-400" : ""}`}
+            className={`group relative flex items-start gap-2.5 my-2 transition-all duration-300 
+                ${isOwn ? "flex-row-reverse" : "flex-row"} 
+                ${hasMention ? "bg-indigo-50/30 -mx-4 px-4 py-1 rounded-lg border-l-4 border-indigo-400" : ""}
+                ${highlight ? "ring-2 ring-indigo-400 ring-offset-2 bg-indigo-50/50 rounded-lg" : ""}`}
+            data-message-id={message._id}
         >
             {/* Avatar */}
             <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 select-none">
@@ -401,17 +409,20 @@ const MessageBubble = memo(({
                                     {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
                                 </button>
 
-                                {EMOJI_OPTIONS.slice(0, 3).map((emoji) => (
-                                    <button
-                                        key={emoji}
-                                        type="button"
-                                        onClick={() => onReaction(message._id, emoji)}
-                                        className="p-1 hover:bg-slate-100 cursor-pointer rounded text-xs transition"
-                                        title={`React with ${emoji}`}
-                                    >
-                                        {emoji}
-                                    </button>
-                                ))}
+                                {EMOJI_OPTIONS.slice(0, 3).map((emoji) => {
+                                    const isReacted = hasUserReacted(emoji);
+                                    return (
+                                        <button
+                                            key={emoji}
+                                            type="button"
+                                            onClick={() => onReaction(message._id, emoji)}
+                                            className={`p-1 hover:bg-slate-100 cursor-pointer rounded text-xs transition ${isReacted ? 'bg-indigo-100 text-indigo-600' : ''}`}
+                                            title={isReacted ? `Remove ${emoji} reaction` : `React with ${emoji}`}
+                                        >
+                                            {emoji}
+                                        </button>
+                                    );
+                                })}
 
                                 {isOwn && (
                                     <button
@@ -428,20 +439,26 @@ const MessageBubble = memo(({
                     )}
                 </div>
 
-                {/* Reaction Badges */}
+                {/* Reaction Badges - Show all reactions with user interaction */}
                 {reactionTotals && (
                     <div className="flex flex-wrap gap-1 mt-1">
-                        {Object.entries(reactionTotals).map(([emoji, count]) => (
-                            <button
-                                key={emoji}
-                                type="button"
-                                onClick={() => onReaction(message._id, emoji)}
-                                className="inline-flex items-center gap-1 text-[11px] bg-white border border-slate-200 shadow-2xs text-slate-700 px-2 py-0.5 rounded-full hover:bg-slate-50 transition"
-                            >
-                                <span>{emoji}</span>
-                                {count > 1 && <span className="font-semibold text-slate-500">{count}</span>}
-                            </button>
-                        ))}
+                        {Object.entries(reactionTotals).map(([emoji, count]) => {
+                            const isReacted = hasUserReacted(emoji);
+                            return (
+                                <button
+                                    key={emoji}
+                                    type="button"
+                                    onClick={() => onReaction(message._id, emoji)}
+                                    className={`inline-flex items-center gap-1 text-[11px] border shadow-2xs px-2 py-0.5 rounded-full transition ${isReacted
+                                        ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                        }`}
+                                >
+                                    <span>{emoji}</span>
+                                    {count > 1 && <span className={`font-semibold ${isReacted ? 'text-indigo-600' : 'text-slate-500'}`}>{count}</span>}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
 
@@ -488,7 +505,7 @@ export default function ChatMessages({
         onMessageUpdated,
         onUserOnline,
         onUserOffline,
-        onPinnedUpdated, // ✅ FROM CONTEXT
+        onPinnedUpdated,
         startTyping,
         stopTyping,
         markAsRead,
@@ -511,10 +528,14 @@ export default function ChatMessages({
     const [recordingTime, setRecordingTime] = useState(0);
     const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
     const [typingDots, setTypingDots] = useState("");
+
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<Message[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
+    const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+
     const [pinnedFiles, setPinnedFiles] = useState<PinnedFile[]>([]);
     const [showPinnedFiles, setShowPinnedFiles] = useState(false);
     const [loadingPinned, setLoadingPinned] = useState(false);
@@ -544,6 +565,7 @@ export default function ChatMessages({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const mentionPopupRef = useRef<HTMLDivElement>(null);
     const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+    const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const scrollToBottom = useCallback((smooth = true) => {
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
@@ -644,60 +666,147 @@ export default function ChatMessages({
     }, [fetchMessages, fetchPinnedFiles, fetchPinnedMessages]);
 
     // ============================================================
-    // SCROLL TO MESSAGE
+    // SCROLL TO MESSAGE WITH HIGHLIGHT
     // ============================================================
     const scrollToMessage = useCallback((messageId: string) => {
+        // Clear previous highlight
+        if (highlightTimeoutRef.current) {
+            clearTimeout(highlightTimeoutRef.current);
+            highlightTimeoutRef.current = null;
+        }
+
         const el = messageRefs.current.get(messageId);
         if (el) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            el.style.transition = 'background-color 0.5s';
-            el.style.backgroundColor = 'rgba(99, 102, 241, 0.15)';
-            setTimeout(() => {
-                el.style.backgroundColor = '';
-            }, 2000);
+            setHighlightedMessageId(messageId);
+            highlightTimeoutRef.current = setTimeout(() => {
+                setHighlightedMessageId(null);
+            }, 3000);
+        } else {
+            const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setHighlightedMessageId(messageId);
+                highlightTimeoutRef.current = setTimeout(() => {
+                    setHighlightedMessageId(null);
+                }, 3000);
+            }
         }
     }, []);
 
     // ============================================================
-    // SEARCH FUNCTION
+    // SEARCH FUNCTION - WITH CLIENT-SIDE FALLBACK
     // ============================================================
 
-    const handleSearch = useCallback(async () => {
-        if (!searchQuery.trim() || !cleanChannelId) {
+    const performSearch = useCallback(() => {
+        const trimmedQuery = searchQuery.trim().toLowerCase();
+
+        if (!trimmedQuery) {
             setSearchResults([]);
+            setSearchError(null);
             return;
         }
 
         setIsSearching(true);
+        setSearchError(null);
+
         try {
-            const response = await api.get(`/messages/channel/${cleanChannelId}/search`, {
-                params: { q: searchQuery.trim() },
+            console.log(`🔍 [ChatMessages] Searching through ${messages.length} messages for: "${trimmedQuery}"`);
+
+            const results = messages.filter((msg) => {
+                // Skip deleted messages
+                if (msg.isDeleted) return false;
+
+                // Search in content
+                if (msg.content?.toLowerCase().includes(trimmedQuery)) return true;
+
+                // Search in sender name
+                if (msg.senderId?.fullName?.toLowerCase().includes(trimmedQuery)) return true;
+
+                // Search in attachments
+                if (msg.attachments?.some(att =>
+                    att.name?.toLowerCase().includes(trimmedQuery)
+                )) return true;
+
+                return false;
             });
-            if (response.data?.success) {
-                setSearchResults(response.data.data || []);
-                if (response.data.data.length === 0) {
-                    toast.success("No messages found");
-                }
+
+            setSearchResults(results);
+
+            if (results.length === 0) {
+                toast.success(`No messages found for "${searchQuery}"`);
+            } else {
+                toast.success(`Found ${results.length} message${results.length > 1 ? 's' : ''}`);
             }
         } catch (error) {
-            console.error("Search failed:", error);
-            toast.error("Failed to search messages");
+            console.error("❌ Search failed:", error);
+            setSearchError("Search failed. Please try again.");
         } finally {
             setIsSearching(false);
         }
-    }, [searchQuery, cleanChannelId]);
+    }, [messages, searchQuery]);
+
+
+    // ============================================================
+    // CLIENT-SIDE SEARCH FALLBACK
+    // ============================================================
+    const performClientSideSearch = useCallback((query: string) => {
+        const trimmedQuery = query.toLowerCase().trim();
+
+        if (!trimmedQuery) {
+            setSearchResults([]);
+            return;
+        }
+
+        console.log(`🔍 [ChatMessages] Performing client-side search for: "${trimmedQuery}"`);
+
+        const results = messages.filter((msg) => {
+            // Skip deleted messages
+            if (msg.isDeleted) return false;
+
+            // Search in content
+            if (msg.content?.toLowerCase().includes(trimmedQuery)) return true;
+
+            // Search in sender name
+            if (msg.senderId?.fullName?.toLowerCase().includes(trimmedQuery)) return true;
+
+            // Search in attachments
+            if (msg.attachments?.some(att =>
+                att.name?.toLowerCase().includes(trimmedQuery)
+            )) return true;
+
+            return false;
+        });
+
+        setSearchResults(results);
+
+        if (results.length === 0) {
+            toast.success(`No messages found for "${query}"`);
+        } else {
+            toast.success(`Found ${results.length} message${results.length > 1 ? 's' : ''}`);
+        }
+    }, [messages]);
 
     useEffect(() => {
         const delay = setTimeout(() => {
             if (searchQuery.trim()) {
-                handleSearch();
+                performSearch();
             } else {
                 setSearchResults([]);
+                setSearchError(null);
             }
-        }, 500);
+        }, 300); // 300ms debounce delay
 
         return () => clearTimeout(delay);
-    }, [searchQuery, handleSearch]);
+    }, [searchQuery, performSearch]);
+
+    const clearSearch = useCallback(() => {
+        setSearchQuery("");
+        setSearchResults([]);
+        setSearchError(null);
+        setIsSearchOpen(false);
+        setHighlightedMessageId(null);
+    }, []);
 
     // ============================================================
     // MENTION HANDLING
@@ -943,7 +1052,7 @@ export default function ChatMessages({
         });
 
         // ============================================================
-        // ✅ FIX: USE CONTEXT'S onPinnedUpdated INSTEAD OF socket.on
+        // PINNED UPDATES
         // ============================================================
         const unsubscribePinned = onPinnedUpdated((data: any) => {
             console.log("📌 [ChatMessages] 🔔 Pinned updated via CONTEXT:", data);
@@ -951,7 +1060,6 @@ export default function ChatMessages({
             if (data.channelId === cleanChannelId && data.messageId) {
                 console.log(`📌 [ChatMessages] ✅ Updating message ${data.messageId} isPinned: ${data.isPinned ?? false}`);
 
-                // ✅ Update message pinned status in messages list
                 setMessages(prev => {
                     const updated = prev.map(msg => {
                         if (msg._id?.toString() === data.messageId) {
@@ -962,7 +1070,6 @@ export default function ChatMessages({
                     return updated;
                 });
 
-                // ✅ Update pinned messages list
                 if (data.isPinned === false) {
                     setPinnedMessages(prev => {
                         const filtered = prev.filter(msg => msg._id?.toString() !== data.messageId);
@@ -975,7 +1082,6 @@ export default function ChatMessages({
                     fetchPinnedMessages();
                 }
 
-                // ✅ Notify parent to refresh sidebar
                 if (parentOnPinnedUpdated) {
                     console.log("📌 [ChatMessages] Notifying parent via parentOnPinnedUpdated");
                     parentOnPinnedUpdated();
@@ -996,7 +1102,7 @@ export default function ChatMessages({
             unsubscribeUpdated?.();
             unsubscribeUserOnline?.();
             unsubscribeUserOffline?.();
-            unsubscribePinned?.(); // ✅ Clean up pinned listener
+            unsubscribePinned?.();
 
             socket.off("message:read", handleMessageRead);
             socket.off("messages:read", handleMessageRead);
@@ -1018,7 +1124,7 @@ export default function ChatMessages({
         onMessageUpdated,
         onUserOnline,
         onUserOffline,
-        onPinnedUpdated, // ✅ Now properly in dependencies
+        onPinnedUpdated,
         fetchPinnedMessages,
         parentOnPinnedUpdated,
     ]);
@@ -1137,18 +1243,80 @@ export default function ChatMessages({
         }
     }, [fetchPinnedFiles, fetchPinnedMessages, parentOnPinnedUpdated]);
 
+    // ============================================================
+    // ✅ FIXED: REACTION - Toggle on/off like WhatsApp
+    // ============================================================
+    // ============================================================
+    // REACTION - Toggle on/off (Fixed)
+    // ============================================================
     const handleReaction = useCallback(async (messageId: string, emoji: string) => {
+        if (!currentUserId) return;
+
         try {
-            const response = await api.post(`/messages/${messageId}/reaction`, { emoji });
-            if (response.data?.success) {
-                setMessages((prev) =>
-                    prev.map((m) => (m._id?.toString() === messageId ? { ...m, reactions: response.data.data } : m))
-                );
+            // Find the message in state
+            const message = messages.find(m => m._id === messageId);
+            if (!message) {
+                console.error("❌ Message not found in state:", messageId);
+                toast.error("Message not found");
+                return;
             }
-        } catch (error) {
+
+            const hasReacted = message.reactions.some(
+                r => r.emoji === emoji && r.userId === currentUserId
+            );
+
+            if (hasReacted) {
+                // ✅ Remove reaction using DELETE
+                console.log(`🗑️ Removing reaction ${emoji} from message ${messageId}`);
+
+                // Optimistically update UI
+                setMessages((prev) =>
+                    prev.map((m) => {
+                        if (m._id === messageId) {
+                            return {
+                                ...m,
+                                reactions: m.reactions.filter(
+                                    r => !(r.emoji === emoji && r.userId === currentUserId)
+                                ),
+                            };
+                        }
+                        return m;
+                    })
+                );
+
+                await api.delete(`/messages/${messageId}/reaction`, {
+                    data: { emoji }
+                });
+
+                toast.success(`Removed ${emoji} reaction`);
+            } else {
+                // ✅ Add reaction using POST
+                console.log(`➕ Adding reaction ${emoji} to message ${messageId}`);
+
+                const response = await api.post(`/messages/${messageId}/reaction`, {
+                    emoji
+                });
+
+                if (response.data?.success) {
+                    setMessages((prev) =>
+                        prev.map((m) => (m._id === messageId ? { ...m, reactions: response.data.data } : m))
+                    );
+                    toast.success(`Added ${emoji} reaction`);
+                } else {
+                    toast.error(response.data?.message || "Failed to add reaction");
+                }
+            }
+        } catch (error: any) {
             console.error("Reaction failed:", error);
+            console.error("Error response:", error.response?.data);
+            console.error("Error status:", error.response?.status);
+            console.error("Message ID:", messageId);
+
+            // Revert by refetching messages
+            fetchMessages();
+            toast.error(error.response?.data?.message || "Failed to update reaction");
         }
-    }, []);
+    }, [currentUserId, messages, fetchMessages]);
 
     const handleDeleteMessage = useCallback(async (messageId: string) => {
         if (!confirm("Are you sure you want to delete this message?")) return;
@@ -1357,7 +1525,7 @@ export default function ChatMessages({
                                 <input
                                     ref={searchInputRef}
                                     type="text"
-                                    placeholder="Search messages..."
+                                    placeholder={`Search in ${messages.length} messages...`}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -1365,11 +1533,7 @@ export default function ChatMessages({
                                 />
                             </div>
                             <button
-                                onClick={() => {
-                                    setIsSearchOpen(false);
-                                    setSearchQuery("");
-                                    setSearchResults([]);
-                                }}
+                                onClick={clearSearch}
                                 className="p-1.5 hover:bg-slate-200 rounded-lg text-slate-400 hover:text-slate-600"
                             >
                                 <X className="w-4 h-4" />
@@ -1384,25 +1548,33 @@ export default function ChatMessages({
                                         <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                                         <span className="text-xs text-slate-400 ml-2">Searching...</span>
                                     </div>
+                                ) : searchError ? (
+                                    <div className="text-center py-2 text-xs text-red-500">
+                                        {searchError}
+                                    </div>
                                 ) : searchResults.length === 0 ? (
-                                    <div className="text-center py-2 text-xs text-slate-400">No messages found</div>
+                                    <div className="text-center py-2 text-xs text-slate-400">
+                                        No messages found for "{searchQuery}"
+                                    </div>
                                 ) : (
                                     searchResults.map((msg) => (
                                         <div
                                             key={msg._id}
                                             className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition"
                                             onClick={() => {
-                                                setSearchQuery("");
-                                                setSearchResults([]);
-                                                setIsSearchOpen(false);
-                                                scrollToMessage(msg._id);
+                                                clearSearch();
+                                                setTimeout(() => {
+                                                    scrollToMessage(msg._id);
+                                                }, 100);
                                             }}
                                         >
                                             <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold shrink-0">
                                                 {getInitials(msg.senderId?.fullName)}
                                             </div>
                                             <div className="min-w-0 flex-1">
-                                                <p className="text-xs text-slate-700 truncate">{msg.content || "File attachment"}</p>
+                                                <p className="text-xs text-slate-700 truncate">
+                                                    {msg.content || "File attachment"}
+                                                </p>
                                                 <p className="text-[9px] text-slate-400">
                                                     {msg.senderId?.fullName} · {formatMessageTime(msg.createdAt)}
                                                 </p>
@@ -1466,6 +1638,7 @@ export default function ChatMessages({
                                                 messageRefs.current.delete(message._id);
                                             }
                                         }}
+                                        highlight={highlightedMessageId === message._id}
                                     />
                                 </div>
                             </React.Fragment>
