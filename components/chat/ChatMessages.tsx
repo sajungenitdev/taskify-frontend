@@ -404,9 +404,9 @@ const MessageBubble = memo(({
                     {isOwn && !isDeleted && (
                         <span className="flex items-center">
                             {isSeenByRecipient ? (
-                                <CheckCheck className="w-3.5 h-3.5 text-blue-500" title="Seen" />
+                                <CheckCheck className="w-3.5 h-3.5 text-blue-500" aria-label="Seen" />
                             ) : (
-                                <Check className="w-3.5 h-3.5 text-slate-400" title="Delivered" />
+                                <Check className="w-3.5 h-3.5 text-slate-400" aria-label="Delivered" />
                             )}
                         </span>
                     )}
