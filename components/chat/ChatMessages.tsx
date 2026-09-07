@@ -237,9 +237,13 @@ const MessageBubble = memo(({
     }, [message.reactions]);
 
     // Highlight mentions of current user
+    // const hasMention = useMemo(() => {
+    //     if (!message.mentions || !currentUserId) return false;
+    //     return message.mentions.some(m => m.userId === currentUserId || m.userId?._id === currentUserId);
+    // }, [message.mentions, currentUserId]);
     const hasMention = useMemo(() => {
         if (!message.mentions || !currentUserId) return false;
-        return message.mentions.some(m => m.userId === currentUserId || m.userId?._id === currentUserId);
+        return message.mentions.some(m => m.userId === currentUserId);
     }, [message.mentions, currentUserId]);
 
     return (
