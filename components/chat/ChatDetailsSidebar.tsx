@@ -316,7 +316,7 @@ export default function ChatDetailsSidebar({
 
             if (response.data.success) {
                 toast.success("Channel avatar updated successfully");
-                setChannelInfo(prev => ({ ...prev, avatar: base64Data }));
+                setChannelInfo((prev: any) => ({ ...prev, avatar: base64Data }));
                 setImagePreview(base64Data);
                 onChannelUpdated?.();
                 fetchChannelDetails();
@@ -365,7 +365,7 @@ export default function ChatDetailsSidebar({
 
             if (response.data.success) {
                 toast.success("Channel avatar removed");
-                setChannelInfo(prev => ({ ...prev, avatar: null }));
+                setChannelInfo((prev: any) => ({ ...prev, avatar: null }));
                 setImagePreview(null);
                 onChannelUpdated?.();
                 fetchChannelDetails();
