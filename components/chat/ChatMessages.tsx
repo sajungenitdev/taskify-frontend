@@ -643,7 +643,7 @@ export default function ChatMessages({
         socket.on("messages:read", handleMessageRead);
         socket.on("channel:read", handleMessageRead);
 
-        const unsubscribeTyping = onTyping((data: { channelId: string; userId: string; userName: string; type: "start" | "stop" }) => {
+        const unsubscribeTyping = onTyping((data: { channelId: string; userId: string; userName: string; type?: string }) => {
             const incChanId = data.channelId?.toString();
             const incUserId = data.userId?.toString();
 
