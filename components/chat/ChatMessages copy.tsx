@@ -81,6 +81,7 @@ interface Message {
     createdAt: string;
     isEdited: boolean;
     isDeleted: boolean;
+    channelId: string;
 }
 
 interface ChatMessagesProps {
@@ -208,13 +209,13 @@ export default function ChatMessages({
             console.log(`📩 [ChatMessages] Message ID: ${data.message?._id}`);
             console.log(`========================================`);
 
-            const incomingChannelId = (data.channelId || data.message?.channelId)?.toString();
+            const incomingChannelId = data.channelId?.toString();
 
             if (incomingChannelId === cleanChannelId) {
-                setMessages((prev) => {
+                setMessages((prev:any) => {
                     const incomingMsgId = data.message?._id?.toString();
                     // Check for duplicates
-                    if (prev.some((m) => m._id?.toString() === incomingMsgId)) {
+                    if (prev.some((m:any) => m._id?.toString() === incomingMsgId)) {
                         console.log(`⚠️ [ChatMessages] Duplicate message detected, skipping: ${incomingMsgId}`);
                         return prev;
                     }
@@ -240,13 +241,13 @@ export default function ChatMessages({
             if (incChanId === cleanChannelId && incUserId !== myUserId) {
                 if (data.type === "start") {
                     console.log(`⌨️ [ChatMessages] ${data.userName} started typing`);
-                    setTypingUsers((prev) => {
-                        if (prev.some((u) => u.userId === incUserId)) return prev;
+                    setTypingUsers((prev:any) => {
+                        if (prev.some((u:any) => u.userId === incUserId)) return prev;
                         return [...prev, { userId: incUserId, name: data.userName || "Someone" }];
                     });
                 } else {
                     console.log(`⌨️ [ChatMessages] ${data.userName} stopped typing`);
-                    setTypingUsers((prev) => prev.filter((u) => u.userId !== incUserId));
+                    setTypingUsers((prev:any) => prev.filter((u:any) => u.userId !== incUserId));
                 }
             }
         });
@@ -257,8 +258,8 @@ export default function ChatMessages({
         const unsubscribeReaction = onReaction((data) => {
             console.log(`😊 [ChatMessages] Reaction update for message: ${data.messageId}`);
             if (data.channelId?.toString() === cleanChannelId) {
-                setMessages((prev) =>
-                    prev.map((m) =>
+                setMessages((prev:any) =>
+                    prev.map((m:any) =>
                         m._id?.toString() === data.messageId?.toString()
                             ? { ...m, reactions: data.reactions }
                             : m
@@ -273,8 +274,8 @@ export default function ChatMessages({
         const unsubscribeDeleted = onMessageDeleted((data) => {
             console.log(`🗑️ [ChatMessages] Message deleted: ${data.messageId}`);
             if (data.channelId?.toString() === cleanChannelId) {
-                setMessages((prev) =>
-                    prev.map((m) =>
+                setMessages((prev:any) =>
+                    prev.map((m:any) =>
                         m._id?.toString() === data.messageId?.toString()
                             ? { ...m, isDeleted: true }
                             : m
@@ -289,8 +290,8 @@ export default function ChatMessages({
         const unsubscribeUpdated = onMessageUpdated((data) => {
             console.log(`✏️ [ChatMessages] Message updated: ${data.message?._id}`);
             if (data.channelId?.toString() === cleanChannelId) {
-                setMessages((prev) =>
-                    prev.map((m) =>
+                setMessages((prev:any) =>
+                    prev.map((m:any) =>
                         m._id?.toString() === data.message?._id?.toString()
                             ? { ...m, content: data.message.content, isEdited: true }
                             : m
@@ -358,7 +359,7 @@ export default function ChatMessages({
                 attachments.forEach((file) => formData.append("attachments", file));
 
                 if (audioBlob) {
-                    const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, {
+                    const audioFile = new globalThis.File([audioBlob], `voice-${Date.now()}.webm`, {
                         type: "audio/webm",
                     });
                     formData.append("attachments", audioFile);
@@ -374,8 +375,8 @@ export default function ChatMessages({
                 console.log(`✅ [ChatMessages] Message sent successfully:`, newMessage);
 
                 // Optimistically add to sender UI
-                setMessages((prev) => {
-                    if (prev.some((m) => m._id?.toString() === newMessage._id?.toString())) return prev;
+                setMessages((prev:any) => {
+                    if (prev.some((m:any) => m._id?.toString() === newMessage._id?.toString())) return prev;
                     return [...prev, newMessage];
                 });
 
@@ -420,8 +421,8 @@ export default function ChatMessages({
         try {
             const response = await api.post(`/messages/${messageId}/reaction`, { emoji });
             if (response.data.success) {
-                setMessages((prev) =>
-                    prev.map((m) =>
+                setMessages((prev:any) =>
+                    prev.map((m:any) =>
                         m._id?.toString() === messageId ? { ...m, reactions: response.data.data } : m
                     )
                 );
@@ -436,8 +437,8 @@ export default function ChatMessages({
         try {
             const res = await api.delete(`/messages/${messageId}`);
             if (res.data.success) {
-                setMessages((prev) =>
-                    prev.map((m) =>
+                setMessages((prev:any) =>
+                    prev.map((m:any) =>
                         m._id?.toString() === messageId ? { ...m, isDeleted: true } : m
                     )
                 );
@@ -482,7 +483,7 @@ export default function ChatMessages({
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
-        setAttachments((prev) => [...prev, ...files]);
+        setAttachments((prev:any) => [...prev, ...files]);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
@@ -523,7 +524,7 @@ export default function ChatMessages({
                                 )}
                                 {typingUsers.length > 0 && (
                                     <span className="text-indigo-600 font-medium animate-pulse">
-                                        {typingUsers.map((u) => u.name).join(", ")} typing...
+                                        {typingUsers.map((u:any) => u.name).join(", ")} typing...
                                     </span>
                                 )}
                             </p>
