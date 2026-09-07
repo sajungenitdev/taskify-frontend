@@ -20,7 +20,7 @@ interface User {
   role: string;
   employeeId?: string;
   departmentId?: any;
-  department?: any; // ✅ Add this
+  department?: any;
   phoneNumber?: string;
   location?: string;
   position?: string;
@@ -30,7 +30,6 @@ interface User {
   firstLogin?: boolean;
   workSettings?: any;
   notificationPreferences?: any;
-  // ✅ Add trial fields
   trial?: {
     isActive: boolean;
     startDate: string;
@@ -55,9 +54,10 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  token: string | null; // ✅ ADD THIS
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<User>; // ← Change from Promise<void> to Promise<User>
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   hasRole: (roles: string | string[]) => boolean;
   updateUser: (userData: Partial<User>) => void;
@@ -71,23 +71,35 @@ export const AuthContext = createContext<AuthContextType | undefined>(
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null); // ✅ ADD THIS
   const [isLoading, setIsLoading] = useState(true);
 
   // Load user from localStorage on mount
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const storedToken = localStorage.getItem("token");
     const storedUser = localStorage.getItem("user");
 
-    if (token && storedUser) {
+    console.log("🔐 [AUTH] Loading from localStorage:", {
+      hasToken: !!storedToken,
+      hasUser: !!storedUser,
+    });
+
+    if (storedToken && storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
         setUser(parsedUser);
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        setToken(storedToken); // ✅ SET TOKEN
+        api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
+        console.log("✅ [AUTH] User and token loaded successfully");
       } catch (error) {
-        console.error("Error parsing user:", error);
+        console.error("❌ [AUTH] Error parsing user:", error);
         localStorage.removeItem("token");
         localStorage.removeItem("user");
+        setToken(null);
+        setUser(null);
       }
+    } else {
+      console.log("⚠️ [AUTH] No token or user found in localStorage");
     }
     setIsLoading(false);
   }, []);
@@ -97,15 +109,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.post("/auth/login", { email, password });
 
       if (response.data.success) {
-        const { token, user: userData } = response.data.data;
+        const { token: newToken, user: userData } = response.data.data;
 
-        if (!token) {
+        if (!newToken) {
           throw new Error("No token received from server");
         }
 
-        localStorage.setItem("token", token);
+        console.log("✅ [AUTH] Login successful, setting token and user");
+
+        localStorage.setItem("token", newToken);
         localStorage.setItem("user", JSON.stringify(userData));
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        api.defaults.headers.common["Authorization"] = `Bearer ${newToken}`;
+
+        setToken(newToken); // ✅ SET TOKEN
         setUser(userData);
 
         toast.success(`Welcome back, ${userData.fullName}!`);
@@ -114,17 +130,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(response.data.message || "Invalid Credentials");
       }
     } catch (error: any) {
-      console.error("Login error:", error);
-      // toast.error(error.response?.data?.message || "Invalid Credentials");
+      console.error("❌ [AUTH] Login error:", error);
       throw error;
     }
   };
 
   const logout = () => {
+    console.log("🔐 [AUTH] Logging out, clearing token and user");
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("refreshToken");
     delete api.defaults.headers.common["Authorization"];
+    setToken(null); // ✅ CLEAR TOKEN
     setUser(null);
     toast.success("Logged out successfully");
   };
@@ -163,12 +180,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (photoUrl: string) => {
       if (!user) return;
 
-      // ✅ Update local state
       const updatedUser = { ...user, profilePhoto: photoUrl };
       setUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
-      // ✅ Refresh from server
       try {
         await refreshUser();
       } catch (error) {
@@ -182,8 +197,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        token, // ✅ EXPOSE TOKEN
         isLoading,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && !!token,
         login,
         logout,
         hasRole,

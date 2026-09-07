@@ -467,7 +467,7 @@ export default function NotificationsPage() {
             if (nextCategory[n.category]) {
               nextCategory[n.category] = Math.max(0, nextCategory[n.category] - 1);
             }
-            if (nextType[n.type]) {
+            if (nextType[n.type]) { 
               nextType[n.type] = Math.max(0, nextType[n.type] - 1);
             }
           });

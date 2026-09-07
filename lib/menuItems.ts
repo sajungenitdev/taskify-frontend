@@ -598,6 +598,19 @@ export const SUB_ITEMS = {
       description: "Get intelligent assistance from AI",
     },
   ),
+  teamChat: createSubNavItem(
+    "team-chat",
+    "Team Chat",
+    "/team-chat",
+    MessageCircle,
+    "My Profile",
+    [ROLES.ALL],
+    // {
+    //   badge: "New",
+    //   badgeColor: "bg-linear-to-r from-indigo-500 to-purple-500",
+    //   description: "Get intelligent assistance from AI",
+    // },
+  ),
 
 
   // KPI Dashboard Sub-items
@@ -1221,7 +1234,7 @@ export const SUB_ITEMS = {
     "/settings/pricing",
     DollarSign,
     "System Settings",
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN,ROLES.EMPLOYEE],
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EMPLOYEE],
     { description: "Manage billing, invoices, and subscriptions" },
   ),
   // backupManagement: createSubNavItem(
@@ -1253,8 +1266,8 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
     {
       description: "Read full system documentation",
-      target: "_blank",      
-      rel: "noopener noreferrer" 
+      target: "_blank",
+      rel: "noopener noreferrer"
     },
   ),
   featurePage: createSubNavItem(
@@ -1266,8 +1279,8 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
     {
       description: "Read full system documentation",
-      target: "_blank",      
-      rel: "noopener noreferrer" 
+      target: "_blank",
+      rel: "noopener noreferrer"
     },
   ),
   apiDocs: createSubNavItem(
