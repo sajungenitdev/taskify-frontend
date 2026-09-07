@@ -234,13 +234,15 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
                 callbacksCount: messageCallbacks.current.size
             });
 
-            messageCallbacks.current.forEach((callback, index) => {
+            let callbackIndex = 0;
+            messageCallbacks.current.forEach((callback) => {
                 try {
-                    console.log(`📩 [SOCKET] → Calling callback #${index + 1}`);
+                    console.log(`📩 [SOCKET] → Calling callback #${callbackIndex + 1}`);
                     callback(data);
                 } catch (error) {
                     console.error("❌ [SOCKET] Error in message callback:", error);
                 }
+                callbackIndex++;
             });
         };
 
