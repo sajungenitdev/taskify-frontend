@@ -1,3 +1,495 @@
+// // lib/axios.ts
+// import axios, {
+//   AxiosInstance,
+//   AxiosRequestConfig,
+//   AxiosResponse,
+//   AxiosError,
+//   InternalAxiosRequestConfig,
+// } from "axios";
+
+// // ============ TYPES ============
+// export interface ApiResponse<T = any> {
+//   success: boolean;
+//   message?: string;
+//   data: T;
+//   count?: number;
+//   errors?: Record<string, string[]>;
+// }
+
+// // ============ ENVIRONMENT CONFIGURATION ============
+// const API_BASE_URL: string =
+//   // process.env.NEXT_PUBLIC_API_URL || "https://taskify-server-5gat.onrender.com/api/v1";
+//   "http://localhost:5000/api/v1";
+
+// // ============ CREATE AXIOS INSTANCE =============
+// const api: AxiosInstance = axios.create({
+//   baseURL: API_BASE_URL,
+//   headers: {
+//     "Content-Type": "application/json",
+//     Accept: "application/json",
+//   },
+//   withCredentials: false,
+//   timeout: 60000,
+// });
+
+// // ============ TOKEN INTERCEPTOR ============
+// api.interceptors.request.use(
+//   (config) => {
+//     const token = localStorage.getItem("token");
+
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+
+//     return config;
+//   },
+//   (error) => {
+//     return Promise.reject(error);
+//   },
+// );
+
+// // ============ RETRY CONFIGURATION ============
+// const MAX_RETRIES = 3;
+// let retryCount = 0;
+// const RETRYABLE_STATUSES = [408, 429, 500, 502, 503, 504];
+// const RETRYABLE_ERRORS = ["ECONNABORTED", "ERR_NETWORK", "ETIMEDOUT"];
+
+// // ============ TOKEN REFRESH ============
+// let isRefreshing = false;
+// let failedQueue: Array<{
+//   resolve: (value: string | null) => void;
+//   reject: (reason?: any) => void;
+// }> = [];
+
+// const processQueue = (error: any, token: string | null = null) => {
+//   failedQueue.forEach((prom) => {
+//     if (error) {
+//       prom.reject(error);
+//     } else {
+//       prom.resolve(token);
+//     }
+//   });
+//   failedQueue = [];
+// };
+
+// // ============ CHECK IF ERROR IS RETRYABLE ============
+// const isRetryableError = (error: AxiosError): boolean => {
+//   if (error.code && RETRYABLE_ERRORS.includes(error.code)) {
+//     return true;
+//   }
+//   if (
+//     error.response?.status &&
+//     RETRYABLE_STATUSES.includes(error.response.status)
+//   ) {
+//     return true;
+//   }
+//   if (
+//     error.message?.includes("timeout") ||
+//     error.message?.includes("exceeded")
+//   ) {
+//     return true;
+//   }
+//   return false;
+// };
+
+// // ============ REQUEST INTERCEPTOR ============
+// api.interceptors.request.use(
+//   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
+//     const requestId = Math.random().toString(36).substring(2, 10);
+//     config.headers["X-Request-ID"] = requestId;
+
+//     const token = localStorage.getItem("token");
+//     if (token) {
+//       config.headers.Authorization = `Bearer ${token}`;
+//     }
+
+//     if (config.url?.includes("/tasks") && config.method === "post") {
+//       config.timeout = 120000;
+//     }
+
+//     if (config.data instanceof FormData) {
+//       delete config.headers["Content-Type"];
+//       config.timeout = 180000;
+//     }
+
+//     if (process.env.NODE_ENV === "development") {
+//       console.log(
+//         `📤 [${requestId}] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+//         config.data instanceof FormData ? "FormData" : config.data || "",
+//       );
+//     }
+
+//     return config;
+//   },
+//   (error: AxiosError): Promise<AxiosError> => {
+//     console.error("❌ Request Interceptor Error:", error);
+//     return Promise.reject(error);
+//   },
+// );
+
+// // ============ RESPONSE INTERCEPTOR - FIXED ============
+// api.interceptors.response.use(
+//   (response: AxiosResponse): AxiosResponse => {
+//     const requestId = response.config.headers["X-Request-ID"] || "unknown";
+
+//     if (
+//       typeof response.data === "string" &&
+//       response.data.includes("<!DOCTYPE")
+//     ) {
+//       console.warn(`⚠️ [${requestId}] Received HTML response instead of JSON`);
+//     }
+
+//     retryCount = 0;
+
+//     if (process.env.NODE_ENV === "development") {
+//       console.log(
+//         `📥 [${requestId}] ${response.status} ${response.config.url}`,
+//         response.data?.message || "",
+//       );
+//     }
+
+//     return response;
+//   },
+//   async (error: AxiosError): Promise<any> => {
+//     const requestId =
+//       (error.config?.headers as any)?.["X-Request-ID"] || "unknown";
+
+//     // ============================================================
+//     // FIX: Check if this is the export endpoint with 404 error
+//     // ============================================================
+//     const isExportEndpoint = error?.config?.url?.includes('/reports/projects/export');
+
+//     // If it's a 404 for export endpoint, silently return without logging
+//     if (error?.response?.status === 404 && isExportEndpoint) {
+//       // Return a special error that our handleExport can detect
+//       return Promise.reject({
+//         ...error,
+//         __isExport404: true,
+//         isExport404: true,
+//         silent: true,
+//       });
+//     }
+
+//     // Network errors
+//     if (!error.response) {
+//       console.error(`🌐 [${requestId}] Network Error:`, error.message);
+
+//       if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
+//         retryCount++;
+//         const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+//         console.log(
+//           `🔄 [${requestId}] Retry ${retryCount}/${MAX_RETRIES} for ${error.config.url} (delay: ${delay}ms)`,
+//         );
+//         await new Promise((resolve) => setTimeout(resolve, delay));
+//         return api.request(error.config);
+//       }
+//       retryCount = 0;
+
+//       return Promise.reject({
+//         success: false,
+//         message: "Network error - Please check your internet connection",
+//         code: error.code,
+//         originalError: error,
+//       });
+//     }
+
+//     const { response } = error;
+//     const status = response.status;
+//     const data = response.data as any;
+
+//     // Retry on retryable status codes
+//     if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
+//       retryCount++;
+//       const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+//       console.log(
+//         `🔄 [${requestId}] Retry ${retryCount}/${MAX_RETRIES} for ${error.config.url} (status: ${status}, delay: ${delay}ms)`,
+//       );
+//       await new Promise((resolve) => setTimeout(resolve, delay));
+//       return api.request(error.config);
+//     }
+//     retryCount = 0;
+
+//     // ============================================================
+//     // FIX: Skip logging for export endpoint 404
+//     // ============================================================
+//     // Don't log 404 for export endpoint
+//     if (status === 404 && isExportEndpoint) {
+//       return Promise.reject({
+//         ...error,
+//         __isExport404: true,
+//         isExport404: true,
+//         silent: true,
+//       });
+//     }
+
+//     // Log all other errors
+//     console.error(`❌ [${requestId}] API Error:`, {
+//       status,
+//       data: data,
+//       url: error.config?.url,
+//       method: error.config?.method,
+//     });
+
+//     // Handle specific status codes
+//     switch (status) {
+//       case 400:
+//         console.error("❌ Bad Request:", data?.message || "Invalid request");
+//         break;
+
+//       case 401: {
+//         console.error("❌ Unauthorized - Token expired or invalid");
+
+//         const originalRequest = error.config as any;
+//         if (
+//           !originalRequest._retry &&
+//           !window.location.pathname.includes("/login")
+//         ) {
+//           originalRequest._retry = true;
+
+//           if (isRefreshing) {
+//             return new Promise((resolve, reject) => {
+//               failedQueue.push({ resolve, reject });
+//             })
+//               .then((token) => {
+//                 if (token && originalRequest.headers) {
+//                   originalRequest.headers.Authorization = `Bearer ${token}`;
+//                 }
+//                 return api.request(originalRequest);
+//               })
+//               .catch((err) => Promise.reject(err));
+//           }
+
+//           isRefreshing = true;
+
+//           const refreshToken = localStorage.getItem("refreshToken");
+//           if (refreshToken) {
+//             try {
+//               const response = await api.post("/auth/refresh-token", {
+//                 refreshToken,
+//               });
+//               const { token } = response.data.data;
+
+//               if (token) {
+//                 localStorage.setItem("token", token);
+//                 api.defaults.headers.common["Authorization"] =
+//                   `Bearer ${token}`;
+//                 processQueue(null, token);
+
+//                 if (originalRequest.headers) {
+//                   originalRequest.headers.Authorization = `Bearer ${token}`;
+//                 }
+//                 return api.request(originalRequest);
+//               }
+//             } catch (refreshError) {
+//               processQueue(refreshError, null);
+//               clearSession();
+//               if (typeof window !== "undefined") {
+//                 window.location.href = "/login";
+//               }
+//               return Promise.reject(refreshError);
+//             } finally {
+//               isRefreshing = false;
+//             }
+//           } else {
+//             clearSession();
+//             if (typeof window !== "undefined") {
+//               window.location.href = "/login";
+//             }
+//           }
+//         }
+//         break;
+//       }
+
+//       case 403:
+//         console.error("❌ Forbidden:", data?.message);
+//         break;
+
+//       case 404:
+//         // This will only run for non-export endpoints
+//         console.error("❌ Not Found:", data?.message);
+//         break;
+
+//       case 409:
+//         console.error("❌ Conflict:", data?.message);
+//         break;
+
+//       case 422:
+//         console.error("❌ Validation Error:", data?.errors || data?.message);
+//         break;
+
+//       case 429:
+//         console.error("❌ Too Many Requests - Rate limited");
+//         break;
+
+//       case 500:
+//         console.error("❌ Internal Server Error:", data?.message);
+//         break;
+
+//       default:
+//         console.error(
+//           `❌ HTTP Error ${status}:`,
+//           data?.message || "An error occurred",
+//         );
+//     }
+
+//     return Promise.reject({
+//       success: false,
+//       status: status,
+//       message: data?.message || error.message || "An error occurred",
+//       errors: data?.errors || null,
+//       originalError: error,
+//     });
+//   },
+// );
+
+// // ============ UTILITY FUNCTIONS ============
+
+// export const setAuthToken = (token: string): void => {
+//   localStorage.setItem("token", token);
+// };
+
+// export const setRefreshToken = (token: string): void => {
+//   localStorage.setItem("refreshToken", token);
+// };
+
+// export const removeAuthToken = (): void => {
+//   localStorage.removeItem("token");
+//   localStorage.removeItem("user");
+//   localStorage.removeItem("refreshToken");
+//   delete api.defaults.headers.common["Authorization"];
+// };
+
+// export const getAuthToken = (): string | null => {
+//   return localStorage.getItem("token");
+// };
+
+// export const getRefreshToken = (): string | null => {
+//   return localStorage.getItem("refreshToken");
+// };
+
+// export const isAuthenticated = (): boolean => {
+//   return !!getAuthToken();
+// };
+
+// export const getCurrentUser = <T = any>(): T | null => {
+//   try {
+//     const user = localStorage.getItem("user");
+//     return user ? JSON.parse(user) : null;
+//   } catch {
+//     return null;
+//   }
+// };
+
+// export const setCurrentUser = (user: any): void => {
+//   localStorage.setItem("user", JSON.stringify(user));
+// };
+
+// export const clearSession = (): void => {
+//   removeAuthToken();
+//   localStorage.removeItem("user");
+//   localStorage.removeItem("refreshToken");
+//   delete api.defaults.headers.common["Authorization"];
+// };
+
+// export const logout = (): void => {
+//   clearSession();
+//   if (typeof window !== "undefined") {
+//     window.location.href = "/login";
+//   }
+// };
+
+// // ============ GENERIC API METHODS ============
+
+// export const apiService = {
+//   get: <T = any>(
+//     url: string,
+//     config?: AxiosRequestConfig,
+//   ): Promise<ApiResponse<T>> => {
+//     return api.get(url, config).then((res) => res.data);
+//   },
+
+//   post: <T = any>(
+//     url: string,
+//     data?: any,
+//     config?: AxiosRequestConfig,
+//   ): Promise<ApiResponse<T>> => {
+//     return api.post(url, data, config).then((res) => res.data);
+//   },
+
+//   put: <T = any>(
+//     url: string,
+//     data?: any,
+//     config?: AxiosRequestConfig,
+//   ): Promise<ApiResponse<T>> => {
+//     return api.put(url, data, config).then((res) => res.data);
+//   },
+
+//   patch: <T = any>(
+//     url: string,
+//     data?: any,
+//     config?: AxiosRequestConfig,
+//   ): Promise<ApiResponse<T>> => {
+//     return api.patch(url, data, config).then((res) => res.data);
+//   },
+
+//   delete: <T = any>(
+//     url: string,
+//     config?: AxiosRequestConfig,
+//   ): Promise<ApiResponse<T>> => {
+//     return api.delete(url, config).then((res) => res.data);
+//   },
+// };
+
+// // ============ AUTH SERVICE ============
+// export const authService = {
+//   login: async (email: string, password: string): Promise<ApiResponse<any>> => {
+//     const response = await api.post("/auth/login", { email, password });
+//     const { token, user, refreshToken } = response.data.data;
+
+//     if (token) {
+//       setAuthToken(token);
+//       setCurrentUser(user);
+//       if (refreshToken) {
+//         setRefreshToken(refreshToken);
+//       }
+//       api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+//     }
+
+//     return response.data;
+//   },
+
+//   logout: (): void => {
+//     clearSession();
+//   },
+
+//   refreshToken: async (): Promise<string | null> => {
+//     const refreshToken = getRefreshToken();
+//     if (!refreshToken) return null;
+
+//     try {
+//       const response = await api.post("/auth/refresh-token", { refreshToken });
+//       const { token } = response.data.data;
+//       if (token) {
+//         setAuthToken(token);
+//         api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+//         return token;
+//       }
+//       return null;
+//     } catch (error) {
+//       clearSession();
+//       return null;
+//     }
+//   },
+
+//   getProfile: async (): Promise<ApiResponse<any>> => {
+//     return apiService.get("/auth/me");
+//   },
+// };
+
+// export default api;
+
+
+
 // lib/axios.ts
 import axios, {
   AxiosInstance,
@@ -127,7 +619,7 @@ api.interceptors.request.use(
   },
 );
 
-// ============ RESPONSE INTERCEPTOR - FIXED ============
+// ============ RESPONSE INTERCEPTOR ============
 api.interceptors.response.use(
   (response: AxiosResponse): AxiosResponse => {
     const requestId = response.config.headers["X-Request-ID"] || "unknown";
@@ -154,14 +646,9 @@ api.interceptors.response.use(
     const requestId =
       (error.config?.headers as any)?.["X-Request-ID"] || "unknown";
 
-    // ============================================================
-    // FIX: Check if this is the export endpoint with 404 error
-    // ============================================================
     const isExportEndpoint = error?.config?.url?.includes('/reports/projects/export');
 
-    // If it's a 404 for export endpoint, silently return without logging
     if (error?.response?.status === 404 && isExportEndpoint) {
-      // Return a special error that our handleExport can detect
       return Promise.reject({
         ...error,
         __isExport404: true,
@@ -197,7 +684,6 @@ api.interceptors.response.use(
     const status = response.status;
     const data = response.data as any;
 
-    // Retry on retryable status codes
     if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
       retryCount++;
       const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
@@ -209,10 +695,6 @@ api.interceptors.response.use(
     }
     retryCount = 0;
 
-    // ============================================================
-    // FIX: Skip logging for export endpoint 404
-    // ============================================================
-    // Don't log 404 for export endpoint
     if (status === 404 && isExportEndpoint) {
       return Promise.reject({
         ...error,
@@ -222,7 +704,6 @@ api.interceptors.response.use(
       });
     }
 
-    // Log all other errors
     console.error(`❌ [${requestId}] API Error:`, {
       status,
       data: data,
@@ -230,7 +711,6 @@ api.interceptors.response.use(
       method: error.config?.method,
     });
 
-    // Handle specific status codes
     switch (status) {
       case 400:
         console.error("❌ Bad Request:", data?.message || "Invalid request");
@@ -305,7 +785,6 @@ api.interceptors.response.use(
         break;
 
       case 404:
-        // This will only run for non-export endpoints
         console.error("❌ Not Found:", data?.message);
         break;
 
@@ -342,7 +821,45 @@ api.interceptors.response.use(
   },
 );
 
-// ============ UTILITY FUNCTIONS ============
+// ============================================================
+// ✅ FILE URL HELPER - FIXES IMAGE URL ISSUE
+// ============================================================
+
+/**
+ * Get the correct full URL for files/images
+ * Converts relative paths like /uploads/chat/images/file.jpg
+ * to full URL like http://localhost:5000/uploads/chat/images/file.jpg
+ */
+export const getFileUrl = (url: string): string => {
+  if (!url) return '';
+  
+  // If it's already a full URL with http or https, return it as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // Get the API base URL from environment
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  
+  // Remove /api/v1 from base URL if present
+  let baseUrl = apiBaseUrl.replace('/api/v1', '');
+  
+  // Remove trailing slash if present
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.slice(0, -1);
+  }
+  
+  // Ensure the URL starts with /
+  if (!url.startsWith('/')) {
+    url = '/' + url;
+  }
+  
+  return `${baseUrl}${url}`;
+};
+
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
 
 export const setAuthToken = (token: string): void => {
   localStorage.setItem("token", token);

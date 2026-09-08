@@ -434,7 +434,7 @@ export default function TeamChatPage() {
                     <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
                         #
                     </div>
-                    <h1 className="text-sm font-bold text-slate-900 tracking-tight">Team Workspace</h1>
+                    <h1 className="text-sm font-bold text-slate-900 tracking-tight">Team Chating</h1>
                     <div className="flex items-center gap-1.5 ml-2 bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded-full">
                         <span
                             className={`w-2 h-2 rounded-full ${isConnected ? "bg-emerald-500 animate-pulse" : "bg-slate-300"}`}

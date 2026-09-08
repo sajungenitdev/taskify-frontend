@@ -29,8 +29,6 @@ import {
     CornerDownRight,
     Smile,
     AlertTriangle,
-    Bell,
-    BellOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/axios";
@@ -110,6 +108,18 @@ export interface ChannelMemberItem {
     role?: string;
 }
 
+interface Task {
+    _id: string;
+    title: string;
+    status: string;
+    priority: string;
+    progress: number;
+    assignedTo?: {
+        _id: string;
+        fullName: string;
+    };
+}
+
 interface ChatMessagesProps {
     channelId: string;
     channelName?: string;
@@ -129,7 +139,7 @@ const EMOJI_CATEGORIES = [
 ];
 
 // ============================================================
-// UTILITIES
+// UTILITIES & URL HELPERS
 // ============================================================
 
 const getInitials = (name?: string): string => {
@@ -156,9 +166,47 @@ const formatGroupDate = (dateStr: string): string => {
 };
 
 const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes < 0) return "0 B";
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / 1048576).toFixed(1)} MB`;
+};
+
+// Seamless URL builder: checks if the path is relative or full URL
+const resolveMediaUrl = (url?: string): string => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:") || url.startsWith("blob:")) {
+        return url;
+    }
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, "") || "http://localhost:5000";
+    const cleanPath = url.startsWith("/") ? url : `/${url}`;
+    return `${baseUrl}${cleanPath}`;
+};
+
+// Reliable programmatic cross-origin file downloader
+const triggerFileDownload = async (fileUrl: string, fileName: string) => {
+    try {
+        const resolved = resolveMediaUrl(fileUrl);
+        const toastId = toast.loading(`Downloading ${fileName}...`);
+        const response = await fetch(resolved);
+        if (!response.ok) throw new Error("Network download failed");
+
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = blobUrl;
+        anchor.download = fileName || "download";
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        window.URL.revokeObjectURL(blobUrl);
+        toast.dismiss(toastId);
+        toast.success("Download complete");
+    } catch (error) {
+        console.error("Download error:", error);
+        toast.error("Failed to download file directly. Opening in browser...");
+        window.open(resolveMediaUrl(fileUrl), "_blank", "noopener,noreferrer");
+    }
 };
 
 const getFileIcon = (type: string) => {
@@ -183,6 +231,14 @@ const normalizeUserId = (target: any): string => {
     if (target._id) return target._id.toString();
     if (target.userId) return normalizeUserId(target.userId);
     return target.toString();
+};
+
+const isImageAttachment = (att: Attachment): boolean => {
+    return (
+        att.type === "image" ||
+        Boolean(att.mimeType?.startsWith("image/")) ||
+        Boolean(att.name?.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff)$/i))
+    );
 };
 
 // ============================================================
@@ -230,7 +286,6 @@ const MessageBubble = memo(
             });
         }, [message.readBy, message.isRead, isOwn, currentUserId]);
 
-        // Enforce strictly 1 reaction per user: Deduplicate reactions by user ID
         const uniqueUserReactions = useMemo(() => {
             if (!message.reactions || !Array.isArray(message.reactions)) return [];
 
@@ -283,7 +338,7 @@ const MessageBubble = memo(
                 <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 select-none shadow-xs mt-0.5">
                     {message.senderId?.avatar ? (
                         <img
-                            src={message.senderId.avatar}
+                            src={resolveMediaUrl(message.senderId.avatar)}
                             alt={message.senderId.fullName || "User"}
                             className="w-8 h-8 rounded-full object-cover border border-slate-200"
                             loading="lazy"
@@ -320,8 +375,8 @@ const MessageBubble = memo(
                         ) : (
                             <div
                                 className={`rounded-2xl px-4 py-2.5 shadow-xs transition-colors ${isOwn
-                                    ? "bg-indigo-600 text-white rounded-tr-xs"
-                                    : "bg-white border border-slate-200 text-slate-800 rounded-tl-xs hover:border-slate-300"
+                                        ? "bg-indigo-600 text-white rounded-tr-xs"
+                                        : "bg-white border border-slate-200 text-slate-800 rounded-tl-xs hover:border-slate-300"
                                     } ${isPinned ? "ring-1 ring-amber-400" : ""}`}
                             >
                                 {isPinned && (
@@ -336,8 +391,8 @@ const MessageBubble = memo(
                                         type="button"
                                         onClick={() => message.replyTo && onScrollToMessage(message.replyTo._id)}
                                         className={`w-full text-left mb-2 p-2 rounded-xl text-xs border-l-[3px] transition cursor-pointer flex flex-col gap-0.5 ${isOwn
-                                            ? "bg-indigo-700/60 border-indigo-300 text-indigo-100 hover:bg-indigo-700"
-                                            : "bg-slate-50 border-indigo-600 text-slate-600 hover:bg-slate-100"
+                                                ? "bg-indigo-700/60 border-indigo-300 text-indigo-100 hover:bg-indigo-700"
+                                                : "bg-slate-50 border-indigo-600 text-slate-600 hover:bg-slate-100"
                                             }`}
                                     >
                                         <div className="flex items-center gap-1 font-semibold text-[11px]">
@@ -375,8 +430,8 @@ const MessageBubble = memo(
                                                                 onMentionClick(matchedMention.userId, matchedMention.name);
                                                             }}
                                                             className={`font-semibold cursor-pointer underline underline-offset-2 px-1 py-0.5 rounded transition ${isOwn
-                                                                ? "text-indigo-200 hover:bg-indigo-700"
-                                                                : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                                                                    ? "text-indigo-200 hover:bg-indigo-700"
+                                                                    : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                                                                 }`}
                                                             title={`Jump to ${matchedMention.name}'s messages`}
                                                         >
@@ -390,31 +445,63 @@ const MessageBubble = memo(
                                     </p>
                                 )}
 
-                                {/* File / Audio Attachments */}
+                                {/* Attachments Section */}
                                 {message.attachments && message.attachments.length > 0 && (
-                                    <div className="mt-2.5 space-y-1.5">
+                                    <div className="mt-2.5 space-y-2">
                                         {message.attachments.map((att, idx) => {
+                                            const fullFileUrl = resolveMediaUrl(att.url);
                                             const isVoice = att.type === "voice" || att.name?.endsWith(".webm");
+
+                                            // Voice Player
                                             if (isVoice) {
                                                 return (
                                                     <div key={idx} className="pt-1">
                                                         <audio controls className="h-8 max-w-full rounded-md">
-                                                            <source src={att.url} type="audio/webm" />
+                                                            <source src={fullFileUrl} type="audio/webm" />
                                                             Audio playback not supported.
                                                         </audio>
                                                     </div>
                                                 );
                                             }
 
+                                            // Image Attachment Preview
+                                            if (isImageAttachment(att)) {
+                                                return (
+                                                    <div
+                                                        key={idx}
+                                                        className="relative rounded-xl overflow-hidden max-w-[280px] border border-slate-200/80 bg-slate-100 shadow-2xs group/image"
+                                                    >
+                                                        <img
+                                                            src={fullFileUrl}
+                                                            alt={att.name}
+                                                            className="max-h-72 w-full object-cover hover:scale-101 transition duration-200 cursor-pointer"
+                                                            loading="lazy"
+                                                            onClick={() => window.open(fullFileUrl, "_blank")}
+                                                        />
+                                                        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover/image:opacity-100 transition duration-150">
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    triggerFileDownload(att.url, att.name);
+                                                                }}
+                                                                className="p-1.5 bg-black/60 hover:bg-black/80 text-white rounded-lg shadow-md transition cursor-pointer"
+                                                                title="Download image"
+                                                            >
+                                                                <Download className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            // General File Attachments (PDF, Documents, etc.)
                                             return (
-                                                <a
+                                                <div
                                                     key={idx}
-                                                    href={att.url}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className={`flex items-center justify-between gap-3 p-2 rounded-xl text-xs transition border ${isOwn
-                                                        ? "bg-indigo-700/50 border-indigo-400/40 text-white hover:bg-indigo-700"
-                                                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                    className={`flex items-center justify-between gap-3 p-2.5 rounded-xl text-xs transition border ${isOwn
+                                                            ? "bg-indigo-700/50 border-indigo-400/40 text-white hover:bg-indigo-700"
+                                                            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-2 min-w-0">
@@ -426,8 +513,15 @@ const MessageBubble = memo(
                                                             <span className="text-[10px] opacity-60">({formatFileSize(att.size)})</span>
                                                         )}
                                                     </div>
-                                                    <Download className="w-3.5 h-3.5 shrink-0 opacity-70 hover:opacity-100 transition" />
-                                                </a>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => triggerFileDownload(att.url, att.name)}
+                                                        className="p-1 hover:bg-white/20 rounded transition opacity-80 hover:opacity-100 cursor-pointer shrink-0"
+                                                        title="Download file"
+                                                    >
+                                                        <Download className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             );
                                         })}
                                     </div>
@@ -496,7 +590,7 @@ const MessageBubble = memo(
                         )}
                     </div>
 
-                    {/* Reaction Pills */}
+                    {/* Reaction Badges */}
                     {reactionTotals && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                             {Object.entries(reactionTotals).map(([emoji, count]) => {
@@ -507,8 +601,8 @@ const MessageBubble = memo(
                                         type="button"
                                         onClick={() => onReaction(message._id, emoji)}
                                         className={`inline-flex items-center gap-1 text-[11px] border px-2 py-0.5 rounded-full transition shadow-2xs cursor-pointer ${isReacted
-                                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
-                                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
+                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                             }`}
                                     >
                                         <span>{emoji}</span>
@@ -519,7 +613,7 @@ const MessageBubble = memo(
                         </div>
                     )}
 
-                    {/* Message Timestamp & Seen Ticks */}
+                    {/* Message Timestamp & Seen Status */}
                     <div
                         className={`flex items-center gap-1.5 mt-1 px-1 text-[10px] text-slate-400 select-none ${isOwn ? "justify-end" : "justify-start"
                             }`}
@@ -585,12 +679,14 @@ export default function ChatMessages({
     const [sending, setSending] = useState(false);
     const [typingUsers, setTypingUsers] = useState<{ userId: string; name: string }[]>([]);
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [attachments, setAttachments] = useState<File[]>([]);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
     const [typingDots, setTypingDots] = useState("");
+    const [users, setUsers] = useState<any[]>([]);
 
     // Search States
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -611,7 +707,7 @@ export default function ChatMessages({
     // Emoji States
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-    // ✅ Desktop Notification States
+    // Notification States
     const [notificationPermission, setNotificationPermission] = useState<boolean>(false);
     const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
 
@@ -637,40 +733,52 @@ export default function ChatMessages({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
-    
 
     const scrollToBottom = useCallback((smooth = true) => {
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
     }, []);
 
-    // ============================================================
-    // ✅ NOTIFICATION PERMISSION
-    // ============================================================
+    // Fetch users for mention tagging
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const response = await api.get("/users");
+                if (response.data.success) {
+                    setUsers(response.data.data || []);
+                }
+            } catch (error) {
+                console.error("Error fetching users:", error);
+            }
+        };
+        fetchUsers();
+    }, []);
+
+    // Initialize notifications
     useEffect(() => {
         const initNotifications = async () => {
-            const granted = await ChatNotificationService.requestPermission();
-            setNotificationPermission(granted);
-            if (granted) {
-                console.log("✅ Desktop notification permission granted");
+            try {
+                const granted = await ChatNotificationService.requestPermission();
+                setNotificationPermission(granted);
+            } catch (error) {
+                console.error("Failed to request notification permission:", error);
             }
         };
         initNotifications();
     }, []);
 
-    const handleEmojiClick = (emoji: string) => {
-        const cursorPos = inputRef.current?.selectionStart ?? inputText.length;
-        const newText = inputText.slice(0, cursorPos) + emoji + inputText.slice(cursorPos);
-        setInputText(newText);
+    // Typing animation
+    useEffect(() => {
+        if (typingUsers.length === 0) {
+            setTypingDots("");
+            return;
+        }
+        const interval = setInterval(() => {
+            setTypingDots((prev) => (prev.length >= 3 ? "" : prev + "."));
+        }, 400);
+        return () => clearInterval(interval);
+    }, [typingUsers.length]);
 
-        setTimeout(() => {
-            if (inputRef.current) {
-                inputRef.current.focus();
-                const nextPos = cursorPos + emoji.length;
-                inputRef.current.setSelectionRange(nextPos, nextPos);
-            }
-        }, 10);
-    };
-
+    // Click outside listener for emoji picker
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
@@ -684,17 +792,7 @@ export default function ChatMessages({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showEmojiPicker]);
 
-    useEffect(() => {
-        if (typingUsers.length === 0) {
-            setTypingDots("");
-            return;
-        }
-        const interval = setInterval(() => {
-            setTypingDots((prev) => (prev.length >= 3 ? "" : prev + "."));
-        }, 400);
-        return () => clearInterval(interval);
-    }, [typingUsers.length]);
-
+    // Unmount timeout cleanup
     useEffect(() => {
         return () => {
             if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -779,7 +877,7 @@ export default function ChatMessages({
         }
     }, []);
 
-    // Search Routine
+    // Search routine
     useEffect(() => {
         const trimmed = searchQuery.trim().toLowerCase();
         if (!trimmed) {
@@ -910,6 +1008,20 @@ export default function ChatMessages({
         }
     };
 
+    const handleEmojiClick = (emoji: string) => {
+        const cursorPos = inputRef.current?.selectionStart ?? inputText.length;
+        const newText = inputText.slice(0, cursorPos) + emoji + inputText.slice(cursorPos);
+        setInputText(newText);
+
+        setTimeout(() => {
+            if (inputRef.current) {
+                inputRef.current.focus();
+                const nextPos = cursorPos + emoji.length;
+                inputRef.current.setSelectionRange(nextPos, nextPos);
+            }
+        }, 10);
+    };
+
     // ============================================================
     // SOCKET SUBSCRIPTIONS & ONLINE TRACKING
     // ============================================================
@@ -919,7 +1031,6 @@ export default function ChatMessages({
 
         joinChannel(cleanChannelId);
         socket.emit("channel:join", { channelId: cleanChannelId });
-
         socket.emit("users:get_online");
 
         const handleUserOnlineEvent = (data: any) => {
@@ -955,7 +1066,7 @@ export default function ChatMessages({
                 markAsRead(cleanChannelId);
                 setTimeout(() => scrollToBottom(true), 50);
 
-                // ✅ Desktop Notification for new messages
+                // Desktop Notification
                 const senderId = data.message.senderId?._id?.toString();
                 if (
                     senderId !== currentUserId &&
@@ -963,8 +1074,8 @@ export default function ChatMessages({
                     notificationsEnabled &&
                     document.hidden
                 ) {
-                    const senderName = data.message.senderId?.fullName || 'Someone';
-                    const messageContent = data.message.content || '📎 Attachment';
+                    const senderName = data.message.senderId?.fullName || "Someone";
+                    const messageContent = data.message.content || "📎 Attachment";
 
                     ChatNotificationService.sendNotificationIfAway(
                         senderName,
@@ -1058,15 +1169,7 @@ export default function ChatMessages({
             }
         );
 
-        const unsubscribeUserOnline = onUserOnline?.((data: any) => {
-            handleUserOnlineEvent(data);
-        });
-
-        const unsubscribeUserOffline = onUserOffline?.((data: any) => {
-            handleUserOfflineEvent(data);
-        });
-
-        const unsubscribePinned = onPinnedUpdated((data: any) => {
+        const unsubscribePinned = onPinnedUpdated?.((data: any) => {
             if (data.channelId === cleanChannelId && data.messageId) {
                 setMessages((prev) =>
                     prev.map((msg) =>
@@ -1088,15 +1191,23 @@ export default function ChatMessages({
             }
         });
 
+        const unsubscribeUserOnline = onUserOnline?.((data: any) => {
+            handleUserOnlineEvent(data);
+        });
+
+        const unsubscribeUserOffline = onUserOffline?.((data: any) => {
+            handleUserOfflineEvent(data);
+        });
+
         return () => {
             unsubscribeMessage?.();
             unsubscribeTyping?.();
             unsubscribeReaction?.();
             unsubscribeDeleted?.();
             unsubscribeUpdated?.();
+            unsubscribePinned?.();
             unsubscribeUserOnline?.();
             unsubscribeUserOffline?.();
-            unsubscribePinned?.();
 
             socket.off("user:online", handleUserOnlineEvent);
             socket.off("user:offline", handleUserOfflineEvent);
@@ -1119,9 +1230,9 @@ export default function ChatMessages({
         onReaction,
         onMessageDeleted,
         onMessageUpdated,
+        onPinnedUpdated,
         onUserOnline,
         onUserOffline,
-        onPinnedUpdated,
         fetchPinnedMessages,
         parentOnPinnedUpdated,
         notificationPermission,
@@ -1130,74 +1241,94 @@ export default function ChatMessages({
     ]);
 
     // ============================================================
-    // SEND & DISPATCH ACTIONS
+    // SEND MESSAGE (Complete FormData & Multer Alignment)
     // ============================================================
 
-    const handleSendMessage = useCallback(async () => {
-        const text = inputText.trim();
-        if (!text && attachments.length === 0 && !audioBlob) return;
-        if (!cleanChannelId || sending) return;
-
-        const mentionRegex = /@(\w+(?:\s\w+)?)/g;
-        const matches = text.match(mentionRegex);
-        const mentions: Mention[] = [];
-
-        if (matches) {
-            for (const match of matches) {
-                const name = match.slice(1);
-                const matched = mentionableUsers.find(
-                    (u) =>
-                        u.fullName.toLowerCase() === name.toLowerCase() ||
-                        u.fullName.split(" ")[0].toLowerCase() === name.toLowerCase()
-                );
-                if (matched) mentions.push({ userId: matched._id, name: matched.fullName });
-            }
+    const handleSendMessage = async () => {
+        if (!inputText.trim() && attachments.length === 0 && !audioBlob) {
+            toast.error("Please enter a message or attach a file");
+            return;
+        }
+        if (!channelId) {
+            toast.error("No channel selected");
+            return;
         }
 
         setSending(true);
         try {
-            let response;
-            if (attachments.length === 0 && !audioBlob) {
-                response = await api.post(`/messages/channel/${cleanChannelId}`, {
-                    content: text,
-                    replyTo: replyingTo?._id || null,
-                    mentions: mentions.length > 0 ? mentions : undefined,
-                });
-            } else {
-                const formData = new FormData();
-                formData.append("content", text);
-                if (replyingTo?._id) formData.append("replyTo", replyingTo._id);
-                if (mentions.length > 0) formData.append("mentions", JSON.stringify(mentions));
-                attachments.forEach((f) => formData.append("attachments", f));
-
-                if (audioBlob) {
-                    const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, { type: "audio/webm" });
-                    formData.append("attachments", audioFile);
+            const mentionRegex = /@(\w+)/g;
+            const mentions: string[] = [];
+            let match;
+            while ((match = mentionRegex.exec(inputText)) !== null) {
+                const mentionedUser = users.find((u) =>
+                    u.fullName?.toLowerCase().includes(match[1].toLowerCase())
+                );
+                if (mentionedUser) {
+                    mentions.push(mentionedUser._id);
                 }
-
-                response = await api.post(`/messages/channel/${cleanChannelId}`, formData, {
-                    headers: { "Content-Type": "multipart/form-data" },
-                });
             }
 
+            const formData = new FormData();
+            formData.append("content", inputText.trim());
+
+            if (replyingTo) {
+                formData.append("replyTo", replyingTo._id);
+            }
+
+            if (mentions.length > 0) {
+                formData.append("mentions", JSON.stringify(mentions));
+            }
+
+            if (selectedTask) {
+                formData.append("linkedTaskId", selectedTask._id);
+            }
+
+            // Append files to both "files" and "attachments" to ensure Multer parses correctly
+            attachments.forEach((file) => {
+                formData.append("files", file);
+                formData.append("attachments", file);
+            });
+
+            if (audioBlob) {
+                const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, {
+                    type: "audio/webm",
+                });
+                formData.append("files", audioFile);
+                formData.append("attachments", audioFile);
+            }
+
+            const response = await api.post(`/messages/channel/${channelId}`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+
             if (response.data?.success) {
-                const newMsg: Message = response.data.data;
-                setMessages((prev) => (prev.some((m) => m._id === newMsg._id) ? prev : [...prev, newMsg]));
+                const newMessage = response.data.data;
+                setMessages((prev) => (prev.some((m) => m._id === newMessage._id) ? prev : [...prev, newMessage]));
+
                 setInputText("");
                 setAttachments([]);
                 setAudioBlob(null);
                 setReplyingTo(null);
+                setSelectedTask(null);
                 stopTyping(cleanChannelId);
+                markAsRead(channelId);
 
                 if (inputRef.current) inputRef.current.style.height = "auto";
-                setTimeout(() => scrollToBottom(true), 50);
+                setTimeout(() => scrollToBottom(true), 100);
+            } else {
+                toast.error(response.data?.message || "Failed to send message");
             }
         } catch (error: any) {
+            console.error("Error sending message:", error);
             toast.error(error.response?.data?.message || "Failed to send message");
         } finally {
             setSending(false);
         }
-    }, [inputText, attachments, audioBlob, cleanChannelId, replyingTo, stopTyping, scrollToBottom, mentionableUsers, sending]);
+    };
+
+    // ============================================================
+    // PIN MESSAGE
+    // ============================================================
 
     const handlePinMessage = useCallback(
         async (messageId: string) => {
@@ -1220,6 +1351,7 @@ export default function ChatMessages({
     // ============================================================
     // SINGLE REACTION PER USER
     // ============================================================
+
     const handleReaction = useCallback(
         async (messageId: string, emoji: string) => {
             if (!currentUserId) return;
@@ -1264,6 +1396,10 @@ export default function ChatMessages({
         [currentUserId, messages, fetchMessages]
     );
 
+    // ============================================================
+    // DELETE MESSAGE
+    // ============================================================
+
     const handleDeleteMessage = useCallback((messageId: string) => {
         setDeleteMessageModal({
             isOpen: true,
@@ -1301,6 +1437,10 @@ export default function ChatMessages({
             setDeleteMessageModal((prev) => ({ ...prev, isDeleting: false }));
         }
     }, [deleteMessageModal, closeDeleteMessageModal]);
+
+    // ============================================================
+    // VOICE RECORDING
+    // ============================================================
 
     const startRecording = async () => {
         try {
@@ -1341,6 +1481,10 @@ export default function ChatMessages({
         setIsRecording(false);
     };
 
+    // ============================================================
+    // FILE SELECT
+    // ============================================================
+
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
         setAttachments((prev) => [...prev, ...files]);
@@ -1348,8 +1492,9 @@ export default function ChatMessages({
     };
 
     // ============================================================
-    // ROBUST RESOLVED ONLINE COUNT
+    // RESOLVED ONLINE COUNT
     // ============================================================
+
     const resolvedOnlineCount = useMemo(() => {
         const activeOnlineSet = new Set<string>(onlineUsers.map(normalizeUserId));
 
@@ -1383,6 +1528,10 @@ export default function ChatMessages({
         return `${names[0]} and ${names.length - 1} others are typing`;
     }, [typingUsers]);
 
+    // ============================================================
+    // LOADING STATE
+    // ============================================================
+
     if (loading) {
         return (
             <div className="flex-1 flex flex-col items-center justify-center bg-white">
@@ -1391,6 +1540,10 @@ export default function ChatMessages({
             </div>
         );
     }
+
+    // ============================================================
+    // RENDER
+    // ============================================================
 
     return (
         <main className="w-full h-full flex flex-col bg-slate-50 overflow-hidden text-slate-800">
@@ -1420,7 +1573,7 @@ export default function ChatMessages({
                                     if (avatarUrl) {
                                         return (
                                             <img
-                                                src={avatarUrl}
+                                                src={resolveMediaUrl(avatarUrl)}
                                                 alt={channelName}
                                                 className="w-full h-full object-cover"
                                                 loading="lazy"
@@ -1472,20 +1625,6 @@ export default function ChatMessages({
                     </div>
 
                     <div className="flex items-center gap-1">
-                        {/* ✅ Notification Toggle Button */}
-                        {/* <button
-                            type="button"
-                            onClick={() => {
-                                const newState = !notificationsEnabled;
-                                setNotificationsEnabled(newState);
-                                toast.success(newState ? '🔔 Notifications enabled' : '🔕 Notifications disabled');
-                            }}
-                            className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400 hover:text-slate-600 cursor-pointer"
-                            title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
-                        >
-                            {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                        </button> */}
-
                         <button
                             type="button"
                             onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -1683,6 +1822,7 @@ export default function ChatMessages({
                     </div>
                 )}
 
+                {/* Selected Attachments Badge Deck */}
                 {attachments.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2.5 max-h-28 overflow-y-auto pr-1">
                         {attachments.map((file, i) => (
@@ -1749,8 +1889,8 @@ export default function ChatMessages({
                                 type="button"
                                 onClick={() => setShowEmojiPicker((prev) => !prev)}
                                 className={`p-2 rounded-xl transition cursor-pointer ${showEmojiPicker
-                                    ? "text-indigo-600 bg-indigo-50"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                                        ? "text-indigo-600 bg-indigo-50"
+                                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
                                     }`}
                                 title="Add emoji"
                             >
@@ -1814,8 +1954,8 @@ export default function ChatMessages({
                                                 onClick={() => handleSelectMention(u)}
                                                 onMouseEnter={() => setSelectedMentionIndex(idx)}
                                                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-left transition cursor-pointer ${selectedMentionIndex === idx
-                                                    ? "bg-indigo-50 text-indigo-600 font-semibold"
-                                                    : "text-slate-700 hover:bg-slate-50"
+                                                        ? "bg-indigo-50 text-indigo-600 font-semibold"
+                                                        : "text-slate-700 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -1870,7 +2010,7 @@ export default function ChatMessages({
                 )}
             </footer>
 
-            {/* Custom Delete Message Confirmation Modal */}
+            {/* Delete Message Confirmation Modal */}
             {deleteMessageModal.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
                     <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">

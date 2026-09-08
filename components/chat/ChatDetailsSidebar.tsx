@@ -1041,16 +1041,6 @@ export default function ChatDetailsSidebar({
                             )}
                         </button>
                     )}
-
-                    {onClose && (
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition ml-1 cursor-pointer"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    )}
                 </div>
             </div>
 
