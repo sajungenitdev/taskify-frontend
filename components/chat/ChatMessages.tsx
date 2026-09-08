@@ -1258,10 +1258,11 @@ export default function ChatMessages({
         try {
             const mentionRegex = /@(\w+)/g;
             const mentions: string[] = [];
-            let match;
+            let match: RegExpExecArray | null;
             while ((match = mentionRegex.exec(inputText)) !== null) {
+                const mentionedUsername = match[1].toLowerCase();
                 const mentionedUser = users.find((u) =>
-                    u.fullName?.toLowerCase().includes(match[1].toLowerCase())
+                    u.fullName?.toLowerCase().includes(mentionedUsername)
                 );
                 if (mentionedUser) {
                     mentions.push(mentionedUser._id);
@@ -1290,7 +1291,7 @@ export default function ChatMessages({
             });
 
             if (audioBlob) {
-                const audioFile = new File([audioBlob], `voice-${Date.now()}.webm`, {
+                const audioFile = new File([audioBlob], "voice.webm", {
                     type: "audio/webm",
                 });
                 formData.append("files", audioFile);
