@@ -1,11 +1,10 @@
+// components/chat/ChatDetailsSidebar.tsx
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
     FileText,
     Table,
-    Link as LinkIcon,
-    Check,
     Users,
     Crown,
     Shield,
@@ -13,28 +12,18 @@ import {
     X,
     Search,
     UserMinus,
-    Download,
-    ExternalLink,
-    Clock,
     MessageSquare,
     Loader2,
-    MoreVertical,
     Trash2,
     Pin,
     Image as ImageIcon,
-    FolderOpen,
-    Link2,
-    Edit,
+    Edit2,
     Save,
-    Upload,
     Camera,
-    File,
+    File as FileIcon,
     AlertCircle,
-    CheckCircle,
-    User,
     Hash,
     Calendar,
-    Settings,
     UserCog,
     RefreshCw,
     Plus,
@@ -43,10 +32,10 @@ import {
     Circle,
     AlertTriangle,
     Clock as ClockIcon,
-    Sparkles,
-    ArrowRight,
     Unlink,
     LogOut,
+    User as UserIcon,
+    Link2,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { useAuth } from "@/contexts/AuthContext";
@@ -58,7 +47,7 @@ import { format } from "date-fns";
 // TYPES
 // ============================================================
 
-interface Member {
+export interface Member {
     _id: string;
     fullName: string;
     email: string;
@@ -67,7 +56,7 @@ interface Member {
     role?: string;
 }
 
-interface PinnedItem {
+export interface PinnedItem {
     _id: string;
     name: string;
     url: string;
@@ -82,23 +71,39 @@ interface PinnedItem {
     uploadedAt: string;
 }
 
-interface LinkedTask {
+export interface LinkedTask {
     _id: string;
     taskId: string;
     title: string;
     status: string;
     priority: string;
     progress: number;
-    assignedTo: {
+    assignedTo?: {
         _id: string;
         fullName: string;
         avatar?: string;
-    };
+    } | null;
     linkedBy?: {
         _id: string;
         fullName: string;
-    };
+    } | null;
     linkedAt: string;
+}
+
+export interface ChannelInfo {
+    _id: string;
+    name: string;
+    description?: string;
+    avatar?: string | null;
+    type?: "group" | "direct" | "broadcast";
+    createdBy?: {
+        _id: string;
+        fullName: string;
+    };
+    members?: Array<{
+        userId: { _id: string; fullName?: string; avatar?: string } | string;
+        role?: string;
+    }>;
 }
 
 interface ChatDetailsSidebarProps {
@@ -110,81 +115,153 @@ interface ChatDetailsSidebarProps {
     onChannelDeleted?: () => void;
     onPinnedMessageClick?: (messageId: string) => void;
     onPinnedUpdated?: () => void;
-    onLeaveChannel?: () => void; // ✅ NEW: Callback when user leaves
+    onLeaveChannel?: () => void;
 }
 
 // ============================================================
-// UTILITY FUNCTIONS
+// UTILITIES & ENUM SANITIZERS
 // ============================================================
 
-const getInitials = (name: string) => {
+const getInitials = (name?: string): string => {
     if (!name) return "?";
-    return name.charAt(0).toUpperCase();
+    return name.trim().charAt(0).toUpperCase();
 };
 
-const getAvatarColor = (userId: string) => {
+const getAvatarColor = (userId: string = "") => {
     const colors = [
-        "bg-indigo-100 text-indigo-600",
-        "bg-rose-100 text-rose-600",
-        "bg-emerald-100 text-emerald-600",
-        "bg-amber-100 text-amber-600",
-        "bg-purple-100 text-purple-600",
-        "bg-cyan-100 text-cyan-600",
-        "bg-pink-100 text-pink-600",
-        "bg-teal-100 text-teal-600",
+        "bg-indigo-100 text-indigo-700 border-indigo-200",
+        "bg-rose-100 text-rose-700 border-rose-200",
+        "bg-emerald-100 text-emerald-700 border-emerald-200",
+        "bg-amber-100 text-amber-700 border-amber-200",
+        "bg-purple-100 text-purple-700 border-purple-200",
+        "bg-cyan-100 text-cyan-700 border-cyan-200",
+        "bg-pink-100 text-pink-700 border-pink-200",
+        "bg-teal-100 text-teal-700 border-teal-200",
     ];
-    const index = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[index % colors.length];
+    const charCodeTotal = userId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[charCodeTotal % colors.length];
 };
 
-const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
+const formatFileSize = (bytes: number): string => {
+    if (!bytes || bytes < 0) return "0 B";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
 };
 
 const getFileIcon = (type: string) => {
-    if (type.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
-    if (type.includes('pdf')) return <FileText className="w-4 h-4" />;
-    if (type.includes('spreadsheet') || type.includes('excel') || type.includes('csv')) return <Table className="w-4 h-4" />;
-    if (type === 'message') return <MessageSquare className="w-4 h-4" />;
-    return <File className="w-4 h-4" />;
+    if (type.startsWith("image/")) return <ImageIcon className="w-4 h-4 text-emerald-500" />;
+    if (type.includes("pdf")) return <FileText className="w-4 h-4 text-rose-500" />;
+    if (type.includes("spreadsheet") || type.includes("excel") || type.includes("csv"))
+        return <Table className="w-4 h-4 text-emerald-600" />;
+    if (type === "message") return <MessageSquare className="w-4 h-4 text-amber-500" />;
+    return <FileIcon className="w-4 h-4 text-slate-500" />;
+};
+
+// Map arbitrary priority strings to valid Mongoose schema enum values
+const sanitizePriority = (priority?: string): string => {
+    const p = (priority || "").toLowerCase().trim();
+    switch (p) {
+        case "urgent":
+            return "urgent";
+        case "high":
+            return "high";
+        case "low":
+            return "low";
+        case "medium":
+        case "normal":
+        default:
+            return "medium";
+    }
+};
+
+// Map arbitrary status strings to valid Mongoose schema enum values
+const sanitizeStatus = (status?: string): string => {
+    const s = (status || "").toLowerCase().trim();
+    switch (s) {
+        case "completed":
+        case "done":
+            return "completed";
+        case "in-progress":
+        case "doing":
+            return "in-progress";
+        case "blocked":
+            return "blocked";
+        case "overdue":
+            return "overdue";
+        case "pending":
+        case "todo":
+        default:
+            return "pending";
+    }
 };
 
 const getStatusColor = (status: string) => {
-    switch (status) {
-        case 'completed': return 'text-emerald-600 bg-emerald-50';
-        case 'in-progress': return 'text-blue-600 bg-blue-50';
-        case 'pending': return 'text-amber-600 bg-amber-50';
-        case 'blocked': return 'text-red-600 bg-red-50';
-        case 'overdue': return 'text-rose-600 bg-rose-50';
-        default: return 'text-slate-600 bg-slate-50';
+    switch (status?.toLowerCase()) {
+        case "completed":
+        case "done":
+            return "text-emerald-700 bg-emerald-50 border-emerald-200";
+        case "in-progress":
+        case "doing":
+            return "text-blue-700 bg-blue-50 border-blue-200";
+        case "pending":
+        case "todo":
+            return "text-amber-700 bg-amber-50 border-amber-200";
+        case "blocked":
+            return "text-red-700 bg-red-50 border-red-200";
+        case "overdue":
+            return "text-rose-700 bg-rose-50 border-rose-200";
+        default:
+            return "text-slate-700 bg-slate-100 border-slate-200";
     }
 };
 
 const getStatusIcon = (status: string) => {
-    switch (status) {
-        case 'completed': return <CheckCircle2 className="w-3 h-3" />;
-        case 'in-progress': return <Loader2 className="w-3 h-3 animate-spin" />;
-        case 'pending': return <ClockIcon className="w-3 h-3" />;
-        case 'blocked': return <AlertTriangle className="w-3 h-3" />;
-        case 'overdue': return <AlertCircle className="w-3 h-3" />;
-        default: return <Circle className="w-3 h-3" />;
+    switch (status?.toLowerCase()) {
+        case "completed":
+        case "done":
+            return <CheckCircle2 className="w-3 h-3 text-emerald-600" />;
+        case "in-progress":
+        case "doing":
+            return <Loader2 className="w-3 h-3 animate-spin text-blue-600" />;
+        case "pending":
+        case "todo":
+            return <ClockIcon className="w-3 h-3 text-amber-600" />;
+        case "blocked":
+            return <AlertTriangle className="w-3 h-3 text-red-600" />;
+        case "overdue":
+            return <AlertCircle className="w-3 h-3 text-rose-600" />;
+        default:
+            return <Circle className="w-3 h-3 text-slate-400" />;
     }
 };
 
 const getPriorityColor = (priority: string) => {
-    switch (priority) {
-        case 'high': return 'text-red-600 bg-red-50 border-red-200';
-        case 'medium': return 'text-amber-600 bg-amber-50 border-amber-200';
-        case 'low': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
-        case 'urgent': return 'text-rose-600 bg-rose-50 border-rose-200';
-        default: return 'text-slate-600 bg-slate-50 border-slate-200';
+    switch (priority?.toLowerCase()) {
+        case "urgent":
+            return "text-rose-700 bg-rose-50 border-rose-200";
+        case "high":
+            return "text-red-700 bg-red-50 border-red-200";
+        case "medium":
+        case "normal":
+            return "text-amber-700 bg-amber-50 border-amber-200";
+        case "low":
+            return "text-emerald-700 bg-emerald-50 border-emerald-200";
+        default:
+            return "text-slate-600 bg-slate-100 border-slate-200";
     }
 };
 
+const normalizeId = (item: any): string => {
+    if (!item) return "";
+    if (typeof item === "string") return item;
+    if (item._id) return item._id.toString();
+    if (item.userId) return normalizeId(item.userId);
+    return "";
+};
+
 // ============================================================
-// MAIN COMPONENT
+// COMPONENT
 // ============================================================
 
 export default function ChatDetailsSidebar({
@@ -196,74 +273,81 @@ export default function ChatDetailsSidebar({
     onChannelDeleted,
     onPinnedMessageClick,
     onPinnedUpdated,
-    onLeaveChannel, // ✅ NEW
+    onLeaveChannel,
 }: ChatDetailsSidebarProps) {
     const { user } = useAuth();
     const { socket } = useSocket();
 
-    // State
+    // Core States
     const [members, setMembers] = useState<Member[]>(externalMembers);
-    const [onlineCount, setOnlineCount] = useState(externalOnlineCount);
-    const [loading, setLoading] = useState(false);
+    const [onlineCount, setOnlineCount] = useState<number>(externalOnlineCount);
+    const [loadingMembers, setLoadingMembers] = useState<boolean>(false);
+    const [channelInfo, setChannelInfo] = useState<ChannelInfo | null>(null);
+
+    // Pinned Items & Linked Tasks
     const [pinnedItems, setPinnedItems] = useState<PinnedItem[]>([]);
+    const [loadingPinned, setLoadingPinned] = useState<boolean>(false);
     const [linkedTasks, setLinkedTasks] = useState<LinkedTask[]>([]);
-    const [loadingPinned, setLoadingPinned] = useState(false);
-    const [loadingTasks, setLoadingTasks] = useState(false);
-    const [channelInfo, setChannelInfo] = useState<any>(null);
-    const [showAddMember, setShowAddMember] = useState(false);
-    const [searchUsers, setSearchUsers] = useState("");
-    const [availableUsers, setAvailableUsers] = useState<any[]>([]);
-    const [addingUser, setAddingUser] = useState(false);
-    const [onlineMembers, setOnlineMembers] = useState<string[]>([]);
-    const [leavingChannel, setLeavingChannel] = useState(false);
+    const [loadingTasks, setLoadingTasks] = useState<boolean>(false);
 
-    // ============================================================
-    // TASK LINKING STATE
-    // ============================================================
-    const [showLinkTask, setShowLinkTask] = useState(false);
-    const [searchTasks, setSearchTasks] = useState("");
+    // Search & Task Linking States (Tracks single task ID to isolate buttons)
+    const [showLinkTask, setShowLinkTask] = useState<boolean>(false);
+    const [searchTasks, setSearchTasks] = useState<string>("");
     const [availableTasks, setAvailableTasks] = useState<any[]>([]);
-    const [loadingTasksSearch, setLoadingTasksSearch] = useState(false);
-    const [linkingTask, setLinkingTask] = useState(false);
-    const [unlinkingTask, setUnlinkingTask] = useState<string | null>(null);
+    const [loadingTasksSearch, setLoadingTasksSearch] = useState<boolean>(false);
+    const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null);
+    const [unlinkingTaskId, setUnlinkingTaskId] = useState<string | null>(null);
 
-    // Edit State
-    const [isEditing, setIsEditing] = useState(false);
-    const [editName, setEditName] = useState("");
-    const [editDescription, setEditDescription] = useState("");
-    const [editingChannel, setEditingChannel] = useState(false);
-    const [deletingChannel, setDeletingChannel] = useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    // Members Management
+    const [showAddMember, setShowAddMember] = useState<boolean>(false);
+    const [searchUsers, setSearchUsers] = useState<string>("");
+    const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+    const [addingUser, setAddingUser] = useState<boolean>(false);
+    const [onlineMembers, setOnlineMembers] = useState<string[]>([]);
+    const [makingAdmin, setMakingAdmin] = useState<string | null>(null);
+    const [leavingChannel, setLeavingChannel] = useState<boolean>(false);
 
-    // Image Upload State
-    const [uploadingImage, setUploadingImage] = useState(false);
+    // Edit Channel States
+    const [isEditing, setIsEditing] = useState<boolean>(false);
+    const [editName, setEditName] = useState<string>("");
+    const [editDescription, setEditDescription] = useState<string>("");
+    const [editingChannel, setEditingChannel] = useState<boolean>(false);
+    const [deletingChannel, setDeletingChannel] = useState<boolean>(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+
+    // Avatar Upload States
+    const [uploadingImage, setUploadingImage] = useState<boolean>(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-    // Admin Management State
-    const [makingAdmin, setMakingAdmin] = useState<string | null>(null);
-
     // Refs
-    const fileInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     const taskSearchInputRef = useRef<HTMLInputElement>(null);
 
-    // ============================================================
-    // CHECK IF CHANNEL IS DIRECT MESSAGE
-    // ============================================================
-    const isDirectMessage = useCallback(() => {
-        return channelInfo?.type === "direct";
-    }, [channelInfo]);
+    const isDirectMessage = useMemo(() => channelInfo?.type === "direct", [channelInfo]);
+
+    const isAdmin = useMemo(() => {
+        if (!channelInfo || !user) return false;
+        if (channelInfo.type === "direct") return false;
+
+        const currentUid = normalizeId(user._id);
+        const creatorId = normalizeId(channelInfo.createdBy?._id);
+        if (creatorId && creatorId === currentUid) return true;
+
+        return Boolean(
+            channelInfo.members?.some((m: any) => normalizeId(m.userId) === currentUid && m.role === "admin")
+        );
+    }, [channelInfo, user]);
 
     // ============================================================
-    // FETCH FUNCTIONS
+    // API FETCHERS
     // ============================================================
 
     const fetchChannelDetails = useCallback(async () => {
         if (!channelId) return;
         try {
-            const response = await api.get(`/channels/${channelId}`);
-            if (response.data.success) {
-                const data = response.data.data;
+            const res = await api.get(`/channels/${channelId}`);
+            if (res.data?.success) {
+                const data = res.data.data;
                 setChannelInfo(data);
                 setEditName(data.name || "");
                 setEditDescription(data.description || "");
@@ -276,31 +360,31 @@ export default function ChatDetailsSidebar({
 
     const fetchChannelMembers = useCallback(async () => {
         if (!channelId) return;
+        setLoadingMembers(true);
         try {
-            setLoading(true);
-            const response = await api.get(`/channels/${channelId}/members`);
-            if (response.data.success) {
-                const memberList = response.data.data.members.map((m: any) => ({
+            const res = await api.get(`/channels/${channelId}/members`);
+            if (res.data?.success) {
+                const memberList = (res.data.data.members || []).map((m: any) => ({
                     ...m.userId,
                     role: m.role,
                 }));
                 setMembers(memberList);
-                setOnlineCount(response.data.data.online || 0);
+                setOnlineCount(res.data.data.online || 0);
             }
         } catch (error) {
             console.error("Error fetching members:", error);
         } finally {
-            setLoading(false);
+            setLoadingMembers(false);
         }
     }, [channelId]);
 
     const fetchPinnedItems = useCallback(async () => {
         if (!channelId) return;
+        setLoadingPinned(true);
         try {
-            setLoadingPinned(true);
-            const response = await api.get(`/channels/${channelId}/pinned`);
-            if (response.data.success) {
-                setPinnedItems(response.data.data || []);
+            const res = await api.get(`/channels/${channelId}/pinned`);
+            if (res.data?.success) {
+                setPinnedItems(res.data.data || []);
             }
         } catch (error: any) {
             if (error.response?.status === 404) {
@@ -313,18 +397,13 @@ export default function ChatDetailsSidebar({
         }
     }, [channelId]);
 
-    // ============================================================
-    // FETCH LINKED TASKS
-    // ============================================================
     const fetchLinkedTasks = useCallback(async () => {
         if (!channelId) return;
+        setLoadingTasks(true);
         try {
-            setLoadingTasks(true);
-            console.log("📌 [Sidebar] Fetching linked tasks for channel:", channelId);
-            const response = await api.get(`/channels/${channelId}/tasks`);
-            if (response.data.success) {
-                setLinkedTasks(response.data.data || []);
-                console.log(`📌 [Sidebar] Loaded ${response.data.data?.length || 0} linked tasks`);
+            const res = await api.get(`/channels/${channelId}/tasks`);
+            if (res.data?.success) {
+                setLinkedTasks(res.data.data || []);
             }
         } catch (error: any) {
             if (error.response?.status === 404) {
@@ -337,19 +416,14 @@ export default function ChatDetailsSidebar({
         }
     }, [channelId]);
 
-    // ============================================================
-    // FETCH AVAILABLE TASKS FOR LINKING
-    // ============================================================
     const fetchAvailableTasks = useCallback(async () => {
+        setLoadingTasksSearch(true);
         try {
-            setLoadingTasksSearch(true);
-            const response = await api.get("/tasks");
-            if (response.data.success) {
-                const tasks = response.data.data || [];
-                const linkedTaskIds = linkedTasks.map(t => t.taskId);
-                const available = tasks.filter((task: any) => !linkedTaskIds.includes(task._id));
-                setAvailableTasks(available);
-                console.log(`📌 [Sidebar] Found ${available.length} available tasks`);
+            const res = await api.get("/tasks");
+            if (res.data?.success) {
+                const allTasks = res.data.data || [];
+                const linkedTaskIds = linkedTasks.map((t) => t.taskId);
+                setAvailableTasks(allTasks.filter((task: any) => !linkedTaskIds.includes(task._id)));
             }
         } catch (error) {
             console.error("Error fetching available tasks:", error);
@@ -361,460 +435,74 @@ export default function ChatDetailsSidebar({
 
     const fetchAvailableUsers = useCallback(async () => {
         try {
-            const response = await api.get("/users");
-            if (response.data.success) {
-                const existingIds = members.map(m => m._id);
+            const res = await api.get("/users");
+            if (res.data?.success) {
+                const currentMemberIds = members.map((m) => normalizeId(m._id));
+                const currentUserId = normalizeId(user?._id);
+
                 setAvailableUsers(
-                    response.data.data.filter((u: any) =>
-                        u._id !== user?._id && !existingIds.includes(u._id)
+                    (res.data.data || []).filter(
+                        (u: any) => normalizeId(u._id) !== currentUserId && !currentMemberIds.includes(normalizeId(u._id))
                     )
                 );
             }
         } catch (error) {
-            console.error("Error fetching users:", error);
+            console.error("Error fetching available users:", error);
         }
     }, [members, user?._id]);
 
-    // ============================================================
-    // LINK TASK
-    // ============================================================
-
-    const handleLinkTask = useCallback(async (taskId: string, task: any) => {
-        if (!channelId) return;
-
-        setLinkingTask(true);
-        try {
-            console.log("📌 [Sidebar] Linking task:", { taskId, task, channelId });
-
-            const statusMap: Record<string, string> = {
-                'overdue': 'overdue',
-                'todo': 'pending',
-                'doing': 'in-progress',
-                'done': 'completed',
-                'in-progress': 'in-progress',
-                'pending': 'pending',
-                'completed': 'completed',
-                'blocked': 'blocked',
-            };
-
-            const mappedStatus = statusMap[task.status?.toLowerCase()] || 'pending';
-            const mappedPriority = task.priority?.toLowerCase() || 'medium';
-
-            const response = await api.post(`/channels/${channelId}/tasks`, {
-                taskId: taskId,
-                title: task.title,
-                status: mappedStatus,
-                priority: mappedPriority,
-                progress: task.progress || 0,
-                assignedTo: task.assignedTo ? {
-                    _id: task.assignedTo._id || task.assignedTo,
-                    fullName: task.assignedTo.fullName || "Unknown",
-                } : null,
-            });
-
-            console.log("📌 [Sidebar] Link task response:", response.data);
-
-            if (response.data.success) {
-                toast.success("Task linked successfully");
-                setShowLinkTask(false);
-                setSearchTasks("");
-                await fetchLinkedTasks();
-                setAvailableTasks([]);
-            } else {
-                toast.error(response.data.message || "Failed to link task");
-            }
-        } catch (error: any) {
-            console.error("❌ Error linking task:", error);
-            console.error("❌ Error response:", error.response?.data);
-            console.error("❌ Error status:", error.response?.status);
-
-            const errorMessage = error.response?.data?.message ||
-                error.response?.data?.error ||
-                "Failed to link task. Please check if the backend endpoint is available.";
-            toast.error(errorMessage);
-        } finally {
-            setLinkingTask(false);
+    useEffect(() => {
+        if (channelId) {
+            fetchChannelDetails();
+            fetchChannelMembers();
+            fetchPinnedItems();
+            fetchLinkedTasks();
         }
-    }, [channelId, fetchLinkedTasks]);
+    }, [channelId, fetchChannelDetails, fetchChannelMembers, fetchPinnedItems, fetchLinkedTasks]);
+
+    useEffect(() => {
+        fetchAvailableUsers();
+    }, [fetchAvailableUsers]);
 
     // ============================================================
-    // UNLINK TASK
-    // ============================================================
-    const handleUnlinkTask = useCallback(async (taskId: string, taskTitle: string) => {
-        if (!channelId) return;
-        if (!confirm(`Are you sure you want to unlink "${taskTitle}"?`)) return;
-
-        setUnlinkingTask(taskId);
-        try {
-            const response = await api.delete(`/channels/${channelId}/tasks/${taskId}`);
-
-            if (response.data.success) {
-                toast.success("Task unlinked successfully");
-                fetchLinkedTasks();
-            } else {
-                toast.error(response.data.message || "Failed to unlink task");
-            }
-        } catch (error: any) {
-            console.error("Error unlinking task:", error);
-            toast.error(error.response?.data?.message || "Failed to unlink task");
-        } finally {
-            setUnlinkingTask(null);
-        }
-    }, [channelId, fetchLinkedTasks]);
-
-    // ============================================================
-    // MAKE ADMIN FUNCTION
-    // ============================================================
-
-    const handleMakeAdmin = useCallback(async (userId: string, fullName: string, isAdmin: boolean) => {
-        if (!channelId) return;
-
-        const action = isAdmin ? "remove admin from" : "make admin";
-        if (!confirm(`Are you sure you want to ${action} "${fullName}"?`)) return;
-
-        setMakingAdmin(userId);
-        try {
-            const response = await api.patch(`/channels/${channelId}/members/${userId}/role`);
-
-            if (response.data.success) {
-                toast.success(response.data.message || `User ${action} successfully`);
-                await fetchChannelMembers();
-            } else {
-                toast.error(response.data.message || "Failed to update role");
-            }
-        } catch (error: any) {
-            console.error("Error making admin:", error);
-            toast.error(error.response?.data?.message || "Failed to update role");
-        } finally {
-            setMakingAdmin(null);
-        }
-    }, [channelId, fetchChannelMembers]);
-
-    // ============================================================
-    // LEAVE CHANNEL FUNCTION
-    // ============================================================
-    const handleLeaveChannel = useCallback(async () => {
-        if (!channelId) return;
-        
-        const channelName = channelInfo?.name || "this channel";
-        if (!confirm(`Are you sure you want to leave "${channelName}"?`)) return;
-
-        setLeavingChannel(true);
-        try {
-            const response = await api.post(`/channels/${channelId}/leave`);
-            
-            if (response.data.success) {
-                toast.success(`Left "${channelName}" successfully`);
-                // ✅ Close sidebar
-                onClose?.();
-                // ✅ Refresh channel list (this will remove the channel from the list)
-                onChannelUpdated?.();
-                // ✅ Trigger channel deletion callback to clear the chat
-                onChannelDeleted?.();
-                // ✅ Call the leave callback to redirect to default view
-                onLeaveChannel?.();
-            } else {
-                toast.error(response.data.message || "Failed to leave channel");
-            }
-        } catch (error: any) {
-            console.error("Error leaving channel:", error);
-            toast.error(error.response?.data?.message || "Failed to leave channel");
-        } finally {
-            setLeavingChannel(false);
-        }
-    }, [channelId, channelInfo, onClose, onChannelUpdated, onChannelDeleted, onLeaveChannel]);
-
-    // ============================================================
-    // REMOVE MEMBER FUNCTION (Admin only)
-    // ============================================================
-    const handleRemoveMember = useCallback(async (userId: string, fullName: string) => {
-        if (!channelId) return;
-        if (userId === user?._id) {
-            // If trying to remove self, use leave channel instead
-            handleLeaveChannel();
-            return;
-        }
-
-        if (!confirm(`Are you sure you want to remove "${fullName}" from this channel?`)) return;
-
-        try {
-            const response = await api.delete(`/channels/${channelId}/members/${userId}`);
-            if (response.data.success) {
-                toast.success(`"${fullName}" removed from channel`);
-                fetchChannelMembers();
-                fetchAvailableUsers();
-            }
-        } catch (error: any) {
-            console.error("Error removing member:", error);
-            toast.error(error.response?.data?.message || "Failed to remove user");
-        }
-    }, [channelId, user?._id, fetchChannelMembers, fetchAvailableUsers, handleLeaveChannel]);
-
-    // ============================================================
-    // IMAGE UPLOAD - Base64
-    // ============================================================
-
-    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            toast.error("Please select an image file");
-            return;
-        }
-
-        if (file.size > 5 * 1024 * 1024) {
-            toast.error("Image size should be less than 5MB");
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onload = () => {
-            setImagePreview(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-
-        handleUploadAvatar(file);
-    };
-
-    const handleUploadAvatar = async (file: File) => {
-        if (!channelId) return;
-
-        setUploadingImage(true);
-        try {
-            const reader = new FileReader();
-            const base64Data = await new Promise<string>((resolve, reject) => {
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-
-            const response = await api.put(`/channels/${channelId}`, {
-                avatar: base64Data,
-            });
-
-            if (response.data.success) {
-                toast.success("Channel avatar updated successfully");
-                setChannelInfo((prev: any) => ({ ...prev, avatar: base64Data }));
-                setImagePreview(base64Data);
-                onChannelUpdated?.();
-                fetchChannelDetails();
-            } else {
-                toast.error(response.data.message || "Failed to update avatar");
-            }
-        } catch (error: any) {
-            console.error("Error uploading avatar:", error);
-            toast.error(error.response?.data?.message || "Failed to update avatar");
-            setImagePreview(channelInfo?.avatar || null);
-        } finally {
-            setUploadingImage(false);
-            if (imageInputRef.current) {
-                imageInputRef.current.value = "";
-            }
-        }
-    };
-
-    const handleRemoveAvatar = async () => {
-        if (!channelId) return;
-
-        if (!confirm("Are you sure you want to remove the channel avatar?")) return;
-
-        setUploadingImage(true);
-        try {
-            const response = await api.put(`/channels/${channelId}`, {
-                avatar: null,
-            });
-
-            if (response.data.success) {
-                toast.success("Channel avatar removed");
-                setChannelInfo((prev: any) => ({ ...prev, avatar: null }));
-                setImagePreview(null);
-                onChannelUpdated?.();
-                fetchChannelDetails();
-            } else {
-                toast.error(response.data.message || "Failed to remove avatar");
-            }
-        } catch (error: any) {
-            console.error("Error removing avatar:", error);
-            toast.error(error.response?.data?.message || "Failed to remove avatar");
-        } finally {
-            setUploadingImage(false);
-        }
-    };
-
-    // ============================================================
-    // EDIT CHANNEL
-    // ============================================================
-
-    const handleEditChannel = async () => {
-        if (!channelId || !editName.trim()) {
-            toast.error("Channel name is required");
-            return;
-        }
-
-        setEditingChannel(true);
-        try {
-            const response = await api.put(`/channels/${channelId}`, {
-                name: editName.trim(),
-                description: editDescription.trim(),
-            });
-
-            if (response.data.success) {
-                toast.success("Channel updated successfully");
-                setIsEditing(false);
-                setChannelInfo(response.data.data);
-                onChannelUpdated?.();
-                fetchChannelDetails();
-
-                if (response.data.data) {
-                    setEditName(response.data.data.name);
-                    setEditDescription(response.data.data.description || "");
-                }
-            } else {
-                toast.error(response.data.message || "Failed to update channel");
-            }
-        } catch (error: any) {
-            console.error("Error updating channel:", error);
-            toast.error(error.response?.data?.message || "Failed to update channel");
-        } finally {
-            setEditingChannel(false);
-        }
-    };
-
-    // ============================================================
-    // DELETE CHANNEL
-    // ============================================================
-
-    const handleDeleteChannel = async () => {
-        if (!channelId) return;
-
-        setDeletingChannel(true);
-        try {
-            const response = await api.delete(`/channels/${channelId}`);
-            if (response.data.success) {
-                toast.success("Channel deleted successfully");
-                setShowDeleteConfirm(false);
-                onChannelDeleted?.();
-                onChannelUpdated?.();
-                onClose?.();
-            } else {
-                toast.error(response.data.message || "Failed to delete channel");
-            }
-        } catch (error: any) {
-            console.error("Error deleting channel:", error);
-            toast.error(error.response?.data?.message || "Failed to delete channel");
-        } finally {
-            setDeletingChannel(false);
-        }
-    };
-
-    // ============================================================
-    // ADD MEMBER
-    // ============================================================
-
-    const handleAddMember = async (userId: string) => {
-        if (!channelId) return;
-
-        try {
-            setAddingUser(true);
-            const response = await api.post(`/channels/${channelId}/invite`, {
-                userIds: [userId],
-            });
-
-            if (response.data.success) {
-                toast.success("User added to channel");
-                setShowAddMember(false);
-                fetchChannelMembers();
-                fetchAvailableUsers();
-            }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to add user");
-        } finally {
-            setAddingUser(false);
-        }
-    };
-
-    // ============================================================
-    // PINNED FILE MANAGEMENT
-    // ============================================================
-
-    const handleRemovePinnedFile = async (fileId: string) => {
-        if (!channelId) return;
-
-        try {
-            const removedItem = pinnedItems.find(item => item._id === fileId);
-
-            const response = await api.delete(`/channels/${channelId}/pinned/${fileId}`);
-
-            if (response.data.success) {
-                toast.success("Pinned item removed");
-                setPinnedItems(prev => prev.filter(item => item._id !== fileId));
-
-                if (removedItem?.type === 'message' && removedItem.messageId) {
-                    console.log(`📌 Removing pinned message: ${removedItem.messageId}`);
-                }
-
-                if (onPinnedUpdated) {
-                    onPinnedUpdated();
-                }
-            } else {
-                toast.error(response.data.message || "Failed to remove pinned item");
-            }
-        } catch (error: any) {
-            console.error("Error removing pinned file:", error);
-            toast.error(error.response?.data?.message || "Failed to remove pinned item");
-        }
-    };
-
-    // ============================================================
-    // SOCKET EVENT LISTENERS
+    // SOCKET LISTENERS
     // ============================================================
 
     useEffect(() => {
-        if (!socket) return;
+        if (!socket || !channelId) return;
 
         const handleMemberAdded = (data: any) => {
             if (data.channelId === channelId) {
-                setMembers(prev => [...prev, ...data.newMembers.map((m: any) => m.userId)]);
-                setOnlineCount(prev => prev + data.newMembers.length);
-                toast.success("New member joined");
+                fetchChannelMembers();
             }
         };
 
         const handleMemberRemoved = (data: any) => {
             if (data.channelId === channelId) {
-                setMembers(prev => prev.filter(m => m._id !== data.userId));
-                setOnlineCount(prev => Math.max(0, prev - 1));
+                setMembers((prev) => prev.filter((m) => m._id !== data.userId));
+                setOnlineCount((prev) => Math.max(0, prev - 1));
             }
         };
 
         const handleUserOnline = (data: any) => {
-            setOnlineMembers(prev => [...prev, data.userId]);
-            setMembers(prev => prev.map(m =>
-                m._id === data.userId ? { ...m, onlineStatus: "online" } : m
-            ));
+            setOnlineMembers((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
+            setMembers((prev) =>
+                prev.map((m) => (m._id === data.userId ? { ...m, onlineStatus: "online" } : m))
+            );
         };
 
         const handleUserOffline = (data: any) => {
-            setOnlineMembers(prev => prev.filter(id => id !== data.userId));
-            setMembers(prev => prev.map(m =>
-                m._id === data.userId ? { ...m, onlineStatus: "offline" } : m
-            ));
+            setOnlineMembers((prev) => prev.filter((id) => id !== data.userId));
+            setMembers((prev) =>
+                prev.map((m) => (m._id === data.userId ? { ...m, onlineStatus: "offline" } : m))
+            );
         };
 
         const handleMemberUpdated = (data: any) => {
             if (data.channelId === channelId) {
-                setMembers(prev => prev.map(m =>
-                    m._id === data.userId ? { ...m, role: data.role } : m
-                ));
-                if (channelInfo) {
-                    setChannelInfo((prev: any) => ({
-                        ...prev,
-                        members: prev.members?.map((m: any) =>
-                            m.userId._id === data.userId ? { ...m, role: data.role } : m
-                        )
-                    }));
-                }
+                setMembers((prev) =>
+                    prev.map((m) => (m._id === data.userId ? { ...m, role: data.role } : m))
+                );
             }
         };
 
@@ -826,7 +514,6 @@ export default function ChatDetailsSidebar({
 
         const handleTaskLinked = (data: any) => {
             if (data.channelId === channelId) {
-                console.log("📌 [Sidebar] Task linked, refreshing tasks");
                 fetchLinkedTasks();
             }
         };
@@ -848,78 +535,289 @@ export default function ChatDetailsSidebar({
             socket.off("pinned:updated", handlePinnedUpdated);
             socket.off("task:linked", handleTaskLinked);
         };
-    }, [socket, channelId, fetchPinnedItems, fetchLinkedTasks]);
+    }, [socket, channelId, fetchChannelMembers, fetchPinnedItems, fetchLinkedTasks]);
 
     // ============================================================
-    // REFRESH DATA ON CHANNEL CHANGE
+    // CHANNEL EDIT & AVATAR ACTIONS
     // ============================================================
 
-    useEffect(() => {
-        if (channelId) {
-            fetchChannelDetails();
-            fetchChannelMembers();
-            fetchPinnedItems();
-            fetchLinkedTasks();
+    const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            toast.error("Please upload a valid image file");
+            return;
         }
-    }, [channelId, fetchChannelDetails, fetchChannelMembers, fetchPinnedItems, fetchLinkedTasks]);
 
-    // ============================================================
-    // INITIAL FETCH FOR USERS
-    // ============================================================
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error("Image file size must be less than 5MB");
+            return;
+        }
 
-    useEffect(() => {
-        fetchAvailableUsers();
-    }, [fetchAvailableUsers]);
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const base64Data = reader.result as string;
+            setImagePreview(base64Data);
 
-    // ============================================================
-    // UTILITY FUNCTIONS
-    // ============================================================
-
-    const isUserOnline = (userId: string) => {
-        return onlineMembers.includes(userId) ||
-            members.find(m => m._id === userId)?.onlineStatus === "online";
+            if (!channelId) return;
+            setUploadingImage(true);
+            try {
+                const res = await api.put(`/channels/${channelId}`, { avatar: base64Data });
+                if (res.data?.success) {
+                    setChannelInfo((prev) => (prev ? { ...prev, avatar: base64Data } : null));
+                    onChannelUpdated?.();
+                }
+            } catch (error: any) {
+                toast.error(error.response?.data?.message || "Failed to update channel avatar");
+                setImagePreview(channelInfo?.avatar || null);
+            } finally {
+                setUploadingImage(false);
+                if (imageInputRef.current) imageInputRef.current.value = "";
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
-    const isAdmin = useCallback(() => {
-        if (!channelInfo || !user) return false;
-        if (channelInfo.type === "direct") return false;
-        return channelInfo.createdBy?._id === user._id ||
-            channelInfo.members?.some((m: any) =>
-                m.userId?._id === user._id && m.role === "admin"
-            );
-    }, [channelInfo, user]);
+    const handleRemoveAvatar = async () => {
+        if (!channelId || !confirm("Remove the channel avatar?")) return;
+        setUploadingImage(true);
+        try {
+            const res = await api.put(`/channels/${channelId}`, { avatar: null });
+            if (res.data?.success) {
+                setImagePreview(null);
+                setChannelInfo((prev) => (prev ? { ...prev, avatar: null } : null));
+                onChannelUpdated?.();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to remove avatar");
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+
+    const handleEditChannel = async () => {
+        if (!channelId || !editName.trim()) {
+            toast.error("Channel name cannot be empty");
+            return;
+        }
+
+        setEditingChannel(true);
+        try {
+            const res = await api.put(`/channels/${channelId}`, {
+                name: editName.trim(),
+                description: editDescription.trim(),
+            });
+            if (res.data?.success) {
+                setIsEditing(false);
+                setChannelInfo(res.data.data);
+                onChannelUpdated?.();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to save channel details");
+        } finally {
+            setEditingChannel(false);
+        }
+    };
+
+    const handleDeleteChannel = async () => {
+        if (!channelId) return;
+        setDeletingChannel(true);
+        try {
+            const res = await api.delete(`/channels/${channelId}`);
+            if (res.data?.success) {
+                setShowDeleteConfirm(false);
+                onChannelDeleted?.();
+                onChannelUpdated?.();
+                onClose?.();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to delete channel");
+        } finally {
+            setDeletingChannel(false);
+        }
+    };
+
+    const handleLeaveChannel = async () => {
+        if (!channelId) return;
+        const channelTitle = channelInfo?.name || "this channel";
+        if (!confirm(`Are you sure you want to leave #${channelTitle}?`)) return;
+
+        setLeavingChannel(true);
+        try {
+            const res = await api.post(`/channels/${channelId}/leave`);
+            if (res.data?.success) {
+                onClose?.();
+                onChannelUpdated?.();
+                onChannelDeleted?.();
+                onLeaveChannel?.();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to leave channel");
+        } finally {
+            setLeavingChannel(false);
+        }
+    };
 
     // ============================================================
-    // NO CHANNEL SELECTED
+    // MEMBERS ACTIONS
     // ============================================================
+
+    const handleAddMember = async (userId: string) => {
+        if (!channelId) return;
+        setAddingUser(true);
+        try {
+            const res = await api.post(`/channels/${channelId}/invite`, { userIds: [userId] });
+            if (res.data?.success) {
+                setShowAddMember(false);
+                fetchChannelMembers();
+                fetchAvailableUsers();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to add member");
+        } finally {
+            setAddingUser(false);
+        }
+    };
+
+    const handleMakeAdmin = async (userId: string, fullName: string, isCurrentlyAdmin: boolean) => {
+        if (!channelId) return;
+        const actionName = isCurrentlyAdmin ? "revoke admin status from" : "grant admin role to";
+        if (!confirm(`Are you sure you want to ${actionName} "${fullName}"?`)) return;
+
+        setMakingAdmin(userId);
+        try {
+            const res = await api.patch(`/channels/${channelId}/members/${userId}/role`);
+            if (res.data?.success) {
+                fetchChannelMembers();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to update role");
+        } finally {
+            setMakingAdmin(null);
+        }
+    };
+
+    const handleRemoveMember = async (userId: string, fullName: string) => {
+        if (!channelId) return;
+        if (userId === user?._id) {
+            handleLeaveChannel();
+            return;
+        }
+
+        if (!confirm(`Remove "${fullName}" from this channel?`)) return;
+        try {
+            const res = await api.delete(`/channels/${channelId}/members/${userId}`);
+            if (res.data?.success) {
+                fetchChannelMembers();
+                fetchAvailableUsers();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to remove member");
+        }
+    };
+
+    // ============================================================
+    // TASK ACTIONS (ISOLATED LOADING PER TASK & NORMALIZED ENUMS)
+    // ============================================================
+
+    const handleLinkTask = async (taskId: string, task: any) => {
+        if (!channelId) return;
+        setLinkingTaskId(taskId); // Only disable and show loader on the clicked item
+
+        try {
+            const payload = {
+                taskId,
+                title: task.title,
+                status: sanitizeStatus(task.status), // Maps any variation to ["pending", "in-progress", "completed", "blocked", "overdue"]
+                priority: sanitizePriority(task.priority), // Maps "normal" -> "medium" to satisfy Mongoose enum
+                progress: typeof task.progress === "number" ? Math.min(Math.max(task.progress, 0), 100) : 0,
+                assignedTo: task.assignedTo
+                    ? {
+                        _id: normalizeId(task.assignedTo),
+                        fullName: task.assignedTo.fullName || "Unknown",
+                    }
+                    : null,
+            };
+
+            const res = await api.post(`/channels/${channelId}/tasks`, payload);
+
+            if (res.data?.success) {
+                toast.success("Task linked successfully");
+                setShowLinkTask(false);
+                setSearchTasks("");
+                await fetchLinkedTasks();
+            } else {
+                toast.error(res.data?.message || "Failed to link task");
+            }
+        } catch (error: any) {
+            console.error("Link task error:", error.response?.data || error);
+            toast.error(error.response?.data?.message || error.response?.data?.error || "Failed to link task");
+        } finally {
+            setLinkingTaskId(null);
+        }
+    };
+
+    const handleUnlinkTask = async (taskId: string, taskTitle: string) => {
+        if (!channelId || !confirm(`Unlink "${taskTitle}" from channel?`)) return;
+        setUnlinkingTaskId(taskId);
+        try {
+            const res = await api.delete(`/channels/${channelId}/tasks/${taskId}`);
+            if (res.data?.success) {
+                toast.success("Task unlinked");
+                fetchLinkedTasks();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to unlink task");
+        } finally {
+            setUnlinkingTaskId(null);
+        }
+    };
+
+    const handleRemovePinnedItem = async (fileId: string) => {
+        if (!channelId) return;
+        try {
+            const res = await api.delete(`/channels/${channelId}/pinned/${fileId}`);
+            if (res.data?.success) {
+                setPinnedItems((prev) => prev.filter((item) => item._id !== fileId));
+                onPinnedUpdated?.();
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || "Failed to remove pinned item");
+        }
+    };
+
+    const isUserOnline = (userId: string) => {
+        return onlineMembers.includes(userId) || members.find((m) => m._id === userId)?.onlineStatus === "online";
+    };
 
     if (!channelId) {
         return (
-            <aside className="w-full h-full bg-white flex flex-col items-center justify-center border-l border-slate-200">
-                <div className="text-center">
-                    <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-sm text-slate-400">Select a channel to see details</p>
+            <aside className="w-full h-full bg-slate-50 flex flex-col items-center justify-center border-l border-slate-200/80 p-6 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs mb-3">
+                    <Users className="w-6 h-6 text-slate-400" />
                 </div>
+                <h4 className="text-sm font-semibold text-slate-700">No channel selected</h4>
+                <p className="text-xs text-slate-400 mt-1">Select a channel to view member details and resources</p>
             </aside>
         );
     }
 
-    // ============================================================
-    // RENDER
-    // ============================================================
-
     return (
         <aside className="w-full h-full bg-white flex flex-col overflow-hidden border-l border-slate-200 select-none">
-            {/* Header */}
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+            {/* Top Header */}
+            <div className="h-14 px-4 border-b border-slate-100 flex items-center justify-between bg-white/95 backdrop-blur-sm shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
-                    <h3 className="text-sm font-bold text-slate-800 truncate">Details</h3>
-                    <span className="text-xs text-slate-400 shrink-0">({members.length})</span>
+                    <h3 className="text-sm font-bold text-slate-800 tracking-tight">Details</h3>
+                    <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {members.length}
+                    </span>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                    {/* ✅ Edit Button - Only for Admins (not direct messages) */}
-                    {!isDirectMessage() && isAdmin() && (
+
+                <div className="flex items-center gap-0.5">
+                    {!isDirectMessage && isAdmin && (
                         <button
+                            type="button"
                             onClick={() => {
                                 if (isEditing) {
                                     handleEditChannel();
@@ -930,70 +828,68 @@ export default function ChatDetailsSidebar({
                                 }
                             }}
                             disabled={editingChannel}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg transition text-slate-400 hover:text-slate-600 disabled:opacity-50"
-                            title={isEditing ? "Save changes" : "Edit channel"}
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition disabled:opacity-50"
+                            title={isEditing ? "Save details" : "Edit channel"}
                         >
                             {editingChannel ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                             ) : isEditing ? (
                                 <Save className="w-4 h-4 text-emerald-600" />
                             ) : (
-                                <Edit className="w-4 h-4" />
+                                <Edit2 className="w-4 h-4" />
                             )}
                         </button>
                     )}
 
-                    {/* ✅ Delete Button - Only for Admins (not direct messages) */}
-                    {!isDirectMessage() && isAdmin() && (
+                    {!isDirectMessage && isAdmin && (
                         <button
+                            type="button"
                             onClick={() => setShowDeleteConfirm(true)}
-                            disabled={deletingChannel}
-                            className="p-1.5 hover:bg-red-50 rounded-lg transition text-slate-400 hover:text-red-600 disabled:opacity-50"
+                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition"
                             title="Delete channel"
                         >
-                            {deletingChannel ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Trash2 className="w-4 h-4" />
-                            )}
+                            <Trash2 className="w-4 h-4" />
                         </button>
                     )}
 
-                    {/* Add Member Button - Only for Admins (not direct messages) */}
-                    {!isDirectMessage() && isAdmin() && (
+                    {!isDirectMessage && isAdmin && (
                         <button
+                            type="button"
                             onClick={() => {
                                 setShowAddMember(!showAddMember);
                                 if (!showAddMember) fetchAvailableUsers();
                             }}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg transition text-slate-400 hover:text-slate-600"
+                            className={`p-1.5 rounded-lg transition ${showAddMember
+                                    ? "bg-indigo-50 text-indigo-600"
+                                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                                }`}
                             title="Add member"
                         >
                             <UserPlus className="w-4 h-4" />
                         </button>
                     )}
 
-                    {/* ✅ Leave Channel Button - Show for ALL non-direct channels (both admin and normal users) */}
-                    {!isDirectMessage() && (
+                    {!isDirectMessage && (
                         <button
+                            type="button"
                             onClick={handleLeaveChannel}
                             disabled={leavingChannel}
-                            className="p-1.5 hover:bg-red-50 rounded-lg transition text-slate-400 hover:text-red-600 disabled:opacity-50"
+                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition disabled:opacity-50"
                             title="Leave channel"
                         >
                             {leavingChannel ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <Loader2 className="w-4 h-4 animate-spin text-rose-600" />
                             ) : (
                                 <LogOut className="w-4 h-4" />
                             )}
                         </button>
                     )}
 
-                    {/* Close Button */}
                     {onClose && (
                         <button
+                            type="button"
                             onClick={onClose}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg transition text-slate-400 hover:text-slate-600 lg:hidden"
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition ml-1"
                         >
                             <X className="w-4 h-4" />
                         </button>
@@ -1001,295 +897,291 @@ export default function ChatDetailsSidebar({
                 </div>
             </div>
 
-            {/* Delete Confirmation Modal - Only for Admins */}
-            {!isDirectMessage() && isAdmin() && showDeleteConfirm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl max-w-md w-full mx-4 p-6 shadow-2xl">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
-                                <Trash2 className="w-5 h-5 text-red-600" />
+            {/* Delete Confirmation Modal */}
+            {!isDirectMessage && isAdmin && showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+                    <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                                <Trash2 className="w-5 h-5" />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold text-slate-900">Delete Channel</h3>
-                                <p className="text-sm text-slate-500">This action cannot be undone</p>
+                                <h4 className="text-sm font-bold text-slate-900">Delete Channel</h4>
+                                <p className="text-xs text-slate-500">This process cannot be reversed</p>
                             </div>
                         </div>
-                        <p className="text-sm text-slate-600 mb-6">
-                            Are you sure you want to delete <strong className="text-slate-800">#{channelInfo?.name}</strong>?
-                            All messages and pinned files will be permanently removed.
+                        <p className="text-xs text-slate-600 leading-relaxed mb-5">
+                            Are you sure you want to permanently delete <strong>#{channelInfo?.name}</strong>? All conversations,
+                            attachments, and tasks linked here will be discarded.
                         </p>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                             <button
+                                type="button"
                                 onClick={() => setShowDeleteConfirm(false)}
-                                className="flex-1 px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                             >
                                 Cancel
                             </button>
                             <button
+                                type="button"
                                 onClick={handleDeleteChannel}
                                 disabled={deletingChannel}
-                                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="flex-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50 flex items-center justify-center gap-1.5"
                             >
-                                {deletingChannel ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Deleting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Trash2 className="w-4 h-4" />
-                                        Delete Channel
-                                    </>
-                                )}
+                                {deletingChannel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Delete"}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Content */}
+            {/* Main Scrollable Canvas */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-                {/* Channel Info - with Image Upload */}
+                {/* Channel Card */}
                 {channelInfo && (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-                        {/* Avatar with Upload */}
-                        <div className="relative shrink-0 group">
-                            {imagePreview || channelInfo.avatar ? (
-                                <img
-                                    src={imagePreview || channelInfo.avatar}
-                                    alt={channelInfo.name}
-                                    className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm"
-                                />
-                            ) : (
-                                <div className="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center border-2 border-white shadow-sm">
-                                    <Hash className="w-6 h-6 text-indigo-600" />
-                                </div>
-                            )}
-
-                            {/* Upload Overlay */}
-                            <div className="absolute inset-0 bg-black/50 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200 cursor-pointer">
-                                <input
-                                    ref={imageInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleImageSelect}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                    disabled={uploadingImage}
-                                />
-                                {uploadingImage ? (
-                                    <Loader2 className="w-5 h-5 text-white animate-spin" />
+                    <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-2xl">
+                        <div className="flex items-center gap-3">
+                            <div className="relative shrink-0 group/avatar">
+                                {imagePreview || channelInfo.avatar ? (
+                                    <img
+                                        src={imagePreview || channelInfo.avatar!}
+                                        alt={channelInfo.name}
+                                        className="w-12 h-12 rounded-2xl object-cover border border-slate-200 shadow-2xs"
+                                    />
                                 ) : (
-                                    <Camera className="w-5 h-5 text-white" />
+                                    <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-2xs">
+                                        <Hash className="w-6 h-6" />
+                                    </div>
+                                )}
+
+                                {!isDirectMessage && isAdmin && (
+                                    <label className="absolute inset-0 bg-slate-900/60 rounded-2xl flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer">
+                                        <input
+                                            ref={imageInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageSelect}
+                                            disabled={uploadingImage}
+                                            className="hidden"
+                                        />
+                                        {uploadingImage ? (
+                                            <Loader2 className="w-4 h-4 text-white animate-spin" />
+                                        ) : (
+                                            <Camera className="w-4 h-4 text-white" />
+                                        )}
+                                    </label>
+                                )}
+
+                                {(imagePreview || channelInfo.avatar) && !isDirectMessage && isAdmin && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRemoveAvatar}
+                                        disabled={uploadingImage}
+                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-xs transition"
+                                        title="Remove avatar"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
                                 )}
                             </div>
 
-                            {/* Remove Avatar Button */}
-                            {(imagePreview || channelInfo.avatar) && (
-                                <button
-                                    onClick={handleRemoveAvatar}
-                                    disabled={uploadingImage}
-                                    className="absolute -top-1 -right-1 p-0.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition disabled:opacity-50"
-                                    title="Remove avatar"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            )}
-                        </div>
-
-                        {/* Channel Info */}
-                        <div className="min-w-0 flex-1">
-                            {isEditing && !isDirectMessage() && isAdmin() ? (
-                                <div className="space-y-2">
-                                    <input
-                                        type="text"
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        className="w-full px-2 py-1 text-black border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                                        placeholder="Channel name"
-                                        autoFocus
-                                    />
-                                    <input
-                                        type="text"
-                                        value={editDescription}
-                                        onChange={(e) => setEditDescription(e.target.value)}
-                                        className="w-full px-2 py-1 text-black border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                                        placeholder="Description"
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] text-slate-400">Click Save to confirm changes</span>
+                            <div className="min-w-0 flex-1">
+                                {isEditing && !isDirectMessage && isAdmin ? (
+                                    <div className="space-y-1.5">
+                                        <input
+                                            type="text"
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            placeholder="Channel Name"
+                                            className="w-full text-black px-2.5 py-1 text-xs font-normal bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={editDescription}
+                                            onChange={(e) => setEditDescription(e.target.value)}
+                                            placeholder="Add description..."
+                                            className="w-full px-2.5 text-black py-1 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:border-indigo-500"
+                                        />
                                     </div>
-                                </div>
-                            ) : (
-                                <>
-                                    <p className="text-sm font-medium text-slate-800 truncate">
-                                        {isDirectMessage() ? (
-                                            <span className="flex items-center gap-2">
-                                                <span>{members.find(m => m._id !== user?._id)?.fullName || "Direct Message"}</span>
-                                                <span className="text-[10px] text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded-full">Direct</span>
-                                            </span>
-                                        ) : (
-                                            `# ${channelInfo.name}`
+                                ) : (
+                                    <>
+                                        <h4 className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">
+                                            {isDirectMessage ? (
+                                                members.find((m) => m._id !== user?._id)?.fullName || "Direct Message"
+                                            ) : (
+                                                <span>{channelInfo.name}</span>
+                                            )}
+                                        </h4>
+                                        {channelInfo.description && !isDirectMessage && (
+                                            <p className="text-xs text-slate-500 line-clamp-2 mt-0.5 leading-relaxed">
+                                                {channelInfo.description}
+                                            </p>
                                         )}
-                                    </p>
-                                    {channelInfo.description && !isDirectMessage() && (
-                                        <p className="text-xs text-slate-400 truncate">{channelInfo.description}</p>
-                                    )}
-                                    <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-                                        {isDirectMessage() ? (
-                                            <span>Direct message with {members.find(m => m._id !== user?._id)?.fullName || "Unknown"}</span>
-                                        ) : (
-                                            `Created by ${channelInfo.createdBy?.fullName || "Unknown"}`
-                                        )}
-                                    </p>
-                                </>
-                            )}
+                                        <p className="text-[10px] text-slate-400 mt-1 truncate">
+                                            {isDirectMessage
+                                                ? "Private 1-on-1 discussion"
+                                                : `Created by ${channelInfo.createdBy?.fullName || "System"}`}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Add Member Section - Admin only */}
-                {!isDirectMessage() && isAdmin() && showAddMember && (
-                    <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                {/* Add Member Inline Tray */}
+                {!isDirectMessage && isAdmin && showAddMember && (
+                    <div className="p-3 bg-slate-50 border border-indigo-100 rounded-2xl space-y-2">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search users..."
+                                placeholder="Search colleagues to invite..."
                                 value={searchUsers}
                                 onChange={(e) => setSearchUsers(e.target.value)}
-                                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                className="w-full pl-8 pr-3 text-black py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                             />
                         </div>
-                        <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
+                        <div className="max-h-36 overflow-y-auto space-y-1">
                             {availableUsers
-                                .filter(u => u.fullName?.toLowerCase().includes(searchUsers.toLowerCase()))
-                                .map((user) => (
+                                .filter((u) => u.fullName?.toLowerCase().includes(searchUsers.toLowerCase()))
+                                .map((u) => (
                                     <div
-                                        key={user._id}
-                                        className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer"
+                                        key={u._id}
+                                        className="flex items-center justify-between p-1.5 bg-white border border-slate-100 rounded-xl hover:border-slate-200 transition"
                                     >
                                         <div className="flex items-center gap-2 min-w-0">
-                                            {user.avatar ? (
-                                                <img
-                                                    src={user.avatar}
-                                                    alt={user.fullName}
-                                                    className="w-7 h-7 rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${getAvatarColor(user._id)}`}>
-                                                    {getInitials(user.fullName)}
-                                                </div>
-                                            )}
-                                            <span className="text-sm text-slate-700 truncate">{user.fullName}</span>
+                                            <div
+                                                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 border ${getAvatarColor(
+                                                    u._id
+                                                )}`}
+                                            >
+                                                {getInitials(u.fullName)}
+                                            </div>
+                                            <span className="text-xs font-medium text-slate-700 truncate">{u.fullName}</span>
                                         </div>
                                         <button
-                                            onClick={() => handleAddMember(user._id)}
+                                            type="button"
+                                            onClick={() => handleAddMember(u._id)}
                                             disabled={addingUser}
-                                            className="px-3 py-1 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 shrink-0"
+                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-medium transition disabled:opacity-40"
                                         >
-                                            {addingUser ? "Adding..." : "Add"}
+                                            Add
                                         </button>
                                     </div>
                                 ))}
                             {availableUsers.length === 0 && (
-                                <p className="text-sm text-slate-400 text-center py-2">No users available</p>
+                                <p className="text-center py-2 text-xs text-slate-400">All available members are in this channel</p>
                             )}
                         </div>
                     </div>
                 )}
 
-                {/* MEMBERS Section */}
-                <section>
-                    <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                            MEMBERS · {onlineCount} ONLINE
-                        </h4>
+                {/* SECTION: Channel Members */}
+                <section className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            Members • {onlineCount} Online
+                        </h5>
+                        <button
+                            type="button"
+                            onClick={fetchChannelMembers}
+                            disabled={loadingMembers}
+                            className="text-slate-400 hover:text-slate-600 transition"
+                        >
+                            <RefreshCw className={`w-3 h-3 ${loadingMembers ? "animate-spin" : ""}`} />
+                        </button>
                     </div>
 
-                    {loading ? (
-                        <div className="flex justify-center py-4">
-                            <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                    {loadingMembers ? (
+                        <div className="py-6 flex justify-center">
+                            <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
                         </div>
                     ) : (
-                        <div className="space-y-1.5">
+                        <div className="space-y-1">
                             {members.map((member) => {
                                 const isOnline = isUserOnline(member._id);
-                                const isCreator = channelInfo?.createdBy?._id === member._id;
-                                const isAdminUser = member.role === "admin" || isCreator;
-                                const isCurrentUser = member._id === user?._id;
-                                const canManage = isAdmin() && !isCurrentUser && !isCreator;
+                                const isCreator = normalizeId(channelInfo?.createdBy?._id) === normalizeId(member._id);
+                                const isMemberAdmin = member.role === "admin" || isCreator;
+                                const isSelf = normalizeId(member._id) === normalizeId(user?._id);
+                                const canManage = isAdmin && !isSelf && !isCreator;
 
                                 return (
                                     <div
                                         key={member._id}
-                                        className="flex items-center justify-between group py-1.5 px-2 hover:bg-slate-50 rounded-lg transition"
+                                        className="group flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 transition"
                                     >
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            {member.avatar ? (
-                                                <img
-                                                    src={member.avatar}
-                                                    alt={member.fullName}
-                                                    className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-200"
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                            <div className="relative shrink-0">
+                                                {member.avatar ? (
+                                                    <img
+                                                        src={member.avatar}
+                                                        alt={member.fullName}
+                                                        className="w-7 h-7 rounded-full object-cover border border-slate-200"
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border ${getAvatarColor(
+                                                            member._id
+                                                        )}`}
+                                                    >
+                                                        {getInitials(member.fullName)}
+                                                    </div>
+                                                )}
+                                                <span
+                                                    className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full ring-2 ring-white ${isOnline ? "bg-emerald-500" : "bg-slate-300"
+                                                        }`}
                                                 />
-                                            ) : (
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${getAvatarColor(member._id)} shrink-0`}>
-                                                    {getInitials(member.fullName)}
-                                                </div>
-                                            )}
+                                            </div>
+
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium text-slate-800 truncate flex items-center gap-1.5 flex-wrap">
-                                                    {member.fullName}
-                                                    {member._id === user?._id && " (You)"}
-                                                    {!isDirectMessage() && isCreator && (
-                                                        <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                                                            <Crown className="w-3 h-3" /> Creator
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className="text-xs font-medium text-slate-700 truncate">
+                                                        {member.fullName}
+                                                        {isSelf && " (You)"}
+                                                    </span>
+
+                                                    {isCreator && (
+                                                        <span className="text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                                                            <Crown className="w-2.5 h-2.5 text-amber-500" /> Host
                                                         </span>
                                                     )}
-                                                    {!isDirectMessage() && isAdminUser && !isCreator && (
-                                                        <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-0.5 bg-indigo-50 px-1.5 py-0.5 rounded-full">
-                                                            <Shield className="w-3 h-3" /> Admin
+
+                                                    {!isCreator && isMemberAdmin && (
+                                                        <span className="text-[9px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-1.5 py-0.2 rounded-full inline-flex items-center gap-0.5">
+                                                            <Shield className="w-2.5 h-2.5 text-indigo-500" /> Admin
                                                         </span>
                                                     )}
-                                                </p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <div
-                                                className={`w-2 h-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-slate-300"}`}
-                                            />
 
-                                            {/* Make/Remove Admin Button - Admin only */}
-                                            {!isDirectMessage() && canManage && (
+                                        {!isDirectMessage && canManage && (
+                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button
-                                                    onClick={() => handleMakeAdmin(member._id, member.fullName, isAdminUser)}
+                                                    type="button"
+                                                    onClick={() => handleMakeAdmin(member._id, member.fullName, isMemberAdmin)}
                                                     disabled={makingAdmin === member._id}
-                                                    className={`p-1 rounded-lg transition-all duration-200 ${isAdminUser
-                                                        ? 'text-amber-400 hover:text-amber-600 hover:bg-amber-50'
-                                                        : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
-                                                        } opacity-0 group-hover:opacity-100`}
-                                                    title={isAdminUser ? "Remove admin" : "Make admin"}
+                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"
+                                                    title={isMemberAdmin ? "Demote from admin" : "Promote to admin"}
                                                 >
                                                     {makingAdmin === member._id ? (
-                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                    ) : isAdminUser ? (
-                                                        <UserMinus className="w-3.5 h-3.5" />
+                                                        <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
                                                     ) : (
                                                         <UserCog className="w-3.5 h-3.5" />
                                                     )}
                                                 </button>
-                                            )}
 
-                                            {/* Remove Member Button - Admin only (NOT for self) */}
-                                            {!isDirectMessage() && canManage && !isAdminUser && (
                                                 <button
+                                                    type="button"
                                                     onClick={() => handleRemoveMember(member._id, member.fullName)}
-                                                    className="p-1 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-red-500"
-                                                    title={`Remove ${member.fullName}`}
+                                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                    title="Remove user"
                                                 >
                                                     <UserMinus className="w-3.5 h-3.5" />
                                                 </button>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -1297,101 +1189,72 @@ export default function ChatDetailsSidebar({
                     )}
                 </section>
 
-                {/* PINNED FILES Section */}
-                <section>
-                    <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                            PINNED FILES
-                        </h4>
+                {/* SECTION: Pinned Items */}
+                <section className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            Pinned Items ({pinnedItems.length})
+                        </h5>
                         <button
+                            type="button"
                             onClick={fetchPinnedItems}
                             disabled={loadingPinned}
-                            className="text-slate-400 hover:text-indigo-600 transition p-1 rounded hover:bg-slate-100 disabled:opacity-50"
-                            title="Refresh pinned files"
+                            className="text-slate-400 hover:text-slate-600 transition"
                         >
-                            {loadingPinned ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                                <RefreshCw className="w-3.5 h-3.5" />
-                            )}
+                            <RefreshCw className={`w-3 h-3 ${loadingPinned ? "animate-spin" : ""}`} />
                         </button>
                     </div>
 
                     {loadingPinned ? (
-                        <div className="flex justify-center py-4">
-                            <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                        <div className="py-6 flex justify-center">
+                            <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
                         </div>
                     ) : pinnedItems.length === 0 ? (
-                        <div className="text-center py-6 bg-slate-50 rounded-lg">
-                            <Pin className="w-6 h-6 mx-auto mb-2 text-slate-300" />
-                            <p className="text-sm text-slate-400">No pinned files</p>
-                            <p className="text-[10px] text-slate-400">Pin important files for easy access</p>
+                        <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
+                            <Pin className="w-5 h-5 text-slate-300 mx-auto mb-1" />
+                            <p className="text-xs text-slate-500">No pinned files or messages</p>
+                            <p className="text-[10px] text-slate-400">Hover over messages or files to pin them</p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-1.5">
                             {pinnedItems.map((item) => (
                                 <div
                                     key={item._id}
-                                    className={`flex items-start gap-3 group p-2 rounded-lg transition ${item.type === 'message'
-                                        ? 'cursor-pointer hover:bg-indigo-50/50 border border-transparent hover:border-indigo-200'
-                                        : 'hover:bg-slate-50'
-                                        }`}
                                     onClick={() => {
-                                        if (item.type === 'message' && item.messageId && onPinnedMessageClick) {
-                                            onPinnedMessageClick(item.messageId);
-                                            if (window.innerWidth < 1024 && onClose) {
-                                                onClose();
-                                            }
+                                        if (item.type === "message" && item.messageId) {
+                                            onPinnedMessageClick?.(item.messageId);
+                                            if (window.innerWidth < 1024) onClose?.();
                                         }
                                     }}
+                                    className={`group flex items-center justify-between p-2 rounded-xl border border-slate-100 transition ${item.type === "message"
+                                            ? "cursor-pointer bg-amber-50/30 hover:bg-amber-50/80 hover:border-amber-200"
+                                            : "bg-white hover:bg-slate-50"
+                                        }`}
                                 >
-                                    <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
-                                        {getFileIcon(item.type)}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <p className="text-[13px] font-medium text-slate-800 truncate">
-                                                {item.name}
-                                            </p>
-                                            {item.type === 'message' && (
-                                                <span className="text-[9px] text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                                                    Pinned Message
-                                                </span>
-                                            )}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleRemovePinnedFile(item._id);
-                                                }}
-                                                className="p-0.5 hover:bg-red-100 rounded opacity-0 group-hover:opacity-100 transition"
-                                            >
-                                                <Trash2 className="w-3 h-3 text-red-400 hover:text-red-600" />
-                                            </button>
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0">
+                                            {getFileIcon(item.type)}
                                         </div>
-                                        <p className="text-[11px] text-slate-400">
-                                            {item.uploadedBy.fullName} · {formatFileSize(item.size)}
-                                        </p>
-                                    </div>
-                                    {item.type === 'message' && (
-                                        <div className="text-[10px] text-indigo-500 opacity-0 group-hover:opacity-100 transition flex items-center gap-1">
-                                            <span>Jump to</span>
-                                            <ExternalLink className="w-3 h-3" />
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-semibold text-slate-700 truncate">{item.name}</p>
+                                            <p className="text-[10px] text-slate-400 truncate">{item.uploadedBy?.fullName}</p>
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
                     )}
                 </section>
 
-                {/* LINKED TASKS Section */}
-                <section>
-                    <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                            LINKED TASKS
-                        </h4>
+                {/* SECTION: Linked Tasks */}
+                <section className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                            Linked Tasks ({linkedTasks.length})
+                        </h5>
                         <div className="flex items-center gap-1">
                             <button
+                                type="button"
                                 onClick={() => {
                                     setShowLinkTask(!showLinkTask);
                                     if (!showLinkTask) {
@@ -1399,171 +1262,172 @@ export default function ChatDetailsSidebar({
                                         setTimeout(() => taskSearchInputRef.current?.focus(), 100);
                                     }
                                 }}
-                                className="p-1.5 hover:bg-indigo-50 rounded-lg transition text-slate-400 hover:text-indigo-600"
-                                title="Link task"
+                                className="p-1 text-slate-400 hover:text-indigo-600 rounded-md transition cursor-pointer"
+                                title="Link existing task"
                             >
                                 <Plus className="w-3.5 h-3.5" />
                             </button>
                             <button
+                                type="button"
                                 onClick={fetchLinkedTasks}
                                 disabled={loadingTasks}
-                                className="text-slate-400 hover:text-indigo-600 transition p-1 rounded hover:bg-slate-100 disabled:opacity-50"
-                                title="Refresh tasks"
+                                className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition cursor-pointer"
                             >
-                                {loadingTasks ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                    <RefreshCw className="w-3.5 h-3.5" />
-                                )}
+                                <RefreshCw className={`w-3 h-3 ${loadingTasks ? "animate-spin" : ""}`} />
                             </button>
                         </div>
                     </div>
 
-                    {/* Link Task Input */}
+                    {/* Link Task Search Palette */}
                     {showLinkTask && (
-                        <div className="mb-4 bg-slate-50 rounded-lg p-3 border border-slate-200">
+                        <div className="p-3 bg-slate-50 border border-indigo-100 rounded-2xl space-y-2">
                             <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                 <input
                                     ref={taskSearchInputRef}
                                     type="text"
-                                    placeholder="Search tasks to link..."
+                                    placeholder="Search workspace tasks..."
                                     value={searchTasks}
                                     onChange={(e) => setSearchTasks(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    className="w-full pl-8 pr-3 py-1.5 text-black text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-indigo-500"
                                 />
                             </div>
-                            <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
+
+                            <div className="max-h-40 overflow-y-auto space-y-1">
                                 {loadingTasksSearch ? (
-                                    <div className="flex justify-center py-2">
-                                        <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                                    <div className="py-3 flex justify-center">
+                                        <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
                                     </div>
-                                ) : availableTasks
-                                    .filter(task => task.title?.toLowerCase().includes(searchTasks.toLowerCase()))
+                                ) : availableTasks.filter((t) => t.title?.toLowerCase().includes(searchTasks.toLowerCase()))
                                     .length === 0 ? (
-                                    <p className="text-sm text-slate-400 text-center py-2">
-                                        {searchTasks ? "No matching tasks found" : "No tasks available to link"}
-                                    </p>
+                                    <p className="text-center py-2 text-xs text-slate-400">No attachable tasks found</p>
                                 ) : (
                                     availableTasks
-                                        .filter(task => task.title?.toLowerCase().includes(searchTasks.toLowerCase()))
-                                        .map((task) => (
-                                            <div
-                                                key={task._id}
-                                                className="flex items-center justify-between p-2 hover:bg-white rounded-lg cursor-pointer transition"
-                                            >
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-sm text-slate-700 truncate font-medium">
-                                                        {task.title}
-                                                    </p>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${getStatusColor(task.status || 'pending')}`}>
-                                                            {task.status || 'pending'}
-                                                        </span>
-                                                        <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${getPriorityColor(task.priority || 'medium')}`}>
-                                                            {task.priority || 'medium'}
-                                                        </span>
-                                                        {task.assignedTo?.fullName && (
-                                                            <span className="text-[9px] text-slate-400">
-                                                                Assigned to: {task.assignedTo.fullName}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <button
-                                                    onClick={() => handleLinkTask(task._id, task)}
-                                                    disabled={linkingTask}
-                                                    className="px-3 py-1 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 shrink-0 ml-2"
+                                        .filter((t) => t.title?.toLowerCase().includes(searchTasks.toLowerCase()))
+                                        .map((task) => {
+                                            const isLinkingThis = linkingTaskId === task._id;
+                                            return (
+                                                <div
+                                                    key={task._id}
+                                                    className="flex items-center justify-between p-2 bg-white border border-slate-100 rounded-xl hover:border-slate-200 transition"
                                                 >
-                                                    {linkingTask ? "Linking..." : "Link"}
-                                                </button>
-                                            </div>
-                                        ))
+                                                    <div className="min-w-0 pr-2">
+                                                        <p className="text-xs font-semibold text-slate-800 truncate">{task.title}</p>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span
+                                                                className={`text-[9px] px-1.5 py-0.2 rounded-full border ${getStatusColor(
+                                                                    task.status
+                                                                )}`}
+                                                            >
+                                                                {task.status || "Pending"}
+                                                            </span>
+                                                            <span
+                                                                className={`text-[9px] px-1.5 py-0.2 rounded-full border ${getPriorityColor(
+                                                                    task.priority
+                                                                )}`}
+                                                            >
+                                                                {task.priority || "Normal"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleLinkTask(task._id, task)}
+                                                        disabled={Boolean(linkingTaskId)}
+                                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shrink-0 transition disabled:opacity-40 flex items-center justify-center min-w-[50px] cursor-pointer"
+                                                    >
+                                                        {isLinkingThis ? (
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        ) : (
+                                                            "Link"
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })
                                 )}
                             </div>
-                            <button
-                                onClick={() => setShowLinkTask(false)}
-                                className="mt-2 text-xs text-slate-400 hover:text-slate-600 transition"
-                            >
-                                Cancel
-                            </button>
                         </div>
                     )}
 
-                    {/* Task List */}
+                    {/* Linked Tasks Listing */}
                     {loadingTasks ? (
-                        <div className="flex justify-center py-4">
-                            <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+                        <div className="py-6 flex justify-center">
+                            <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
                         </div>
                     ) : linkedTasks.length === 0 ? (
-                        <div className="text-center py-6 bg-slate-50 rounded-lg">
-                            <ListTodo className="w-6 h-6 mx-auto mb-2 text-slate-300" />
-                            <p className="text-sm text-slate-400">No linked tasks</p>
-                            <p className="text-[10px] text-slate-400">Link tasks to track them in this channel</p>
+                        <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50/50">
+                            <ListTodo className="w-5 h-5 text-slate-300 mx-auto mb-1" />
+                            <p className="text-xs text-slate-500">No tasks connected</p>
+                            <p className="text-[10px] text-slate-400">Link project tasks to collaborate directly</p>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {linkedTasks.map((task) => (
                                 <div
                                     key={task._id || task.taskId}
-                                    className="group p-3 bg-slate-50 rounded-lg border border-slate-200 hover:border-indigo-200 transition"
+                                    className="group p-2.5 rounded-xl border border-slate-100 bg-white hover:border-indigo-100 hover:shadow-2xs transition"
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full flex items-center gap-1 ${getStatusColor(task.status)}`}>
-                                                    {getStatusIcon(task.status)} {task.status}
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span
+                                                    className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border inline-flex items-center gap-1 ${getStatusColor(
+                                                        task.status
+                                                    )}`}
+                                                >
+                                                    {getStatusIcon(task.status)}
+                                                    {task.status}
                                                 </span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${getPriorityColor(task.priority)}`}>
+                                                <span
+                                                    className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${getPriorityColor(
+                                                        task.priority
+                                                    )}`}
+                                                >
                                                     {task.priority}
                                                 </span>
                                                 {task.progress > 0 && (
-                                                    <span className="text-[10px] text-slate-500">
-                                                        {task.progress}%
-                                                    </span>
+                                                    <span className="text-[9px] font-bold text-slate-500">{task.progress}%</span>
                                                 )}
                                             </div>
-                                            <p className="text-sm font-medium text-slate-800 truncate mt-1">
-                                                {task.title}
-                                            </p>
-                                            <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400 flex-wrap">
+
+                                            <h6 className="text-xs font-semibold text-slate-800 truncate mt-1">{task.title}</h6>
+
+                                            <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400 flex-wrap">
                                                 {task.assignedTo?.fullName && (
-                                                    <span className="flex items-center gap-1">
-                                                        <User className="w-3 h-3" />
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <UserIcon className="w-2.5 h-2.5" />
                                                         {task.assignedTo.fullName}
                                                     </span>
                                                 )}
-                                                {task.linkedBy?.fullName && (
-                                                    <span className="flex items-center gap-1">
-                                                        <Link2 className="w-3 h-3" />
-                                                        Linked by {task.linkedBy.fullName}
-                                                    </span>
-                                                )}
                                                 {task.linkedAt && (
-                                                    <span className="flex items-center gap-1">
-                                                        <Calendar className="w-3 h-3" />
-                                                        {format(new Date(task.linkedAt), "MMM d, yyyy")}
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <Calendar className="w-2.5 h-2.5" />
+                                                        {format(new Date(task.linkedAt), "MMM d")}
                                                     </span>
                                                 )}
                                             </div>
-                                            {/* Progress Bar */}
+
                                             {task.progress > 0 && (
-                                                <div className="mt-2 w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                                <div className="w-full h-1 bg-slate-100 rounded-full mt-2 overflow-hidden">
                                                     <div
-                                                        className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                                                        className="h-full bg-indigo-500 rounded-full transition-all duration-300"
                                                         style={{ width: `${Math.min(task.progress, 100)}%` }}
                                                     />
                                                 </div>
                                             )}
                                         </div>
+
                                         <button
+                                            type="button"
                                             onClick={() => handleUnlinkTask(task.taskId, task.title)}
-                                            disabled={unlinkingTask === task.taskId}
-                                            className="p-1 hover:bg-red-100 rounded opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-red-600 disabled:opacity-50 shrink-0"
+                                            disabled={unlinkingTaskId === task.taskId}
+                                            className="p-1 text-slate-400 hover:text-rose-500 rounded transition opacity-0 group-hover:opacity-100 cursor-pointer"
                                             title="Unlink task"
                                         >
-                                            {unlinkingTask === task.taskId ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                            {unlinkingTaskId === task.taskId ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
                                             ) : (
                                                 <Unlink className="w-3.5 h-3.5" />
                                             )}

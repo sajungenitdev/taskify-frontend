@@ -9,32 +9,20 @@ import {
     Receipt,
     Box,
     FileText,
-    Hash,
-    Users,
     MessageSquare,
-    Plus,
     Search,
-    Settings,
-    LogOut,
-    UserPlus,
     X,
-    Check,
     Loader2,
     AlertCircle,
     ChevronDown,
     ChevronRight,
     Trash2,
-    Crown,
-    Shield,
-    UserMinus,
     Circle,
     Zap,
-    Clock,
     Archive,
-    EyeOff,
-    MoreVertical,
-    Inbox,
     RefreshCw,
+    AlertTriangle,
+    Hash,
 } from "lucide-react";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
@@ -94,11 +82,18 @@ interface ChatSidebarProps {
     onOpenCreateModal?: () => void;
 }
 
+interface DeleteModalState {
+    isOpen: boolean;
+    channelId: string;
+    channelName: string;
+    isDM: boolean;
+}
+
 // ============================================================
 // ICON MAP
 // ============================================================
 
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     building: Building2,
     laptop: Laptop,
     briefcase: Briefcase,
@@ -111,23 +106,23 @@ const iconMap: Record<string, any> = {
 // AVATAR UTILITIES
 // ============================================================
 
-const getInitials = (name: string) => {
+const getInitials = (name?: string): string => {
     if (!name) return "?";
-    return name.charAt(0).toUpperCase();
+    return name.trim().charAt(0).toUpperCase();
 };
 
-const getAvatarColor = (userId: string) => {
+const getAvatarColor = (userId: string = "") => {
     const colors = [
-        "bg-indigo-100 text-indigo-600",
-        "bg-rose-100 text-rose-600",
-        "bg-emerald-100 text-emerald-600",
-        "bg-amber-100 text-amber-600",
-        "bg-purple-100 text-purple-600",
-        "bg-cyan-100 text-cyan-600",
-        "bg-pink-100 text-pink-600",
-        "bg-teal-100 text-teal-600",
+        "bg-indigo-100 text-indigo-700 border-indigo-200",
+        "bg-rose-100 text-rose-700 border-rose-200",
+        "bg-emerald-100 text-emerald-700 border-emerald-200",
+        "bg-amber-100 text-amber-700 border-amber-200",
+        "bg-purple-100 text-purple-700 border-purple-200",
+        "bg-cyan-100 text-cyan-700 border-cyan-200",
+        "bg-pink-100 text-pink-700 border-pink-200",
+        "bg-teal-100 text-teal-700 border-teal-200",
     ];
-    const index = userId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const index = userId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[index % colors.length];
 };
 
@@ -169,39 +164,46 @@ export default function ChatSidebar({
     });
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
-    const [archivingChannelId, setArchivingChannelId] = useState<string | null>(null);
-    const [showDMActions, setShowDMActions] = useState<string | null>(null);
-    const [pinnedMessages, setPinnedMessages] = useState<any[]>([]);
-    const [loadingPinned, setLoadingPinned] = useState(false);
 
-    const currentUserId = user?._id;
+    // Custom Delete Confirmation Modal State
+    const [deleteModal, setDeleteModal] = useState<DeleteModalState>({
+        isOpen: false,
+        channelId: "",
+        channelName: "",
+        isDM: false,
+    });
 
-    // Refs
+    const currentUserId = user?._id?.toString();
     const channelListRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        setLoading(externalLoading);
+    }, [externalLoading]);
 
     // ============================================================
     // UPDATE CHANNELS FROM EXTERNAL PROP
     // ============================================================
-    // ✅ FIX: Memoize updateChannelCounts with useCallback
-    const updateChannelCounts = useCallback((channelList: ChannelItem[]) => {
-        const counts = {
-            total: channelList.length,
-            channels: channelList.filter(c => c.type === "channel" && !c.isArchived).length,
-            projects: channelList.filter(c => c.type === "project" && !c.isArchived).length,
-            direct: channelList.filter(c => c.type === "direct" && !c.isArchived).length,
-            archived: channelList.filter(c => c.isArchived).length,
-            online: onlineMembers.length,
-        };
-        setChannelCounts(counts);
-    }, [onlineMembers]); // ✅ Only re-create when onlineMembers changes
+    const updateChannelCounts = useCallback(
+        (channelList: ChannelItem[]) => {
+            const counts = {
+                total: channelList.length,
+                channels: channelList.filter((c) => c.type === "channel" && !c.isArchived).length,
+                projects: channelList.filter((c) => c.type === "project" && !c.isArchived).length,
+                direct: channelList.filter((c) => c.type === "direct" && !c.isArchived).length,
+                archived: channelList.filter((c) => c.isArchived).length,
+                online: onlineMembers.length,
+            };
+            setChannelCounts(counts);
+        },
+        [onlineMembers.length]
+    );
 
-    // Then use it in useEffect
     useEffect(() => {
-        if (externalChannels && externalChannels.length > 0) {
+        if (externalChannels) {
             setChannels(externalChannels);
             updateChannelCounts(externalChannels);
         }
-    }, [externalChannels, updateChannelCounts]); // ✅ Add updateChannelCounts to deps
+    }, [externalChannels, updateChannelCounts]);
 
     // ============================================================
     // FETCH USERS
@@ -209,144 +211,117 @@ export default function ChatSidebar({
     const fetchUsers = useCallback(async () => {
         try {
             const response = await api.get("/users");
-            if (response.data.success) {
-                const filteredUsers = response.data.data.filter((u: any) => u._id !== user?._id);
+            if (response.data?.success) {
+                const filteredUsers = (response.data.data || []).filter(
+                    (u: any) => u._id?.toString() !== currentUserId
+                );
                 setAllUsers(filteredUsers);
             }
-        } catch (error) {
-            console.error("Error fetching users:", error);
+        } catch (err) {
+            console.error("Error fetching users:", err);
         }
-    }, [user?._id]);
-
-    // Add fetch function
-    const fetchPinnedMessages = useCallback(async () => {
-        if (!selectedChannelId) return;
-        setLoadingPinned(true);
-        try {
-            const response = await api.get(`/messages/channel/${selectedChannelId}/pinned`);
-            if (response.data?.success) {
-                setPinnedMessages(response.data.data || []);
-            }
-        } catch (error) {
-            console.error("Failed to fetch pinned messages:", error);
-        } finally {
-            setLoadingPinned(false);
-        }
-    }, [selectedChannelId]);
-
-    // Call it when selected channel changes
-    useEffect(() => {
-        if (selectedChannelId) {
-            fetchPinnedMessages();
-        }
-    }, [selectedChannelId, fetchPinnedMessages]);
+    }, [currentUserId]);
 
     // ============================================================
     // UNARCHIVE CHANNEL
     // ============================================================
-    const handleUnarchiveChannel = useCallback(async (channelId: string, channelName: string) => {
-        try {
-            const response = await api.patch(`/channels/${channelId}/archive`, { isArchived: false });
-            if (response.data.success) {
-                toast.success(`"${channelName}" restored from archive`);
-                setChannels(prev => {
-                    const updated = prev.map(ch =>
-                        ch._id === channelId ? { ...ch, isArchived: false, archivedAt: undefined } : ch
-                    );
-                    updateChannelCounts(updated);
-                    return updated;
-                });
-            } else {
-                toast.error(response.data.message || "Failed to restore");
-            }
-        } catch (error: any) {
-            console.error("Error unarchiving:", error);
-            toast.error(error.response?.data?.message || "Failed to restore");
-        }
-    }, [updateChannelCounts]);
-
-    // ============================================================
-    // DELETE CHANNEL - FIXED with better error handling
-    // ============================================================
-    const handleDeleteChannel = useCallback(
-        async (channelId: string, channelName: string) => {
-            // Check if it's a DM
-            const isDM = channels.find(c => c._id === channelId)?.type === "direct";
-
-            const confirmMessage = isDM
-                ? `This will permanently delete the conversation with "${channelName}". This cannot be undone!`
-                : `Are you sure you want to delete "${channelName}"? This action cannot be undone.`;
-
-            if (!confirm(confirmMessage)) return;
-
-            setDeletingChannelId(channelId);
+    const handleUnarchiveChannel = useCallback(
+        async (channelId: string) => {
             try {
-                console.log(`🗑️ [Sidebar] Deleting channel: ${channelId} (${channelName})`);
-
-                const response = await api.delete(`/channels/${channelId}`);
-
-                console.log("📥 [Sidebar] Delete response:", response.data);
-
+                const response = await api.patch(`/channels/${channelId}/archive`, { isArchived: false });
                 if (response.data?.success) {
-                    toast.success(isDM ? `Conversation with "${channelName}" deleted` : `"${channelName}" deleted`);
-
-                    // Remove from local state
+                    toast.success("Channel restored from archive");
                     setChannels((prev) => {
-                        const filtered = prev.filter((c) => c._id !== channelId);
-                        return filtered.sort((a, b) => {
-                            const dateA = new Date(a.updatedAt || a.lastMessage?.createdAt || 0).getTime();
-                            const dateB = new Date(b.updatedAt || b.lastMessage?.createdAt || 0).getTime();
-                            return dateB - dateA;
-                        });
+                        const updated = prev.map((ch) =>
+                            ch._id === channelId ? { ...ch, isArchived: false, archivedAt: undefined } : ch
+                        );
+                        updateChannelCounts(updated);
+                        return updated;
                     });
+                } else {
+                    toast.error(response.data?.message || "Failed to restore channel");
+                }
+            } catch (err: any) {
+                console.error("Error unarchiving channel:", err);
+                toast.error(err.response?.data?.message || "Failed to restore channel");
+            }
+        },
+        [updateChannelCounts]
+    );
 
-                    // If the deleted channel was selected, switch to another
+    // ============================================================
+    // OPEN DELETE CONFIRMATION MODAL
+    // ============================================================
+    const openDeleteModal = useCallback((channelId: string, channelName: string, isDM: boolean) => {
+        setDeleteModal({
+            isOpen: true,
+            channelId,
+            channelName,
+            isDM,
+        });
+    }, []);
+
+    const closeDeleteModal = useCallback(() => {
+        setDeleteModal({
+            isOpen: false,
+            channelId: "",
+            channelName: "",
+            isDM: false,
+        });
+    }, []);
+
+    // ============================================================
+    // EXECUTE DELETE CHANNEL (API)
+    // ============================================================
+    const executeDeleteChannel = useCallback(async () => {
+        const { channelId, channelName } = deleteModal;
+        if (!channelId) return;
+
+        setDeletingChannelId(channelId);
+        try {
+            const response = await api.delete(`/channels/${channelId}`);
+
+            if (response.data?.success) {
+                toast.success(`"${channelName}" deleted`);
+                closeDeleteModal();
+
+                setChannels((prev) => {
+                    const filtered = prev.filter((c) => c._id !== channelId);
+                    updateChannelCounts(filtered);
+
                     if (selectedChannelId === channelId) {
-                        const remaining = channels.filter((c) => c._id !== channelId);
-                        if (remaining.length > 0) {
-                            const firstChannel = remaining[0];
-                            const displayName = firstChannel.type === "direct"
-                                ? firstChannel.members?.find((m) => m.userId?._id !== currentUserId)?.userId?.fullName || "Direct Message"
-                                : firstChannel.name;
-                            onSelectChannel(firstChannel._id, displayName);
+                        if (filtered.length > 0) {
+                            const nextChannel = filtered[0];
+                            const displayName =
+                                nextChannel.type === "direct"
+                                    ? nextChannel.members?.find((m) => {
+                                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                                        return uid?.toString() !== currentUserId;
+                                    })?.userId?.fullName || "Direct Message"
+                                    : nextChannel.name;
+                            onSelectChannel(nextChannel._id, displayName);
                         } else {
                             onSelectChannel("", "");
                         }
                     }
-                } else {
-                    toast.error(response.data?.message || "Failed to delete channel");
-                }
-            } catch (err: any) {
-                console.error("❌ [Sidebar] Delete error:", err);
 
-                let errorMessage = "Failed to delete channel";
-
-                if (err.response) {
-                    console.error("❌ [Sidebar] Response data:", err.response.data);
-                    console.error("❌ [Sidebar] Response status:", err.response.status);
-
-                    if (err.response.status === 403) {
-                        errorMessage = "You don't have permission to delete this channel";
-                    } else if (err.response.status === 404) {
-                        errorMessage = "Channel not found";
-                    } else if (err.response.status === 400) {
-                        errorMessage = err.response.data?.message || "Cannot delete this channel";
-                    } else {
-                        errorMessage = err.response.data?.message || "Server error";
-                    }
-                } else if (err.request) {
-                    errorMessage = "No response from server. Please check your connection.";
-                } else {
-                    errorMessage = err.message || "Unknown error";
-                }
-
-                toast.error(errorMessage);
-            } finally {
-                setDeletingChannelId(null);
+                    return filtered;
+                });
+            } else {
+                toast.error(response.data?.message || "Failed to delete channel");
             }
-        },
-        [channels, selectedChannelId, currentUserId, onSelectChannel]
-    );
+        } catch (err: any) {
+            console.error("Failed to delete channel:", err);
+            toast.error(
+                err.response?.data?.message ||
+                (err.response?.status === 403
+                    ? "You lack permissions to delete this channel"
+                    : "Failed to delete channel")
+            );
+        } finally {
+            setDeletingChannelId(null);
+        }
+    }, [deleteModal, selectedChannelId, currentUserId, onSelectChannel, updateChannelCounts, closeDeleteModal]);
 
     // ============================================================
     // REFRESH CHANNELS
@@ -355,11 +330,9 @@ export default function ChatSidebar({
         if (isRefreshing) return;
         setIsRefreshing(true);
         try {
-            console.log("🔄 [Sidebar] Refreshing channels...");
             const response = await api.get("/channels");
-            if (response.data.success) {
+            if (response.data?.success) {
                 const channelData = response.data.data || [];
-                console.log(`📥 [Sidebar] Loaded ${channelData.length} channels`);
                 setChannels(channelData);
                 updateChannelCounts(channelData);
                 setError(null);
@@ -373,85 +346,90 @@ export default function ChatSidebar({
     }, [isRefreshing, updateChannelCounts]);
 
     // ============================================================
-    // HANDLE START DIRECT MESSAGE
+    // START DIRECT MESSAGE
     // ============================================================
-    const handleStartDirectMessage = useCallback(async (targetUserId: string) => {
-        try {
-            const existingChannel = channels.find(ch =>
-                ch.type === "direct" &&
-                ch.members?.some(m => m.userId._id === targetUserId) &&
-                !ch.isArchived
-            );
-
-            if (existingChannel) {
-                const displayName = existingChannel.members?.find(
-                    m => m.userId._id !== user?._id
-                )?.userId.fullName || "Direct";
-                onSelectChannel(existingChannel._id, displayName);
-                joinChannel(existingChannel._id);
-                markAsRead(existingChannel._id);
-                toast.success("Switched to existing conversation");
-                return;
-            }
-
-            // Check if there's an archived DM with this user
-            const archivedDM = channels.find(ch =>
-                ch.type === "direct" &&
-                ch.members?.some(m => m.userId._id === targetUserId) &&
-                ch.isArchived
-            );
-
-            if (archivedDM) {
-                await handleUnarchiveChannel(archivedDM._id, archivedDM.name);
-                const displayName = archivedDM.members?.find(
-                    m => m.userId._id !== user?._id
-                )?.userId.fullName || "Direct";
-                onSelectChannel(archivedDM._id, displayName);
-                joinChannel(archivedDM._id);
-                markAsRead(archivedDM._id);
-                toast.success("Restored archived conversation");
-                return;
-            }
-
-            const response = await api.post("/channels", {
-                name: `dm-${user?._id}-${targetUserId}`,
-                type: "direct",
-                members: [targetUserId],
-            });
-
-            if (response.data.success) {
-                toast.success("Direct message started!");
-                const newChannel = response.data.data;
-                const displayName = newChannel.members?.find(
-                    (m: any) => m.userId._id !== user?._id
-                )?.userId.fullName || "Direct";
-
-                setChannels(prev => {
-                    if (prev.some(c => c._id === newChannel._id)) return prev;
-                    return [newChannel, ...prev];
+    const handleStartDirectMessage = useCallback(
+        async (targetUserId: string) => {
+            try {
+                const existingChannel = channels.find((ch) => {
+                    if (ch.type !== "direct" || ch.isArchived) return false;
+                    return ch.members?.some((m) => {
+                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                        return uid?.toString() === targetUserId;
+                    });
                 });
-                updateChannelCounts([newChannel, ...channels]);
 
-                onSelectChannel(newChannel._id, displayName);
-                joinChannel(newChannel._id);
-                markAsRead(newChannel._id);
+                if (existingChannel) {
+                    const partner = existingChannel.members?.find((m) => {
+                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                        return uid?.toString() !== currentUserId;
+                    });
+                    const displayName = partner?.userId?.fullName || "Direct";
+                    onSelectChannel(existingChannel._id, displayName);
+                    joinChannel(existingChannel._id);
+                    markAsRead(existingChannel._id);
+                    return;
+                }
+
+                const archivedDM = channels.find((ch) => {
+                    if (ch.type !== "direct" || !ch.isArchived) return false;
+                    return ch.members?.some((m) => {
+                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                        return uid?.toString() === targetUserId;
+                    });
+                });
+
+                if (archivedDM) {
+                    await handleUnarchiveChannel(archivedDM._id);
+                    const partner = archivedDM.members?.find((m) => {
+                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                        return uid?.toString() !== currentUserId;
+                    });
+                    const displayName = partner?.userId?.fullName || "Direct";
+                    onSelectChannel(archivedDM._id, displayName);
+                    joinChannel(archivedDM._id);
+                    markAsRead(archivedDM._id);
+                    return;
+                }
+
+                const response = await api.post("/channels", {
+                    name: `dm-${currentUserId}-${targetUserId}`,
+                    type: "direct",
+                    members: [targetUserId],
+                });
+
+                if (response.data?.success) {
+                    const newChannel = response.data.data;
+                    const partner = newChannel.members?.find((m: any) => {
+                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                        return uid?.toString() !== currentUserId;
+                    });
+                    const displayName = partner?.userId?.fullName || "Direct";
+
+                    setChannels((prev) => {
+                        if (prev.some((c) => c._id === newChannel._id)) return prev;
+                        const updated = [newChannel, ...prev];
+                        updateChannelCounts(updated);
+                        return updated;
+                    });
+
+                    onSelectChannel(newChannel._id, displayName);
+                    joinChannel(newChannel._id);
+                    markAsRead(newChannel._id);
+                }
+            } catch (err: any) {
+                toast.error(err.response?.data?.message || "Failed to start direct message");
             }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to start direct message");
-        }
-    }, [channels, user, onSelectChannel, joinChannel, markAsRead, updateChannelCounts, handleUnarchiveChannel]);
+        },
+        [channels, currentUserId, onSelectChannel, joinChannel, markAsRead, updateChannelCounts, handleUnarchiveChannel]
+    );
 
-    // ============================================================
-    // IS USER ONLINE
-    // ============================================================
-    const isUserOnline = useCallback((userId: string) => {
-        return onlineMembers.includes(userId);
-    }, [onlineMembers]);
+    const isUserOnline = useCallback(
+        (userId: string) => onlineMembers.includes(userId),
+        [onlineMembers]
+    );
 
-    // ============================================================
-    // GET TIME AGO
-    // ============================================================
-    const getTimeAgo = useCallback((dateString: string) => {
+    const getTimeAgo = useCallback((dateString?: string) => {
         if (!dateString) return "";
         const date = new Date(dateString);
         const now = new Date();
@@ -461,357 +439,295 @@ export default function ChatSidebar({
         const diffDays = Math.floor(diffMs / 86400000);
 
         if (diffMins < 1) return "Just now";
-        if (diffMins < 60) return `${diffMins}m ago`;
-        if (diffHours < 24) return `${diffHours}h ago`;
-        if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString();
+        if (diffMins < 60) return `${diffMins}m`;
+        if (diffHours < 24) return `${diffHours}h`;
+        if (diffDays < 7) return `${diffDays}d`;
+        return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
     }, []);
 
-    // ============================================================
-    // FILTER CHANNELS BY SEARCH TERM
-    // ============================================================
+    // Filter channels by user search term
     const filteredChannels = useMemo(() => {
         if (!searchTerm.trim()) return channels;
 
         const term = searchTerm.toLowerCase().trim();
-        return channels.filter(ch => {
+        return channels.filter((ch) => {
             const name = ch.name?.toLowerCase() || "";
-            const displayName = ch.type === "direct"
-                ? ch.members?.find(m => m.userId._id !== user?._id)?.userId.fullName?.toLowerCase() || ""
-                : name;
+            const partner = ch.members?.find((m) => {
+                const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                return uid?.toString() !== currentUserId;
+            });
+            const displayName = ch.type === "direct" ? partner?.userId?.fullName?.toLowerCase() || "" : name;
             const lastMessage = ch.lastMessage?.content?.toLowerCase() || "";
 
-            return displayName.includes(term) ||
-                name.includes(term) ||
-                lastMessage.includes(term);
+            return displayName.includes(term) || name.includes(term) || lastMessage.includes(term);
         });
-    }, [channels, searchTerm, user?._id]);
+    }, [channels, searchTerm, currentUserId]);
+
+    const filteredUsers = useMemo(() => {
+        if (!searchTerm.trim()) return allUsers;
+        const term = searchTerm.toLowerCase().trim();
+        return allUsers.filter(
+            (u) => u.fullName?.toLowerCase().includes(term) || u.email?.toLowerCase().includes(term)
+        );
+    }, [allUsers, searchTerm]);
 
     // ============================================================
-    // RENDER ICON
+    // RENDER ICON - FIXED WITH CHANNEL/GROUP & USER AVATARS
     // ============================================================
-    const renderIcon = useCallback((ch: ChannelItem) => {
-        if (ch.type === "direct") {
-            const member = ch.members?.find(m => m.userId._id !== user?._id);
-            const displayName = member?.userId.fullName || "Unknown";
-            const isOnline = isUserOnline(member?.userId._id || "");
+    const renderIcon = useCallback(
+        (ch: ChannelItem) => {
+            // 1. DIRECT MESSAGE AVATAR (Partner's avatar)
+            if (ch.type === "direct") {
+                const member = ch.members?.find((m) => {
+                    const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                    return uid?.toString() !== currentUserId;
+                });
+                const partnerUser = typeof member?.userId === "object" ? member.userId : null;
+                const displayName = partnerUser?.fullName || "Unknown";
+                const partnerAvatar = partnerUser?.avatar;
+                const targetOnline = isUserOnline(partnerUser?._id || "");
+
+                return (
+                    <div className="relative shrink-0 select-none">
+                        {partnerAvatar ? (
+                            <img
+                                src={partnerAvatar}
+                                alt={displayName}
+                                className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                            />
+                        ) : (
+                            <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${getAvatarColor(
+                                    partnerUser?._id || ""
+                                )}`}
+                            >
+                                {getInitials(displayName)}
+                            </div>
+                        )}
+                        {targetOnline && (
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white" />
+                        )}
+                    </div>
+                );
+            }
+
+            // 2. CHANNEL / PROJECT / GROUP CUSTOM AVATAR (Uploaded Image)
+            if (ch.avatar) {
+                return (
+                    <div className="relative shrink-0 select-none">
+                        <img
+                            src={ch.avatar}
+                            alt={ch.name}
+                            className="w-8 h-8 rounded-xl object-cover border border-slate-200 shadow-2xs"
+                        />
+                    </div>
+                );
+            }
+
+            // 3. FALLBACK ICON OR INITIAL BADGE
+            const IconComponent = ch.iconType ? iconMap[ch.iconType] || Building2 : null;
+            const bgColor =
+                ch.iconBg ||
+                (ch.type === "project"
+                    ? "bg-amber-50 text-amber-600 border border-amber-200"
+                    : "bg-indigo-50 text-indigo-600 border border-indigo-100");
 
             return (
-                <div className="relative shrink-0">
-                    {member?.userId.avatar ? (
-                        <img
-                            src={member.userId.avatar}
-                            alt={displayName}
-                            className="w-9 h-9 rounded-full object-cover"
-                        />
-                    ) : (
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${getAvatarColor(member?.userId._id || "")}`}>
-                            {getInitials(displayName)}
-                        </div>
-                    )}
-                    {isOnline && (
-                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
-                    )}
+                <div className={`w-8 h-8 rounded-xl ${bgColor} flex items-center justify-center shrink-0 shadow-2xs font-bold text-xs`}>
+                    {IconComponent ? <IconComponent className="w-4 h-4" /> : ch.type === "channel" ? <Hash className="w-4 h-4" /> : getInitials(ch.name)}
                 </div>
             );
-        }
+        },
+        [currentUserId, isUserOnline]
+    );
 
-        const IconComponent = ch.iconType ? iconMap[ch.iconType] : Building2;
-        const bgColor = ch.iconBg || "bg-indigo-100";
-        const textColor = "text-white";
-
-        return (
-            <div className={`w-9 h-9 rounded-full ${bgColor} flex items-center justify-center shrink-0`}>
-                <IconComponent className={`w-4 h-4 ${textColor}`} />
-            </div>
-        );
-    }, [user?._id, isUserOnline]);
-
-    // ============================================================
-    // TOGGLE SECTION
-    // ============================================================
     const toggleSection = useCallback((section: keyof typeof expandedSections) => {
-        setExpandedSections(prev => ({
+        setExpandedSections((prev) => ({
             ...prev,
             [section]: !prev[section],
         }));
     }, []);
 
-    // ============================================================
-    // RENDER SECTION
-    // ============================================================
-    const renderSection = useCallback((title: string, type: "channel" | "project" | "direct", showArchived: boolean = false) => {
-        const list = filteredChannels.filter((c) => {
-            if (c.type !== type) return false;
-            if (showArchived) return c.isArchived === true;
-            return !c.isArchived;
-        });
-        const sectionKey = type === "channel" ? "channels" : type === "project" ? "projects" : "directMessages";
-        const isExpanded = expandedSections[sectionKey as keyof typeof expandedSections];
+    // Section list renderer
+    const renderSection = useCallback(
+        (title: string, type: "channel" | "project" | "direct", showArchived: boolean = false) => {
+            const list = filteredChannels.filter((c) => {
+                if (c.type !== type) return false;
+                if (showArchived) return c.isArchived === true;
+                return !c.isArchived;
+            });
 
-        if (list.length === 0) return null;
+            const sectionKey =
+                type === "channel" ? "channels" : type === "project" ? "projects" : "directMessages";
+            const isExpanded = expandedSections[sectionKey as keyof typeof expandedSections];
 
-        return (
-            <div className="mb-2">
-                <button
-                    onClick={() => toggleSection(sectionKey as keyof typeof expandedSections)}
-                    className="flex items-center justify-between w-full px-4 py-1 hover:bg-slate-50 rounded-lg transition group"
-                >
-                    <div className="flex items-center gap-1.5">
-                        {isExpanded ? (
-                            <ChevronDown className="w-3 h-3 text-slate-400" />
-                        ) : (
-                            <ChevronRight className="w-3 h-3 text-slate-400" />
-                        )}
-                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                            {title}
+            if (list.length === 0) return null;
+
+            return (
+                <div className="mb-2">
+                    <button
+                        type="button"
+                        onClick={() => toggleSection(sectionKey as keyof typeof expandedSections)}
+                        className="flex items-center justify-between w-full px-3 py-1 hover:bg-slate-100/60 rounded-xl transition group text-left cursor-pointer"
+                    >
+                        <div className="flex items-center gap-1.5">
+                            {isExpanded ? (
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                            ) : (
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                {title}
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                            {list.length}
                         </span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                        {list.length}
-                    </span>
-                </button>
+                    </button>
 
-                {isExpanded && (
-                    <div className="mt-0.5 space-y-0.5">
-                        {list.map((ch) => {
-                            const isSelected = selectedChannelId === ch._id;
-                            const displayName = ch.type === "direct"
-                                ? ch.members?.find(m => m.userId._id !== user?._id)?.userId.fullName || "Unknown"
-                                : ch.name;
-                            const hasUnread = ch.unreadCount && ch.unreadCount > 0;
-                            const lastMessageTime = ch.lastMessage?.createdAt;
-                            const isOnline = ch.type === "direct" && isUserOnline(
-                                ch.members?.find(m => m.userId._id !== user?._id)?.userId._id || ""
-                            );
-                            const isDM = ch.type === "direct";
-                            const isArchived = ch.isArchived || false;
-                            const canDelete = isDM || (
-                                ch.createdBy?._id === user?._id ||
-                                ch.members?.some(m => m.userId._id === user?._id && m.role === "admin")
-                            );
-                            const isDeleting = deletingChannelId === ch._id;
-                            const isArchiving = archivingChannelId === ch._id;
+                    {isExpanded && (
+                        <div className="mt-0.5 space-y-0.5">
+                            {list.map((ch) => {
+                                const isSelected = selectedChannelId === ch._id;
+                                const partner = ch.members?.find((m) => {
+                                    const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                                    return uid?.toString() !== currentUserId;
+                                });
+                                const displayName = ch.type === "direct" ? partner?.userId?.fullName || "Direct Message" : ch.name;
+                                const hasUnread = (ch.unreadCount ?? 0) > 0;
+                                const lastMessageTime = ch.lastMessage?.createdAt;
+                                const isDM = ch.type === "direct";
+                                const isArchived = ch.isArchived || false;
+                                const canDelete =
+                                    isDM ||
+                                    ch.createdBy?._id === currentUserId ||
+                                    ch.members?.some((m) => {
+                                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                                        return uid?.toString() === currentUserId && m.role === "admin";
+                                    });
 
-                            return (
-                                <div
-                                    key={ch._id}
-                                    className={`relative flex items-center gap-3 px-3.5 py-2 cursor-pointer transition-all duration-200 rounded-lg mx-1 group/channel ${isSelected
-                                        ? "bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200"
-                                        : "hover:bg-slate-50 text-slate-700 hover:shadow-sm"
-                                        } ${isArchived ? "opacity-60 hover:opacity-100" : ""}`}
-                                >
+                                return (
                                     <div
-                                        className="flex items-center gap-3 flex-1 min-w-0"
+                                        key={ch._id}
                                         onClick={() => {
                                             if (!isArchived) {
                                                 onSelectChannel(ch._id, displayName);
                                                 if (hasUnread) {
                                                     markAsRead(ch._id);
-                                                    setChannels(prev =>
-                                                        prev.map(c =>
-                                                            c._id === ch._id ? { ...c, unreadCount: 0 } : c
-                                                        )
+                                                    setChannels((prev) =>
+                                                        prev.map((c) => (c._id === ch._id ? { ...c, unreadCount: 0 } : c))
                                                     );
                                                 }
                                             }
                                         }}
+                                        className={`relative flex items-center justify-between gap-2.5 px-3 py-2 rounded-2xl mx-1 transition-all cursor-pointer group/channel ${isSelected
+                                                ? "bg-indigo-50/80 text-indigo-950 font-medium shadow-2xs ring-1 ring-indigo-200/80"
+                                                : "hover:bg-slate-100/60 text-slate-700 hover:text-slate-900"
+                                            } ${isArchived ? "opacity-60 hover:opacity-100" : ""}`}
                                     >
-                                        {renderIcon(ch)}
+                                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                            {renderIcon(ch)}
 
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center justify-between">
-                                                <span className={`text-sm font-medium truncate flex items-center gap-1.5 ${isSelected ? "text-indigo-700" : "text-slate-800"
-                                                    } ${isArchived ? "line-through text-slate-400" : ""}`}>
-                                                    {ch.type === "channel" ? `# ${displayName}` : displayName}
-                                                    {ch.type === "direct" && isOnline && !isArchived && (
-                                                        <Circle className="w-1.5 h-1.5 fill-emerald-500 text-emerald-500" />
-                                                    )}
-                                                    {ch.type === "project" && (
-                                                        <Zap className="w-3 h-3 text-amber-500" />
-                                                    )}
-                                                    {isArchived && (
-                                                        <Archive className="w-3 h-3 text-slate-400" />
-                                                    )}
-                                                </span>
-                                                {lastMessageTime && !isArchived && (
-                                                    <span className="text-[9px] text-slate-400 font-normal ml-2 shrink-0">
-                                                        {getTimeAgo(lastMessageTime)}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center justify-between gap-1">
+                                                    <span
+                                                        className={`text-xs font-semibold truncate flex items-center gap-1 ${isSelected ? "text-indigo-700" : "text-slate-800"
+                                                            } ${isArchived ? "line-through text-slate-400" : ""}`}
+                                                    >
+                                                        {ch.type === "channel" ? `# ${displayName}` : displayName}
+                                                        {ch.type === "project" && <Zap className="w-3 h-3 text-amber-500 fill-amber-400 shrink-0" />}
                                                     </span>
-                                                )}
-                                                {isArchived && ch.archivedAt && (
-                                                    <span className="text-[9px] text-slate-400 font-normal ml-2 shrink-0">
-                                                        Archived {getTimeAgo(ch.archivedAt)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center justify-between gap-2 mt-1">
-                                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                                    {ch.lastMessage?.senderId && !isArchived && (
-                                                        <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 shrink-0">
-                                                            {ch.lastMessage.senderId.fullName?.split(" ")[0]}:
+
+                                                    {lastMessageTime && !isArchived && (
+                                                        <span className="text-[10px] text-slate-400 shrink-0 font-normal">
+                                                            {getTimeAgo(lastMessageTime)}
                                                         </span>
                                                     )}
-                                                    <p
-                                                        className={`text-xs truncate ${isArchived
-                                                            ? "text-slate-400 italic"
-                                                            : (ch.unreadCount ?? 0) > 0
-                                                                ? "text-slate-900 font-medium dark:text-slate-100"
-                                                                : "text-slate-500 dark:text-slate-400"
-                                                            }`}
-                                                    >
-                                                        {isArchived ? "Archived conversation" : ch.lastMessage?.content || "No messages yet"}
-                                                    </p>
                                                 </div>
 
-                                                {/* Safely check and render only if unreadCount exists and is > 0 */}
-                                                {!isArchived && (ch.unreadCount ?? 0) > 0 && (
-                                                    <div className="relative flex items-center justify-center shrink-0">
-                                                        {/* Subtle background glow pulse */}
-                                                        <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-30 animate-ping" />
+                                                <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                    <p
+                                                        className={`text-[11px] truncate leading-tight ${hasUnread ? "text-slate-900 font-medium" : "text-slate-400"
+                                                            } ${isArchived ? "italic" : ""}`}
+                                                    >
+                                                        {isArchived ? "Archived channel" : ch.lastMessage?.content || "No messages yet"}
+                                                    </p>
 
-                                                        {/* Main Badge */}
-                                                        <span className="relative inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 text-[10px] font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 rounded-full shadow-sm shadow-indigo-500/30 ring-2 ring-white dark:ring-slate-900">
+                                                    {!isArchived && hasUnread && (
+                                                        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-indigo-600 rounded-full shadow-xs shrink-0">
                                                             {(ch.unreadCount ?? 0) > 99 ? "99+" : ch.unreadCount}
                                                         </span>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
+
+                                        {canDelete && !isArchived && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openDeleteModal(ch._id, displayName, isDM);
+                                                }}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition opacity-0 group-hover/channel:opacity-100 shrink-0 cursor-pointer"
+                                                title={isDM ? "Delete chat" : "Delete channel"}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
                                     </div>
-
-                                    {/* Delete button for DMs */}
-                                    {isDM && !isArchived && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteChannel(ch._id, displayName);
-                                            }}
-                                            disabled={isDeleting}
-                                            className={`p-1 rounded-lg transition-all duration-200 opacity-0 group-hover/channel:opacity-100 
-                                                ${isDeleting ? 'opacity-100' : ''}
-                                                ${isSelected
-                                                    ? 'hover:bg-indigo-200 text-indigo-400 hover:text-red-600'
-                                                    : 'hover:bg-slate-200 text-slate-400 hover:text-red-600'
-                                                } shrink-0`}
-                                            title="Delete conversation"
-                                        >
-                                            {isDeleting ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <Trash2 className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    )}
-
-                                    {/* Delete button for non-DM channels */}
-                                    {canDelete && !isDM && !isArchived && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDeleteChannel(ch._id, displayName);
-                                            }}
-                                            disabled={isDeleting}
-                                            className={`p-1 rounded-lg transition-all duration-200 opacity-0 group-hover/channel:opacity-100 
-                                                ${isDeleting ? 'opacity-100' : ''}
-                                                ${isSelected
-                                                    ? 'hover:bg-indigo-200 text-indigo-400 hover:text-red-600'
-                                                    : 'hover:bg-slate-200 text-slate-400 hover:text-red-600'
-                                                } shrink-0`}
-                                            title="Delete channel"
-                                        >
-                                            {isDeleting ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <Trash2 className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    )}
-
-                                    {/* Unarchive button for archived items */}
-                                    {isArchived && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleUnarchiveChannel(ch._id, displayName);
-                                            }}
-                                            className="p-1 hover:bg-emerald-100 rounded-lg text-slate-400 hover:text-emerald-600 opacity-0 group-hover/channel:opacity-100 transition shrink-0"
-                                            title="Restore from archive"
-                                        >
-                                            <RefreshCw className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        );
-    }, [filteredChannels, expandedSections, selectedChannelId, user?._id, deletingChannelId, archivingChannelId, toggleSection, renderIcon, getTimeAgo, isUserOnline, onSelectChannel, markAsRead, handleDeleteChannel, handleUnarchiveChannel]);
-
-    // ============================================================
-    // FILTERED USERS
-    // ============================================================
-    const filteredUsers = allUsers.filter(u =>
-        u.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        },
+        [
+            filteredChannels,
+            expandedSections,
+            selectedChannelId,
+            currentUserId,
+            toggleSection,
+            renderIcon,
+            getTimeAgo,
+            onSelectChannel,
+            markAsRead,
+            openDeleteModal,
+        ]
     );
 
     // ============================================================
-    // SOCKET EVENT LISTENERS - FIXED
+    // WEBSOCKET LISTENERS
     // ============================================================
     useEffect(() => {
         if (!socket) return;
 
-        console.log("🔌 [Sidebar] Setting up socket listeners");
-
-        const handleUserOnline = (data: any) => {
-            setOnlineMembers(prev => {
-                if (prev.includes(data.userId)) return prev;
-                return [...prev, data.userId];
-            });
+        const handleUserOnlineEvent = (data: any) => {
+            setOnlineMembers((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
         };
 
-        const handleUserOffline = (data: any) => {
-            setOnlineMembers(prev => prev.filter(id => id !== data.userId));
+        const handleUserOfflineEvent = (data: any) => {
+            setOnlineMembers((prev) => prev.filter((id) => id !== data.userId));
         };
 
-        socket.on("user:online", handleUserOnline);
-        socket.on("user:offline", handleUserOffline);
-
-        const unsubscribeOnline = onUserOnline((data: any) => {
-            setOnlineMembers(prev => {
-                if (prev.includes(data.userId)) return prev;
-                return [...prev, data.userId];
-            });
-        });
-
-        const unsubscribeOffline = onUserOffline((data: any) => {
-            setOnlineMembers(prev => prev.filter(id => id !== data.userId));
-        });
-
-        // 🔥 FIXED: Message handler with unread count and sorting
         const handleNewMessage = (data: any) => {
             const channelId = data.channelId || data.message?.channelId;
             if (!channelId) return;
 
-            console.log(`📩 [Sidebar] New message in channel: ${channelId}`);
-
-            setChannels(prev => {
+            setChannels((prev) => {
                 const isCurrentChannel = channelId === selectedChannelId;
-                let updated = prev.map(ch => {
+                const updated = prev.map((ch) => {
                     if (ch._id === channelId && !ch.isArchived) {
                         return {
                             ...ch,
                             lastMessage: {
-                                content: data.message?.content || "New message",
+                                content: data.message?.content || (data.message?.attachments?.length ? "Attachment" : "New message"),
                                 createdAt: data.message?.createdAt || new Date().toISOString(),
                                 senderId: {
                                     fullName: data.message?.senderId?.fullName || "Unknown",
                                 },
                             },
-                            // ✅ Only increment unread if not currently selected
                             unreadCount: isCurrentChannel ? 0 : (ch.unreadCount || 0) + 1,
                             updatedAt: new Date().toISOString(),
                         };
@@ -819,7 +735,6 @@ export default function ChatSidebar({
                     return ch;
                 });
 
-                // ✅ Sort by updatedAt (newest first)
                 return updated.sort((a, b) => {
                     const dateA = new Date(a.updatedAt || a.lastMessage?.createdAt || 0).getTime();
                     const dateB = new Date(b.updatedAt || b.lastMessage?.createdAt || 0).getTime();
@@ -830,104 +745,95 @@ export default function ChatSidebar({
 
         const handleChannelCreated = (data: any) => {
             if (data.channel) {
-                console.log(`🆕 [Sidebar] New channel created: ${data.channel.name}`);
-                setChannels(prev => {
-                    if (prev.some(c => c._id === data.channel._id)) return prev;
-                    return [data.channel, ...prev];
+                setChannels((prev) => {
+                    if (prev.some((c) => c._id === data.channel._id)) return prev;
+                    const updated = [data.channel, ...prev];
+                    updateChannelCounts(updated);
+                    return updated;
                 });
-                updateChannelCounts([...channels, data.channel]);
-                toast.success(`New channel: ${data.channel.name}`);
             }
         };
 
         const handleChannelAdded = (data: any) => {
             if (data.channel) {
-                console.log(`➕ [Sidebar] Added to channel: ${data.channel.name}`);
-                setChannels(prev => {
-                    if (prev.some(c => c._id === data.channel._id)) return prev;
-                    return [data.channel, ...prev];
+                setChannels((prev) => {
+                    if (prev.some((c) => c._id === data.channel._id)) return prev;
+                    const updated = [data.channel, ...prev];
+                    updateChannelCounts(updated);
+                    return updated;
                 });
-                updateChannelCounts([...channels, data.channel]);
-                toast.success(`Added to channel: ${data.channel.name}`);
             }
         };
 
+        // ✅ Listens to channel updates (such as when avatar is changed)
         const handleChannelUpdated = (data: any) => {
-            setChannels(prev =>
-                prev.map(ch =>
-                    ch._id === data.channelId ? { ...ch, ...data.updates } : ch
-                )
+            setChannels((prev) =>
+                prev.map((ch) => (ch._id === data.channelId ? { ...ch, ...data.updates } : ch))
             );
         };
 
         const handleChannelDeleted = (data: any) => {
-            console.log(`🗑️ [Sidebar] Channel deleted: ${data.channelName}`);
-            setChannels(prev => {
-                const filtered = prev.filter(ch => ch._id !== data.channelId);
+            setChannels((prev) => {
+                const filtered = prev.filter((ch) => ch._id !== data.channelId);
                 updateChannelCounts(filtered);
                 return filtered;
             });
             if (selectedChannelId === data.channelId) {
-                toast.success(`Channel "${data.channelName}" was deleted`);
                 onSelectChannel("", "");
             }
         };
 
+        socket.on("user:online", handleUserOnlineEvent);
+        socket.on("user:offline", handleUserOfflineEvent);
         socket.on("message:new", handleNewMessage);
         socket.on("channel:created", handleChannelCreated);
         socket.on("channel:added", handleChannelAdded);
         socket.on("channel:updated", handleChannelUpdated);
         socket.on("channel:deleted", handleChannelDeleted);
 
+        const unsubOnline = onUserOnline?.((data: any) => {
+            setOnlineMembers((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
+        });
+
+        const unsubOffline = onUserOffline?.((data: any) => {
+            setOnlineMembers((prev) => prev.filter((id) => id !== data.userId));
+        });
+
         return () => {
-            console.log("🧹 [Sidebar] Cleaning up socket listeners");
-            socket.off("user:online", handleUserOnline);
-            socket.off("user:offline", handleUserOffline);
+            socket.off("user:online", handleUserOnlineEvent);
+            socket.off("user:offline", handleUserOfflineEvent);
             socket.off("message:new", handleNewMessage);
             socket.off("channel:created", handleChannelCreated);
             socket.off("channel:added", handleChannelAdded);
             socket.off("channel:updated", handleChannelUpdated);
             socket.off("channel:deleted", handleChannelDeleted);
-            unsubscribeOnline?.();
-            unsubscribeOffline?.();
+            unsubOnline?.();
+            unsubOffline?.();
         };
-    }, [socket, onUserOnline, onUserOffline, selectedChannelId, channels, updateChannelCounts, onSelectChannel]);
+    }, [socket, onUserOnline, onUserOffline, selectedChannelId, updateChannelCounts, onSelectChannel]);
 
-    // ============================================================
-    // UPDATE COUNTS WHEN ONLINE MEMBERS CHANGE
-    // ============================================================
-    useEffect(() => {
-        updateChannelCounts(channels);
-    }, [channels, onlineMembers, updateChannelCounts]);
-
-    // ============================================================
-    // INITIAL FETCH
-    // ============================================================
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
-
-    // ============================================================
-    // RENDER
-    // ============================================================
 
     if (loading) {
         return (
             <aside className="w-full h-full bg-white flex flex-col items-center justify-center border-r border-slate-200">
                 <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
-                <p className="text-sm text-slate-400 mt-2">Loading channels...</p>
+                <p className="text-xs font-medium text-slate-400 mt-2">Loading channels...</p>
             </aside>
         );
     }
 
     if (error) {
         return (
-            <aside className="w-full h-full bg-white flex flex-col items-center justify-center border-r border-slate-200 p-4">
-                <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
-                <p className="text-sm text-slate-600 text-center">{error}</p>
+            <aside className="w-full h-full bg-white flex flex-col items-center justify-center border-r border-slate-200 p-6 text-center">
+                <AlertCircle className="w-8 h-8 text-rose-500 mb-2" />
+                <p className="text-xs text-slate-600 mb-3 leading-relaxed">{error}</p>
                 <button
+                    type="button"
                     onClick={refreshChannels}
-                    className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-semibold hover:bg-indigo-700 transition cursor-pointer"
                 >
                     Retry
                 </button>
@@ -935,274 +841,314 @@ export default function ChatSidebar({
         );
     }
 
-    if (channels.length === 0 && !loading) {
-        return (
-            <aside className="w-full h-full bg-white flex flex-col items-center justify-center border-r border-slate-200 p-4">
-                <MessageSquare className="w-12 h-12 text-slate-300 mb-3" />
-                <p className="text-sm font-medium text-slate-700">No channels yet</p>
-                <p className="text-xs text-slate-400 text-center mt-1">Create a channel to start collaborating</p>
-                <button
-                    onClick={onOpenCreateModal}
-                    className="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition"
-                >
-                    Create Channel
-                </button>
-            </aside>
-        );
-    }
-
     return (
         <aside className="w-full h-full bg-white flex flex-col overflow-hidden border-r border-slate-200 select-none">
-            {/* 🔥 GLOBAL SEARCH */}
-            <div className="px-3 py-2 border-b border-slate-200 shrink-0">
+            {/* Search Header */}
+            <div className="px-3 py-2.5 border-b border-slate-100 shrink-0">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                     <input
                         type="text"
-                        placeholder="Search channels, users, messages..."
+                        placeholder="Search channels & users..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                        className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                     />
                     {searchTerm && (
                         <button
+                            type="button"
                             onClick={() => setSearchTerm("")}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-200 rounded-full transition"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-200 text-slate-400 hover:text-slate-600 rounded-md transition"
                         >
-                            <X className="w-3.5 h-3.5 text-slate-400" />
+                            <X className="w-3 h-3" />
                         </button>
                     )}
                 </div>
-                {searchTerm && (
-                    <div className="mt-1 text-[10px] text-slate-400">
-                        Found {filteredChannels.length} channels, {filteredUsers.length} users
-                    </div>
-                )}
             </div>
 
-            {/* Channel List */}
-            <div ref={channelListRef} className="flex-1 overflow-y-auto py-2">
-                {renderSection("CHANNELS", "channel")}
-                {renderSection("PROJECTS", "project")}
-                {renderSection("DIRECT MESSAGES", "direct")}
+            {/* Channel & Conversation Lists */}
+            <div ref={channelListRef} className="flex-1 overflow-y-auto py-2.5">
+                {renderSection("Channels", "channel")}
+                {renderSection("Projects", "project")}
+                {renderSection("Direct Messages", "direct")}
 
-                {/* 🔥 ARCHIVED SECTION */}
+                {/* Archived Section */}
                 {channelCounts.archived > 0 && (
                     <div className="mb-2 border-t border-slate-100 pt-2">
                         <button
+                            type="button"
                             onClick={() => toggleSection("archived")}
-                            className="flex items-center justify-between w-full px-4 py-1 hover:bg-slate-50 rounded-lg transition group"
+                            className="flex items-center justify-between w-full px-3 py-1 hover:bg-slate-100/60 rounded-xl transition text-left cursor-pointer"
                         >
                             <div className="flex items-center gap-1.5">
                                 {expandedSections.archived ? (
-                                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                                 ) : (
-                                    <ChevronRight className="w-3 h-3 text-slate-400" />
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                                 )}
-                                <Archive className="w-3 h-3 text-slate-400" />
-                                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                <Archive className="w-3.5 h-3.5 text-slate-400" />
+                                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                                     Archived
                                 </span>
                             </div>
-                            <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                            <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
                                 {channelCounts.archived}
                             </span>
                         </button>
 
                         {expandedSections.archived && (
-                            <div className="mt-0.5">
-                                {filteredChannels.filter(c => c.isArchived).map((ch) => {
-                                    const displayName = ch.type === "direct"
-                                        ? ch.members?.find(m => m.userId._id !== user?._id)?.userId.fullName || "Unknown"
-                                        : ch.name;
-                                    const isDeleting = deletingChannelId === ch._id;
+                            <div className="mt-0.5 space-y-0.5">
+                                {filteredChannels
+                                    .filter((c) => c.isArchived)
+                                    .map((ch) => {
+                                        const partner = ch.members?.find((m) => {
+                                            const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                                            return uid?.toString() !== currentUserId;
+                                        });
+                                        const displayName = ch.type === "direct" ? partner?.userId?.fullName || "Unknown" : ch.name;
 
-                                    return (
-                                        <div
-                                            key={ch._id}
-                                            className="flex items-center gap-3 px-3.5 py-2 mx-1 rounded-lg hover:bg-slate-50 transition text-slate-500 opacity-70 hover:opacity-100 group/channel"
-                                        >
-                                            {renderIcon(ch)}
-                                            <div className="flex-1 min-w-0">
-                                                <span className="text-sm font-medium truncate line-through">
-                                                    {displayName}
-                                                </span>
-                                                <p className="text-[10px] text-slate-400">Archived conversation</p>
+                                        return (
+                                            <div
+                                                key={ch._id}
+                                                className="flex items-center justify-between gap-2 px-3 py-2 mx-1 rounded-2xl hover:bg-slate-50 transition text-slate-500 opacity-70 hover:opacity-100 group/archived"
+                                            >
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    {renderIcon(ch)}
+                                                    <div className="min-w-0">
+                                                        <span className="text-xs font-semibold truncate block line-through text-slate-400">
+                                                            {displayName}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 block">Archived chat</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleUnarchiveChannel(ch._id)}
+                                                        className="p-1 hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 rounded-lg transition opacity-0 group-hover/archived:opacity-100 cursor-pointer"
+                                                        title="Restore channel"
+                                                    >
+                                                        <RefreshCw className="w-3.5 h-3.5" />
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openDeleteModal(ch._id, displayName, ch.type === "direct")}
+                                                        className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition opacity-0 group-hover/archived:opacity-100 cursor-pointer"
+                                                        title="Delete permanently"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleUnarchiveChannel(ch._id, displayName);
-                                                }}
-                                                className="p-1 hover:bg-emerald-100 rounded-lg text-slate-400 hover:text-emerald-600 opacity-0 group-hover/channel:opacity-100 transition shrink-0"
-                                                title="Restore from archive"
-                                            >
-                                                <RefreshCw className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDeleteChannel(ch._id, displayName);
-                                                }}
-                                                disabled={isDeleting}
-                                                className="p-1 hover:bg-red-100 rounded-lg text-slate-400 hover:text-red-600 opacity-0 group-hover/channel:opacity-100 transition shrink-0"
-                                                title="Delete permanently"
-                                            >
-                                                {isDeleting ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <Trash2 className="w-4 h-4" />
-                                                )}
-                                            </button>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* 🔥 ALL USERS */}
+                {/* Directory of Teammates */}
                 <div className="mb-2">
                     <button
+                        type="button"
                         onClick={() => toggleSection("users")}
-                        className="flex items-center justify-between w-full px-4 py-1 hover:bg-slate-50 rounded-lg transition group"
+                        className="flex items-center justify-between w-full px-3 py-1 hover:bg-slate-100/60 rounded-xl transition text-left cursor-pointer"
                     >
                         <div className="flex items-center gap-1.5">
                             {expandedSections.users ? (
-                                <ChevronDown className="w-3 h-3 text-slate-400" />
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                             ) : (
-                                <ChevronRight className="w-3 h-3 text-slate-400" />
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                             )}
-                            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                                All Users
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                Teammates
                             </span>
-                            <span className="text-[10px] text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                            <span className="text-[9px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded-full">
                                 {onlineMembers.length} online
                             </span>
                         </div>
-                        <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
                             {allUsers.length}
                         </span>
                     </button>
 
                     {expandedSections.users && (
-                        <div className="mt-0.5">
-                            <div className="overflow-y-auto space-y-0.5">
-                                {filteredUsers.length === 0 ? (
-                                    <div className="px-4 py-2 text-sm text-slate-400">
-                                        {searchTerm ? "No users found" : "No users available"}
-                                    </div>
-                                ) : (
-                                    filteredUsers.map((userItem) => {
-                                        const isOnline = isUserOnline(userItem._id);
-                                        const hasDirectChannel = channels.some(ch =>
+                        <div className="mt-0.5 space-y-0.5">
+                            {filteredUsers.length === 0 ? (
+                                <div className="px-4 py-2 text-xs text-slate-400 text-center">
+                                    {searchTerm ? "No colleagues found" : "No users in workspace"}
+                                </div>
+                            ) : (
+                                filteredUsers.map((userItem) => {
+                                    const targetOnline = isUserOnline(userItem._id);
+                                    const hasDirectChannel = channels.some(
+                                        (ch) =>
                                             ch.type === "direct" &&
-                                            ch.members?.some(m => m.userId._id === userItem._id) &&
+                                            ch.members?.some((m) => {
+                                                const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
+                                                return uid?.toString() === userItem._id;
+                                            }) &&
                                             !ch.isArchived
-                                        );
+                                    );
 
-                                        return (
-                                            <div
-                                                key={userItem._id}
-                                                className="group flex items-center gap-2 px-3.5 py-1.5 mx-1 rounded-lg cursor-pointer hover:bg-slate-50 transition text-slate-700"
-                                                onClick={() => handleStartDirectMessage(userItem._id)}
-                                            >
+                                    return (
+                                        <div
+                                            key={userItem._id}
+                                            onClick={() => handleStartDirectMessage(userItem._id)}
+                                            className="group flex items-center justify-between px-3 py-1.5 mx-1 rounded-2xl cursor-pointer hover:bg-slate-100/70 transition text-slate-700"
+                                        >
+                                            <div className="flex items-center gap-2.5 min-w-0">
                                                 <div className="relative shrink-0">
                                                     {userItem.avatar ? (
                                                         <img
                                                             src={userItem.avatar}
                                                             alt={userItem.fullName}
-                                                            className="w-8 h-8 rounded-full object-cover"
+                                                            className="w-7 h-7 rounded-full object-cover border border-slate-200"
                                                         />
                                                     ) : (
-                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${getAvatarColor(userItem._id)}`}>
+                                                        <div
+                                                            className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold border ${getAvatarColor(
+                                                                userItem._id
+                                                            )}`}
+                                                        >
                                                             {getInitials(userItem.fullName)}
                                                         </div>
                                                     )}
-                                                    {isOnline && (
-                                                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                                                    {targetOnline && (
+                                                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white" />
                                                     )}
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-sm font-medium truncate">{userItem.fullName}</span>
-                                                        {hasDirectChannel && (
-                                                            <span className="text-[10px] text-indigo-500 font-medium bg-indigo-50 px-1.5 py-0.5 rounded-full">
-                                                                DM
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className={`text-[10px] ${isOnline ? "text-emerald-500" : "text-slate-400"}`}>
-                                                            {isOnline ? "● Online" : "● Offline"}
-                                                        </span>
-                                                        {userItem.role && (
-                                                            <span className="text-[9px] text-slate-400 px-1 bg-slate-100 rounded">
-                                                                {userItem.role.replace('_', ' ')}
-                                                            </span>
-                                                        )}
-                                                    </div>
+
+                                                <div className="min-w-0">
+                                                    <span className="text-xs font-semibold text-slate-800 truncate block">
+                                                        {userItem.fullName}
+                                                    </span>
+                                                    <span
+                                                        className={`text-[10px] block leading-tight ${targetOnline ? "text-emerald-600 font-medium" : "text-slate-400"
+                                                            }`}
+                                                    >
+                                                        {targetOnline ? "Online" : "Offline"}
+                                                    </span>
                                                 </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                {hasDirectChannel && (
+                                                    <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">
+                                                        DM
+                                                    </span>
+                                                )}
                                                 <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleStartDirectMessage(userItem._id);
-                                                    }}
-                                                    className="p-1 hover:bg-indigo-50 rounded-lg opacity-0 group-hover:opacity-100 transition text-slate-400 hover:text-indigo-600 shrink-0"
-                                                    title="Send message"
+                                                    type="button"
+                                                    className="p-1 hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    title="Open direct message"
                                                 >
                                                     <MessageSquare className="w-3.5 h-3.5" />
                                                 </button>
                                             </div>
-                                        );
-                                    })
-                                )}
-                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* User Profile Footer */}
-            <div className="p-3 border-t border-slate-200 bg-slate-50 shrink-0">
-                <div className="flex items-center gap-3">
+            {/* User Session Footer Card */}
+            <div className="p-3 border-t border-slate-100 bg-slate-50/70 shrink-0">
+                <div className="flex items-center gap-2.5">
                     <div className="relative shrink-0">
                         {user?.profilePhoto ? (
                             <img
                                 src={user.profilePhoto}
                                 alt={user?.fullName || "User"}
-                                className="w-9 h-9 rounded-full object-cover"
+                                className="w-8 h-8 rounded-full object-cover border border-slate-200"
                             />
                         ) : (
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold ${getAvatarColor(user?._id || "default")}`}>
+                            <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${getAvatarColor(
+                                    user?._id || "default"
+                                )}`}
+                            >
                                 {getInitials(user?.fullName || "U")}
                             </div>
                         )}
                         {isConnected && (
-                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
+                            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white" />
                         )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">
-                            {user?.fullName || "User"}
+
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-800 truncate leading-tight">
+                            {user?.fullName || "Team Member"}
                         </p>
-                        <p className="text-xs flex items-center gap-1.5">
-                            {isConnected ? (
-                                <>
-                                    <Circle className="w-2 h-2 fill-emerald-500 text-emerald-500" />
-                                    <span className="text-emerald-500 font-medium">Online</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Circle className="w-2 h-2 fill-slate-400 text-slate-400" />
-                                    <span className="text-slate-400">Offline</span>
-                                </>
-                            )}
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <Circle
+                                className={`w-1.5 h-1.5 ${isConnected ? "fill-emerald-500 text-emerald-500" : "fill-slate-300 text-slate-300"
+                                    }`}
+                            />
+                            <span>{isConnected ? "Connected" : "Disconnected"}</span>
                         </p>
                     </div>
                 </div>
             </div>
+
+            {/* Custom Delete Confirmation Modal */}
+            {deleteModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                                <AlertTriangle className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900">
+                                    {deleteModal.isDM ? "Delete Conversation?" : "Delete Channel?"}
+                                </h4>
+                                <p className="text-[11px] text-slate-400">This action cannot be undone</p>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 leading-relaxed mb-5">
+                            {deleteModal.isDM
+                                ? `Are you sure you want to delete your conversation with "${deleteModal.channelName}"? All shared messages will be removed permanently.`
+                                : `Are you sure you want to delete "#${deleteModal.channelName}"? All messages, task links, and pinned assets will be erased.`}
+                        </p>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={closeDeleteModal}
+                                disabled={Boolean(deletingChannelId)}
+                                className="flex-1 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={executeDeleteChannel}
+                                disabled={Boolean(deletingChannelId)}
+                                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                                {deletingChannelId ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        <span>Delete</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </aside>
     );
 }
