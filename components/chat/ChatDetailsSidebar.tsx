@@ -354,7 +354,7 @@ export default function ChatDetailsSidebar({
         if (creatorId && creatorId === currentUserId) return true;
 
         return Boolean(
-            channelInfo.members?.some((m: any) => normalizeId(m.userId) === currentUid && m.role === "admin")
+            channelInfo.members?.some((m: any) => normalizeId(m.userId) === currentUserId && m.role === "admin")
         );
     }, [channelInfo, user, currentUserId]);
 
