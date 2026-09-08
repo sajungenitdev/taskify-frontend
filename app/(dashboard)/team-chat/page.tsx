@@ -4,40 +4,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
-import ChatSidebar from "@/components/chat/ChatSidebar";
+import ChatSidebar, { ChannelItem } from "@/components/chat/ChatSidebar";
 import ChatMessages from "@/components/chat/ChatMessages";
 import ChatDetailsSidebar from "@/components/chat/ChatDetailsSidebar";
 import CreateRoomModal from "@/components/chat/CreateRoomModal";
 import { Plus, Loader2, MessageSquare, ShieldAlert } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
-
-export interface ChannelItem {
-    _id: string;
-    name: string;
-    type?: "channel" | "project" | "direct";
-    description?: string;
-    avatar?: string;
-    unreadCount?: number;
-    updatedAt?: string;
-    lastMessage?: {
-        content?: string;
-        createdAt?: string;
-        senderId?: {
-            _id?: string;
-            fullName?: string;
-        };
-    };
-    members?: Array<{
-        userId?: {
-            _id: string;
-            fullName?: string;
-            email?: string;
-            avatar?: string;
-        };
-        role?: string;
-    }>;
-}
 
 export default function TeamChatPage() {
     const { user, isAuthenticated, isLoading } = useAuth();
@@ -97,8 +70,10 @@ export default function TeamChatPage() {
         try {
             const response = await api.get(`/channels/${channelId}/members`);
             if (response.data?.success) {
-                setChannelMembers(response.data.data?.members || []);
-                setOnlineCount(response.data.data?.online || 0);
+                const membersList = response.data.data?.members || [];
+                const liveOnline = response.data.data?.online ?? 0;
+                setChannelMembers(membersList);
+                setOnlineCount(liveOnline > 0 ? liveOnline : 1);
             }
         } catch (err) {
             console.error("Failed to fetch channel members:", err);
@@ -182,7 +157,11 @@ export default function TeamChatPage() {
             const response = await api.post("/channels", payload);
 
             if (response.data?.success) {
-                const newChannel: ChannelItem = response.data.data;
+                const newChannel: ChannelItem = {
+                    ...response.data.data,
+                    type: response.data.data.type || roomData.type || "channel",
+                };
+
                 toast.success(
                     roomData.type === "project" ? "Project channel created!" : "Channel created successfully!"
                 );
@@ -377,17 +356,33 @@ export default function TeamChatPage() {
             toast.success(`Channel #${data.channelName || ""} was deleted`);
         };
 
-        const handleMembersUpdated = (data: { channelId: string; newMembers: any[] }) => {
+        const handleMembersUpdated = (data: { channelId: string; newMembers: any[]; online?: number }) => {
             if (data.channelId === selectedChannelId) {
                 setChannelMembers((prev) => [...prev, ...data.newMembers]);
-                setOnlineCount((prev) => prev + data.newMembers.length);
+                if (typeof data.online === "number") {
+                    setOnlineCount(data.online);
+                } else {
+                    setOnlineCount((prev) => prev + data.newMembers.length);
+                }
             }
         };
 
         const handleMemberRemoved = (data: { channelId: string; userId: string }) => {
             if (data.channelId === selectedChannelId) {
                 setChannelMembers((prev) => prev.filter((m) => m.userId?._id !== data.userId));
-                setOnlineCount((prev) => Math.max(0, prev - 1));
+                setOnlineCount((prev) => Math.max(1, prev - 1));
+            }
+        };
+
+        const handleUserOnlinePresence = (data: { userId: string; channelId?: string }) => {
+            if (selectedChannelId && (!data.channelId || data.channelId === selectedChannelId)) {
+                setOnlineCount((prev) => Math.max(1, prev + 1));
+            }
+        };
+
+        const handleUserOfflinePresence = (data: { userId: string; channelId?: string }) => {
+            if (selectedChannelId && (!data.channelId || data.channelId === selectedChannelId)) {
+                setOnlineCount((prev) => Math.max(1, prev - 1));
             }
         };
 
@@ -398,6 +393,8 @@ export default function TeamChatPage() {
         socket.on("channel:deleted", handleChannelDeleted);
         socket.on("channel:members_updated", handleMembersUpdated);
         socket.on("channel:member_removed", handleMemberRemoved);
+        socket.on("user:online", handleUserOnlinePresence);
+        socket.on("user:offline", handleUserOfflinePresence);
 
         return () => {
             socket.off("message:new", handleGlobalNewMessage);
@@ -407,6 +404,8 @@ export default function TeamChatPage() {
             socket.off("channel:deleted", handleChannelDeleted);
             socket.off("channel:members_updated", handleMembersUpdated);
             socket.off("channel:member_removed", handleMemberRemoved);
+            socket.off("user:online", handleUserOnlinePresence);
+            socket.off("user:offline", handleUserOfflinePresence);
         };
     }, [socket, selectedChannelId, joinChannel]);
 
