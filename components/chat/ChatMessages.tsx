@@ -57,7 +57,7 @@ export interface Attachment {
 
 export interface Reaction {
     emoji: string;
-    userId: string;
+    userId: string | { _id: string; fullName?: string };
 }
 
 export interface ReadReceipt {
@@ -105,19 +105,6 @@ export interface ChannelMemberItem {
     }
     | string;
     role?: string;
-}
-
-interface PinnedFile {
-    _id: string;
-    name: string;
-    url: string;
-    size: number;
-    type: string;
-    uploadedBy: {
-        _id: string;
-        fullName: string;
-    };
-    uploadedAt: string;
 }
 
 interface ChatMessagesProps {
@@ -192,7 +179,7 @@ const normalizeUserId = (target: any): string => {
     if (typeof target === "string") return target;
     if (target._id) return target._id.toString();
     if (target.userId) return normalizeUserId(target.userId);
-    return "";
+    return target.toString();
 };
 
 // ============================================================
@@ -240,25 +227,46 @@ const MessageBubble = memo(
             });
         }, [message.readBy, message.isRead, isOwn, currentUserId]);
 
+        // Enforce strictly 1 reaction per user: Deduplicate reactions by user ID
+        const uniqueUserReactions = useMemo(() => {
+            if (!message.reactions || !Array.isArray(message.reactions)) return [];
+
+            const seenUsers = new Set<string>();
+            const result: Reaction[] = [];
+
+            // Traverse in reverse order so the user's latest reaction wins
+            for (let i = message.reactions.length - 1; i >= 0; i--) {
+                const r = message.reactions[i];
+                const uid = normalizeUserId(r.userId);
+                if (uid && !seenUsers.has(uid)) {
+                    seenUsers.add(uid);
+                    result.unshift(r);
+                }
+            }
+            return result;
+        }, [message.reactions]);
+
         const reactionTotals = useMemo(() => {
-            if (!message.reactions || message.reactions.length === 0) return null;
-            return message.reactions.reduce((acc, r) => {
+            if (uniqueUserReactions.length === 0) return null;
+            return uniqueUserReactions.reduce((acc, r) => {
                 acc[r.emoji] = (acc[r.emoji] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);
-        }, [message.reactions]);
+        }, [uniqueUserReactions]);
 
         const hasUserReacted = useCallback(
             (emoji: string) => {
                 if (!currentUserId) return false;
-                return message.reactions?.some((r) => r.emoji === emoji && r.userId === currentUserId);
+                return uniqueUserReactions.some(
+                    (r) => r.emoji === emoji && normalizeUserId(r.userId) === currentUserId.toString()
+                );
             },
-            [message.reactions, currentUserId]
+            [uniqueUserReactions, currentUserId]
         );
 
         const hasMention = useMemo(() => {
             if (!message.mentions || !currentUserId) return false;
-            return message.mentions.some((m) => m.userId === currentUserId);
+            return message.mentions.some((m) => m.userId?.toString() === currentUserId.toString());
         }, [message.mentions, currentUserId]);
 
         return (
@@ -269,7 +277,7 @@ const MessageBubble = memo(
                     } ${hasMention ? "bg-indigo-50/40 -mx-4 px-4 py-1.5 rounded-2xl border-l-4 border-indigo-500" : ""} ${highlight ? "ring-2 ring-indigo-500 ring-offset-2 bg-indigo-50/70 rounded-2xl animate-pulse" : ""
                     }`}
             >
-                {/* Avatar */}
+                {/* User Avatar */}
                 <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 select-none shadow-xs mt-0.5">
                     {message.senderId?.avatar ? (
                         <img
@@ -288,7 +296,7 @@ const MessageBubble = memo(
                     )}
                 </div>
 
-                {/* Message Body & Actions Container */}
+                {/* Message Container */}
                 <div className={`max-w-[85%] sm:max-w-[70%] flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
                     {!isOwn && (
                         <div className="text-[11px] text-slate-500 mb-1 flex items-center gap-1.5 px-1 font-medium">
@@ -304,14 +312,14 @@ const MessageBubble = memo(
 
                     <div className="relative group/bubble">
                         {isDeleted ? (
-                            <div className="bg-slate-100 border border-slate-200 text-slate-400 rounded-2xl px-4 py-2 text-xs italic">
+                            <div className="bg-slate-100 border border-slate-200 text-slate-400 rounded-2xl px-4 py-2 text-xs italic select-none">
                                 This message was deleted
                             </div>
                         ) : (
                             <div
                                 className={`rounded-2xl px-4 py-2.5 shadow-xs transition-colors ${isOwn
-                                    ? "bg-indigo-600 text-white rounded-tr-xs"
-                                    : "bg-white border border-slate-200 text-slate-800 rounded-tl-xs hover:border-slate-300"
+                                        ? "bg-indigo-600 text-white rounded-tr-xs"
+                                        : "bg-white border border-slate-200 text-slate-800 rounded-tl-xs hover:border-slate-300"
                                     } ${isPinned ? "ring-1 ring-amber-400" : ""}`}
                             >
                                 {isPinned && (
@@ -320,13 +328,14 @@ const MessageBubble = memo(
                                     </div>
                                 )}
 
+                                {/* Quoted Reply */}
                                 {message.replyTo && (
                                     <button
                                         type="button"
                                         onClick={() => message.replyTo && onScrollToMessage(message.replyTo._id)}
                                         className={`w-full text-left mb-2 p-2 rounded-xl text-xs border-l-[3px] transition cursor-pointer flex flex-col gap-0.5 ${isOwn
-                                            ? "bg-indigo-700/60 border-indigo-300 text-indigo-100 hover:bg-indigo-700"
-                                            : "bg-slate-50 border-indigo-600 text-slate-600 hover:bg-slate-100"
+                                                ? "bg-indigo-700/60 border-indigo-300 text-indigo-100 hover:bg-indigo-700"
+                                                : "bg-slate-50 border-indigo-600 text-slate-600 hover:bg-slate-100"
                                             }`}
                                     >
                                         <div className="flex items-center gap-1 font-semibold text-[11px]">
@@ -337,10 +346,13 @@ const MessageBubble = memo(
                                                     : "User"}
                                             </span>
                                         </div>
-                                        <p className="truncate opacity-90 text-[11px] pl-4">{message.replyTo.content || "Attachment"}</p>
+                                        <p className="truncate opacity-90 text-[11px] pl-4">
+                                            {message.replyTo.content || "Attachment"}
+                                        </p>
                                     </button>
                                 )}
 
+                                {/* Text Body */}
                                 {message.content && (
                                     <p className="text-xs sm:text-[13px] leading-relaxed whitespace-pre-wrap break-words select-text cursor-text">
                                         {message.content.split(/(@\w+(?:\s\w+)?)/g).map((part, idx) => {
@@ -361,8 +373,8 @@ const MessageBubble = memo(
                                                                 onMentionClick(matchedMention.userId, matchedMention.name);
                                                             }}
                                                             className={`font-semibold cursor-pointer underline underline-offset-2 px-1 py-0.5 rounded transition ${isOwn
-                                                                ? "text-indigo-200 hover:bg-indigo-700"
-                                                                : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                                                                    ? "text-indigo-200 hover:bg-indigo-700"
+                                                                    : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                                                                 }`}
                                                             title={`Jump to ${matchedMention.name}'s messages`}
                                                         >
@@ -376,6 +388,7 @@ const MessageBubble = memo(
                                     </p>
                                 )}
 
+                                {/* File / Audio Attachments */}
                                 {message.attachments && message.attachments.length > 0 && (
                                     <div className="mt-2.5 space-y-1.5">
                                         {message.attachments.map((att, idx) => {
@@ -398,14 +411,18 @@ const MessageBubble = memo(
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className={`flex items-center justify-between gap-3 p-2 rounded-xl text-xs transition border ${isOwn
-                                                        ? "bg-indigo-700/50 border-indigo-400/40 text-white hover:bg-indigo-700"
-                                                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                            ? "bg-indigo-700/50 border-indigo-400/40 text-white hover:bg-indigo-700"
+                                                            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-2 min-w-0">
                                                         {getFileIcon(att.type || "file")}
-                                                        <span className="truncate max-w-[140px] sm:max-w-[200px] font-medium">{att.name}</span>
-                                                        {att.size && <span className="text-[10px] opacity-60">({formatFileSize(att.size)})</span>}
+                                                        <span className="truncate max-w-[140px] sm:max-w-[200px] font-medium">
+                                                            {att.name}
+                                                        </span>
+                                                        {att.size && (
+                                                            <span className="text-[10px] opacity-60">({formatFileSize(att.size)})</span>
+                                                        )}
                                                     </div>
                                                     <Download className="w-3.5 h-3.5 shrink-0 opacity-70 hover:opacity-100 transition" />
                                                 </a>
@@ -416,6 +433,7 @@ const MessageBubble = memo(
                             </div>
                         )}
 
+                        {/* Hover Action Bar */}
                         {!isDeleted && (
                             <div
                                 className={`absolute top-0 ${isOwn ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"
@@ -476,6 +494,7 @@ const MessageBubble = memo(
                         )}
                     </div>
 
+                    {/* Reaction Pills */}
                     {reactionTotals && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                             {Object.entries(reactionTotals).map(([emoji, count]) => {
@@ -486,8 +505,8 @@ const MessageBubble = memo(
                                         type="button"
                                         onClick={() => onReaction(message._id, emoji)}
                                         className={`inline-flex items-center gap-1 text-[11px] border px-2 py-0.5 rounded-full transition shadow-2xs cursor-pointer ${isReacted
-                                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
-                                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                                ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
+                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                             }`}
                                     >
                                         <span>{emoji}</span>
@@ -498,6 +517,7 @@ const MessageBubble = memo(
                         </div>
                     )}
 
+                    {/* Message Timestamp & Seen Ticks */}
                     <div
                         className={`flex items-center gap-1.5 mt-1 px-1 text-[10px] text-slate-400 select-none ${isOwn ? "justify-end" : "justify-start"
                             }`}
@@ -616,7 +636,6 @@ export default function ChatMessages({
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
     }, []);
 
-    // Emoji Picker Handler
     const handleEmojiClick = (emoji: string) => {
         const cursorPos = inputRef.current?.selectionStart ?? inputText.length;
         const newText = inputText.slice(0, cursorPos) + emoji + inputText.slice(cursorPos);
@@ -644,7 +663,6 @@ export default function ChatMessages({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [showEmojiPicker]);
 
-    // Typing animation
     useEffect(() => {
         if (typingUsers.length === 0) {
             setTypingDots("");
@@ -656,7 +674,6 @@ export default function ChatMessages({
         return () => clearInterval(interval);
     }, [typingUsers.length]);
 
-    // Unmount timeout cleanup
     useEffect(() => {
         return () => {
             if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
@@ -741,7 +758,7 @@ export default function ChatMessages({
         }
     }, []);
 
-    // Search routine
+    // Search Routine
     useEffect(() => {
         const trimmed = searchQuery.trim().toLowerCase();
         if (!trimmed) {
@@ -882,7 +899,6 @@ export default function ChatMessages({
         joinChannel(cleanChannelId);
         socket.emit("channel:join", { channelId: cleanChannelId });
 
-        // Ask server for users currently online if supported
         socket.emit("users:get_online");
 
         const handleUserOnlineEvent = (data: any) => {
@@ -955,7 +971,9 @@ export default function ChatMessages({
                 if (data.channelId?.toString() === cleanChannelId && data.userId !== currentUserId) {
                     if (data.type === "start") {
                         setTypingUsers((prev) =>
-                            prev.some((u) => u.userId === data.userId) ? prev : [...prev, { userId: data.userId, name: data.userName }]
+                            prev.some((u) => u.userId === data.userId)
+                                ? prev
+                                : [...prev, { userId: data.userId, name: data.userName }]
                         );
                     } else {
                         setTypingUsers((prev) => prev.filter((u) => u.userId !== data.userId));
@@ -968,7 +986,9 @@ export default function ChatMessages({
             (data: { channelId?: string; messageId: string; reactions: Reaction[] }) => {
                 if (data.channelId?.toString() === cleanChannelId) {
                     setMessages((prev) =>
-                        prev.map((m) => (m._id?.toString() === data.messageId?.toString() ? { ...m, reactions: data.reactions } : m))
+                        prev.map((m) =>
+                            m._id?.toString() === data.messageId?.toString() ? { ...m, reactions: data.reactions } : m
+                        )
                     );
                 }
             }
@@ -1152,22 +1172,31 @@ export default function ChatMessages({
         [fetchPinnedMessages, parentOnPinnedUpdated]
     );
 
+    // ============================================================
+    // SINGLE REACTION PER USER
+    // ============================================================
     const handleReaction = useCallback(
         async (messageId: string, emoji: string) => {
             if (!currentUserId) return;
             const targetMsg = messages.find((m) => m._id === messageId);
             if (!targetMsg) return;
 
-            const hasReacted = targetMsg.reactions?.some((r) => r.emoji === emoji && r.userId === currentUserId);
+            const currentReaction = targetMsg.reactions?.find(
+                (r) => normalizeUserId(r.userId) === currentUserId.toString()
+            );
+            const isRemovingCurrent = currentReaction?.emoji === emoji;
 
+            // Optimistically update reactions
             setMessages((prev) =>
                 prev.map((m) => {
                     if (m._id === messageId) {
-                        const cleanReactions = m.reactions || [];
+                        const cleanReactions = (m.reactions || []).filter(
+                            (r) => normalizeUserId(r.userId) !== currentUserId.toString()
+                        );
                         return {
                             ...m,
-                            reactions: hasReacted
-                                ? cleanReactions.filter((r) => !(r.emoji === emoji && r.userId === currentUserId))
+                            reactions: isRemovingCurrent
+                                ? cleanReactions
                                 : [...cleanReactions, { emoji, userId: currentUserId }],
                         };
                     }
@@ -1176,10 +1205,11 @@ export default function ChatMessages({
             );
 
             try {
-                if (hasReacted) {
-                    await api.delete(`/messages/${messageId}/reaction`, { data: { emoji } });
-                } else {
-                    await api.post(`/messages/${messageId}/reaction`, { emoji });
+                const res = await api.post(`/messages/${messageId}/reaction`, { emoji });
+                if (res.data?.success && Array.isArray(res.data.data)) {
+                    setMessages((prev) =>
+                        prev.map((m) => (m._id === messageId ? { ...m, reactions: res.data.data } : m))
+                    );
                 }
             } catch (error) {
                 fetchMessages();
@@ -1277,15 +1307,12 @@ export default function ChatMessages({
     // ROBUST RESOLVED ONLINE COUNT
     // ============================================================
     const resolvedOnlineCount = useMemo(() => {
-        // Collect normalized online member IDs from real-time state and member status
         const activeOnlineSet = new Set<string>(onlineUsers.map(normalizeUserId));
 
-        // Always include the current logged-in user if connected
         if (isConnected && currentUserId) {
             activeOnlineSet.add(currentUserId);
         }
 
-        // Add any member whose onlineStatus property is explicitly 'online'
         members.forEach((m) => {
             if (typeof m.userId === "object" && m.userId?.onlineStatus === "online") {
                 activeOnlineSet.add(m.userId._id.toString());
@@ -1298,11 +1325,9 @@ export default function ChatMessages({
                 return uid && activeOnlineSet.has(uid);
             }).length;
 
-            // Return calculated count, or fall back to onlineCount prop if socket hasn't mapped yet
             return Math.max(calculatedCount, onlineCount);
         }
 
-        // If no members loaded yet, use the initial backend prop or fallback to 1 (self) if connected
         return onlineCount || (isConnected ? 1 : 0);
     }, [members, onlineUsers, onlineCount, isConnected, currentUserId]);
 
@@ -1368,7 +1393,8 @@ export default function ChatMessages({
                                 <h2 className="text-sm font-bold text-slate-900 truncate flex items-center gap-2">
                                     {channelName}
                                     <Circle
-                                        className={`w-2 h-2 ${isConnected ? "fill-emerald-500 text-emerald-500" : "fill-slate-300 text-slate-300"}`}
+                                        className={`w-2 h-2 ${isConnected ? "fill-emerald-500 text-emerald-500" : "fill-slate-300 text-slate-300"
+                                            }`}
                                     />
                                 </h2>
                                 <div className="text-[11px] text-slate-400 truncate flex items-center gap-2">
@@ -1665,8 +1691,8 @@ export default function ChatMessages({
                                 type="button"
                                 onClick={() => setShowEmojiPicker((prev) => !prev)}
                                 className={`p-2 rounded-xl transition cursor-pointer ${showEmojiPicker
-                                    ? "text-indigo-600 bg-indigo-50"
-                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                                        ? "text-indigo-600 bg-indigo-50"
+                                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
                                     }`}
                                 title="Add emoji"
                             >
@@ -1711,7 +1737,7 @@ export default function ChatMessages({
                                 onChange={handleInputChange}
                                 onKeyDown={handleKeyDown}
                                 rows={1}
-                                className="w-full bg-transparent text-xs sm:text-sm outline-none text-slate-800 placeholder-slate-400 resize-none py-1.5 max-h-32 min-h-[32px] leading-relaxed block"
+                                className="w-full bg-transparent text-xs sm:text-sm outline-none text-slate-800 placeholder-slate-400 resize-none py-1.5 max-h-32 min-h-[32px] leading-relaxed block select-text cursor-text"
                             />
 
                             {showMentionPopup && filteredMentionUsers.length > 0 && (
@@ -1730,8 +1756,8 @@ export default function ChatMessages({
                                                 onClick={() => handleSelectMention(u)}
                                                 onMouseEnter={() => setSelectedMentionIndex(idx)}
                                                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-left transition cursor-pointer ${selectedMentionIndex === idx
-                                                    ? "bg-indigo-50 text-indigo-600 font-semibold"
-                                                    : "text-slate-700 hover:bg-slate-50"
+                                                        ? "bg-indigo-50 text-indigo-600 font-semibold"
+                                                        : "text-slate-700 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">

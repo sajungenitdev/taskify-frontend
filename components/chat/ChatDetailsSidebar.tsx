@@ -118,6 +118,16 @@ interface ChatDetailsSidebarProps {
     onLeaveChannel?: () => void;
 }
 
+interface GenericConfirmModalState {
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    isDestructive?: boolean;
+    isLoading?: boolean;
+    onConfirm: () => Promise<void>;
+}
+
 // ============================================================
 // UTILITIES & ENUM SANITIZERS
 // ============================================================
@@ -158,7 +168,6 @@ const getFileIcon = (type: string) => {
     return <FileIcon className="w-4 h-4 text-slate-500" />;
 };
 
-// Map arbitrary priority strings to valid Mongoose schema enum values
 const sanitizePriority = (priority?: string): string => {
     const p = (priority || "").toLowerCase().trim();
     switch (p) {
@@ -175,7 +184,6 @@ const sanitizePriority = (priority?: string): string => {
     }
 };
 
-// Map arbitrary status strings to valid Mongoose schema enum values
 const sanitizeStatus = (status?: string): string => {
     const s = (status || "").toLowerCase().trim();
     switch (s) {
@@ -290,7 +298,7 @@ export default function ChatDetailsSidebar({
     const [linkedTasks, setLinkedTasks] = useState<LinkedTask[]>([]);
     const [loadingTasks, setLoadingTasks] = useState<boolean>(false);
 
-    // Search & Task Linking States (Tracks single task ID to isolate buttons)
+    // Search & Task Linking
     const [showLinkTask, setShowLinkTask] = useState<boolean>(false);
     const [searchTasks, setSearchTasks] = useState<string>("");
     const [availableTasks, setAvailableTasks] = useState<any[]>([]);
@@ -319,6 +327,17 @@ export default function ChatDetailsSidebar({
     const [uploadingImage, setUploadingImage] = useState<boolean>(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+    // Unified Custom Confirmation Modal State
+    const [confirmModal, setConfirmModal] = useState<GenericConfirmModalState>({
+        isOpen: false,
+        title: "",
+        description: "",
+        confirmLabel: "Confirm",
+        isDestructive: false,
+        isLoading: false,
+        onConfirm: async () => { },
+    });
+
     // Refs
     const imageInputRef = useRef<HTMLInputElement>(null);
     const taskSearchInputRef = useRef<HTMLInputElement>(null);
@@ -337,6 +356,10 @@ export default function ChatDetailsSidebar({
             channelInfo.members?.some((m: any) => normalizeId(m.userId) === currentUid && m.role === "admin")
         );
     }, [channelInfo, user]);
+
+    const closeConfirmModal = () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+    };
 
     // ============================================================
     // API FETCHERS
@@ -567,6 +590,7 @@ export default function ChatDetailsSidebar({
                 if (res.data?.success) {
                     setChannelInfo((prev) => (prev ? { ...prev, avatar: base64Data } : null));
                     onChannelUpdated?.();
+                    toast.success("Avatar updated");
                 }
             } catch (error: any) {
                 toast.error(error.response?.data?.message || "Failed to update channel avatar");
@@ -579,21 +603,34 @@ export default function ChatDetailsSidebar({
         reader.readAsDataURL(file);
     };
 
-    const handleRemoveAvatar = async () => {
-        if (!channelId || !confirm("Remove the channel avatar?")) return;
-        setUploadingImage(true);
-        try {
-            const res = await api.put(`/channels/${channelId}`, { avatar: null });
-            if (res.data?.success) {
-                setImagePreview(null);
-                setChannelInfo((prev) => (prev ? { ...prev, avatar: null } : null));
-                onChannelUpdated?.();
-            }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to remove avatar");
-        } finally {
-            setUploadingImage(false);
-        }
+    const handleRemoveAvatar = () => {
+        if (!channelId) return;
+
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove Avatar",
+            description: "Are you sure you want to remove the channel avatar?",
+            confirmLabel: "Remove",
+            isDestructive: true,
+            isLoading: false,
+            onConfirm: async () => {
+                setUploadingImage(true);
+                try {
+                    const res = await api.put(`/channels/${channelId}`, { avatar: null });
+                    if (res.data?.success) {
+                        setImagePreview(null);
+                        setChannelInfo((prev) => (prev ? { ...prev, avatar: null } : null));
+                        onChannelUpdated?.();
+                        toast.success("Avatar removed");
+                        closeConfirmModal();
+                    }
+                } catch (error: any) {
+                    toast.error(error.response?.data?.message || "Failed to remove avatar");
+                } finally {
+                    setUploadingImage(false);
+                }
+            },
+        });
     };
 
     const handleEditChannel = async () => {
@@ -612,6 +649,7 @@ export default function ChatDetailsSidebar({
                 setIsEditing(false);
                 setChannelInfo(res.data.data);
                 onChannelUpdated?.();
+                toast.success("Channel details saved");
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to save channel details");
@@ -638,25 +676,35 @@ export default function ChatDetailsSidebar({
         }
     };
 
-    const handleLeaveChannel = async () => {
+    const handleLeaveChannel = () => {
         if (!channelId) return;
         const channelTitle = channelInfo?.name || "this channel";
-        if (!confirm(`Are you sure you want to leave #${channelTitle}?`)) return;
 
-        setLeavingChannel(true);
-        try {
-            const res = await api.post(`/channels/${channelId}/leave`);
-            if (res.data?.success) {
-                onClose?.();
-                onChannelUpdated?.();
-                onChannelDeleted?.();
-                onLeaveChannel?.();
-            }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to leave channel");
-        } finally {
-            setLeavingChannel(false);
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: `Leave #${channelTitle}`,
+            description: `Are you sure you want to leave #${channelTitle}? You won't receive new messages from this channel.`,
+            confirmLabel: "Leave Channel",
+            isDestructive: true,
+            isLoading: false,
+            onConfirm: async () => {
+                setLeavingChannel(true);
+                try {
+                    const res = await api.post(`/channels/${channelId}/leave`);
+                    if (res.data?.success) {
+                        closeConfirmModal();
+                        onClose?.();
+                        onChannelUpdated?.();
+                        onChannelDeleted?.();
+                        onLeaveChannel?.();
+                    }
+                } catch (error: any) {
+                    toast.error(error.response?.data?.message || "Failed to leave channel");
+                } finally {
+                    setLeavingChannel(false);
+                }
+            },
+        });
     };
 
     // ============================================================
@@ -672,6 +720,7 @@ export default function ChatDetailsSidebar({
                 setShowAddMember(false);
                 fetchChannelMembers();
                 fetchAvailableUsers();
+                toast.success("Member added");
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to add member");
@@ -680,57 +729,79 @@ export default function ChatDetailsSidebar({
         }
     };
 
-    const handleMakeAdmin = async (userId: string, fullName: string, isCurrentlyAdmin: boolean) => {
+    const handleMakeAdmin = (userId: string, fullName: string, isCurrentlyAdmin: boolean) => {
         if (!channelId) return;
-        const actionName = isCurrentlyAdmin ? "revoke admin status from" : "grant admin role to";
-        if (!confirm(`Are you sure you want to ${actionName} "${fullName}"?`)) return;
+        const actionVerb = isCurrentlyAdmin ? "revoke admin status from" : "grant admin role to";
 
-        setMakingAdmin(userId);
-        try {
-            const res = await api.patch(`/channels/${channelId}/members/${userId}/role`);
-            if (res.data?.success) {
-                fetchChannelMembers();
-            }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to update role");
-        } finally {
-            setMakingAdmin(null);
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: isCurrentlyAdmin ? "Demote Admin" : "Promote to Admin",
+            description: `Are you sure you want to ${actionVerb} "${fullName}"?`,
+            confirmLabel: isCurrentlyAdmin ? "Revoke Admin" : "Make Admin",
+            isDestructive: false,
+            isLoading: false,
+            onConfirm: async () => {
+                setMakingAdmin(userId);
+                try {
+                    const res = await api.patch(`/channels/${channelId}/members/${userId}/role`);
+                    if (res.data?.success) {
+                        fetchChannelMembers();
+                        toast.success(res.data.message || "User role updated");
+                        closeConfirmModal();
+                    }
+                } catch (error: any) {
+                    toast.error(error.response?.data?.message || "Failed to update role");
+                } finally {
+                    setMakingAdmin(null);
+                }
+            },
+        });
     };
 
-    const handleRemoveMember = async (userId: string, fullName: string) => {
+    const handleRemoveMember = (userId: string, fullName: string) => {
         if (!channelId) return;
         if (userId === user?._id) {
             handleLeaveChannel();
             return;
         }
 
-        if (!confirm(`Remove "${fullName}" from this channel?`)) return;
-        try {
-            const res = await api.delete(`/channels/${channelId}/members/${userId}`);
-            if (res.data?.success) {
-                fetchChannelMembers();
-                fetchAvailableUsers();
-            }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to remove member");
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: "Remove Member",
+            description: `Are you sure you want to remove "${fullName}" from this channel?`,
+            confirmLabel: "Remove",
+            isDestructive: true,
+            isLoading: false,
+            onConfirm: async () => {
+                try {
+                    const res = await api.delete(`/channels/${channelId}/members/${userId}`);
+                    if (res.data?.success) {
+                        fetchChannelMembers();
+                        fetchAvailableUsers();
+                        toast.success(`"${fullName}" removed`);
+                        closeConfirmModal();
+                    }
+                } catch (error: any) {
+                    toast.error(error.response?.data?.message || "Failed to remove member");
+                }
+            },
+        });
     };
 
     // ============================================================
-    // TASK ACTIONS (ISOLATED LOADING PER TASK & NORMALIZED ENUMS)
+    // TASK ACTIONS
     // ============================================================
 
     const handleLinkTask = async (taskId: string, task: any) => {
         if (!channelId) return;
-        setLinkingTaskId(taskId); // Only disable and show loader on the clicked item
+        setLinkingTaskId(taskId);
 
         try {
             const payload = {
                 taskId,
                 title: task.title,
-                status: sanitizeStatus(task.status), // Maps any variation to ["pending", "in-progress", "completed", "blocked", "overdue"]
-                priority: sanitizePriority(task.priority), // Maps "normal" -> "medium" to satisfy Mongoose enum
+                status: sanitizeStatus(task.status),
+                priority: sanitizePriority(task.priority),
                 progress: typeof task.progress === "number" ? Math.min(Math.max(task.progress, 0), 100) : 0,
                 assignedTo: task.assignedTo
                     ? {
@@ -758,20 +829,32 @@ export default function ChatDetailsSidebar({
         }
     };
 
-    const handleUnlinkTask = async (taskId: string, taskTitle: string) => {
-        if (!channelId || !confirm(`Unlink "${taskTitle}" from channel?`)) return;
-        setUnlinkingTaskId(taskId);
-        try {
-            const res = await api.delete(`/channels/${channelId}/tasks/${taskId}`);
-            if (res.data?.success) {
-                toast.success("Task unlinked");
-                fetchLinkedTasks();
-            }
-        } catch (error: any) {
-            toast.error(error.response?.data?.message || "Failed to unlink task");
-        } finally {
-            setUnlinkingTaskId(null);
-        }
+    const handleUnlinkTask = (taskId: string, taskTitle: string) => {
+        if (!channelId) return;
+
+        setConfirmModal({
+            isOpen: true,
+            title: "Unlink Task",
+            description: `Are you sure you want to unlink "${taskTitle}" from this channel?`,
+            confirmLabel: "Unlink Task",
+            isDestructive: true,
+            isLoading: false,
+            onConfirm: async () => {
+                setUnlinkingTaskId(taskId);
+                try {
+                    const res = await api.delete(`/channels/${channelId}/tasks/${taskId}`);
+                    if (res.data?.success) {
+                        toast.success("Task unlinked");
+                        fetchLinkedTasks();
+                        closeConfirmModal();
+                    }
+                } catch (error: any) {
+                    toast.error(error.response?.data?.message || "Failed to unlink task");
+                } finally {
+                    setUnlinkingTaskId(null);
+                }
+            },
+        });
     };
 
     const handleRemovePinnedItem = async (fileId: string) => {
@@ -781,6 +864,7 @@ export default function ChatDetailsSidebar({
             if (res.data?.success) {
                 setPinnedItems((prev) => prev.filter((item) => item._id !== fileId));
                 onPinnedUpdated?.();
+                toast.success("Item unpinned");
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to remove pinned item");
@@ -828,7 +912,7 @@ export default function ChatDetailsSidebar({
                                 }
                             }}
                             disabled={editingChannel}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition disabled:opacity-50"
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition disabled:opacity-50 cursor-pointer"
                             title={isEditing ? "Save details" : "Edit channel"}
                         >
                             {editingChannel ? (
@@ -845,7 +929,7 @@ export default function ChatDetailsSidebar({
                         <button
                             type="button"
                             onClick={() => setShowDeleteConfirm(true)}
-                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition"
+                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition cursor-pointer"
                             title="Delete channel"
                         >
                             <Trash2 className="w-4 h-4" />
@@ -859,7 +943,7 @@ export default function ChatDetailsSidebar({
                                 setShowAddMember(!showAddMember);
                                 if (!showAddMember) fetchAvailableUsers();
                             }}
-                            className={`p-1.5 rounded-lg transition ${showAddMember
+                            className={`p-1.5 rounded-lg transition cursor-pointer ${showAddMember
                                     ? "bg-indigo-50 text-indigo-600"
                                     : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                                 }`}
@@ -874,7 +958,7 @@ export default function ChatDetailsSidebar({
                             type="button"
                             onClick={handleLeaveChannel}
                             disabled={leavingChannel}
-                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition disabled:opacity-50"
+                            className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-500 hover:text-rose-600 transition disabled:opacity-50 cursor-pointer"
                             title="Leave channel"
                         >
                             {leavingChannel ? (
@@ -889,51 +973,13 @@ export default function ChatDetailsSidebar({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition ml-1"
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition ml-1 cursor-pointer"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     )}
                 </div>
             </div>
-
-            {/* Delete Confirmation Modal */}
-            {!isDirectMessage && isAdmin && showDeleteConfirm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-                    <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                                <Trash2 className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h4 className="text-sm font-bold text-slate-900">Delete Channel</h4>
-                                <p className="text-xs text-slate-500">This process cannot be reversed</p>
-                            </div>
-                        </div>
-                        <p className="text-xs text-slate-600 leading-relaxed mb-5">
-                            Are you sure you want to permanently delete <strong>#{channelInfo?.name}</strong>? All conversations,
-                            attachments, and tasks linked here will be discarded.
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setShowDeleteConfirm(false)}
-                                className="flex-1 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleDeleteChannel}
-                                disabled={deletingChannel}
-                                className="flex-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50 flex items-center justify-center gap-1.5"
-                            >
-                                {deletingChannel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Delete"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Main Scrollable Canvas */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
@@ -977,7 +1023,7 @@ export default function ChatDetailsSidebar({
                                         type="button"
                                         onClick={handleRemoveAvatar}
                                         disabled={uploadingImage}
-                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-xs transition"
+                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow-xs transition cursor-pointer"
                                         title="Remove avatar"
                                     >
                                         <X className="w-3 h-3" />
@@ -1064,7 +1110,7 @@ export default function ChatDetailsSidebar({
                                             type="button"
                                             onClick={() => handleAddMember(u._id)}
                                             disabled={addingUser}
-                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-medium transition disabled:opacity-40"
+                                            className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-medium transition disabled:opacity-40 cursor-pointer"
                                         >
                                             Add
                                         </button>
@@ -1087,7 +1133,7 @@ export default function ChatDetailsSidebar({
                             type="button"
                             onClick={fetchChannelMembers}
                             disabled={loadingMembers}
-                            className="text-slate-400 hover:text-slate-600 transition"
+                            className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
                         >
                             <RefreshCw className={`w-3 h-3 ${loadingMembers ? "animate-spin" : ""}`} />
                         </button>
@@ -1162,7 +1208,7 @@ export default function ChatDetailsSidebar({
                                                     type="button"
                                                     onClick={() => handleMakeAdmin(member._id, member.fullName, isMemberAdmin)}
                                                     disabled={makingAdmin === member._id}
-                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition"
+                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
                                                     title={isMemberAdmin ? "Demote from admin" : "Promote to admin"}
                                                 >
                                                     {makingAdmin === member._id ? (
@@ -1175,7 +1221,7 @@ export default function ChatDetailsSidebar({
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRemoveMember(member._id, member.fullName)}
-                                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                                     title="Remove user"
                                                 >
                                                     <UserMinus className="w-3.5 h-3.5" />
@@ -1199,7 +1245,7 @@ export default function ChatDetailsSidebar({
                             type="button"
                             onClick={fetchPinnedItems}
                             disabled={loadingPinned}
-                            className="text-slate-400 hover:text-slate-600 transition"
+                            className="text-slate-400 hover:text-slate-600 transition cursor-pointer"
                         >
                             <RefreshCw className={`w-3 h-3 ${loadingPinned ? "animate-spin" : ""}`} />
                         </button>
@@ -1278,7 +1324,6 @@ export default function ChatDetailsSidebar({
                         </div>
                     </div>
 
-                    {/* Link Task Search Palette */}
                     {showLinkTask && (
                         <div className="p-3 bg-slate-50 border border-indigo-100 rounded-2xl space-y-2">
                             <div className="relative">
@@ -1351,7 +1396,6 @@ export default function ChatDetailsSidebar({
                         </div>
                     )}
 
-                    {/* Linked Tasks Listing */}
                     {loadingTasks ? (
                         <div className="py-6 flex justify-center">
                             <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
@@ -1439,6 +1483,99 @@ export default function ChatDetailsSidebar({
                     )}
                 </section>
             </div>
+
+            {/* Delete Channel Modal */}
+            {!isDirectMessage && isAdmin && showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                                <Trash2 className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900">Delete Channel?</h4>
+                                <p className="text-[11px] text-slate-400">This action cannot be undone</p>
+                            </div>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed mb-5">
+                            Are you sure you want to permanently delete <strong>#{channelInfo?.name}</strong>? All conversations,
+                            attachments, and tasks linked here will be discarded.
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={deletingChannel}
+                                className="flex-1 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteChannel}
+                                disabled={deletingChannel}
+                                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            >
+                                {deletingChannel ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Delete"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Unified Action Confirmation Modal */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+                    <div className="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div
+                                className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${confirmModal.isDestructive
+                                        ? "bg-rose-50 border-rose-100 text-rose-600"
+                                        : "bg-indigo-50 border-indigo-100 text-indigo-600"
+                                    }`}
+                            >
+                                {confirmModal.isDestructive ? <AlertTriangle className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900">{confirmModal.title}</h4>
+                                <p className="text-[11px] text-slate-400">Action confirmation</p>
+                            </div>
+                        </div>
+
+                        <p className="text-xs text-slate-600 leading-relaxed mb-5">{confirmModal.description}</p>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={closeConfirmModal}
+                                disabled={confirmModal.isLoading}
+                                className="flex-1 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    setConfirmModal((prev) => ({ ...prev, isLoading: true }));
+                                    await confirmModal.onConfirm();
+                                }}
+                                disabled={confirmModal.isLoading}
+                                className={`flex-1 py-2 text-white rounded-xl text-xs font-semibold transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 ${confirmModal.isDestructive ? "bg-rose-600 hover:bg-rose-700" : "bg-indigo-600 hover:bg-indigo-700"
+                                    }`}
+                            >
+                                {confirmModal.isLoading ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Processing...</span>
+                                    </>
+                                ) : (
+                                    <span>{confirmModal.confirmLabel}</span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </aside>
     );
 }
