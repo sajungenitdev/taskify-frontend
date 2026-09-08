@@ -29,12 +29,15 @@ import {
     CornerDownRight,
     Smile,
     AlertTriangle,
+    Bell,
+    BellOff,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "@/lib/axios";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
 import { format, isToday } from "date-fns";
+import ChatNotificationService from "@/services/chatNotification.service";
 
 // ============================================================
 // TYPES & INTERFACES
@@ -234,7 +237,6 @@ const MessageBubble = memo(
             const seenUsers = new Set<string>();
             const result: Reaction[] = [];
 
-            // Traverse in reverse order so the user's latest reaction wins
             for (let i = message.reactions.length - 1; i >= 0; i--) {
                 const r = message.reactions[i];
                 const uid = normalizeUserId(r.userId);
@@ -318,8 +320,8 @@ const MessageBubble = memo(
                         ) : (
                             <div
                                 className={`rounded-2xl px-4 py-2.5 shadow-xs transition-colors ${isOwn
-                                        ? "bg-indigo-600 text-white rounded-tr-xs"
-                                        : "bg-white border border-slate-200 text-slate-800 rounded-tl-xs hover:border-slate-300"
+                                    ? "bg-indigo-600 text-white rounded-tr-xs"
+                                    : "bg-white border border-slate-200 text-slate-800 rounded-tl-xs hover:border-slate-300"
                                     } ${isPinned ? "ring-1 ring-amber-400" : ""}`}
                             >
                                 {isPinned && (
@@ -334,8 +336,8 @@ const MessageBubble = memo(
                                         type="button"
                                         onClick={() => message.replyTo && onScrollToMessage(message.replyTo._id)}
                                         className={`w-full text-left mb-2 p-2 rounded-xl text-xs border-l-[3px] transition cursor-pointer flex flex-col gap-0.5 ${isOwn
-                                                ? "bg-indigo-700/60 border-indigo-300 text-indigo-100 hover:bg-indigo-700"
-                                                : "bg-slate-50 border-indigo-600 text-slate-600 hover:bg-slate-100"
+                                            ? "bg-indigo-700/60 border-indigo-300 text-indigo-100 hover:bg-indigo-700"
+                                            : "bg-slate-50 border-indigo-600 text-slate-600 hover:bg-slate-100"
                                             }`}
                                     >
                                         <div className="flex items-center gap-1 font-semibold text-[11px]">
@@ -373,8 +375,8 @@ const MessageBubble = memo(
                                                                 onMentionClick(matchedMention.userId, matchedMention.name);
                                                             }}
                                                             className={`font-semibold cursor-pointer underline underline-offset-2 px-1 py-0.5 rounded transition ${isOwn
-                                                                    ? "text-indigo-200 hover:bg-indigo-700"
-                                                                    : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
+                                                                ? "text-indigo-200 hover:bg-indigo-700"
+                                                                : "text-indigo-600 bg-indigo-50 hover:bg-indigo-100"
                                                                 }`}
                                                             title={`Jump to ${matchedMention.name}'s messages`}
                                                         >
@@ -411,8 +413,8 @@ const MessageBubble = memo(
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className={`flex items-center justify-between gap-3 p-2 rounded-xl text-xs transition border ${isOwn
-                                                            ? "bg-indigo-700/50 border-indigo-400/40 text-white hover:bg-indigo-700"
-                                                            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                        ? "bg-indigo-700/50 border-indigo-400/40 text-white hover:bg-indigo-700"
+                                                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
                                                         }`}
                                                 >
                                                     <div className="flex items-center gap-2 min-w-0">
@@ -505,8 +507,8 @@ const MessageBubble = memo(
                                         type="button"
                                         onClick={() => onReaction(message._id, emoji)}
                                         className={`inline-flex items-center gap-1 text-[11px] border px-2 py-0.5 rounded-full transition shadow-2xs cursor-pointer ${isReacted
-                                                ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
-                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                            ? "bg-indigo-50 border-indigo-300 text-indigo-700 font-medium"
+                                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                             }`}
                                     >
                                         <span>{emoji}</span>
@@ -609,6 +611,10 @@ export default function ChatMessages({
     // Emoji States
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+    // ✅ Desktop Notification States
+    const [notificationPermission, setNotificationPermission] = useState<boolean>(false);
+    const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(true);
+
     // Delete Modal State
     const [deleteMessageModal, setDeleteMessageModal] = useState<{
         isOpen: boolean;
@@ -631,9 +637,24 @@ export default function ChatMessages({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const highlightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
+    
 
     const scrollToBottom = useCallback((smooth = true) => {
         messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+    }, []);
+
+    // ============================================================
+    // ✅ NOTIFICATION PERMISSION
+    // ============================================================
+    useEffect(() => {
+        const initNotifications = async () => {
+            const granted = await ChatNotificationService.requestPermission();
+            setNotificationPermission(granted);
+            if (granted) {
+                console.log("✅ Desktop notification permission granted");
+            }
+        };
+        initNotifications();
     }, []);
 
     const handleEmojiClick = (emoji: string) => {
@@ -933,6 +954,27 @@ export default function ChatMessages({
                 });
                 markAsRead(cleanChannelId);
                 setTimeout(() => scrollToBottom(true), 50);
+
+                // ✅ Desktop Notification for new messages
+                const senderId = data.message.senderId?._id?.toString();
+                if (
+                    senderId !== currentUserId &&
+                    notificationPermission &&
+                    notificationsEnabled &&
+                    document.hidden
+                ) {
+                    const senderName = data.message.senderId?.fullName || 'Someone';
+                    const messageContent = data.message.content || '📎 Attachment';
+
+                    ChatNotificationService.sendNotificationIfAway(
+                        senderName,
+                        messageContent,
+                        channelName,
+                        data.message.senderId?.avatar,
+                        cleanChannelId,
+                        data.message._id
+                    );
+                }
             }
         });
 
@@ -1082,6 +1124,9 @@ export default function ChatMessages({
         onPinnedUpdated,
         fetchPinnedMessages,
         parentOnPinnedUpdated,
+        notificationPermission,
+        notificationsEnabled,
+        channelName,
     ]);
 
     // ============================================================
@@ -1246,7 +1291,6 @@ export default function ChatMessages({
                 setMessages((prev) =>
                     prev.map((m) => (m._id?.toString() === messageId ? { ...m, isDeleted: true } : m))
                 );
-                toast.success("Message deleted");
                 closeDeleteMessageModal();
             } else {
                 toast.error(res.data?.message || "Failed to delete message");
@@ -1428,6 +1472,20 @@ export default function ChatMessages({
                     </div>
 
                     <div className="flex items-center gap-1">
+                        {/* ✅ Notification Toggle Button */}
+                        {/* <button
+                            type="button"
+                            onClick={() => {
+                                const newState = !notificationsEnabled;
+                                setNotificationsEnabled(newState);
+                                toast.success(newState ? '🔔 Notifications enabled' : '🔕 Notifications disabled');
+                            }}
+                            className="p-2 hover:bg-slate-100 rounded-xl transition text-slate-400 hover:text-slate-600 cursor-pointer"
+                            title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
+                        >
+                            {notificationsEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                        </button> */}
+
                         <button
                             type="button"
                             onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -1691,8 +1749,8 @@ export default function ChatMessages({
                                 type="button"
                                 onClick={() => setShowEmojiPicker((prev) => !prev)}
                                 className={`p-2 rounded-xl transition cursor-pointer ${showEmojiPicker
-                                        ? "text-indigo-600 bg-indigo-50"
-                                        : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+                                    ? "text-indigo-600 bg-indigo-50"
+                                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
                                     }`}
                                 title="Add emoji"
                             >
@@ -1756,8 +1814,8 @@ export default function ChatMessages({
                                                 onClick={() => handleSelectMention(u)}
                                                 onMouseEnter={() => setSelectedMentionIndex(idx)}
                                                 className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-left transition cursor-pointer ${selectedMentionIndex === idx
-                                                        ? "bg-indigo-50 text-indigo-600 font-semibold"
-                                                        : "text-slate-700 hover:bg-slate-50"
+                                                    ? "bg-indigo-50 text-indigo-600 font-semibold"
+                                                    : "text-slate-700 hover:bg-slate-50"
                                                     }`}
                                             >
                                                 <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-[10px] font-bold shrink-0">

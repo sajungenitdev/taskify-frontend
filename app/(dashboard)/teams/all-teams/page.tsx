@@ -499,7 +499,6 @@ useEffect(() => {
     try {
       const response = await teamAPI.deleteTeam(teamToDelete);
       if (response.success) {
-        toast.success("Team deleted successfully!");
         setShowDeleteConfirm(false);
         setTeamToDelete(null);
         await fetchTeams();

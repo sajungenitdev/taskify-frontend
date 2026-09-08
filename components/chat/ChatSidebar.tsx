@@ -52,14 +52,16 @@ export interface ChannelItem {
     iconBg?: string;
     roleBadge?: string;
     members?: Array<{
-        userId: {
+        userId:
+        | {
             _id: string;
             fullName: string;
             email: string;
             avatar?: string;
             onlineStatus?: string;
             role?: string;
-        };
+        }
+        | string;
         role: string;
         joinedAt: string;
     }>;
@@ -103,7 +105,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 // ============================================================
-// AVATAR UTILITIES
+// UTILITIES
 // ============================================================
 
 const getInitials = (name?: string): string => {
@@ -124,6 +126,14 @@ const getAvatarColor = (userId: string = "") => {
     ];
     const index = userId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[index % colors.length];
+};
+
+const normalizeId = (target: any): string => {
+    if (!target) return "";
+    if (typeof target === "string") return target;
+    if (target._id) return target._id.toString();
+    if (target.userId) return normalizeId(target.userId);
+    return target.toString();
 };
 
 // ============================================================
@@ -173,29 +183,61 @@ export default function ChatSidebar({
         isDM: false,
     });
 
-    const currentUserId = user?._id?.toString();
+    const currentUserId = normalizeId(user?._id);
     const channelListRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         setLoading(externalLoading);
     }, [externalLoading]);
 
-    // ============================================================
-    // UPDATE CHANNELS FROM EXTERNAL PROP
-    // ============================================================
+    // Comprehensive real-time online resolution
+    const isUserOnline = useCallback(
+        (userId: any) => {
+            const targetId = normalizeId(userId);
+            if (!targetId) return false;
+
+            // Current logged in user is always online if socket is connected
+            if (isConnected && currentUserId && targetId === currentUserId) {
+                return true;
+            }
+
+            // Check socket real-time presence array
+            if (onlineMembers.some((id) => normalizeId(id) === targetId)) {
+                return true;
+            }
+
+            // Check member's static property from fetched users list
+            const matchedUser = allUsers.find((u) => normalizeId(u._id) === targetId);
+            return matchedUser?.onlineStatus === "online";
+        },
+        [isConnected, currentUserId, onlineMembers, allUsers]
+    );
+
+    // Update counts
     const updateChannelCounts = useCallback(
         (channelList: ChannelItem[]) => {
+            const activeOnlineSet = new Set<string>(onlineMembers.map(normalizeId));
+            if (isConnected && currentUserId) {
+                activeOnlineSet.add(currentUserId);
+            }
+
+            allUsers.forEach((u) => {
+                if (u.onlineStatus === "online") {
+                    activeOnlineSet.add(normalizeId(u._id));
+                }
+            });
+
             const counts = {
                 total: channelList.length,
                 channels: channelList.filter((c) => c.type === "channel" && !c.isArchived).length,
                 projects: channelList.filter((c) => c.type === "project" && !c.isArchived).length,
                 direct: channelList.filter((c) => c.type === "direct" && !c.isArchived).length,
                 archived: channelList.filter((c) => c.isArchived).length,
-                online: onlineMembers.length,
+                online: activeOnlineSet.size,
             };
             setChannelCounts(counts);
         },
-        [onlineMembers.length]
+        [onlineMembers, isConnected, currentUserId, allUsers]
     );
 
     useEffect(() => {
@@ -205,32 +247,27 @@ export default function ChatSidebar({
         }
     }, [externalChannels, updateChannelCounts]);
 
-    // ============================================================
-    // FETCH USERS
-    // ============================================================
+    // Fetch directory users
     const fetchUsers = useCallback(async () => {
         try {
             const response = await api.get("/users");
             if (response.data?.success) {
-                const filteredUsers = (response.data.data || []).filter(
-                    (u: any) => u._id?.toString() !== currentUserId
+                const userList = (response.data.data || []).filter(
+                    (u: any) => normalizeId(u._id) !== currentUserId
                 );
-                setAllUsers(filteredUsers);
+                setAllUsers(userList);
             }
         } catch (err) {
             console.error("Error fetching users:", err);
         }
     }, [currentUserId]);
 
-    // ============================================================
-    // UNARCHIVE CHANNEL
-    // ============================================================
+    // Unarchive Channel
     const handleUnarchiveChannel = useCallback(
         async (channelId: string) => {
             try {
                 const response = await api.patch(`/channels/${channelId}/archive`, { isArchived: false });
                 if (response.data?.success) {
-                    toast.success("Channel restored from archive");
                     setChannels((prev) => {
                         const updated = prev.map((ch) =>
                             ch._id === channelId ? { ...ch, isArchived: false, archivedAt: undefined } : ch
@@ -249,9 +286,7 @@ export default function ChatSidebar({
         [updateChannelCounts]
     );
 
-    // ============================================================
-    // OPEN DELETE CONFIRMATION MODAL
-    // ============================================================
+    // Delete Modal Handlers
     const openDeleteModal = useCallback((channelId: string, channelName: string, isDM: boolean) => {
         setDeleteModal({
             isOpen: true,
@@ -270,9 +305,6 @@ export default function ChatSidebar({
         });
     }, []);
 
-    // ============================================================
-    // EXECUTE DELETE CHANNEL (API)
-    // ============================================================
     const executeDeleteChannel = useCallback(async () => {
         const { channelId, channelName } = deleteModal;
         if (!channelId) return;
@@ -282,7 +314,6 @@ export default function ChatSidebar({
             const response = await api.delete(`/channels/${channelId}`);
 
             if (response.data?.success) {
-                toast.success(`"${channelName}" deleted`);
                 closeDeleteModal();
 
                 setChannels((prev) => {
@@ -292,12 +323,11 @@ export default function ChatSidebar({
                     if (selectedChannelId === channelId) {
                         if (filtered.length > 0) {
                             const nextChannel = filtered[0];
+                            const partner = nextChannel.members?.find((m) => normalizeId(m.userId) !== currentUserId);
+                            const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
                             const displayName =
                                 nextChannel.type === "direct"
-                                    ? nextChannel.members?.find((m) => {
-                                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                                        return uid?.toString() !== currentUserId;
-                                    })?.userId?.fullName || "Direct Message"
+                                    ? partnerUser?.fullName || "Direct Message"
                                     : nextChannel.name;
                             onSelectChannel(nextChannel._id, displayName);
                         } else {
@@ -323,9 +353,6 @@ export default function ChatSidebar({
         }
     }, [deleteModal, selectedChannelId, currentUserId, onSelectChannel, updateChannelCounts, closeDeleteModal]);
 
-    // ============================================================
-    // REFRESH CHANNELS
-    // ============================================================
     const refreshChannels = useCallback(async () => {
         if (isRefreshing) return;
         setIsRefreshing(true);
@@ -345,26 +372,23 @@ export default function ChatSidebar({
         }
     }, [isRefreshing, updateChannelCounts]);
 
-    // ============================================================
-    // START DIRECT MESSAGE
-    // ============================================================
+    // Start Direct Message
     const handleStartDirectMessage = useCallback(
         async (targetUserId: string) => {
             try {
+                const normalizedTarget = normalizeId(targetUserId);
+
                 const existingChannel = channels.find((ch) => {
                     if (ch.type !== "direct" || ch.isArchived) return false;
-                    return ch.members?.some((m) => {
-                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                        return uid?.toString() === targetUserId;
-                    });
+                    return ch.members?.some((m) => normalizeId(m.userId) === normalizedTarget);
                 });
 
                 if (existingChannel) {
-                    const partner = existingChannel.members?.find((m) => {
-                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                        return uid?.toString() !== currentUserId;
-                    });
-                    const displayName = partner?.userId?.fullName || "Direct";
+                    const partner = existingChannel.members?.find((m) => normalizeId(m.userId) !== currentUserId);
+                    const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
+                    const fallbackUser = allUsers.find((u) => normalizeId(u._id) === normalizedTarget);
+                    const displayName = partnerUser?.fullName || fallbackUser?.fullName || "Direct Message";
+
                     onSelectChannel(existingChannel._id, displayName);
                     joinChannel(existingChannel._id);
                     markAsRead(existingChannel._id);
@@ -373,19 +397,16 @@ export default function ChatSidebar({
 
                 const archivedDM = channels.find((ch) => {
                     if (ch.type !== "direct" || !ch.isArchived) return false;
-                    return ch.members?.some((m) => {
-                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                        return uid?.toString() === targetUserId;
-                    });
+                    return ch.members?.some((m) => normalizeId(m.userId) === normalizedTarget);
                 });
 
                 if (archivedDM) {
                     await handleUnarchiveChannel(archivedDM._id);
-                    const partner = archivedDM.members?.find((m) => {
-                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                        return uid?.toString() !== currentUserId;
-                    });
-                    const displayName = partner?.userId?.fullName || "Direct";
+                    const partner = archivedDM.members?.find((m) => normalizeId(m.userId) !== currentUserId);
+                    const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
+                    const fallbackUser = allUsers.find((u) => normalizeId(u._id) === normalizedTarget);
+                    const displayName = partnerUser?.fullName || fallbackUser?.fullName || "Direct Message";
+
                     onSelectChannel(archivedDM._id, displayName);
                     joinChannel(archivedDM._id);
                     markAsRead(archivedDM._id);
@@ -393,18 +414,17 @@ export default function ChatSidebar({
                 }
 
                 const response = await api.post("/channels", {
-                    name: `dm-${currentUserId}-${targetUserId}`,
+                    name: `dm-${currentUserId}-${normalizedTarget}`,
                     type: "direct",
-                    members: [targetUserId],
+                    members: [normalizedTarget],
                 });
 
                 if (response.data?.success) {
                     const newChannel = response.data.data;
-                    const partner = newChannel.members?.find((m: any) => {
-                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                        return uid?.toString() !== currentUserId;
-                    });
-                    const displayName = partner?.userId?.fullName || "Direct";
+                    const partner = newChannel.members?.find((m: any) => normalizeId(m.userId) !== currentUserId);
+                    const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
+                    const fallbackUser = allUsers.find((u) => normalizeId(u._id) === normalizedTarget);
+                    const displayName = partnerUser?.fullName || fallbackUser?.fullName || "Direct Message";
 
                     setChannels((prev) => {
                         if (prev.some((c) => c._id === newChannel._id)) return prev;
@@ -421,12 +441,7 @@ export default function ChatSidebar({
                 toast.error(err.response?.data?.message || "Failed to start direct message");
             }
         },
-        [channels, currentUserId, onSelectChannel, joinChannel, markAsRead, updateChannelCounts, handleUnarchiveChannel]
-    );
-
-    const isUserOnline = useCallback(
-        (userId: string) => onlineMembers.includes(userId),
-        [onlineMembers]
+        [channels, currentUserId, allUsers, onSelectChannel, joinChannel, markAsRead, updateChannelCounts, handleUnarchiveChannel]
     );
 
     const getTimeAgo = useCallback((dateString?: string) => {
@@ -445,23 +460,27 @@ export default function ChatSidebar({
         return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
     }, []);
 
-    // Filter channels by user search term
+    // Filter channels
     const filteredChannels = useMemo(() => {
         if (!searchTerm.trim()) return channels;
 
         const term = searchTerm.toLowerCase().trim();
         return channels.filter((ch) => {
             const name = ch.name?.toLowerCase() || "";
-            const partner = ch.members?.find((m) => {
-                const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                return uid?.toString() !== currentUserId;
-            });
-            const displayName = ch.type === "direct" ? partner?.userId?.fullName?.toLowerCase() || "" : name;
+            const partner = ch.members?.find((m) => normalizeId(m.userId) !== currentUserId);
+            const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
+            const partnerFromAll = allUsers.find(
+                (u) => normalizeId(u._id) === normalizeId(partner?.userId)
+            );
+            const displayName =
+                ch.type === "direct"
+                    ? partnerUser?.fullName?.toLowerCase() || partnerFromAll?.fullName?.toLowerCase() || ""
+                    : name;
             const lastMessage = ch.lastMessage?.content?.toLowerCase() || "";
 
             return displayName.includes(term) || name.includes(term) || lastMessage.includes(term);
         });
-    }, [channels, searchTerm, currentUserId]);
+    }, [channels, searchTerm, currentUserId, allUsers]);
 
     const filteredUsers = useMemo(() => {
         if (!searchTerm.trim()) return allUsers;
@@ -471,21 +490,20 @@ export default function ChatSidebar({
         );
     }, [allUsers, searchTerm]);
 
-    // ============================================================
-    // RENDER ICON - FIXED WITH CHANNEL/GROUP & USER AVATARS
-    // ============================================================
+    // Render Icon
     const renderIcon = useCallback(
         (ch: ChannelItem) => {
-            // 1. DIRECT MESSAGE AVATAR (Partner's avatar)
             if (ch.type === "direct") {
-                const member = ch.members?.find((m) => {
-                    const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                    return uid?.toString() !== currentUserId;
-                });
+                const member = ch.members?.find((m) => normalizeId(m.userId) !== currentUserId);
                 const partnerUser = typeof member?.userId === "object" ? member.userId : null;
-                const displayName = partnerUser?.fullName || "Unknown";
-                const partnerAvatar = partnerUser?.avatar;
-                const targetOnline = isUserOnline(partnerUser?._id || "");
+                const fallbackUser = allUsers.find(
+                    (u) => normalizeId(u._id) === normalizeId(member?.userId)
+                );
+
+                const targetId = partnerUser?._id || fallbackUser?._id || normalizeId(member?.userId);
+                const displayName = partnerUser?.fullName || fallbackUser?.fullName || "Direct Message";
+                const partnerAvatar = partnerUser?.avatar || fallbackUser?.avatar;
+                const targetOnline = isUserOnline(targetId);
 
                 return (
                     <div className="relative shrink-0 select-none">
@@ -498,7 +516,7 @@ export default function ChatSidebar({
                         ) : (
                             <div
                                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${getAvatarColor(
-                                    partnerUser?._id || ""
+                                    targetId
                                 )}`}
                             >
                                 {getInitials(displayName)}
@@ -511,7 +529,6 @@ export default function ChatSidebar({
                 );
             }
 
-            // 2. CHANNEL / PROJECT / GROUP CUSTOM AVATAR (Uploaded Image)
             if (ch.avatar) {
                 return (
                     <div className="relative shrink-0 select-none">
@@ -524,7 +541,6 @@ export default function ChatSidebar({
                 );
             }
 
-            // 3. FALLBACK ICON OR INITIAL BADGE
             const IconComponent = ch.iconType ? iconMap[ch.iconType] || Building2 : null;
             const bgColor =
                 ch.iconBg ||
@@ -534,11 +550,17 @@ export default function ChatSidebar({
 
             return (
                 <div className={`w-8 h-8 rounded-xl ${bgColor} flex items-center justify-center shrink-0 shadow-2xs font-bold text-xs`}>
-                    {IconComponent ? <IconComponent className="w-4 h-4" /> : ch.type === "channel" ? <Hash className="w-4 h-4" /> : getInitials(ch.name)}
+                    {IconComponent ? (
+                        <IconComponent className="w-4 h-4" />
+                    ) : ch.type === "channel" ? (
+                        <Hash className="w-4 h-4" />
+                    ) : (
+                        getInitials(ch.name)
+                    )}
                 </div>
             );
         },
-        [currentUserId, isUserOnline]
+        [currentUserId, allUsers, isUserOnline]
     );
 
     const toggleSection = useCallback((section: keyof typeof expandedSections) => {
@@ -589,22 +611,25 @@ export default function ChatSidebar({
                         <div className="mt-0.5 space-y-0.5">
                             {list.map((ch) => {
                                 const isSelected = selectedChannelId === ch._id;
-                                const partner = ch.members?.find((m) => {
-                                    const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                                    return uid?.toString() !== currentUserId;
-                                });
-                                const displayName = ch.type === "direct" ? partner?.userId?.fullName || "Direct Message" : ch.name;
+                                const partner = ch.members?.find((m) => normalizeId(m.userId) !== currentUserId);
+                                const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
+                                const fallbackUser = allUsers.find(
+                                    (u) => normalizeId(u._id) === normalizeId(partner?.userId)
+                                );
+
+                                const displayName =
+                                    ch.type === "direct"
+                                        ? partnerUser?.fullName || fallbackUser?.fullName || "Direct Message"
+                                        : ch.name;
+
                                 const hasUnread = (ch.unreadCount ?? 0) > 0;
                                 const lastMessageTime = ch.lastMessage?.createdAt;
                                 const isDM = ch.type === "direct";
                                 const isArchived = ch.isArchived || false;
                                 const canDelete =
                                     isDM ||
-                                    ch.createdBy?._id === currentUserId ||
-                                    ch.members?.some((m) => {
-                                        const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                                        return uid?.toString() === currentUserId && m.role === "admin";
-                                    });
+                                    normalizeId(ch.createdBy?._id) === currentUserId ||
+                                    ch.members?.some((m) => normalizeId(m.userId) === currentUserId && m.role === "admin");
 
                                 return (
                                     <div
@@ -635,7 +660,9 @@ export default function ChatSidebar({
                                                             } ${isArchived ? "line-through text-slate-400" : ""}`}
                                                     >
                                                         {ch.type === "channel" ? `# ${displayName}` : displayName}
-                                                        {ch.type === "project" && <Zap className="w-3 h-3 text-amber-500 fill-amber-400 shrink-0" />}
+                                                        {ch.type === "project" && (
+                                                            <Zap className="w-3 h-3 text-amber-500 fill-amber-400 shrink-0" />
+                                                        )}
                                                     </span>
 
                                                     {lastMessageTime && !isArchived && (
@@ -688,6 +715,7 @@ export default function ChatSidebar({
             expandedSections,
             selectedChannelId,
             currentUserId,
+            allUsers,
             toggleSection,
             renderIcon,
             getTimeAgo,
@@ -698,17 +726,41 @@ export default function ChatSidebar({
     );
 
     // ============================================================
-    // WEBSOCKET LISTENERS
+    // WEBSOCKET LISTENERS & REAL-TIME PRESENCE
     // ============================================================
     useEffect(() => {
         if (!socket) return;
 
+        // Ask server for active online users immediately
+        socket.emit("users:get_online");
+
         const handleUserOnlineEvent = (data: any) => {
-            setOnlineMembers((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
+            const uid = normalizeId(data?.userId || data);
+            if (!uid) return;
+            setOnlineMembers((prev) => (prev.some((id) => normalizeId(id) === uid) ? prev : [...prev, uid]));
+            setAllUsers((prev) =>
+                prev.map((u) => (normalizeId(u._id) === uid ? { ...u, onlineStatus: "online" } : u))
+            );
         };
 
         const handleUserOfflineEvent = (data: any) => {
-            setOnlineMembers((prev) => prev.filter((id) => id !== data.userId));
+            const uid = normalizeId(data?.userId || data);
+            if (!uid) return;
+            setOnlineMembers((prev) => prev.filter((id) => normalizeId(id) !== uid));
+            setAllUsers((prev) =>
+                prev.map((u) => (normalizeId(u._id) === uid ? { ...u, onlineStatus: "offline" } : u))
+            );
+        };
+
+        const handleOnlineUsersList = (data: any) => {
+            const list = Array.isArray(data) ? data : data?.users || [];
+            const normalized = list.map(normalizeId).filter(Boolean);
+            setOnlineMembers((prev) => Array.from(new Set([...prev, ...normalized])));
+            setAllUsers((prev) =>
+                prev.map((u) =>
+                    normalized.includes(normalizeId(u._id)) ? { ...u, onlineStatus: "online" } : u
+                )
+            );
         };
 
         const handleNewMessage = (data: any) => {
@@ -722,7 +774,9 @@ export default function ChatSidebar({
                         return {
                             ...ch,
                             lastMessage: {
-                                content: data.message?.content || (data.message?.attachments?.length ? "Attachment" : "New message"),
+                                content:
+                                    data.message?.content ||
+                                    (data.message?.attachments?.length ? "Attachment" : "New message"),
                                 createdAt: data.message?.createdAt || new Date().toISOString(),
                                 senderId: {
                                     fullName: data.message?.senderId?.fullName || "Unknown",
@@ -765,7 +819,6 @@ export default function ChatSidebar({
             }
         };
 
-        // ✅ Listens to channel updates (such as when avatar is changed)
         const handleChannelUpdated = (data: any) => {
             setChannels((prev) =>
                 prev.map((ch) => (ch._id === data.channelId ? { ...ch, ...data.updates } : ch))
@@ -785,6 +838,8 @@ export default function ChatSidebar({
 
         socket.on("user:online", handleUserOnlineEvent);
         socket.on("user:offline", handleUserOfflineEvent);
+        socket.on("users:online", handleOnlineUsersList);
+        socket.on("channel:online_users", handleOnlineUsersList);
         socket.on("message:new", handleNewMessage);
         socket.on("channel:created", handleChannelCreated);
         socket.on("channel:added", handleChannelAdded);
@@ -792,16 +847,18 @@ export default function ChatSidebar({
         socket.on("channel:deleted", handleChannelDeleted);
 
         const unsubOnline = onUserOnline?.((data: any) => {
-            setOnlineMembers((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
+            handleUserOnlineEvent(data);
         });
 
         const unsubOffline = onUserOffline?.((data: any) => {
-            setOnlineMembers((prev) => prev.filter((id) => id !== data.userId));
+            handleUserOfflineEvent(data);
         });
 
         return () => {
             socket.off("user:online", handleUserOnlineEvent);
             socket.off("user:offline", handleUserOfflineEvent);
+            socket.off("users:online", handleOnlineUsersList);
+            socket.off("channel:online_users", handleOnlineUsersList);
             socket.off("message:new", handleNewMessage);
             socket.off("channel:created", handleChannelCreated);
             socket.off("channel:added", handleChannelAdded);
@@ -901,11 +958,15 @@ export default function ChatSidebar({
                                 {filteredChannels
                                     .filter((c) => c.isArchived)
                                     .map((ch) => {
-                                        const partner = ch.members?.find((m) => {
-                                            const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                                            return uid?.toString() !== currentUserId;
-                                        });
-                                        const displayName = ch.type === "direct" ? partner?.userId?.fullName || "Unknown" : ch.name;
+                                        const partner = ch.members?.find((m) => normalizeId(m.userId) !== currentUserId);
+                                        const partnerUser = typeof partner?.userId === "object" ? partner.userId : null;
+                                        const fallbackUser = allUsers.find(
+                                            (u) => normalizeId(u._id) === normalizeId(partner?.userId)
+                                        );
+                                        const displayName =
+                                            ch.type === "direct"
+                                                ? partnerUser?.fullName || fallbackUser?.fullName || "Unknown"
+                                                : ch.name;
 
                                         return (
                                             <div
@@ -966,7 +1027,7 @@ export default function ChatSidebar({
                                 Teammates
                             </span>
                             <span className="text-[9px] text-emerald-600 font-semibold bg-emerald-50 px-1.5 py-0.2 rounded-full">
-                                {onlineMembers.length} online
+                                {channelCounts.online} online
                             </span>
                         </div>
                         <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">
@@ -986,10 +1047,7 @@ export default function ChatSidebar({
                                     const hasDirectChannel = channels.some(
                                         (ch) =>
                                             ch.type === "direct" &&
-                                            ch.members?.some((m) => {
-                                                const uid = typeof m.userId === "string" ? m.userId : m.userId?._id;
-                                                return uid?.toString() === userItem._id;
-                                            }) &&
+                                            ch.members?.some((m) => normalizeId(m.userId) === normalizeId(userItem._id)) &&
                                             !ch.isArchived
                                     );
 
@@ -1017,7 +1075,7 @@ export default function ChatSidebar({
                                                         </div>
                                                     )}
                                                     {targetOnline && (
-                                                        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white" />
+                                                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-white" />
                                                     )}
                                                 </div>
 

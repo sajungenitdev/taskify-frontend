@@ -162,9 +162,6 @@ export default function TeamChatPage() {
                     type: response.data.data.type || roomData.type || "channel",
                 };
 
-                toast.success(
-                    roomData.type === "project" ? "Project channel created!" : "Channel created successfully!"
-                );
                 setIsModalOpen(false);
 
                 if (newChannel?._id) {
@@ -233,7 +230,6 @@ export default function TeamChatPage() {
         setHasLeftChannel(true);
 
         fetchChannels();
-        toast.success("You left the channel");
     }, [selectedChannelId, leaveChannel, fetchChannels]);
 
     // ============================================================
@@ -266,14 +262,12 @@ export default function TeamChatPage() {
                         if (channel) {
                             const displayName = getChannelDisplayName(channel);
                             handleSelectChannel(channel._id, displayName);
-                            toast.success("Switched to channel with pinned message");
                         }
                     } else {
                         toast.error("Pinned message is further up in conversation history");
                     }
                 } else {
                     toast.dismiss(loadingId);
-                    toast.error("Message not found or deleted");
                 }
             } catch {
                 toast.error("Could not fetch pinned message");
@@ -325,7 +319,6 @@ export default function TeamChatPage() {
             if (data.channel) {
                 setChannels((prev) => (prev.some((c) => c._id === data.channel._id) ? prev : [data.channel, ...prev]));
                 joinChannel(data.channel._id);
-                toast.success(`Joined channel #${data.channel.name}`);
             }
         };
 
@@ -353,7 +346,6 @@ export default function TeamChatPage() {
                 setSelectedChannelAvatar(undefined);
                 setHasLeftChannel(true);
             }
-            toast.success(`Channel #${data.channelName || ""} was deleted`);
         };
 
         const handleMembersUpdated = (data: { channelId: string; newMembers: any[]; online?: number }) => {
@@ -456,10 +448,10 @@ export default function TeamChatPage() {
                 <button
                     type="button"
                     onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition shadow-xs cursor-pointer"
+                    className="px-3 flex py-1.5 cursor-pointer text-xs font-medium rounded bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"
                 >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>New Channel</span>
+                    <span className="ps-2">New Channel</span>
                 </button>
             </header>
 

@@ -265,7 +265,7 @@ const normalizeId = (item: any): string => {
     if (typeof item === "string") return item;
     if (item._id) return item._id.toString();
     if (item.userId) return normalizeId(item.userId);
-    return "";
+    return item.toString();
 };
 
 // ============================================================
@@ -284,7 +284,9 @@ export default function ChatDetailsSidebar({
     onLeaveChannel,
 }: ChatDetailsSidebarProps) {
     const { user } = useAuth();
-    const { socket } = useSocket();
+    const { socket, isConnected } = useSocket();
+
+    const currentUserId = normalizeId(user?._id);
 
     // Core States
     const [members, setMembers] = useState<Member[]>(externalMembers);
@@ -348,18 +350,30 @@ export default function ChatDetailsSidebar({
         if (!channelInfo || !user) return false;
         if (channelInfo.type === "direct") return false;
 
-        const currentUid = normalizeId(user._id);
         const creatorId = normalizeId(channelInfo.createdBy?._id);
-        if (creatorId && creatorId === currentUid) return true;
+        if (creatorId && creatorId === currentUserId) return true;
 
         return Boolean(
             channelInfo.members?.some((m: any) => normalizeId(m.userId) === currentUid && m.role === "admin")
         );
-    }, [channelInfo, user]);
+    }, [channelInfo, user, currentUserId]);
 
     const closeConfirmModal = () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false, isLoading: false }));
     };
+
+    // Keep external props in sync
+    useEffect(() => {
+        if (externalMembers && externalMembers.length > 0) {
+            setMembers(externalMembers);
+        }
+    }, [externalMembers]);
+
+    useEffect(() => {
+        if (typeof externalOnlineCount === "number") {
+            setOnlineCount(externalOnlineCount);
+        }
+    }, [externalOnlineCount]);
 
     // ============================================================
     // API FETCHERS
@@ -387,12 +401,18 @@ export default function ChatDetailsSidebar({
         try {
             const res = await api.get(`/channels/${channelId}/members`);
             if (res.data?.success) {
-                const memberList = (res.data.data.members || []).map((m: any) => ({
-                    ...m.userId,
-                    role: m.role,
-                }));
+                const memberList = (res.data.data.members || []).map((m: any) => {
+                    const uObj = typeof m.userId === "object" ? m.userId : { _id: m.userId };
+                    return {
+                        ...uObj,
+                        _id: normalizeId(uObj._id || uObj),
+                        role: m.role,
+                    };
+                });
                 setMembers(memberList);
-                setOnlineCount(res.data.data.online || 0);
+                if (typeof res.data.data.online === "number") {
+                    setOnlineCount(res.data.data.online);
+                }
             }
         } catch (error) {
             console.error("Error fetching members:", error);
@@ -461,8 +481,6 @@ export default function ChatDetailsSidebar({
             const res = await api.get("/users");
             if (res.data?.success) {
                 const currentMemberIds = members.map((m) => normalizeId(m._id));
-                const currentUserId = normalizeId(user?._id);
-
                 setAvailableUsers(
                     (res.data.data || []).filter(
                         (u: any) => normalizeId(u._id) !== currentUserId && !currentMemberIds.includes(normalizeId(u._id))
@@ -472,7 +490,7 @@ export default function ChatDetailsSidebar({
         } catch (error) {
             console.error("Error fetching available users:", error);
         }
-    }, [members, user?._id]);
+    }, [members, currentUserId]);
 
     useEffect(() => {
         if (channelId) {
@@ -488,55 +506,70 @@ export default function ChatDetailsSidebar({
     }, [fetchAvailableUsers]);
 
     // ============================================================
-    // SOCKET LISTENERS
+    // SOCKET LISTENERS & ONLINE STATUS SYNC
     // ============================================================
 
     useEffect(() => {
         if (!socket || !channelId) return;
 
+        // Ask server for active online users
+        socket.emit("users:get_online");
+
         const handleMemberAdded = (data: any) => {
-            if (data.channelId === channelId) {
+            if (normalizeId(data.channelId) === normalizeId(channelId)) {
                 fetchChannelMembers();
             }
         };
 
         const handleMemberRemoved = (data: any) => {
-            if (data.channelId === channelId) {
-                setMembers((prev) => prev.filter((m) => m._id !== data.userId));
-                setOnlineCount((prev) => Math.max(0, prev - 1));
+            if (normalizeId(data.channelId) === normalizeId(channelId)) {
+                const removedId = normalizeId(data.userId);
+                setMembers((prev) => prev.filter((m) => normalizeId(m._id) !== removedId));
+                setOnlineMembers((prev) => prev.filter((id) => normalizeId(id) !== removedId));
             }
         };
 
         const handleUserOnline = (data: any) => {
-            setOnlineMembers((prev) => (prev.includes(data.userId) ? prev : [...prev, data.userId]));
+            const uid = normalizeId(data?.userId || data);
+            if (!uid) return;
+            setOnlineMembers((prev) => (prev.some((id) => normalizeId(id) === uid) ? prev : [...prev, uid]));
             setMembers((prev) =>
-                prev.map((m) => (m._id === data.userId ? { ...m, onlineStatus: "online" } : m))
+                prev.map((m) => (normalizeId(m._id) === uid ? { ...m, onlineStatus: "online" } : m))
             );
         };
 
         const handleUserOffline = (data: any) => {
-            setOnlineMembers((prev) => prev.filter((id) => id !== data.userId));
+            const uid = normalizeId(data?.userId || data);
+            if (!uid) return;
+            setOnlineMembers((prev) => prev.filter((id) => normalizeId(id) !== uid));
             setMembers((prev) =>
-                prev.map((m) => (m._id === data.userId ? { ...m, onlineStatus: "offline" } : m))
+                prev.map((m) => (normalizeId(m._id) === uid ? { ...m, onlineStatus: "offline" } : m))
             );
         };
 
+        const handleOnlineUsersList = (data: any) => {
+            const list = Array.isArray(data) ? data : data?.users || [];
+            const normalized = list.map(normalizeId).filter(Boolean);
+            setOnlineMembers((prev) => Array.from(new Set([...prev, ...normalized])));
+        };
+
         const handleMemberUpdated = (data: any) => {
-            if (data.channelId === channelId) {
+            if (normalizeId(data.channelId) === normalizeId(channelId)) {
+                const uid = normalizeId(data.userId);
                 setMembers((prev) =>
-                    prev.map((m) => (m._id === data.userId ? { ...m, role: data.role } : m))
+                    prev.map((m) => (normalizeId(m._id) === uid ? { ...m, role: data.role } : m))
                 );
             }
         };
 
         const handlePinnedUpdated = (data: any) => {
-            if (data.channelId === channelId) {
+            if (normalizeId(data.channelId) === normalizeId(channelId)) {
                 fetchPinnedItems();
             }
         };
 
         const handleTaskLinked = (data: any) => {
-            if (data.channelId === channelId) {
+            if (normalizeId(data.channelId) === normalizeId(channelId)) {
                 fetchLinkedTasks();
             }
         };
@@ -545,6 +578,8 @@ export default function ChatDetailsSidebar({
         socket.on("channel:member_removed", handleMemberRemoved);
         socket.on("user:online", handleUserOnline);
         socket.on("user:offline", handleUserOffline);
+        socket.on("users:online", handleOnlineUsersList);
+        socket.on("channel:online_users", handleOnlineUsersList);
         socket.on("channel:member_updated", handleMemberUpdated);
         socket.on("pinned:updated", handlePinnedUpdated);
         socket.on("task:linked", handleTaskLinked);
@@ -554,11 +589,62 @@ export default function ChatDetailsSidebar({
             socket.off("channel:member_removed", handleMemberRemoved);
             socket.off("user:online", handleUserOnline);
             socket.off("user:offline", handleUserOffline);
+            socket.off("users:online", handleOnlineUsersList);
+            socket.off("channel:online_users", handleOnlineUsersList);
             socket.off("channel:member_updated", handleMemberUpdated);
             socket.off("pinned:updated", handlePinnedUpdated);
             socket.off("task:linked", handleTaskLinked);
         };
     }, [socket, channelId, fetchChannelMembers, fetchPinnedItems, fetchLinkedTasks]);
+
+    // Robust Online Checker
+    const isUserOnline = useCallback(
+        (userId: any) => {
+            const targetId = normalizeId(userId);
+            if (!targetId) return false;
+
+            // Current logged in user is always online if socket is connected
+            if (isConnected && currentUserId && targetId === currentUserId) {
+                return true;
+            }
+
+            // Check socket real-time presence array
+            if (onlineMembers.some((id) => normalizeId(id) === targetId)) {
+                return true;
+            }
+
+            // Check member's static property from API
+            const found = members.find((m) => normalizeId(m._id) === targetId);
+            return found?.onlineStatus === "online";
+        },
+        [isConnected, currentUserId, onlineMembers, members]
+    );
+
+    // Dynamic Online Count
+    const resolvedOnlineCount = useMemo(() => {
+        const activeOnlineSet = new Set<string>(onlineMembers.map(normalizeId));
+
+        if (isConnected && currentUserId) {
+            activeOnlineSet.add(currentUserId);
+        }
+
+        members.forEach((m) => {
+            const mid = normalizeId(m._id);
+            if (m.onlineStatus === "online" && mid) {
+                activeOnlineSet.add(mid);
+            }
+        });
+
+        if (members.length > 0) {
+            const count = members.filter((m) => {
+                const uid = normalizeId(m._id);
+                return uid && activeOnlineSet.has(uid);
+            }).length;
+            return Math.max(count, onlineCount);
+        }
+
+        return onlineCount || (isConnected ? 1 : 0);
+    }, [members, onlineMembers, onlineCount, isConnected, currentUserId]);
 
     // ============================================================
     // CHANNEL EDIT & AVATAR ACTIONS
@@ -590,7 +676,6 @@ export default function ChatDetailsSidebar({
                 if (res.data?.success) {
                     setChannelInfo((prev) => (prev ? { ...prev, avatar: base64Data } : null));
                     onChannelUpdated?.();
-                    toast.success("Avatar updated");
                 }
             } catch (error: any) {
                 toast.error(error.response?.data?.message || "Failed to update channel avatar");
@@ -621,7 +706,6 @@ export default function ChatDetailsSidebar({
                         setImagePreview(null);
                         setChannelInfo((prev) => (prev ? { ...prev, avatar: null } : null));
                         onChannelUpdated?.();
-                        toast.success("Avatar removed");
                         closeConfirmModal();
                     }
                 } catch (error: any) {
@@ -649,7 +733,6 @@ export default function ChatDetailsSidebar({
                 setIsEditing(false);
                 setChannelInfo(res.data.data);
                 onChannelUpdated?.();
-                toast.success("Channel details saved");
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to save channel details");
@@ -720,7 +803,6 @@ export default function ChatDetailsSidebar({
                 setShowAddMember(false);
                 fetchChannelMembers();
                 fetchAvailableUsers();
-                toast.success("Member added");
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to add member");
@@ -746,7 +828,6 @@ export default function ChatDetailsSidebar({
                     const res = await api.patch(`/channels/${channelId}/members/${userId}/role`);
                     if (res.data?.success) {
                         fetchChannelMembers();
-                        toast.success(res.data.message || "User role updated");
                         closeConfirmModal();
                     }
                 } catch (error: any) {
@@ -778,7 +859,6 @@ export default function ChatDetailsSidebar({
                     if (res.data?.success) {
                         fetchChannelMembers();
                         fetchAvailableUsers();
-                        toast.success(`"${fullName}" removed`);
                         closeConfirmModal();
                     }
                 } catch (error: any) {
@@ -814,7 +894,6 @@ export default function ChatDetailsSidebar({
             const res = await api.post(`/channels/${channelId}/tasks`, payload);
 
             if (res.data?.success) {
-                toast.success("Task linked successfully");
                 setShowLinkTask(false);
                 setSearchTasks("");
                 await fetchLinkedTasks();
@@ -844,7 +923,6 @@ export default function ChatDetailsSidebar({
                 try {
                     const res = await api.delete(`/channels/${channelId}/tasks/${taskId}`);
                     if (res.data?.success) {
-                        toast.success("Task unlinked");
                         fetchLinkedTasks();
                         closeConfirmModal();
                     }
@@ -864,15 +942,10 @@ export default function ChatDetailsSidebar({
             if (res.data?.success) {
                 setPinnedItems((prev) => prev.filter((item) => item._id !== fileId));
                 onPinnedUpdated?.();
-                toast.success("Item unpinned");
             }
         } catch (error: any) {
             toast.error(error.response?.data?.message || "Failed to remove pinned item");
         }
-    };
-
-    const isUserOnline = (userId: string) => {
-        return onlineMembers.includes(userId) || members.find((m) => m._id === userId)?.onlineStatus === "online";
     };
 
     if (!channelId) {
@@ -1053,7 +1126,7 @@ export default function ChatDetailsSidebar({
                                     <>
                                         <h4 className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">
                                             {isDirectMessage ? (
-                                                members.find((m) => m._id !== user?._id)?.fullName || "Direct Message"
+                                                members.find((m) => normalizeId(m._id) !== currentUserId)?.fullName || "Direct Message"
                                             ) : (
                                                 <span>{channelInfo.name}</span>
                                             )}
@@ -1127,7 +1200,7 @@ export default function ChatDetailsSidebar({
                 <section className="space-y-2.5">
                     <div className="flex items-center justify-between">
                         <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                            Members • {onlineCount} Online
+                            Members • {resolvedOnlineCount} Online
                         </h5>
                         <button
                             type="button"
@@ -1149,7 +1222,7 @@ export default function ChatDetailsSidebar({
                                 const isOnline = isUserOnline(member._id);
                                 const isCreator = normalizeId(channelInfo?.createdBy?._id) === normalizeId(member._id);
                                 const isMemberAdmin = member.role === "admin" || isCreator;
-                                const isSelf = normalizeId(member._id) === normalizeId(user?._id);
+                                const isSelf = normalizeId(member._id) === currentUserId;
                                 const canManage = isAdmin && !isSelf && !isCreator;
 
                                 return (
@@ -1506,7 +1579,7 @@ export default function ChatDetailsSidebar({
                                 type="button"
                                 onClick={() => setShowDeleteConfirm(false)}
                                 disabled={deletingChannel}
-                                className="flex-1 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                                className="flex-1 py-2 border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl text-xs font-semibold transition cursor-pointer"
                             >
                                 Cancel
                             </button>
