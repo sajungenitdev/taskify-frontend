@@ -1,12 +1,11 @@
 // app/(dashboard)/tasks/gantt/page.tsx
 "use client";
 
-import React, { useEffect, useState, useMemo, useCallback, useRef, memo } from "react";
+import React, { useEffect, useState, useMemo, useCallback, useRef, memo, useTransition } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
     ArrowLeft,
-    Calendar,
     CalendarDays,
     Search,
     Loader2,
@@ -20,7 +19,6 @@ import {
     AlertCircle,
     X,
     Flag,
-    User,
     UserCircle,
     UserCheck,
     FileText,
@@ -90,6 +88,7 @@ interface GanttTask extends Task {
     startDayOffset: number;
     x: number;
     y: number;
+    isVisible: boolean;
 }
 
 interface UserItem {
@@ -164,10 +163,6 @@ const getInitials = (name: string): string => {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 };
 
-const getDaysBetween = (start: Date, end: Date): number => {
-    return Math.max(0, Math.ceil((end.getTime() - start.getTime()) / MS_PER_DAY));
-};
-
 // ============ MEMOIZED COMPONENTS ============
 const Tooltip = memo(({
     children,
@@ -196,7 +191,7 @@ const Tooltip = memo(({
             {children}
             {isVisible && (
                 <div
-                    className={`absolute z-50 ${positionClasses[position]} min-w-max max-w-xs px-3 py-2 bg-slate-900/95 backdrop-blur-xs text-white text-xs rounded-xl shadow-xl pointer-events-none border border-slate-700/50`}
+                    className={`absolute z-50 ${positionClasses[position]} min-w-max max-w-xs px-3 py-2 bg-slate-900 text-white text-xs rounded-xl shadow-xl pointer-events-none border border-slate-700`}
                 >
                     {content}
                 </div>
@@ -215,8 +210,10 @@ const TaskGanttBar = memo(({
     dayWidth: number;
     onTaskClick: (task: GanttTask) => void;
 }) => {
-    const left = task.startDayOffset * dayWidth;
-    const width = Math.max(task.duration * dayWidth, 28);
+    if (!task.isVisible) return null;
+
+    const left = Math.max(0, task.startDayOffset * dayWidth);
+    const width = Math.max(task.duration * dayWidth, 26);
     const hasDependencies = (task.dependencies?.length ?? 0) > 0;
 
     const barColor = task.isOverdue
@@ -230,17 +227,17 @@ const TaskGanttBar = memo(({
                     : "bg-amber-500";
 
     const barColorLight = task.isOverdue
-        ? "bg-rose-50/90 border-rose-200"
+        ? "bg-rose-50 border-rose-200"
         : task.status === "completed" || task.status === "done"
-            ? "bg-emerald-50/90 border-emerald-200"
+            ? "bg-emerald-50 border-emerald-200"
             : task.status === "in_progress"
-                ? "bg-blue-50/90 border-blue-200"
+                ? "bg-blue-50 border-blue-200"
                 : task.status === "submitted"
-                    ? "bg-purple-50/90 border-purple-200"
-                    : "bg-amber-50/90 border-amber-200";
+                    ? "bg-purple-50 border-purple-200"
+                    : "bg-amber-50 border-amber-200";
 
     const tooltipContent = (
-        <div className="space-y-1">
+        <div className="space-y-1 text-left">
             <p className="font-semibold text-white truncate max-w-[220px]">{task.title}</p>
             <div className="flex items-center gap-2 text-slate-300">
                 <span>{getStatusLabel(task.status)}</span>
@@ -252,7 +249,7 @@ const TaskGanttBar = memo(({
             </div>
             <div className="text-slate-300">Progress: {task.progressPercent}%</div>
             {task.assignedTo && (
-                <p className="text-slate-300">Assigned: {task.assignedTo.fullName}</p>
+                <p className="text-slate-300 truncate">Assigned: {task.assignedTo.fullName}</p>
             )}
         </div>
     );
@@ -261,22 +258,21 @@ const TaskGanttBar = memo(({
         <div
             className="absolute top-[8px] h-[28px] cursor-pointer group select-none"
             style={{
-                transform: `translateX(${left}px)`,
+                left: `${left}px`,
                 width: `${width}px`,
-                willChange: "transform, width",
             }}
             onClick={() => onTaskClick(task)}
         >
             <Tooltip content={tooltipContent}>
                 <div
-                    className={`relative w-full h-full rounded-md border transition-all duration-150 group-hover:scale-[1.01] group-hover:shadow-md flex items-center overflow-hidden ${barColorLight} ${hasDependencies ? "border-l-4 border-l-indigo-500" : ""
+                    className={`relative w-full h-full rounded-md border flex items-center overflow-hidden transition-all duration-100 group-hover:scale-[1.01] ${barColorLight} ${hasDependencies ? "border-l-4 border-l-indigo-500" : ""
                         }`}
                 >
                     <div
-                        className={`h-full ${barColor} opacity-90 transition-[width] duration-300`}
+                        className={`h-full ${barColor} opacity-90`}
                         style={{ width: `${Math.min(task.progressPercent || 0, 100)}%` }}
                     />
-                    <span className="absolute left-2.5 text-[11px] font-medium text-slate-700 truncate pr-2 pointer-events-none">
+                    <span className="absolute left-2.5 text-[11px] font-medium text-slate-800 truncate pr-2 pointer-events-none">
                         {task.progressPercent > 20 ? task.title : ""}
                     </span>
 
@@ -302,6 +298,8 @@ const MilestoneDiamond = memo(({
     dayWidth: number;
     onTaskClick: (task: GanttTask) => void;
 }) => {
+    if (!task.isVisible) return null;
+
     const left = task.startDayOffset * dayWidth + dayWidth / 2 - 12;
 
     const diamondColor = task.isOverdue
@@ -316,11 +314,8 @@ const MilestoneDiamond = memo(({
 
     return (
         <div
-            className="absolute top-[10px] cursor-pointer z-10 hover:scale-115 transition-transform duration-150 select-none"
-            style={{
-                transform: `translateX(${left}px)`,
-                willChange: "transform",
-            }}
+            className="absolute top-[10px] cursor-pointer z-10 hover:scale-110 transition-transform select-none"
+            style={{ left: `${left}px` }}
             onClick={() => onTaskClick(task)}
         >
             <Tooltip
@@ -349,7 +344,6 @@ const MilestoneDiamond = memo(({
 });
 MilestoneDiamond.displayName = "MilestoneDiamond";
 
-// Ultra-fast unified vector dependency line overlay
 const DependencyOverlay = memo(({
     edges,
     tasks,
@@ -391,7 +385,7 @@ const DependencyOverlay = memo(({
             {edges.map((edge, idx) => {
                 const fromTask = taskMap.get(edge.from);
                 const toTask = taskMap.get(edge.to);
-                if (!fromTask || !toTask) return null;
+                if (!fromTask || !toTask || !fromTask.isVisible || !toTask.isVisible) return null;
 
                 const fromX = (fromTask.startDayOffset + fromTask.duration) * dayWidth;
                 const fromY = fromTask.row * 44 + 22;
@@ -409,7 +403,7 @@ const DependencyOverlay = memo(({
                         d={`M ${fromX} ${fromY} C ${midX} ${fromY - 16}, ${midX} ${toY - 16}, ${toX} ${toY}`}
                         fill="none"
                         stroke={strokeColor}
-                        strokeWidth={isBlocked ? 2.5 : 1.5}
+                        strokeWidth={isBlocked ? 2 : 1.5}
                         strokeDasharray={isBlocked ? "4,4" : undefined}
                         markerEnd={marker}
                         opacity={0.8}
@@ -426,11 +420,12 @@ export default function GanttChartPage() {
     const { isAuthenticated, isLoading: authLoading } = useAuth();
     const router = useRouter();
 
-    // Data State
     const [tasks, setTasks] = useState<Task[]>([]);
     const [users, setUsers] = useState<UserItem[]>([]);
     const [projects, setProjects] = useState<{ _id: string; name: string }[]>([]);
     const [loading, setLoading] = useState(true);
+    const [filterLoading, setFilterLoading] = useState(false);
+    const [, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
     // Filters & UI State
@@ -455,14 +450,15 @@ export default function GanttChartPage() {
     const [showDependencyEditor, setShowDependencyEditor] = useState(false);
     const [selectedTaskId, setSelectedTaskId] = useState("");
 
-    // Auth gate
+    // Container Refs
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         if (!authLoading && !isAuthenticated) {
             router.push("/login");
         }
     }, [authLoading, isAuthenticated, router]);
 
-    // Data fetching
     const fetchData = useCallback(async () => {
         try {
             setLoading(true);
@@ -499,9 +495,10 @@ export default function GanttChartPage() {
             if (usersRes.data?.success) {
                 setUsers(usersRes.data.data || []);
             }
-        } catch (err: any) {
-            console.error("Failed to load Gantt data:", err);
-            setError(err.response?.data?.message || "Failed to load data");
+        } catch (err: unknown) {
+            const errorObj = err as { response?: { data?: { message?: string } } };
+            console.error("Failed to load Gantt data:", errorObj);
+            setError(errorObj.response?.data?.message || "Failed to load data");
             toast.error("Failed to load data");
         } finally {
             setLoading(false);
@@ -514,13 +511,47 @@ export default function GanttChartPage() {
         }
     }, [isAuthenticated, fetchData]);
 
-    // Fast column width calculation
+    // Responsive Day Width
     const dayWidth = useMemo(() => {
-        const base = viewMode === "day" ? 72 : viewMode === "week" ? 48 : 28;
+        const base = viewMode === "day" ? 64 : viewMode === "week" ? 42 : 28;
         return Math.round(base * zoomLevel);
     }, [viewMode, zoomLevel]);
 
-    // Performance-optimized Gantt dataset
+    const handleFilterChange = (setter: (val: string) => void, val: string) => {
+        setFilterLoading(true);
+        startTransition(() => {
+            setter(val);
+            setTimeout(() => setFilterLoading(false), 60);
+        });
+    };
+
+    // Calculate bounded window based on currentDate and viewMode
+    const timelineBounds = useMemo(() => {
+        const baseDate = new Date(currentDate);
+        baseDate.setHours(0, 0, 0, 0);
+
+        let daysBefore = 7;
+        let daysAfter = 21;
+
+        if (viewMode === "day") {
+            daysBefore = 5;
+            daysAfter = 15;
+        } else if (viewMode === "week") {
+            daysBefore = 7;
+            daysAfter = 28;
+        } else if (viewMode === "month") {
+            daysBefore = 10;
+            daysAfter = 50;
+        }
+
+        const start = new Date(baseDate.getTime() - daysBefore * MS_PER_DAY);
+        const end = new Date(baseDate.getTime() + daysAfter * MS_PER_DAY);
+        const totalDays = Math.round((end.getTime() - start.getTime()) / MS_PER_DAY);
+
+        return { start, end, totalDays };
+    }, [currentDate, viewMode]);
+
+    // Gantt Dataset
     const ganttData = useMemo(() => {
         const filtered = tasks.filter((task) => {
             if (!task.startDate && !task.deadline) return false;
@@ -550,34 +581,19 @@ export default function GanttChartPage() {
             return dA - dB;
         });
 
-        let minDate = new Date();
-        let maxDate = new Date();
-
-        if (sorted.length > 0) {
-            minDate = new Date(sorted[0].startDate || sorted[0].deadline);
-            maxDate = new Date(sorted[0].deadline);
-
-            sorted.forEach((task) => {
-                const s = new Date(task.startDate || task.deadline);
-                const e = new Date(task.deadline);
-                if (s < minDate) minDate = s;
-                if (e > maxDate) maxDate = e;
-            });
-        }
-
-        minDate = new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate() - 3);
-        maxDate = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate() + 6);
-
         const now = new Date();
-        const startTs = minDate.getTime();
+        const timelineStartTs = timelineBounds.start.getTime();
+        const timelineEndTs = timelineBounds.end.getTime();
 
         const ganttTasks: GanttTask[] = sorted.map((task, index) => {
             const start = new Date(task.startDate || task.deadline);
             const end = new Date(task.deadline);
             const duration = Math.max(1, Math.round((end.getTime() - start.getTime()) / MS_PER_DAY));
-            const startDayOffset = Math.max(0, Math.round((start.getTime() - startTs) / MS_PER_DAY));
+            const startDayOffset = Math.round((start.getTime() - timelineStartTs) / MS_PER_DAY);
             const progressPercent = task.progress ?? (task.status === "completed" || task.status === "done" ? 100 : 0);
             const isOverdue = end < now && task.status !== "completed" && task.status !== "done";
+
+            const isVisible = end.getTime() >= timelineStartTs && start.getTime() <= timelineEndTs;
 
             return {
                 ...task,
@@ -596,35 +612,33 @@ export default function GanttChartPage() {
                 startDayOffset,
                 x: startDayOffset * dayWidth,
                 y: index * 44 + 22,
+                isVisible,
             };
         });
 
-        const totalDays = Math.max(1, Math.round((maxDate.getTime() - minDate.getTime()) / MS_PER_DAY));
-
         return {
             tasks: ganttTasks,
-            startDate: minDate,
-            endDate: maxDate,
-            totalDays,
+            startDate: timelineBounds.start,
+            endDate: timelineBounds.end,
+            totalDays: timelineBounds.totalDays,
             totalTasks: ganttTasks.length,
             milestoneCount: ganttTasks.filter((t) => t.isMilestone).length,
             parentTaskCount: ganttTasks.filter((t) => !t.parentTaskId).length,
             subTaskCount: ganttTasks.filter((t) => !!t.parentTaskId).length,
         };
-    }, [tasks, searchQuery, filterStatus, filterPriority, filterProject, filterEmployee, filterMilestone, filterSubTask, dayWidth]);
+    }, [tasks, searchQuery, filterStatus, filterPriority, filterProject, filterEmployee, filterMilestone, filterSubTask, timelineBounds, dayWidth]);
 
     const statuses = useMemo(() => Array.from(new Set(tasks.map((t) => t.status))), [tasks]);
     const priorities = useMemo(() => Array.from(new Set(tasks.map((t) => t.priority))), [tasks]);
 
-    // Timeline Column Headers
+    // Timeline Columns
     const dateLabels = useMemo(() => {
         const labels = [];
-        const start = new Date(ganttData.startDate);
+        const start = new Date(timelineBounds.start);
         const todayStr = new Date().toDateString();
 
-        for (let i = 0; i <= ganttData.totalDays; i++) {
-            const date = new Date(start);
-            date.setDate(date.getDate() + i);
+        for (let i = 0; i <= timelineBounds.totalDays; i++) {
+            const date = new Date(start.getTime() + i * MS_PER_DAY);
             const isWeekend = date.getDay() === 0 || date.getDay() === 6;
             const isToday = date.toDateString() === todayStr;
 
@@ -642,23 +656,43 @@ export default function GanttChartPage() {
             labels.push({ text, subText, isWeekend, isToday });
         }
         return labels;
-    }, [ganttData.startDate, ganttData.totalDays, viewMode]);
+    }, [timelineBounds, viewMode]);
 
-    // Navigation & Zoom
     const navigateDate = useCallback((direction: "prev" | "next") => {
-        setCurrentDate((prev) => {
-            const next = new Date(prev);
-            if (viewMode === "day") next.setDate(next.getDate() + (direction === "next" ? 1 : -1));
-            else if (viewMode === "week") next.setDate(next.getDate() + (direction === "next" ? 7 : -7));
-            else next.setMonth(next.getMonth() + (direction === "next" ? 1 : -1));
-            return next;
+        setFilterLoading(true);
+        startTransition(() => {
+            setCurrentDate((prev) => {
+                const shiftDays = viewMode === "day" ? 5 : viewMode === "week" ? 14 : 30;
+                const next = new Date(prev.getTime() + (direction === "next" ? shiftDays : -shiftDays) * MS_PER_DAY);
+                return next;
+            });
+            setTimeout(() => setFilterLoading(false), 50);
         });
     }, [viewMode]);
 
-    const goToToday = useCallback(() => setCurrentDate(new Date()), []);
+    const goToToday = useCallback(() => {
+        setFilterLoading(true);
+        startTransition(() => {
+            setCurrentDate(new Date());
+            setTimeout(() => setFilterLoading(false), 50);
+        });
+    }, []);
 
-    const handleZoomIn = () => setZoomLevel((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 1.8));
-    const handleZoomOut = () => setZoomLevel((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.6));
+    const handleZoomIn = () => {
+        setFilterLoading(true);
+        startTransition(() => {
+            setZoomLevel((prev) => Math.min(Number((prev + 0.15).toFixed(2)), 1.5));
+            setTimeout(() => setFilterLoading(false), 60);
+        });
+    };
+
+    const handleZoomOut = () => {
+        setFilterLoading(true);
+        startTransition(() => {
+            setZoomLevel((prev) => Math.max(Number((prev - 0.15).toFixed(2)), 0.7));
+            setTimeout(() => setFilterLoading(false), 60);
+        });
+    };
 
     const handleTaskClick = useCallback((task: GanttTask) => {
         setSelectedTask(task);
@@ -670,7 +704,7 @@ export default function GanttChartPage() {
         [tasks]
     );
 
-    // PDF Export Function
+    // PDF Export
     const handleExportPDF = useCallback(async () => {
         try {
             setExportingPDF(true);
@@ -720,7 +754,7 @@ export default function GanttChartPage() {
         }
     }, [ganttData.tasks]);
 
-    // CSV Export Function
+    // CSV Export
     const handleExportCSV = () => {
         try {
             const headers = [
@@ -758,9 +792,9 @@ export default function GanttChartPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-slate-50">
+            <div className="flex items-center justify-center min-h-[400px] w-full">
                 <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="w-9 h-9 animate-spin text-indigo-600" />
+                    <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     <p className="text-slate-500 text-sm font-medium">Loading schedule...</p>
                 </div>
             </div>
@@ -769,7 +803,7 @@ export default function GanttChartPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+            <div className="w-full flex items-center justify-center p-4 min-h-[300px]">
                 <div className="text-center max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
                     <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
                     <h3 className="text-lg font-bold text-slate-800 mb-1">Failed to Load Schedule</h3>
@@ -785,449 +819,459 @@ export default function GanttChartPage() {
         );
     }
 
-    const totalTimelineWidth = dateLabels.length * dayWidth;
+    const totalTimelineWidth = (dateLabels.length + 1) * dayWidth;
 
     return (
-        <div className="min-h-screen bg-slate-50/70 p-4 md:p-6 lg:p-8">
-            <div className="container mx-auto space-y-5">
-                {/* Header */}
-                <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-col md:flex-row md:items-center justify-between gap-4"
-                >
-                    <div>
-                        <Link
-                            href="/tasks/tasks-board"
-                            className="inline-flex items-center gap-1.5 text-slate-500 hover:text-slate-800 transition-colors text-xs font-semibold mb-1"
-                        >
-                            <ArrowLeft size={14} /> Back to Board
-                        </Link>
-                        <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 flex items-center gap-3 tracking-tight">
-                            <CalendarDays className="w-7 h-7 text-indigo-600" />
-                            Gantt Chart
-                        </h1>
-                        <p className="text-slate-500 text-xs mt-1">
-                            Interactive visual timeline
-                            <span className="ml-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                                {ganttData.totalTasks} tasks
-                            </span>
-                            <span className="ml-2 text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
-                                ⭐ {ganttData.milestoneCount} milestones
-                            </span>
-                            <span className="ml-2 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
-                                <GitBranch className="w-3 h-3 inline" /> {ganttData.subTaskCount} sub-tasks
-                            </span>
-                            <span className="ml-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                                <Link2 className="w-3 h-3 inline" /> {dependencyEdges.length} dependencies
-                            </span>
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <button
-                            onClick={fetchData}
-                            className="p-2.5 bg-white border border-slate-200 hover:border-indigo-300 rounded-xl transition text-slate-600 hover:text-indigo-600 shadow-xs"
-                            title="Refresh"
-                        >
-                            <RefreshCw size={15} />
-                        </button>
-                        <button
-                            onClick={handleExportCSV}
-                            className="px-3.5 py-2 bg-white border border-slate-200 hover:border-indigo-300 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold text-slate-700 shadow-xs"
-                        >
-                            <Download size={14} /> CSV
-                        </button>
-                        <button
-                            onClick={handleExportPDF}
-                            disabled={exportingPDF || ganttData.tasks.length === 0}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center gap-1.5 text-xs font-semibold shadow-xs disabled:opacity-50"
-                        >
-                            <FileText size={14} className={exportingPDF ? "animate-spin" : ""} />
-                            {exportingPDF ? "Exporting..." : "PDF"}
-                        </button>
-                    </div>
-                </motion.div>
-
-                {/* View Tabs */}
-                <div className="bg-slate-200/60 rounded-xl p-1 flex flex-wrap gap-1 max-w-sm">
-                    <button
-                        onClick={() => {
-                            setViewTab("all");
-                            setFilterEmployee("all");
-                            setSelectedEmployee(null);
-                        }}
-                        className={`flex-1 px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${viewTab === "all" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                            }`}
-                    >
-                        <Users size={15} /> All Tasks
-                    </button>
-                    <button
-                        onClick={() => setViewTab("employee")}
-                        className={`flex-1 px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${viewTab === "employee" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                            }`}
-                    >
-                        <UserCircle size={15} /> Employee Wise
-                    </button>
+        <div className="container overflow-hidden p-4 md:p-6 space-y-4 mx-auto">
+            {/* Header */}
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col md:flex-row md:items-center justify-between gap-4"
+            >
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2.5 tracking-tight">
+                        <CalendarDays className="w-6 h-6 text-indigo-600" />
+                        Gantt Chart
+                    </h1>
+                    <p className="text-slate-500 text-xs mt-0.5">
+                        Interactive visual timeline
+                        <span className="ml-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                            {ganttData.totalTasks} tasks
+                        </span>
+                        <span className="ml-2 text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-100">
+                            ⭐ {ganttData.milestoneCount} milestones
+                        </span>
+                        <span className="ml-2 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100">
+                            <GitBranch className="w-3 h-3 inline" /> {ganttData.subTaskCount} sub-tasks
+                        </span>
+                        <span className="ml-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                            <Link2 className="w-3 h-3 inline" /> {dependencyEdges.length} dependencies
+                        </span>
+                    </p>
                 </div>
 
-                {/* Employee Selector */}
-                {viewTab === "employee" && (
-                    <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                            <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
-                                <UserCheck className="w-4 h-4 text-indigo-600" />
-                                <span>Employee:</span>
-                            </div>
-                            <div className="flex-1 min-w-[220px]">
-                                <select
-                                    value={filterEmployee}
-                                    onChange={(e) => {
-                                        const empId = e.target.value;
-                                        setFilterEmployee(empId);
-                                        const emp = users.find((u) => u._id === empId);
-                                        setSelectedEmployee(emp || null);
-                                    }}
-                                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs focus:ring-2 focus:ring-indigo-100 outline-none"
-                                >
-                                    <option value="all">Select an employee...</option>
-                                    {users.map((u) => (
-                                        <option key={u._id} value={u._id}>
-                                            {u.fullName} ({getEmployeeTaskCount(u._id)} tasks) {u.department ? `• ${u.department}` : ""}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            {selectedEmployee && (
-                                <div className="flex items-center gap-3 px-3 py-1.5 bg-indigo-50/70 rounded-xl border border-indigo-100">
-                                    <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
-                                        {getInitials(selectedEmployee.fullName)}
-                                    </div>
-                                    <div className="text-xs">
-                                        <p className="font-semibold text-slate-800">{selectedEmployee.fullName}</p>
-                                        <p className="text-[10px] text-slate-500">{selectedEmployee.role || "Employee"}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setFilterEmployee("all");
-                                            setSelectedEmployee(null);
-                                        }}
-                                        className="p-1 hover:bg-indigo-100 rounded-lg text-slate-400 hover:text-slate-600"
-                                    >
-                                        <X size={13} />
-                                    </button>
-                                </div>
-                            )}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                        onClick={fetchData}
+                        className="p-2 bg-white border border-slate-200 hover:border-indigo-300 rounded-xl transition text-slate-600 hover:text-indigo-600 shadow-xs"
+                        title="Refresh"
+                    >
+                        <RefreshCw size={15} />
+                    </button>
+                    <button
+                        onClick={handleExportCSV}
+                        className="px-3.5 py-2 bg-white border border-slate-200 hover:border-indigo-300 rounded-xl transition flex items-center gap-1.5 text-xs font-semibold text-slate-700 shadow-xs"
+                    >
+                        <Download size={14} /> CSV
+                    </button>
+                    <button
+                        onClick={handleExportPDF}
+                        disabled={exportingPDF || ganttData.tasks.length === 0}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition flex items-center gap-1.5 text-xs font-semibold shadow-xs disabled:opacity-50"
+                    >
+                        <FileText size={14} className={exportingPDF ? "animate-spin" : ""} />
+                        {exportingPDF ? "Exporting..." : "PDF"}
+                    </button>
+                </div>
+            </motion.div>
+
+            {/* View Tabs */}
+            <div className="bg-slate-200/60 rounded-xl p-1 flex flex-wrap gap-1 max-w-xs">
+                <button
+                    onClick={() => {
+                        handleFilterChange(setViewTab, "all");
+                        setFilterEmployee("all");
+                        setSelectedEmployee(null);
+                    }}
+                    className={`flex-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${viewTab === "all" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        }`}
+                >
+                    <Users size={14} /> All Tasks
+                </button>
+                <button
+                    onClick={() => handleFilterChange(setViewTab, "employee")}
+                    className={`flex-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${viewTab === "employee" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        }`}
+                >
+                    <UserCircle size={14} /> Employee Wise
+                </button>
+            </div>
+
+            {/* Employee Selector */}
+            {viewTab === "employee" && (
+                <div className="bg-white rounded-xl border border-slate-200/80 p-3.5 shadow-xs">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                            <UserCheck className="w-4 h-4 text-indigo-600" />
+                            <span>Employee:</span>
                         </div>
+                        <div className="flex-1 min-w-[220px]">
+                            <select
+                                value={filterEmployee}
+                                onChange={(e) => {
+                                    const empId = e.target.value;
+                                    handleFilterChange(setFilterEmployee, empId);
+                                    const emp = users.find((u) => u._id === empId);
+                                    setSelectedEmployee(emp || null);
+                                }}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-xs focus:ring-2 focus:ring-indigo-100 outline-none"
+                            >
+                                <option value="all">Select an employee...</option>
+                                {users.map((u) => (
+                                    <option key={u._id} value={u._id}>
+                                        {u.fullName} ({getEmployeeTaskCount(u._id)} tasks) {u.department ? `• ${u.department}` : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        {selectedEmployee && (
+                            <div className="flex items-center gap-2.5 px-3 py-1 bg-indigo-50/70 rounded-lg border border-indigo-100">
+                                <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
+                                    {getInitials(selectedEmployee.fullName)}
+                                </div>
+                                <div className="text-xs">
+                                    <p className="font-semibold text-slate-800 leading-tight">{selectedEmployee.fullName}</p>
+                                    <p className="text-[10px] text-slate-500 leading-none">{selectedEmployee.role || "Employee"}</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        handleFilterChange(setFilterEmployee, "all");
+                                        setSelectedEmployee(null);
+                                    }}
+                                    className="p-0.5 hover:bg-indigo-100 rounded text-slate-400 hover:text-slate-600 ml-1"
+                                >
+                                    <X size={12} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Filter Toolbar */}
+            <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-xs space-y-2.5">
+                <div className="flex flex-col lg:flex-row gap-2.5">
+                    <div className="flex-1 relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search tasks..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => handleFilterChange(setFilterStatus, e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none"
+                        >
+                            <option value="all">All Statuses</option>
+                            {statuses.map((status) => (
+                                <option key={status} value={status}>
+                                    {getStatusLabel(status)}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={filterPriority}
+                            onChange={(e) => handleFilterChange(setFilterPriority, e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none"
+                        >
+                            <option value="all">All Priorities</option>
+                            {priorities.map((priority) => (
+                                <option key={priority} value={priority}>
+                                    {getPriorityLabel(priority)}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={filterProject}
+                            onChange={(e) => handleFilterChange(setFilterProject, e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none max-w-[140px] truncate"
+                        >
+                            <option value="all">All Projects</option>
+                            {projects.map((p) => (
+                                <option key={p._id} value={p._id}>
+                                    {p.name}
+                                </option>
+                            ))}
+                        </select>
+
+                        <select
+                            value={filterMilestone}
+                            onChange={(e) => handleFilterChange(setFilterMilestone, e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none"
+                        >
+                            <option value="all">All Tasks</option>
+                            <option value="milestones">⭐ Milestones Only</option>
+                            <option value="regular">Regular Tasks Only</option>
+                        </select>
+
+                        <select
+                            value={filterSubTask}
+                            onChange={(e) => handleFilterChange(setFilterSubTask, e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none"
+                        >
+                            <option value="all">All Tasks</option>
+                            <option value="parent">📋 Parent Tasks Only</option>
+                            <option value="subtask">📌 Sub-Tasks Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* Scale and Controls */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                        <span className="text-xs font-semibold text-slate-700">View:</span>
+                        <div className="flex bg-slate-100 p-0.5 rounded-lg">
+                            {(["day", "week", "month"] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => {
+                                        setFilterLoading(true);
+                                        startTransition(() => {
+                                            setViewMode(mode);
+                                            setTimeout(() => setFilterLoading(false), 50);
+                                        });
+                                    }}
+                                    className={`px-3 py-1 text-xs font-semibold capitalize rounded-md transition ${viewMode === mode ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
+                                        }`}
+                                >
+                                    {mode}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => navigateDate("prev")}
+                                className="p-1 hover:bg-slate-100 rounded text-slate-600"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            <button
+                                onClick={goToToday}
+                                className="px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded"
+                            >
+                                Today
+                            </button>
+                            <button
+                                onClick={() => navigateDate("next")}
+                                className="p-1 hover:bg-slate-100 rounded text-slate-600"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+
+                        <div className="h-3.5 w-px bg-slate-200" />
+
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-slate-400 font-medium">Scale</span>
+                            <button
+                                onClick={handleZoomOut}
+                                className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-xs transition"
+                                title="Zoom Out"
+                            >
+                                <ZoomOut size={13} />
+                            </button>
+                            <span className="text-xs font-mono font-semibold text-slate-600 w-10 text-center">
+                                {Math.round(zoomLevel * 100)}%
+                            </span>
+                            <button
+                                onClick={handleZoomIn}
+                                className="p-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-xs transition"
+                                title="Zoom In"
+                            >
+                                <ZoomIn size={13} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Unified Gantt Container (Zero Layout Thrashing & No Infinite Width) */}
+            <div className="relative bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                {/* Non-Blocking Loader Overlay */}
+                {filterLoading && (
+                    <div className="absolute inset-0 z-50 bg-white/70 backdrop-blur-[1.5px] flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                        <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
+                            Updating Timeline...
+                        </span>
                     </div>
                 )}
 
-                {/* Filter Toolbar */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs space-y-3">
-                    <div className="flex flex-col lg:flex-row gap-3">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Search tasks..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                            />
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-wrap text-xs">
-                            <select
-                                value={filterStatus}
-                                onChange={(e) => setFilterStatus(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none"
-                            >
-                                <option value="all">All Statuses</option>
-                                {statuses.map((status) => (
-                                    <option key={status} value={status}>
-                                        {getStatusLabel(status)}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <select
-                                value={filterPriority}
-                                onChange={(e) => setFilterPriority(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none"
-                            >
-                                <option value="all">All Priorities</option>
-                                {priorities.map((priority) => (
-                                    <option key={priority} value={priority}>
-                                        {getPriorityLabel(priority)}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <select
-                                value={filterProject}
-                                onChange={(e) => setFilterProject(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none max-w-[160px] truncate"
-                            >
-                                <option value="all">All Projects</option>
-                                {projects.map((p) => (
-                                    <option key={p._id} value={p._id}>
-                                        {p.name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <select
-                                value={filterMilestone}
-                                onChange={(e) => setFilterMilestone(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none"
-                            >
-                                <option value="all">All Tasks</option>
-                                <option value="milestones">⭐ Milestones Only</option>
-                                <option value="regular">Regular Tasks Only</option>
-                            </select>
-
-                            <select
-                                value={filterSubTask}
-                                onChange={(e) => setFilterSubTask(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none"
-                            >
-                                <option value="all">All Tasks</option>
-                                <option value="parent">📋 Parent Tasks Only</option>
-                                <option value="subtask">📌 Sub-Tasks Only</option>
-                            </select>
-                        </div>
+                {ganttData.tasks.length === 0 ? (
+                    <div className="p-12 text-center">
+                        <CalendarDays className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                        <h3 className="text-sm font-semibold text-slate-800 mb-0.5">No tasks to display</h3>
+                        <p className="text-slate-400 text-xs">
+                            {filterEmployee !== "all"
+                                ? "No tasks assigned to the selected employee"
+                                : "Try adjusting your filters or date criteria."}
+                        </p>
                     </div>
-
-                    {/* Scale and Controls */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                        <div className="flex items-center gap-3">
-                            <span className="text-xs font-semibold text-slate-700">View:</span>
-                            <div className="flex bg-slate-100 p-0.5 rounded-xl">
-                                {(["day", "week", "month"] as const).map((mode) => (
-                                    <button
-                                        key={mode}
-                                        onClick={() => setViewMode(mode)}
-                                        className={`px-3 py-1.5 text-xs font-semibold capitalize rounded-lg transition ${viewMode === mode ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
-                                            }`}
-                                    >
-                                        {mode}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => navigateDate("prev")}
-                                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"
-                                >
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button
-                                    onClick={goToToday}
-                                    className="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                                >
-                                    Today
-                                </button>
-                                <button
-                                    onClick={() => navigateDate("next")}
-                                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
+                ) : (
+                    <div
+                        ref={scrollContainerRef}
+                        className="overflow-x-auto overflow-y-auto w-full"
+                        style={{ maxHeight: "calc(100vh - 430px)" }}
+                    >
+                        <div style={{ width: `${260 + totalTimelineWidth}px`, position: "relative" }}>
+                            {/* Sticky Header */}
+                            <div className="sticky top-0 z-30 flex h-[44px] bg-slate-50 border-b border-slate-200">
+                                <div className="sticky left-0 z-40 w-[260px] shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Task</span>
+                                    <span className="text-[11px] text-slate-400 font-normal">{ganttData.tasks.length} items</span>
+                                </div>
+                                <div className="flex" style={{ width: `${totalTimelineWidth}px` }}>
+                                    {dateLabels.map((col, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`shrink-0 text-center py-1.5 border-r border-slate-100 flex flex-col justify-center select-none ${col.isWeekend ? "bg-slate-100/50" : ""
+                                                } ${col.isToday ? "bg-indigo-50 font-bold text-indigo-600" : "text-slate-600"}`}
+                                            style={{ width: `${dayWidth}px` }}
+                                        >
+                                            <span className="text-[9px] text-slate-400 leading-none">{col.text}</span>
+                                            <span className="text-xs leading-tight">{col.subText}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
-                            <div className="h-4 w-px bg-slate-200" />
-
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-slate-400 font-medium mr-1">Scale</span>
-                                <button
-                                    onClick={handleZoomOut}
-                                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-xs transition"
-                                    title="Zoom Out"
-                                >
-                                    <ZoomOut size={14} />
-                                </button>
-                                <span className="text-xs font-mono font-semibold text-slate-600 w-12 text-center">
-                                    {Math.round(zoomLevel * 100)}%
-                                </span>
-                                <button
-                                    onClick={handleZoomIn}
-                                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 shadow-xs transition"
-                                    title="Zoom In"
-                                >
-                                    <ZoomIn size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Main Schedule Container (Constrained without document bleed) */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-                    {ganttData.tasks.length === 0 ? (
-                        <div className="p-16 text-center">
-                            <CalendarDays className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <h3 className="text-sm font-semibold text-slate-800 mb-1">No tasks to display</h3>
-                            <p className="text-slate-400 text-xs">
-                                {filterEmployee !== "all"
-                                    ? "No tasks assigned to the selected employee"
-                                    : "Try adjusting your filters or date criteria."}
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: "calc(100vh - 430px)" }}>
-                            <div style={{ width: `${260 + totalTimelineWidth}px`, minWidth: "100%" }}>
-                                {/* Sticky Header Row */}
-                                <div className="flex border-b border-slate-200 bg-slate-50/95 sticky top-0 z-30 backdrop-blur-xs">
-                                    <div className="w-[260px] shrink-0 px-4 py-2.5 bg-slate-50/95 border-r border-slate-200 flex items-center justify-between sticky left-0 z-40">
-                                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Task</span>
-                                        <span className="text-[11px] text-slate-400 font-normal">{ganttData.tasks.length} items</span>
-                                    </div>
-                                    <div className="flex" style={{ width: `${totalTimelineWidth}px` }}>
-                                        {dateLabels.map((col, idx) => (
-                                            <div
-                                                key={idx}
-                                                className={`shrink-0 text-center py-2 border-r border-slate-100 flex flex-col justify-center select-none ${col.isWeekend ? "bg-slate-100/50" : ""
-                                                    } ${col.isToday ? "bg-indigo-50 font-bold text-indigo-600" : "text-slate-600"}`}
-                                                style={{ width: `${dayWidth}px` }}
-                                            >
-                                                <span className="text-[9px] text-slate-400 leading-none">{col.text}</span>
-                                                <span className="text-xs leading-tight">{col.subText}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                            {/* Schedule Rows */}
+                            <div className="relative">
+                                {/* SVG Dependency Connectors */}
+                                <div className="absolute top-0 left-[260px] right-0 bottom-0 pointer-events-none z-10">
+                                    <DependencyOverlay
+                                        edges={dependencyEdges}
+                                        tasks={ganttData.tasks}
+                                        dayWidth={dayWidth}
+                                    />
                                 </div>
 
-                                {/* Body Container with Single CSS Gradient Grid (Zero DOM Node Explosion) */}
-                                <div className="relative">
-                                    {/* High-Performance SVG Vectors */}
-                                    <div className="absolute top-0 left-[260px] right-0 bottom-0 pointer-events-none z-10">
-                                        <DependencyOverlay
-                                            edges={dependencyEdges}
-                                            tasks={ganttData.tasks}
-                                            dayWidth={dayWidth}
-                                        />
-                                    </div>
+                                {ganttData.tasks.map((task) => {
+                                    const isSubTask = !!task.parentTaskId;
+                                    const hasSubTasks = (task.subTaskCount || 0) > 0;
+                                    const hasDependencies = (task.dependencies?.length || 0) > 0;
 
-                                    {/* Task Rows */}
-                                    {ganttData.tasks.map((task) => {
-                                        const isSubTask = !!task.parentTaskId;
-                                        const hasSubTasks = (task.subTaskCount || 0) > 0;
-                                        const hasDependencies = (task.dependencies?.length || 0) > 0;
-
-                                        return (
+                                    return (
+                                        <div
+                                            key={task._id}
+                                            className={`flex h-[44px] border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${task.isMilestone ? "bg-purple-50/20" : isSubTask ? "bg-blue-50/10" : ""
+                                                }`}
+                                        >
+                                            {/* Pinned Left Sidebar Cell */}
                                             <div
-                                                key={task._id}
-                                                className={`flex border-b border-slate-100 hover:bg-slate-50/50 transition duration-75 group ${task.isMilestone ? "bg-purple-50/20" : isSubTask ? "bg-blue-50/10" : ""
-                                                    }`}
+                                                className="sticky left-0 z-20 w-[260px] shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                                                onClick={() => handleTaskClick(task)}
                                             >
-                                                {/* Pinned Left Task Info */}
-                                                <div
-                                                    className="w-[260px] shrink-0 p-3 cursor-pointer bg-white border-r border-slate-200 sticky left-0 z-20 group-hover:bg-slate-50/80 transition-colors"
-                                                    onClick={() => handleTaskClick(task)}
-                                                >
-                                                    <div className="flex items-center gap-2">
-                                                        {task.isMilestone && <Gem className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
-                                                        {isSubTask && !task.isMilestone && <GitBranch className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-                                                        {hasSubTasks && !task.isMilestone && !isSubTask && <GitBranch className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
-                                                        {hasDependencies && <Link2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />}
+                                                <div className="flex items-center gap-1.5 overflow-hidden">
+                                                    {task.isMilestone && <Gem className="w-3.5 h-3.5 text-purple-600 shrink-0" />}
+                                                    {isSubTask && !task.isMilestone && <GitBranch className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
+                                                    {hasSubTasks && !task.isMilestone && !isSubTask && <GitBranch className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                                                    {hasDependencies && <Link2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />}
 
-                                                        <div
-                                                            className="w-2 h-2 rounded-full shrink-0"
-                                                            style={{ backgroundColor: task.color }}
-                                                        />
-                                                        <span
-                                                            className={`text-xs font-semibold truncate ${task.isMilestone ? "text-purple-700" : isSubTask ? "text-blue-700" : "text-slate-800"
-                                                                }`}
-                                                        >
-                                                            {task.title}
+                                                    <div
+                                                        className="w-2 h-2 rounded-full shrink-0"
+                                                        style={{ backgroundColor: task.color }}
+                                                    />
+                                                    <span
+                                                        className={`text-xs font-semibold truncate ${task.isMilestone ? "text-purple-700" : isSubTask ? "text-blue-700" : "text-slate-800"
+                                                            }`}
+                                                    >
+                                                        {task.title}
+                                                    </span>
+
+                                                    {task.isMilestone && (
+                                                        <span className="text-[8px] font-bold text-purple-600 bg-purple-100 px-1 py-0.2 rounded-full shrink-0">
+                                                            MILESTONE
                                                         </span>
-
-                                                        {task.isMilestone && (
-                                                            <span className="text-[8px] font-bold text-purple-600 bg-purple-100 px-1 py-0.5 rounded-full shrink-0">
-                                                                MILESTONE
-                                                            </span>
-                                                        )}
-                                                        {isSubTask && !task.isMilestone && (
-                                                            <span className="text-[8px] font-medium text-blue-600 bg-blue-100 px-1 py-0.5 rounded-full shrink-0">
-                                                                SUB
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 truncate">
-                                                        {task.projectId && <span>{task.projectId.name}</span>}
-                                                        {task.assignedTo && (
-                                                            <>
-                                                                <span>•</span>
-                                                                <span className="truncate">{task.assignedTo.fullName}</span>
-                                                            </>
-                                                        )}
-                                                    </div>
+                                                    )}
+                                                    {isSubTask && !task.isMilestone && (
+                                                        <span className="text-[8px] font-medium text-blue-600 bg-blue-100 px-1 py-0.2 rounded-full shrink-0">
+                                                            SUB
+                                                        </span>
+                                                    )}
                                                 </div>
 
-                                                {/* Single CSS Pattern Grid Cell */}
-                                                <div
-                                                    className="relative shrink-0"
-                                                    style={{
-                                                        width: `${totalTimelineWidth}px`,
-                                                        height: "44px",
-                                                        backgroundImage: "linear-gradient(to right, #f1f5f9 1px, transparent 1px)",
-                                                        backgroundSize: `${dayWidth}px 100%`,
-                                                    }}
-                                                >
-                                                    {task.isMilestone ? (
-                                                        <MilestoneDiamond
-                                                            task={task}
-                                                            dayWidth={dayWidth}
-                                                            onTaskClick={handleTaskClick}
-                                                        />
-                                                    ) : (
-                                                        <TaskGanttBar
-                                                            task={task}
-                                                            dayWidth={dayWidth}
-                                                            onTaskClick={handleTaskClick}
-                                                        />
+                                                <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 truncate">
+                                                    {task.projectId && <span className="truncate">{task.projectId.name}</span>}
+                                                    {task.assignedTo && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span className="truncate">{task.assignedTo.fullName}</span>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
+
+                                            {/* Timeline Track */}
+                                            <div
+                                                className="relative h-[44px] shrink-0"
+                                                style={{
+                                                    width: `${totalTimelineWidth}px`,
+                                                    backgroundImage: "linear-gradient(to right, #f1f5f9 1px, transparent 1px)",
+                                                    backgroundSize: `${dayWidth}px 100%`,
+                                                }}
+                                            >
+                                                {task.isMilestone ? (
+                                                    <MilestoneDiamond
+                                                        task={task}
+                                                        dayWidth={dayWidth}
+                                                        onTaskClick={handleTaskClick}
+                                                    />
+                                                ) : (
+                                                    <TaskGanttBar
+                                                        task={task}
+                                                        dayWidth={dayWidth}
+                                                        onTaskClick={handleTaskClick}
+                                                    />
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
+            </div>
 
-                {/* Legend */}
-                <div className="flex flex-wrap items-center justify-center gap-5 text-xs text-slate-500 bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-xs">
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 bg-amber-500 rounded" /> <span>Pending</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 bg-blue-500 rounded" /> <span>In Progress</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 bg-purple-500 rounded" /> <span>Submitted</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 bg-emerald-500 rounded" /> <span>Completed</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 bg-rose-500 rounded animate-pulse" /> <span>Overdue</span>
-                    </div>
-                    <div className="w-px h-4 bg-slate-200" />
-                    <div className="flex items-center gap-1.5 text-purple-600 font-medium">
-                        <Gem className="w-3.5 h-3.5" /> <span>Milestone</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-blue-600 font-medium">
-                        <GitBranch className="w-3.5 h-3.5" /> <span>Sub-Task</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-indigo-600 font-medium">
-                        <Link2 className="w-3.5 h-3.5" /> <span>Dependency</span>
-                    </div>
+            {/* Legend */}
+            <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-500 bg-white rounded-xl border border-slate-200/80 p-3 shadow-xs">
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-amber-500 rounded" /> <span>Pending</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-blue-500 rounded" /> <span>In Progress</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-purple-500 rounded" /> <span>Submitted</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-emerald-500 rounded" /> <span>Completed</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 bg-rose-500 rounded animate-pulse" /> <span>Overdue</span>
+                </div>
+                <div className="w-px h-3.5 bg-slate-200" />
+                <div className="flex items-center gap-1.5 text-purple-600 font-medium">
+                    <Gem className="w-3.5 h-3.5" /> <span>Milestone</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-blue-600 font-medium">
+                    <GitBranch className="w-3.5 h-3.5" /> <span>Sub-Task</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-indigo-600 font-medium">
+                    <Link2 className="w-3.5 h-3.5" /> <span>Dependency</span>
                 </div>
             </div>
 

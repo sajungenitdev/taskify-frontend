@@ -111,6 +111,7 @@ interface ProductivityData {
   hours: number;
   tasksCreated: number;
   displayDate?: string; // Add this for displaying date
+  fullDate?: string; // Add this for displaying the full date
   day?: string; // Add this for day name
 }
 
