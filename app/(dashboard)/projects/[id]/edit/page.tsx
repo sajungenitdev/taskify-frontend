@@ -336,7 +336,7 @@ export default function EditProjectPage() {
             </Link>
             <ChevronRight size={14} className="text-gray-300" />
             <Link
-              href={`/projects/${projectId}`}
+              href={`/projects/${projectId}/dashboard`}
               className="text-gray-400 hover:text-gray-600 transition truncate max-w-[150px]"
             >
               {project.name}

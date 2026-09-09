@@ -194,14 +194,14 @@ export default function LoginPage() {
       const token = localStorage.getItem("token");
 
       if (token) {
-        toast.success(`Welcome back, ${userData?.fullName || "User"}!`, {
-          icon: '👋',
-          duration: 4000,
-          style: {
-            background: '#10B981',
-            color: '#fff',
-          },
-        });
+        // toast.success(`Welcome back, ${userData?.fullName || "User"}!`, {
+        //   icon: '👋',
+        //   duration: 4000,
+        //   style: {
+        //     background: '#10B981',
+        //     color: '#fff',
+        //   },
+        // });
 
         if (userData) {
           localStorage.setItem('user', JSON.stringify(userData));

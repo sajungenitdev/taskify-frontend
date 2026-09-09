@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Copy,
   Check,
+  ListTodo,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -149,24 +150,24 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   }, [unreadCount]);
 
   // Helper function to get image URL using photoVersion
-// Helper function to get image URL - uses user._id as cache buster
-const getImageUrl = useCallback(
-  (imagePath: string | undefined): string | null => {
-    if (!imagePath) return null;
-    if (imagePath.startsWith("data:image/")) return imagePath;
-    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-      return imagePath;
-    }
-    const apiUrl =
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
-    const baseUrl = apiUrl.replace("/api/v1", "");
-    const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
-    // Use user ID as cache buster
-    const cacheBuster = user?._id || Date.now();
-    return `${baseUrl}${path}?v=${cacheBuster}`;
-  },
-  [user?._id],
-);
+  // Helper function to get image URL - uses user._id as cache buster
+  const getImageUrl = useCallback(
+    (imagePath: string | undefined): string | null => {
+      if (!imagePath) return null;
+      if (imagePath.startsWith("data:image/")) return imagePath;
+      if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+        return imagePath;
+      }
+      const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+      const baseUrl = apiUrl.replace("/api/v1", "");
+      const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
+      // Use user ID as cache buster
+      const cacheBuster = user?._id || Date.now();
+      return `${baseUrl}${path}?v=${cacheBuster}`;
+    },
+    [user?._id],
+  );
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -446,9 +447,8 @@ const getImageUrl = useCallback(
 
   return (
     <header
-      className={`fixed top-0 right-0 z-50 transition-all duration-500 ease-out ${
-        sidebarCollapsed ? "left-20" : "left-80"
-      }`}
+      className={`fixed top-0 right-0 z-50 transition-all duration-500 ease-out ${sidebarCollapsed ? "left-20" : "left-80"
+        }`}
       style={{ backgroundColor: "#122645" }}
     >
       {/* Animated gradient border */}
@@ -622,10 +622,10 @@ const getImageUrl = useCallback(
           </button>
 
           <Link
-            href="/help"
-            className="hidden lg:flex text-white/40 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all duration-300"
+            href="/tasks/my" title="My Task"
+            className="hidden lg:flex items-center gap-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1.5 text-xs font-medium  shadow-sm transition-all "
           >
-            <HelpCircle size={18} />
+            <ListTodo size={15} />
           </Link>
 
           {/* Notifications Dropdown */}
@@ -641,13 +641,12 @@ const getImageUrl = useCallback(
               <div className="relative">
                 <Bell
                   size={18}
-                  className={`transition-all duration-300 ${
-                    isBellBuzzing
-                      ? "text-amber-400 animate-bell-buzz"
-                      : unreadCount > 0
-                        ? "text-indigo-400"
-                        : ""
-                  }`}
+                  className={`transition-all duration-300 ${isBellBuzzing
+                    ? "text-amber-400 animate-bell-buzz"
+                    : unreadCount > 0
+                      ? "text-indigo-400"
+                      : ""
+                    }`}
                 />
                 {isBellBuzzing && (
                   <>
@@ -658,9 +657,8 @@ const getImageUrl = useCallback(
               </div>
               {unreadCount > 0 && (
                 <span
-                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-linear-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${
-                    isBellBuzzing ? "animate-bounce" : ""
-                  }`}
+                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-linear-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${isBellBuzzing ? "animate-bounce" : ""
+                    }`}
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
@@ -728,9 +726,8 @@ const getImageUrl = useCallback(
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${
-                              !notification.isRead ? "bg-indigo-500/5" : ""
-                            }`}
+                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${!notification.isRead ? "bg-indigo-500/5" : ""
+                              }`}
                             onClick={() =>
                               handleNotificationClick(notification)
                             }
@@ -845,9 +842,8 @@ const getImageUrl = useCallback(
               </div>
               <ChevronDown
                 size={14}
-                className={`hidden lg:block text-white/40 transition-transform duration-300 ${
-                  showProfileDropdown ? "rotate-180" : ""
-                }`}
+                className={`hidden lg:block text-white/40 transition-transform duration-300 ${showProfileDropdown ? "rotate-180" : ""
+                  }`}
               />
             </button>
 
@@ -941,7 +937,7 @@ const getImageUrl = useCallback(
                           className="ml-auto text-white/10 group-hover:text-white/20"
                         />
                       </Link>
-                      
+
                       <Link
                         href="/notifications"
                         className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all duration-300 group"

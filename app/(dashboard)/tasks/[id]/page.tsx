@@ -1567,7 +1567,11 @@ export default function TaskDetailPage() {
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"
                 title="Copy link"
               >
-                {copied ? <Check size={18} className="text-emerald-500" /> : <Link2 size={18} />}
+                {copied ? (
+                  <Check size={18} className="text-emerald-500" />
+                ) : (
+                  <Copy size={18} />
+                )}
               </button>
               <button
                 onClick={handleShare}
@@ -1583,7 +1587,7 @@ export default function TaskDetailPage() {
               >
                 <Printer size={18} />
               </button>
-              {canManage && (
+              {/* {canManage && (
                 <button
                   onClick={() => router.push(`/tasks/${id}/edit`)}
                   className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
@@ -1591,7 +1595,7 @@ export default function TaskDetailPage() {
                 >
                   <Edit2 size={18} />
                 </button>
-              )}
+              )} */}
               {canManage && (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
@@ -2038,9 +2042,9 @@ export default function TaskDetailPage() {
                                 {isTimerRunningForTask ? "Started timer" : "Timer paused"}
                               </span>
                             </div>
-                            <span className="text-xs text-gray-400">
+                            {/* <span className="text-xs text-gray-400">
                               {formatTimeShort(timerDisplay)}
-                            </span>
+                            </span> */}
                           </div>
                         ) : task.actualMinutes && task.actualMinutes > 0 ? (
                           <div className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
@@ -2414,7 +2418,7 @@ export default function TaskDetailPage() {
                     New Requested Deadline
                   </label>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={extensionData.requestedDate}
                     onChange={(e) =>
                       setExtensionData({

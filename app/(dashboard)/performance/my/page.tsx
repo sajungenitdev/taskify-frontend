@@ -42,6 +42,7 @@ import {
   Hourglass,
   Percent,
   Award as AwardIcon,
+  RefreshCw,
 } from "lucide-react";
 import api from "@/lib/axios";
 import { motion, AnimatePresence } from "framer-motion";
@@ -109,6 +110,8 @@ interface ProductivityData {
   submitted: number;
   hours: number;
   tasksCreated: number;
+  displayDate?: string; // Add this for displaying date
+  day?: string; // Add this for day name
 }
 
 interface CategoryPerformance {
@@ -291,7 +294,48 @@ export default function MyPerformancePage() {
         productivityRes.status === "fulfilled" &&
         productivityRes.value?.data?.success
       ) {
-        setProductivityData(productivityRes.value.data.data);
+        const rawData = productivityRes.value.data.data;
+        // Transform data to add display dates
+        const transformedData = rawData.map((item: any, index: number) => {
+          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+          // If the date is a day name (Mon, Tue, etc.)
+          if (dayNames.includes(item.date)) {
+            // Calculate the actual date based on index (assuming data is in order)
+            const today = new Date();
+            const daysOffset = rawData.length - 1 - index;
+            const actualDate = new Date(today);
+            actualDate.setDate(today.getDate() - daysOffset);
+
+            return {
+              ...item,
+              displayDate: actualDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              })
+            };
+          }
+
+          // If the date is already a full date string
+          try {
+            const date = new Date(item.date);
+            if (!isNaN(date.getTime())) {
+              return {
+                ...item,
+                displayDate: date.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric'
+                })
+              };
+            }
+          } catch (e) {
+            // If date parsing fails, keep as is
+          }
+
+          return item;
+        });
+
+        setProductivityData(transformedData);
       }
 
       if (
@@ -543,22 +587,130 @@ export default function MyPerformancePage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const response = await api.get(
-        `/performance/export?period=${selectedPeriod}`,
-        {
-          responseType: "blob",
-        },
-      );
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
+      // Check if there's data to export
+      if (productivityData.length === 0 && performanceMetrics.length === 0) {
+        toast.error('No data available to export');
+        setIsExporting(false);
+        return;
+      }
+
+      // Prepare CSV data
+      let csvContent = '';
+
+      // Add header
+      csvContent += 'Performance Report\n';
+      csvContent += `Generated: ${new Date().toLocaleString()}\n`;
+      csvContent += `Period: ${selectedPeriod}\n\n`;
+
+      // Add Productivity Data
+      if (productivityData.length > 0) {
+        csvContent += 'Productivity Data\n';
+        csvContent += 'Date,Tasks Completed,Hours Worked,Tasks Created\n';
+
+        productivityData.forEach(item => {
+          const date = item.displayDate || item.date || '';
+          csvContent += `${date},${item.completed || 0},${item.hours || 0},${item.tasksCreated || 0}\n`;
+        });
+        csvContent += '\n';
+      }
+
+      // Add Performance Metrics
+      if (performanceMetrics.length > 0) {
+        csvContent += 'Performance Metrics\n';
+        csvContent += 'Metric,Value,Target,Progress,Status\n';
+
+        performanceMetrics.forEach(metric => {
+          const status = metric.trend === 'up' ? '↑ Improving' :
+            metric.trend === 'down' ? '↓ Declining' : '→ Stable';
+          csvContent += `${metric.metric},${metric.value},${metric.target},${metric.progress}%,${status}\n`;
+        });
+        csvContent += '\n';
+      }
+
+      // Add Task Performance Summary
+      if (taskPerformance.total > 0) {
+        csvContent += 'Task Performance Summary\n';
+        csvContent += `Total Tasks,${taskPerformance.total}\n`;
+        csvContent += `Completed,${taskPerformance.completed}\n`;
+        csvContent += `Pending,${taskPerformance.pending}\n`;
+        csvContent += `In Progress,${taskPerformance.inProgress}\n`;
+        csvContent += `Submitted,${taskPerformance.submitted}\n`;
+        csvContent += `Overdue,${taskPerformance.overdue}\n`;
+        csvContent += `Rejected,${taskPerformance.rejected}\n`;
+        csvContent += `Completion Rate,${taskPerformance.completionRate}%\n`;
+        csvContent += `On-Time Rate,${taskPerformance.onTimeRate}%\n`;
+        csvContent += `Average Completion Time,${taskPerformance.averageCompletionTime}h\n`;
+        csvContent += '\n';
+
+        // Add Priority Distribution
+        csvContent += 'Priority Distribution\n';
+        csvContent += `Low,${taskPerformance.tasksByPriority.low}\n`;
+        csvContent += `Normal,${taskPerformance.tasksByPriority.normal}\n`;
+        csvContent += `High,${taskPerformance.tasksByPriority.high}\n`;
+        csvContent += `Urgent,${taskPerformance.tasksByPriority.urgent}\n`;
+        csvContent += '\n';
+      }
+
+      // Add Category Performance
+      if (categoryPerformance.length > 0) {
+        csvContent += 'Category Performance\n';
+        csvContent += 'Category,Completed,Total,Percentage\n';
+
+        categoryPerformance.forEach(category => {
+          csvContent += `${category.name},${category.completed},${category.total},${category.percentage}%\n`;
+        });
+        csvContent += '\n';
+      }
+
+      // Add Monthly Stats
+      if (monthlyStats.length > 0) {
+        csvContent += 'Monthly Statistics\n';
+        csvContent += 'Month,Tasks,Completion Rate,Avg Hours,Tasks Completed,Tasks Created\n';
+
+        monthlyStats.forEach(month => {
+          csvContent += `${month.month},${month.tasks},${month.completionRate}%,${month.avgHours},${month.tasksCompleted},${month.tasksCreated}\n`;
+        });
+        csvContent += '\n';
+      }
+
+      // Add Achievements
+      if (achievements.length > 0) {
+        csvContent += 'Achievements\n';
+        csvContent += 'Title,Description,Points,Earned Date\n';
+
+        achievements.filter(a => a.progress === undefined).forEach(achievement => {
+          csvContent += `${achievement.title},${achievement.description},${achievement.points},${new Date(achievement.earnedAt).toLocaleDateString()}\n`;
+        });
+        csvContent += '\n';
+      }
+
+      // Add Rating Summary
+      if (rating.total > 0) {
+        csvContent += 'Rating Summary\n';
+        csvContent += `Average Rating,${rating.average.toFixed(1)}\n`;
+        csvContent += `Total Reviews,${rating.total}\n`;
+        csvContent += `5 Stars,${rating.distribution[5]}\n`;
+        csvContent += `4 Stars,${rating.distribution[4]}\n`;
+        csvContent += `3 Stars,${rating.distribution[3]}\n`;
+        csvContent += `2 Stars,${rating.distribution[2]}\n`;
+        csvContent += `1 Star,${rating.distribution[1]}\n`;
+      }
+
+      // Create and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
       link.href = url;
-      link.setAttribute("download", `performance-report-${selectedPeriod}.csv`);
+      link.setAttribute('download', `performance-report-${selectedPeriod}-${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
-      link.remove();
-      toast.success("Report downloaded successfully");
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Report exported successfully');
     } catch (error) {
-      toast.error("Failed to export report");
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
     } finally {
       setIsExporting(false);
     }
@@ -644,11 +796,10 @@ export default function MyPerformancePage() {
                   <button
                     key={period}
                     onClick={() => setSelectedPeriod(period as any)}
-                    className={`px-3 py-1.5 rounded-md text-sm capitalize transition-all duration-200 ${
-                      selectedPeriod === period
-                        ? "bg-indigo-600 text-white shadow-sm"
-                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                    }`}
+                    className={`px-3 py-1.5 rounded-md text-sm capitalize transition-all duration-200 ${selectedPeriod === period
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
                   >
                     {period}
                   </button>
@@ -659,7 +810,7 @@ export default function MyPerformancePage() {
                 className="p-2 bg-white rounded-lg border border-gray-200 text-gray-600 hover:text-gray-800 hover:bg-gray-50 transition shadow-sm"
                 title="Refresh Data"
               >
-                <Filter size={18} />
+                <RefreshCw size={18} />
               </button>
               <button
                 onClick={handleExport}
@@ -699,11 +850,10 @@ export default function MyPerformancePage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeTab === tab.id
-                    ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === tab.id
+                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
               >
                 {tab.icon}
                 {tab.label}
@@ -721,23 +871,21 @@ export default function MyPerformancePage() {
               {insights.slice(0, 3).map((insight) => (
                 <div
                   key={insight.id}
-                  className={`p-3 rounded-xl border ${
-                    insight.type === "positive"
-                      ? "bg-emerald-50 border-emerald-200"
-                      : insight.type === "warning"
-                        ? "bg-amber-50 border-amber-200"
-                        : "bg-blue-50 border-blue-200"
-                  }`}
+                  className={`p-3 rounded-xl border ${insight.type === "positive"
+                    ? "bg-emerald-50 border-emerald-200"
+                    : insight.type === "warning"
+                      ? "bg-amber-50 border-amber-200"
+                      : "bg-blue-50 border-blue-200"
+                    }`}
                 >
                   <div className="flex items-start gap-2">
                     <div
-                      className={`mt-0.5 p-1 rounded-lg ${
-                        insight.type === "positive"
-                          ? "bg-emerald-100 text-emerald-600"
-                          : insight.type === "warning"
-                            ? "bg-amber-100 text-amber-600"
-                            : "bg-blue-100 text-blue-600"
-                      }`}
+                      className={`mt-0.5 p-1 rounded-lg ${insight.type === "positive"
+                        ? "bg-emerald-100 text-emerald-600"
+                        : insight.type === "warning"
+                          ? "bg-amber-100 text-amber-600"
+                          : "bg-blue-100 text-blue-600"
+                        }`}
                     >
                       {insight.icon}
                     </div>
@@ -780,13 +928,12 @@ export default function MyPerformancePage() {
                       <div className="flex items-center gap-1">
                         {getTrendIcon(metric.trend)}
                         <span
-                          className={`text-xs font-medium ${
-                            metric.trend === "up"
-                              ? "text-emerald-600"
-                              : metric.trend === "down"
-                                ? "text-rose-600"
-                                : "text-gray-500"
-                          }`}
+                          className={`text-xs font-medium ${metric.trend === "up"
+                            ? "text-emerald-600"
+                            : metric.trend === "down"
+                              ? "text-rose-600"
+                              : "text-gray-500"
+                            }`}
                         >
                           {metric.percentageChange > 0 ? "+" : ""}
                           {metric.percentageChange}%
@@ -999,15 +1146,14 @@ export default function MyPerformancePage() {
                               </span>
                               <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${
-                                    priority === "urgent"
-                                      ? "bg-rose-500"
-                                      : priority === "high"
-                                        ? "bg-amber-500"
-                                        : priority === "normal"
-                                          ? "bg-blue-500"
-                                          : "bg-emerald-500"
-                                  }`}
+                                  className={`h-full rounded-full ${priority === "urgent"
+                                    ? "bg-rose-500"
+                                    : priority === "high"
+                                      ? "bg-amber-500"
+                                      : priority === "normal"
+                                        ? "bg-blue-500"
+                                        : "bg-emerald-500"
+                                    }`}
                                   style={{
                                     width:
                                       taskPerformance.total > 0
@@ -1119,6 +1265,7 @@ export default function MyPerformancePage() {
           {activeTab === "analytics" && (
             <>
               {/* Productivity Chart */}
+              {/* Productivity Chart */}
               {productivityData.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -1139,51 +1286,70 @@ export default function MyPerformancePage() {
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={productivityData}>
                           <defs>
-                            <linearGradient
-                              id="completedGrad"
-                              x1="0"
-                              y1="0"
-                              x2="0"
-                              y2="1"
-                            >
-                              <stop
-                                offset="5%"
-                                stopColor="#6366f1"
-                                stopOpacity={0.3}
-                              />
-                              <stop
-                                offset="95%"
-                                stopColor="#6366f1"
-                                stopOpacity={0}
-                              />
+                            <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                             </linearGradient>
-                            <linearGradient
-                              id="hoursGrad"
-                              x1="0"
-                              y1="0"
-                              x2="0"
-                              y2="1"
-                            >
-                              <stop
-                                offset="5%"
-                                stopColor="#10b981"
-                                stopOpacity={0.3}
-                              />
-                              <stop
-                                offset="95%"
-                                stopColor="#10b981"
-                                stopOpacity={0}
-                              />
+                            <linearGradient id="hoursGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            stroke="#e5e7eb"
-                          />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                           <XAxis
                             dataKey="date"
                             stroke="#9ca3af"
                             fontSize={12}
+                            height={35}
+                            tickFormatter={(value, index) => {
+                              try {
+                                const dataItem = productivityData[index];
+                                if (!dataItem) return value || '';
+
+                                // If the data has a displayDate field, use it
+                                if (dataItem.displayDate) {
+                                  return dataItem.displayDate;
+                                }
+
+                                // If the data has a fullDate field
+                                if (dataItem.fullDate) {
+                                  return dataItem.fullDate;
+                                }
+
+                                // Check if value is a day name (Mon, Tue, etc.)
+                                const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                                if (dayNames.includes(value)) {
+                                  // If we have date information in the data
+                                  if (dataItem.date && dataItem.date !== value) {
+                                    return dataItem.date;
+                                  }
+                                  // Try to calculate date from index
+                                  const today = new Date();
+                                  const daysOffset = productivityData.length - 1 - index;
+                                  const actualDate = new Date(today);
+                                  actualDate.setDate(today.getDate() - daysOffset);
+                                  return actualDate.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric'
+                                  });
+                                }
+
+                                // Try to parse as date
+                                const date = new Date(value);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric'
+                                  });
+                                }
+
+                                // Fallback: return the original value
+                                return value || '';
+
+                              } catch (error) {
+                                return value || '';
+                              }
+                            }}
                           />
                           <YAxis stroke="#9ca3af" fontSize={12} />
                           <Tooltip
@@ -1191,6 +1357,32 @@ export default function MyPerformancePage() {
                               backgroundColor: "#ffffff",
                               border: "1px solid #e5e7eb",
                               borderRadius: "8px",
+                            }}
+                            formatter={(value: any, name: string) => {
+                              if (name === 'Hours Worked') return [`${value}h`, name];
+                              return [value, name];
+                            }}
+                            labelFormatter={(label) => {
+                              try {
+                                const dataItem = productivityData.find(
+                                  (item) => item.date === label || item.displayDate === label
+                                );
+                                if (dataItem?.displayDate) {
+                                  return dataItem.displayDate;
+                                }
+
+                                const date = new Date(label);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  });
+                                }
+                                return label;
+                              } catch {
+                                return label;
+                              }
                             }}
                           />
                           <Legend />
@@ -1200,6 +1392,11 @@ export default function MyPerformancePage() {
                             stroke="#6366f1"
                             fill="url(#completedGrad)"
                             name="Tasks Completed"
+                            label={{
+                              fill: '#6366f1',
+                              fontSize: 11,
+                              formatter: (value) => value > 0 ? value : ''
+                            }}
                           />
                           <Area
                             type="monotone"
@@ -1207,6 +1404,11 @@ export default function MyPerformancePage() {
                             stroke="#10b981"
                             fill="url(#hoursGrad)"
                             name="Hours Worked"
+                            label={{
+                              fill: '#10b981',
+                              fontSize: 11,
+                              formatter: (value) => value > 0 ? `${value}h` : ''
+                            }}
                           />
                           <Area
                             type="monotone"
@@ -1215,6 +1417,11 @@ export default function MyPerformancePage() {
                             fill="none"
                             strokeDasharray="5 5"
                             name="Tasks Created"
+                            label={{
+                              fill: '#8b5cf6',
+                              fontSize: 11,
+                              formatter: (value) => value > 0 ? value : ''
+                            }}
                           />
                         </AreaChart>
                       </ResponsiveContainer>
@@ -1536,19 +1743,17 @@ export default function MyPerformancePage() {
                       key={achievement._id}
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className={`p-4 rounded-xl border transition-all ${
-                        achievement.progress !== undefined
-                          ? "bg-gray-50 border-gray-200"
-                          : "bg-linear-to-br from-amber-50 to-orange-50 border-amber-200 shadow-sm"
-                      }`}
+                      className={`p-4 rounded-xl border transition-all ${achievement.progress !== undefined
+                        ? "bg-gray-50 border-gray-200"
+                        : "bg-linear-to-br from-amber-50 to-orange-50 border-amber-200 shadow-sm"
+                        }`}
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 ${
-                            achievement.progress !== undefined
-                              ? "bg-gray-200"
-                              : "bg-linear-to-br from-amber-400 to-orange-500 shadow-md"
-                          }`}
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0 ${achievement.progress !== undefined
+                            ? "bg-gray-200"
+                            : "bg-linear-to-br from-amber-400 to-orange-500 shadow-md"
+                            }`}
                         >
                           {achievement.icon || "🏆"}
                         </div>

@@ -548,7 +548,7 @@ export default function AllDepartmentsPage() {
                 <thead>
                   <tr className="bg-slate-50/70 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     <th className="px-6 py-4">Department Unit</th>
-                    <th className="px-6 py-4">Code</th>
+                    <th className="px-6 py-4 w-70">Code</th>
                     <th className="px-6 py-4">Unit Head</th>
                     <th className="px-6 py-4 text-center">Staff Members</th>
                     <th className="px-6 py-4 text-right">Budget</th>

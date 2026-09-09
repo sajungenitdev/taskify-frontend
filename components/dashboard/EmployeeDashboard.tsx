@@ -558,10 +558,6 @@ export default function EmployeeDashboard() {
             <Plus size={16} />
             Add Task
           </button>
-          <button className="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition shadow-sm relative">
-            <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-          </button>
         </div>
       </div>
 
@@ -796,10 +792,10 @@ export default function EmployeeDashboard() {
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 text-sm">My Workload</h3>
-              <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-xs font-medium">
+              {/* <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-xs font-medium">
                 <span className="px-2.5 py-1 bg-white text-gray-900 rounded-md shadow-sm">Week</span>
                 <span className="px-2.5 py-1 text-gray-400">Month</span>
-              </div>
+              </div> */}
             </div>
 
             <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-3">

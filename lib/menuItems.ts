@@ -642,7 +642,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE
+      // ROLES.EMPLOYEE
     ],
     { description: "Configure and manage KPIs" },
   ),
@@ -691,7 +691,7 @@ export const SUB_ITEMS = {
       ROLES.HR_MANAGER,
       ROLES.DEPT_MANAGER,
       ROLES.PROJECT_MANAGER,
-      ROLES.EMPLOYEE
+      // ROLES.EMPLOYEE
     ],
     { description: "Advanced analytics for KPIs" },
   ),
@@ -831,24 +831,24 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
     { description: "View completed and archived projects" },
   ),
-  projectResources: createSubNavItem(
-    "project-resources",
-    "Project Resources",
-    "/projects/resources",
-    Users,
-    "Projects",
-    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
-    { description: "Manage project resources and allocation" },
-  ),
-  projectTemplates: createSubNavItem(
-    "project-templates",
-    "Project Templates",
-    "/projects/templates",
-    Layers,
-    "Projects",
-    [ROLES.ALL],
-    { description: "Manage and reuse project templates" },
-  ),
+  // projectResources: createSubNavItem(
+  //   "project-resources",
+  //   "Project Resources",
+  //   "/projects/resources",
+  //   Users,
+  //   "Projects",
+  //   [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
+  //   { description: "Manage project resources and allocation" },
+  // ),
+  // projectTemplates: createSubNavItem(
+  //   "project-templates",
+  //   "Project Templates",
+  //   "/projects/templates",
+  //   Layers,
+  //   "Projects",
+  //   [ROLES.ALL],
+  //   { description: "Manage and reuse project templates" },
+  // ),
 
   // Tasks Sub-items
   myTasks: createSubNavItem(

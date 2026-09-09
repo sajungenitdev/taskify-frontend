@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setToken(newToken); // ✅ SET TOKEN
         setUser(userData);
 
-        toast.success(`Welcome back, ${userData.fullName}!`);
+        // toast.success(`Welcome back, ${userData.fullName}!`);
         return userData;
       } else {
         throw new Error(response.data.message || "Invalid Credentials");
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     delete api.defaults.headers.common["Authorization"];
     setToken(null); // ✅ CLEAR TOKEN
     setUser(null);
-    toast.success("Logged out successfully");
+    // toast.success("Logged out successfully");
   };
 
   const hasRole = (roles: string | string[]): boolean => {

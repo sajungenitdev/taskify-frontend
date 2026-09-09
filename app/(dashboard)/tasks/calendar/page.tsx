@@ -668,7 +668,7 @@ export default function MyCalendarPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <button
+              {/* <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`p-2 rounded-lg transition-colors ${
                   showFilters ||
@@ -679,7 +679,7 @@ export default function MyCalendarPage() {
                 }`}
               >
                 <Filter className="w-5 h-5" />
-              </button>
+              </button> */}
             </div>
           </div>
 
