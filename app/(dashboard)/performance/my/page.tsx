@@ -1359,7 +1359,7 @@ export default function MyPerformancePage() {
                               border: "1px solid #e5e7eb",
                               borderRadius: "8px",
                             }}
-                            formatter={(value: any, name: string) => {
+                            formatter={(value, name) => {
                               if (name === 'Hours Worked') return [`${value}h`, name];
                               return [value, name];
                             }}
@@ -1396,7 +1396,7 @@ export default function MyPerformancePage() {
                             label={{
                               fill: '#6366f1',
                               fontSize: 11,
-                              formatter: (value) => value > 0 ? value : ''
+                              formatter: (value) => typeof value === 'number' && value > 0 ? value : ''
                             }}
                           />
                           <Area
@@ -1408,7 +1408,7 @@ export default function MyPerformancePage() {
                             label={{
                               fill: '#10b981',
                               fontSize: 11,
-                              formatter: (value) => value > 0 ? `${value}h` : ''
+                              formatter: (value) => typeof value === 'number' && value > 0 ? `${value}h` : ''
                             }}
                           />
                           <Area
@@ -1421,7 +1421,7 @@ export default function MyPerformancePage() {
                             label={{
                               fill: '#8b5cf6',
                               fontSize: 11,
-                              formatter: (value) => value > 0 ? value : ''
+                              formatter: (value) => typeof value === 'number' && value > 0 ? value : ''
                             }}
                           />
                         </AreaChart>
