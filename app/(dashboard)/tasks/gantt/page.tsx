@@ -883,7 +883,7 @@ export default function GanttChartPage() {
             <div className="bg-slate-200/60 rounded-xl p-1 flex flex-wrap gap-1 max-w-xs">
                 <button
                     onClick={() => {
-                        handleFilterChange(setViewTab, "all");
+                        handleFilterChange<"all" | "employee">(setViewTab, "all");
                         setFilterEmployee("all");
                         setSelectedEmployee(null);
                     }}
@@ -893,7 +893,7 @@ export default function GanttChartPage() {
                     <Users size={14} /> All Tasks
                 </button>
                 <button
-                    onClick={() => handleFilterChange(setViewTab, "employee")}
+                    onClick={() => handleFilterChange<"all" | "employee">(setViewTab, "employee")}
                     className={`flex-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 ${viewTab === "employee" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-600 hover:text-slate-900"
                         }`}
                 >
@@ -939,7 +939,7 @@ export default function GanttChartPage() {
                                 </div>
                                 <button
                                     onClick={() => {
-                                        handleFilterChange(setFilterEmployee, "all");
+                                        handleFilterChange<string>(setFilterEmployee, "all");
                                         setSelectedEmployee(null);
                                     }}
                                     className="p-0.5 hover:bg-indigo-100 rounded text-slate-400 hover:text-slate-600 ml-1"
