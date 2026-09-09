@@ -517,7 +517,10 @@ export default function GanttChartPage() {
         return Math.round(base * zoomLevel);
     }, [viewMode, zoomLevel]);
 
-    const handleFilterChange = (setter: (val: string) => void, val: string) => {
+    const handleFilterChange = <T extends string>(
+        setter: React.Dispatch<React.SetStateAction<T>>,
+        val: T
+    ) => {
         setFilterLoading(true);
         startTransition(() => {
             setter(val);
@@ -643,7 +646,7 @@ export default function GanttChartPage() {
             const isToday = date.toDateString() === todayStr;
 
             let text = "";
-            let subText = date.getDate().toString();
+            const subText = date.getDate().toString();
 
             if (viewMode === "day") {
                 text = date.toLocaleDateString("en-US", { weekday: "short" });
