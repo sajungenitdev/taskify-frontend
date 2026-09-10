@@ -249,7 +249,43 @@ export default function KPIFeedbackModal({
             }
         } catch (err: any) {
             console.error("Submission error:", err);
-            toast.error(err.response?.data?.message || "Failed to save feedback.");
+
+            const status = err?.response?.status;
+            const serverMsg = err?.response?.data?.message;
+            const existing = err?.response?.data?.existingFeedback;
+
+            // Special case: user already has feedback → switch to edit mode
+            if (status === 400 && existing?._id) {
+                toast.error("You already have feedback on this KPI. Loading it for edit…");
+
+                // Auto-load the existing entry into the form
+                setEditingId(existing._id);
+                setComment(existing.comment || "");
+                setRating(existing.rating || 0);
+
+                // Ensure it's shown in the list too
+                setFeedbackList((prev) => {
+                    const already = prev.some((f) => f._id === existing._id);
+                    return already ? prev : [existing, ...prev];
+                });
+
+                return;
+            }
+
+            // Other errors: show server message with a friendlier fallback
+            if (status === 401) {
+                toast.error("Session expired — please log in again.");
+            } else if (status === 403) {
+                toast.error(serverMsg || "You don't have permission to post feedback.");
+            } else if (status === 404) {
+                toast.error(serverMsg || "KPI not found. Please refresh the page.");
+            } else if (status === 500) {
+                toast.error(serverMsg || "Server error while saving feedback.");
+            } else if (serverMsg) {
+                toast.error(serverMsg);
+            } else {
+                toast.error("Failed to save feedback. Please try again.");
+            }
         } finally {
             setSubmitting(false);
         }
@@ -353,8 +389,8 @@ export default function KPIFeedbackModal({
             >
                 <Star
                     className={`w-5 h-5 ${starIdx <= (hoverRating || rating)
-                            ? "fill-amber-400 text-amber-400"
-                            : "text-gray-200"
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-gray-200"
                         } transition-colors`}
                 />
             </button>
@@ -609,8 +645,8 @@ export default function KPIFeedbackModal({
                                                                         <Star
                                                                             key={s}
                                                                             className={`w-3.5 h-3.5 ${s <= item.rating!
-                                                                                    ? "fill-amber-400 text-amber-400"
-                                                                                    : "text-gray-200"
+                                                                                ? "fill-amber-400 text-amber-400"
+                                                                                : "text-gray-200"
                                                                                 }`}
                                                                         />
                                                                     ))}
