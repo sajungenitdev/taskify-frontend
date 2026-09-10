@@ -1,6 +1,6 @@
 "use client";
 import { GitBranch, Gem, Link2, Paperclip } from "lucide-react";
-import type { Task, Attachment } from "../_types";
+import type { Task, Attachment } from "@/types/tasks";
 
 interface Props {
     task: Task;

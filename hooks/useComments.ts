@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/axios";
-import type { Comment } from "../_types";
+import type { Comment } from "@/types/tasks";
 
 export function useComments(taskId: string) {
   const [comments, setComments] = useState<Comment[]>([]);

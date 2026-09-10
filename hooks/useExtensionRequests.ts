@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/axios";
-import type { ExtensionRequest } from "../_types";
+import type { ExtensionRequest } from "@/types/tasks";
 
 export function useExtensionRequests(taskId: string) {
   const [extensionRequests, setExtensionRequests] = useState<ExtensionRequest[]>([]);

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/axios";
-import type { Review } from "../_types";
+import type { Review } from "@/types/tasks";
 
 interface ReviewStats {
   total: number;

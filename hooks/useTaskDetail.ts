@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import api from "@/lib/axios";
 import toast from "react-hot-toast";
-import type { Task } from "../_types";
+import type { Task } from "@/types/tasks";
 
 export function useTaskDetail() {
     const { id } = useParams();
