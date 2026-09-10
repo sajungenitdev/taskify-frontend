@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import api from "@/lib/axios";
-import type { Attachment } from "../_types";
+import type { Attachment } from "@/types/tasks";
 
 export function useAttachments(taskId: string) {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
