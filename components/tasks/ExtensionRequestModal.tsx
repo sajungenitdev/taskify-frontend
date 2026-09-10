@@ -77,7 +77,9 @@ export function ExtensionModal({ isOpen, task, onClose, onSubmitted }: Props) {
             <div className="p-6">
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-xl">📅</span>
-                <h3 className="text-xl font-bold text-gray-900">Request Extension</h3>
+                <h3 className="text-xl font-bold text-gray-900">
+                  Request Extension
+                </h3>
               </div>
 
               <p className="text-xs text-gray-500 mb-4">
@@ -88,8 +90,8 @@ export function ExtensionModal({ isOpen, task, onClose, onSubmitted }: Props) {
                 <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5">
                   <span className="text-red-500 text-sm mt-0.5">⚠️</span>
                   <p className="text-xs text-red-600 leading-relaxed">
-                    This task is overdue. An extension will be logged against your KPI
-                    timeliness score.
+                    This task is overdue. An extension will be logged against
+                    your KPI timeliness score.
                   </p>
                 </div>
               )}
@@ -103,7 +105,9 @@ export function ExtensionModal({ isOpen, task, onClose, onSubmitted }: Props) {
                   value={requestedDate}
                   onChange={(e) => setRequestedDate(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition text-sm"
-                  min={task.deadline || new Date().toISOString().split("T")[0]}
+                  min={
+                    task.deadline || new Date().toISOString().split("T")[0]
+                  }
                 />
               </div>
 
@@ -143,3 +147,6 @@ export function ExtensionModal({ isOpen, task, onClose, onSubmitted }: Props) {
     </AnimatePresence>
   );
 }
+
+// ✅ Correct default export — points to the named export above
+export default ExtensionModal;
