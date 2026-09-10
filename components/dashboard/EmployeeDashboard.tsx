@@ -34,12 +34,12 @@ interface Task {
   description: string;
   status: string;
   priority: string;
-  dueDate: string;
+  dueDate?: string;
   deadline?: string;
   projectId?: { _id: string; name: string };
-  assignedTo: { _id: string; fullName: string };
-  createdAt: string;
-  updatedAt: string;
+  assignedTo?: { _id: string; fullName: string; email?: string };
+  createdAt?: string;
+  updatedAt?: string;
   timeSpent?: number;
   estimatedHours?: number;
   isTimerRunning?: boolean;
@@ -68,6 +68,13 @@ interface DashboardStats {
   weeklyProgress: number;
   monthlyProgress: number;
 }
+
+// Safe date parser — accepts any shape, returns null if invalid/missing
+const safeDate = (value?: string | null): Date | null => {
+  if (!value) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 export default function EmployeeDashboard() {
   const { user, refreshUser } = useAuth();
@@ -126,8 +133,9 @@ export default function EmployeeDashboard() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const todayTasks = tasks.filter((t: any) => {
-        const d = new Date(t.dueDate || t.deadline);
+      const todayTasks = tasks.filter((t) => {
+        const d = safeDate(t.dueDate || t.deadline);
+        if (!d) return t.status !== "completed" && t.status !== "cancelled";
         d.setHours(0, 0, 0, 0);
         return (
           d.getTime() === today.getTime() ||
@@ -140,12 +148,14 @@ export default function EmployeeDashboard() {
       const inProgressTasks = tasks.filter((t) => t.status === "in_progress").length;
       const overdueTasks = tasks.filter((t) => {
         if (t.status === "completed") return false;
-        return new Date(t.dueDate || t.deadline) < new Date();
+        const d = safeDate(t.dueDate || t.deadline);
+        return d ? d < new Date() : false;
       }).length;
 
       const todayLoggedHours = tasks
         .filter((t) => {
-          const u = new Date(t.updatedAt);
+          const u = safeDate(t.updatedAt);
+          if (!u) return false;
           return (
             u.toDateString() === today.toDateString() &&
             t.status === "completed" &&
@@ -166,8 +176,10 @@ export default function EmployeeDashboard() {
         teamMembersCount: 0,
         upcomingDeadlines: tasks.filter((t) => {
           if (t.status === "completed") return false;
-          const d = new Date(t.dueDate || t.deadline).getTime() - Date.now();
-          return d > 0 && d < 7 * 86400000;
+          const d = safeDate(t.dueDate || t.deadline);
+          if (!d) return false;
+          const diff = d.getTime() - Date.now();
+          return diff > 0 && diff < 7 * 86400000;
         }).length,
         hoursLoggedToday: Math.round(todayLoggedHours * 10) / 10,
         hoursTarget: 8,
@@ -180,17 +192,13 @@ export default function EmployeeDashboard() {
       setAllTasks(tasks);
       setRecentTasks(tasks.slice(0, 5));
 
-      // ============ CRITICAL: sync the shared timer with the backend ============
-      // If any task on the server says `isTimerRunning: true`, and we have no
-      // active timer locally, adopt that task so the shared context resumes
-      // tracking it.
-      const serverRunning = tasks.find((t: any) => t.isTimerRunning === true);
+      // Adopt any server-running timer
+      const serverRunning = tasks.find((t) => t.isTimerRunning === true);
       if (serverRunning && !timer.isTimerActiveForTask(serverRunning._id)) {
         let base = serverRunning.elapsedTime || 0;
         if (serverRunning.timerStartTime) {
-          const extra = Math.floor(
-            (Date.now() - new Date(serverRunning.timerStartTime).getTime()) / 1000
-          );
+          const startTs = new Date(serverRunning.timerStartTime).getTime();
+          const extra = Math.floor((Date.now() - startTs) / 1000);
           if (extra > 0) base += extra;
         }
         timer.startTimer(serverRunning._id, base);
@@ -216,29 +224,18 @@ export default function EmployeeDashboard() {
     toast.success("Dashboard refreshed");
   };
 
-  // ============ Timer actions (delegating to shared context) ============
-
+  // ============ Timer actions ============
   const startTimerForTask = useCallback(
     async (task: Task) => {
-      // If another task is already active, don't allow starting a second
-      if (
-        timer.activeTimerTaskId &&
-        timer.activeTimerTaskId !== task._id
-      ) {
+      if (timer.activeTimerTaskId && timer.activeTimerTaskId !== task._id) {
         toast.error("Another timer is already running. Stop it first.");
         return;
       }
-
-      // If already active on this task, resume if paused
       if (timer.isTimerActiveForTask(task._id)) {
         if (!timer.isTimerRunning) timer.resumeTimer();
         return;
       }
-
-      // 1. Optimistic start in context (instant UI)
       timer.startTimer(task._id);
-
-      // 2. Persist to server in the background
       try {
         const res = await api.post(`/tasks/${task._id}/timer/start`);
         if (!res.data.success) {
@@ -247,7 +244,6 @@ export default function EmployeeDashboard() {
       } catch (err: any) {
         const status = err?.response?.status;
         const msg = err?.response?.data?.message;
-        // 400 "already running" is fine — our timer is already ticking
         if (status !== 400) {
           toast.error(msg || "Timer started locally — will sync later");
         }
@@ -296,7 +292,6 @@ export default function EmployeeDashboard() {
 
   // ============ Task completion ============
   const completeTaskLocal = async (taskId: string) => {
-    // Stop timer if it's running for this task
     if (timer.isTimerActiveForTask(taskId)) {
       await timer.stopTimer(taskId);
     }
@@ -385,7 +380,8 @@ export default function EmployeeDashboard() {
     today.setHours(0, 0, 0, 0);
 
     let filtered = allTasks.filter((task) => {
-      const d = new Date(task.dueDate || task.deadline);
+      const d = safeDate(task.dueDate || task.deadline);
+      if (!d) return task.status !== "completed" && task.status !== "cancelled";
       d.setHours(0, 0, 0, 0);
       return (
         d.getTime() === today.getTime() ||
@@ -405,7 +401,6 @@ export default function EmployeeDashboard() {
     return filtered.slice(0, 5);
   }, [allTasks, taskFilter, timer]);
 
-  // ============ Active timer box data ============
   const activeTimerTask = useMemo(() => {
     if (!timer.activeTimerTaskId) return null;
     return allTasks.find((t) => t._id === timer.activeTimerTaskId) || null;
@@ -612,9 +607,10 @@ export default function EmployeeDashboard() {
                   const taskIsRunning = taskIsActive && timer.isTimerRunning;
                   const taskIsPaused = taskIsActive && !timer.isTimerRunning;
                   const isCompleted = task.status === "completed";
+                  const dueDate = safeDate(task.dueDate || task.deadline);
                   const isOverdue =
                     task.status === "overdue" ||
-                    new Date(task.dueDate || task.deadline) < new Date();
+                    (dueDate ? dueDate < new Date() : false);
 
                   return (
                     <div
@@ -652,9 +648,9 @@ export default function EmployeeDashboard() {
                             </span>
                             {renderEvidenceBadge(task)}
                           </div>
-                          {task.dueDate && (
+                          {dueDate && (
                             <span className="text-xs text-gray-400">
-                              Due {new Date(task.dueDate).toLocaleDateString()}
+                              Due {dueDate.toLocaleDateString()}
                             </span>
                           )}
                         </div>
@@ -667,7 +663,6 @@ export default function EmployeeDashboard() {
                           </span>
                         )}
 
-                        {/* Running: elapsed + Pause */}
                         {taskIsRunning && (
                           <>
                             <span className="text-xs font-semibold px-2 py-0.5 text-blue-600 flex items-center gap-1 tabular-nums">
@@ -683,7 +678,6 @@ export default function EmployeeDashboard() {
                           </>
                         )}
 
-                        {/* Paused: frozen time + Resume + Stop */}
                         {taskIsPaused && (
                           <>
                             <span className="text-xs font-semibold px-2 py-0.5 text-amber-600 flex items-center gap-1 tabular-nums">
@@ -706,7 +700,6 @@ export default function EmployeeDashboard() {
                           </>
                         )}
 
-                        {/* Idle non-completed: Start */}
                         {!taskIsActive && !isCompleted && (
                           <button
                             onClick={() => startTimerForTask(task)}
