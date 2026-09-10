@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
-import type { Task } from "../_types";
+import type { Task } from "@/types/task";
 
 interface Props {
   subTasks: Task[];
