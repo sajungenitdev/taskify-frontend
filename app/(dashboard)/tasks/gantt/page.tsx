@@ -91,13 +91,18 @@ interface GanttTask extends Task {
     isVisible: boolean;
 }
 
+interface DepartmentRef {
+    _id?: string;
+    name?: string;
+    code?: string;
+}
 interface UserItem {
     _id: string;
     fullName: string;
     email: string;
     employeeId?: string;
     role?: string;
-    department?: string;
+    department?: string | DepartmentRef;
 }
 
 interface DependencyEdge {
@@ -191,7 +196,7 @@ const Tooltip = memo(({
             {children}
             {isVisible && (
                 <div
-                    className={`absolute z-50 ${positionClasses[position]} min-w-max max-w-xs px-3 py-2 bg-slate-900 text-white text-xs rounded-xl shadow-xl pointer-events-none border border-slate-700`}
+                    className={`absolute ${positionClasses[position]} min-w-max max-w-xs px-3 py-2 bg-slate-900 text-white text-xs rounded-xl shadow-xl pointer-events-none border border-slate-700`}
                 >
                     {content}
                 </div>
@@ -314,7 +319,7 @@ const MilestoneDiamond = memo(({
 
     return (
         <div
-            className="absolute top-[10px] cursor-pointer z-10 hover:scale-110 transition-transform select-none"
+            className="absolute top-[10px] cursor-pointer hover:scale-110 transition-transform select-none"
             style={{ left: `${left}px` }}
             onClick={() => onTaskClick(task)}
         >
@@ -356,7 +361,7 @@ const DependencyOverlay = memo(({
     const taskMap = useMemo(() => new Map(tasks.map((t) => [t._id, t])), [tasks]);
 
     return (
-        <svg className="absolute inset-0 pointer-events-none w-full h-full z-10 overflow-visible">
+        <svg className="absolute inset-0 pointer-events-none w-full h-full overflow-visible">
             <defs>
                 <marker
                     id="gantt-arrow-default"
@@ -921,11 +926,20 @@ export default function GanttChartPage() {
                                 className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 text-xs focus:ring-2 focus:ring-indigo-100 outline-none"
                             >
                                 <option value="all">Select an employee...</option>
-                                {users.map((u) => (
-                                    <option key={u._id} value={u._id}>
-                                        {u.fullName} ({getEmployeeTaskCount(u._id)} tasks) {u.department ? `• ${u.department}` : ""}
-                                    </option>
-                                ))}
+                                {users.map((u) => {
+                                    // 👇 resolve department to a plain string
+                                    const deptName =
+                                        typeof u.department === "string"
+                                            ? u.department
+                                            : u.department?.name || u.department?.code || "";
+
+                                    return (
+                                        <option key={u._id} value={u._id}>
+                                            {u.fullName} ({getEmployeeTaskCount(u._id)} tasks)
+                                            {deptName ? ` • ${deptName}` : ""}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
                         {selectedEmployee && (
@@ -1104,7 +1118,7 @@ export default function GanttChartPage() {
             <div className="relative bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                 {/* Non-Blocking Loader Overlay */}
                 {filterLoading && (
-                    <div className="absolute inset-0 z-50 bg-white/70 backdrop-blur-[1.5px] flex flex-col items-center justify-center gap-2">
+                    <div className="absolute inset-0  bg-white/70 backdrop-blur-[1.5px] flex flex-col items-center justify-center gap-2">
                         <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                         <span className="text-xs font-semibold text-slate-600 tracking-wide uppercase">
                             Updating Timeline...
@@ -1130,8 +1144,8 @@ export default function GanttChartPage() {
                     >
                         <div style={{ width: `${260 + totalTimelineWidth}px`, position: "relative" }}>
                             {/* Sticky Header */}
-                            <div className="sticky top-0 z-30 flex h-[44px] bg-slate-50 border-b border-slate-200">
-                                <div className="sticky left-0 z-40 w-[260px] shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                            <div className="top-0 flex h-[44px] bg-slate-50 border-b border-slate-200">
+                                <div className="left-0 w-[260px] shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
                                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Task</span>
                                     <span className="text-[11px] text-slate-400 font-normal">{ganttData.tasks.length} items</span>
                                 </div>
@@ -1174,7 +1188,7 @@ export default function GanttChartPage() {
                                         >
                                             {/* Pinned Left Sidebar Cell */}
                                             <div
-                                                className="sticky left-0 z-20 w-[260px] shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                                                className="sticky left-0  w-[260px] shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                                                 onClick={() => handleTaskClick(task)}
                                             >
                                                 <div className="flex items-center gap-1.5 overflow-hidden">
@@ -1297,7 +1311,7 @@ export default function GanttChartPage() {
             <AnimatePresence>
                 {showTaskDetails && selectedTask && (
                     <div
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
+                        className="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
                         onClick={() => setShowTaskDetails(false)}
                     >
                         <motion.div

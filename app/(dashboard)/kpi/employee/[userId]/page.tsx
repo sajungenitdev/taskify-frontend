@@ -710,9 +710,9 @@ export default function EmployeeKPIDetailPage() {
                                         <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Employee profile header</div>
                                         <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> KPI score with breakdown bars</div>
                                         <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> 6-month trend bar chart</div>
-                                        <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Task statistics table</div>
+                                        {/* <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Task statistics table</div> */}
                                         <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Suggested action with reason</div>
-                                        <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Manager comments field</div>
+                                        <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Manager feedback field</div>
                                         <div className="flex items-center gap-2"><span className="text-emerald-600 font-bold">✓</span> Auto-generated timestamp</div>
                                     </div>
                                 </div>
@@ -722,16 +722,16 @@ export default function EmployeeKPIDetailPage() {
                                     <div className="space-y-4 text-xs">
                                         <div>
                                             <p className="font-bold text-gray-800">Month End <span className="text-gray-400 font-normal">(1st of month, 2 AM)</span></p>
-                                            <p className="text-gray-500 mt-0.5">Full PDF emailed to HR + Dept Manager + CEO per employee</p>
+                                            <p className="text-gray-500 mt-0.5">Emailed to authorities & employee</p>
                                         </div>
                                         <div className="pt-2 border-t border-gray-100">
                                             <p className="font-bold text-gray-800">Friday 6 PM <span className="text-gray-400 font-normal">(weekly)</span></p>
-                                            <p className="text-gray-500 mt-0.5">Employee gets their own score snapshot only — no other employee data</p>
+                                            <p className="text-gray-500 mt-0.5">Employee gets their own score — no other employee data</p>
                                         </div>
-                                        <div className="pt-2 border-t border-gray-100">
+                                        {/* <div className="pt-2 border-t border-gray-100">
                                             <p className="font-bold text-gray-800">Threshold Alert <span className="text-gray-400 font-normal">(instant)</span></p>
                                             <p className="text-gray-500 mt-0.5">If KPI drops below 60% mid-month, HR Manager gets immediate alert email</p>
-                                        </div>
+                                        </div> */}
                                     </div>
                                 </div>
 

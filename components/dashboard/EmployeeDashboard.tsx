@@ -1,36 +1,27 @@
 // app/(dashboard)/dashboard/components/EmployeeDashboard.tsx
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTimer } from "@/contexts/TimerContext";
 import Link from "next/link";
 import {
-  CheckSquare,
-  Clock,
   CheckCircle,
-  AlertCircle,
   Loader2,
   RefreshCw,
-  Calendar,
-  User,
-  Timer,
   Gift,
   Crown,
-  AlertTriangle,
-  Users,
-  Target,
   Plus,
   Pause,
   Play,
-  ChevronRight,
-  Gauge,
   Paperclip,
   X,
   Text,
   AlertTriangle as AlertTriangleIcon,
   Send,
   Eye as EyeIcon,
-  Bell,
+  Square,
+  Info,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
@@ -44,14 +35,9 @@ interface Task {
   status: string;
   priority: string;
   dueDate: string;
-  projectId?: {
-    _id: string;
-    name: string;
-  };
-  assignedTo: {
-    _id: string;
-    fullName: string;
-  };
+  deadline?: string;
+  projectId?: { _id: string; name: string };
+  assignedTo: { _id: string; fullName: string };
   createdAt: string;
   updatedAt: string;
   timeSpent?: number;
@@ -85,6 +71,8 @@ interface DashboardStats {
 
 export default function EmployeeDashboard() {
   const { user, refreshUser } = useAuth();
+  const timer = useTimer();
+
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentTasks, setRecentTasks] = useState<Task[]>([]);
@@ -94,22 +82,13 @@ export default function EmployeeDashboard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
 
-  // Filter state
   const [taskFilter, setTaskFilter] = useState<"all" | "running" | "pending">("all");
 
-  // Evidence Modal state
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [evidenceTask, setEvidenceTask] = useState<Task | null>(null);
   const [evidenceText, setEvidenceText] = useState("");
   const [submittingEvidence, setSubmittingEvidence] = useState(false);
 
-  // ============ TIMER STATE WITH PERSISTENCE ============
-  const [activeTimer, setActiveTimer] = useState<Task | null>(null);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Trial state
   const [timeLeft, setTimeLeft] = useState<{
     days: number;
     hours: number;
@@ -117,89 +96,63 @@ export default function EmployeeDashboard() {
     seconds: number;
   } | null>(null);
 
+  // ============ Trial countdown ============
   const calculateTimeLeft = useCallback(() => {
     if (!user?.trial?.endDate) return null;
-    const now = new Date().getTime();
-    const endDate = new Date(user.trial.endDate).getTime();
-    const difference = endDate - now;
-    if (difference <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-    return { days, hours, minutes, seconds };
+    const diff = new Date(user.trial.endDate).getTime() - Date.now();
+    if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    return {
+      days: Math.floor(diff / 86400000),
+      hours: Math.floor((diff % 86400000) / 3600000),
+      minutes: Math.floor((diff % 3600000) / 60000),
+      seconds: Math.floor((diff % 60000) / 1000),
+    };
   }, [user]);
 
   useEffect(() => {
     if (user?.trial?.isActive && user?.trial?.endDate) {
-      const timer = setInterval(() => {
-        setTimeLeft(calculateTimeLeft());
-      }, 1000);
-      return () => clearInterval(timer);
+      const t = setInterval(() => setTimeLeft(calculateTimeLeft()), 1000);
+      return () => clearInterval(t);
     }
   }, [user?.trial?.isActive, user?.trial?.endDate, calculateTimeLeft]);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  // ============ TIMER INTERVAL ============
-  useEffect(() => {
-    if (isTimerRunning) {
-      timerIntervalRef.current = setInterval(() => {
-        setTimerSeconds((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    }
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    };
-  }, [isTimerRunning]);
-
-  const formatTimerTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  };
-
-  const fetchDashboardData = async () => {
+  // ============ Data loading ============
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const [tasksRes] = await Promise.all([api.get(`/tasks?assignedTo=${user?._id}`)]);
-      const tasks = tasksRes.data.data || [];
+      const { data } = await api.get(`/tasks?assignedTo=${user?._id}`);
+      const tasks: Task[] = data.data || [];
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
       const todayTasks = tasks.filter((t: any) => {
-        const dueDate = new Date(t.dueDate);
-        dueDate.setHours(0, 0, 0, 0);
-        return dueDate.getTime() === today.getTime() || (t.status !== "completed" && t.status !== "cancelled");
+        const d = new Date(t.dueDate || t.deadline);
+        d.setHours(0, 0, 0, 0);
+        return (
+          d.getTime() === today.getTime() ||
+          (t.status !== "completed" && t.status !== "cancelled")
+        );
       });
 
-      const completedTasks = tasks.filter((t: any) => t.status === "completed").length;
-      const pendingTasks = tasks.filter((t: any) => t.status === "pending").length;
-      const inProgressTasks = tasks.filter((t: any) => t.status === "in_progress").length;
-      const overdueTasks = tasks.filter((t: any) => {
+      const completedTasks = tasks.filter((t) => t.status === "completed").length;
+      const pendingTasks = tasks.filter((t) => t.status === "pending").length;
+      const inProgressTasks = tasks.filter((t) => t.status === "in_progress").length;
+      const overdueTasks = tasks.filter((t) => {
         if (t.status === "completed") return false;
-        const dueDate = new Date(t.dueDate);
-        const now = new Date();
-        return dueDate < now;
+        return new Date(t.dueDate || t.deadline) < new Date();
       }).length;
 
       const todayLoggedHours = tasks
-        .filter((t: any) => {
-          const updatedAt = new Date(t.updatedAt);
-          return updatedAt.toDateString() === today.toDateString() && t.status === "completed" && t.timeSpent;
+        .filter((t) => {
+          const u = new Date(t.updatedAt);
+          return (
+            u.toDateString() === today.toDateString() &&
+            t.status === "completed" &&
+            t.timeSpent
+          );
         })
-        .reduce((sum: number, t: any) => sum + (t.timeSpent || 0), 0);
+        .reduce((s, t) => s + (t.timeSpent || 0), 0);
 
       setStats({
         totalTasks: tasks.length,
@@ -207,20 +160,19 @@ export default function EmployeeDashboard() {
         pendingTasks,
         inProgressTasks,
         overdueTasks,
-        completionRate: tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
+        completionRate:
+          tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
         projectsCount: 0,
         teamMembersCount: 0,
-        upcomingDeadlines: tasks.filter((t: any) => {
+        upcomingDeadlines: tasks.filter((t) => {
           if (t.status === "completed") return false;
-          const dueDate = new Date(t.dueDate);
-          const now = new Date();
-          const diff = dueDate.getTime() - now.getTime();
-          return diff > 0 && diff < 7 * 24 * 60 * 60 * 1000;
+          const d = new Date(t.dueDate || t.deadline).getTime() - Date.now();
+          return d > 0 && d < 7 * 86400000;
         }).length,
         hoursLoggedToday: Math.round(todayLoggedHours * 10) / 10,
         hoursTarget: 8,
         todayTasks: todayTasks.length,
-        todayRemaining: todayTasks.filter((t: any) => t.status !== "completed").length,
+        todayRemaining: todayTasks.filter((t) => t.status !== "completed").length,
         weeklyProgress: 0,
         monthlyProgress: 0,
       });
@@ -228,35 +180,33 @@ export default function EmployeeDashboard() {
       setAllTasks(tasks);
       setRecentTasks(tasks.slice(0, 5));
 
-      // ============ RESTORE TIMER STATE FROM BACKEND ============
-      const runningTask = tasks.find((t: any) => t.isTimerRunning === true);
-      if (runningTask) {
-        // Calculate elapsed time including current session
-        let currentElapsed = runningTask.elapsedTime || 0;
-
-        // If timer was running, calculate additional time since start
-        if (runningTask.timerStartTime) {
-          const startTimestamp = new Date(runningTask.timerStartTime).getTime();
-          const nowTimestamp = new Date().getTime();
-          const additionalSeconds = Math.floor((nowTimestamp - startTimestamp) / 1000);
-          if (additionalSeconds > 0) currentElapsed += additionalSeconds;
+      // ============ CRITICAL: sync the shared timer with the backend ============
+      // If any task on the server says `isTimerRunning: true`, and we have no
+      // active timer locally, adopt that task so the shared context resumes
+      // tracking it.
+      const serverRunning = tasks.find((t: any) => t.isTimerRunning === true);
+      if (serverRunning && !timer.isTimerActiveForTask(serverRunning._id)) {
+        let base = serverRunning.elapsedTime || 0;
+        if (serverRunning.timerStartTime) {
+          const extra = Math.floor(
+            (Date.now() - new Date(serverRunning.timerStartTime).getTime()) / 1000
+          );
+          if (extra > 0) base += extra;
         }
-
-        setActiveTimer(runningTask);
-        setTimerSeconds(currentElapsed);
-        setIsTimerRunning(true);
-      } else {
-        setActiveTimer(null);
-        setTimerSeconds(0);
-        setIsTimerRunning(false);
+        timer.startTimer(serverRunning._id, base);
       }
-    } catch (error: any) {
-      console.error("Error fetching dashboard data:", error);
+    } catch (err) {
+      console.error("Failed to load dashboard:", err);
       toast.error("Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (user?._id) fetchDashboardData();
+  }, [user?._id, fetchDashboardData]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -266,134 +216,119 @@ export default function EmployeeDashboard() {
     toast.success("Dashboard refreshed");
   };
 
-  // ============ TIMER CONTROLS WITH PERSISTENCE ============
+  // ============ Timer actions (delegating to shared context) ============
 
-  const startTimer = async (task: Task) => {
-    try {
-      // Call API to start timer
-      const response = await api.post(`/tasks/${task._id}/timer/start`);
-      if (response.data.success) {
-        const updatedTask = response.data.data;
-        setActiveTimer(updatedTask);
-        setTimerSeconds(0);
-        setIsTimerRunning(true);
-        toast.success(`⏱️ Timer started for "${task.title}"`);
-        await fetchDashboardData();
-      } else {
-        toast.error(response.data.message || "Failed to start timer");
+  const startTimerForTask = useCallback(
+    async (task: Task) => {
+      // If another task is already active, don't allow starting a second
+      if (
+        timer.activeTimerTaskId &&
+        timer.activeTimerTaskId !== task._id
+      ) {
+        toast.error("Another timer is already running. Stop it first.");
+        return;
       }
-    } catch (error: any) {
-      console.error("Start timer error:", error);
-      // Fallback: local timer
-      setActiveTimer(task);
-      setTimerSeconds(0);
-      setIsTimerRunning(true);
-      toast.error("Timer started locally. Syncing with server...");
-      // Try to sync after a moment
-      setTimeout(async () => {
-        try {
-          await api.post(`/tasks/${task._id}/timer/start`);
-        } catch (e) {
-          console.error("Sync failed:", e);
-        }
-      }, 1000);
-    }
-  };
 
-  const pauseTimer = async () => {
-    if (!activeTimer) return;
-
-    try {
-      const response = await api.post(`/tasks/${activeTimer._id}/timer/pause`, {
-        elapsedTime: timerSeconds
-      });
-      if (response.data.success) {
-        setIsTimerRunning(false);
-        toast.success(`⏱️ Timer paused for "${activeTimer.title}"`);
-        await fetchDashboardData();
-      } else {
-        toast.error(response.data.message || "Failed to pause timer");
+      // If already active on this task, resume if paused
+      if (timer.isTimerActiveForTask(task._id)) {
+        if (!timer.isTimerRunning) timer.resumeTimer();
+        return;
       }
-    } catch (error: any) {
-      console.error("Pause timer error:", error);
-      // Fallback: pause locally
-      setIsTimerRunning(false);
-      toast.error("Timer paused locally. Syncing with server...");
-      setTimeout(async () => {
-        try {
-          await api.post(`/tasks/${activeTimer._id}/timer/pause`, {
-            elapsedTime: timerSeconds
-          });
-        } catch (e) {
-          console.error("Sync failed:", e);
-        }
-      }, 1000);
-    }
-  };
 
-  const resumeTimer = async () => {
-    if (!activeTimer) return;
+      // 1. Optimistic start in context (instant UI)
+      timer.startTimer(task._id);
+
+      // 2. Persist to server in the background
+      try {
+        const res = await api.post(`/tasks/${task._id}/timer/start`);
+        if (!res.data.success) {
+          toast.error(res.data.message || "Failed to start timer");
+        }
+      } catch (err: any) {
+        const status = err?.response?.status;
+        const msg = err?.response?.data?.message;
+        // 400 "already running" is fine — our timer is already ticking
+        if (status !== 400) {
+          toast.error(msg || "Timer started locally — will sync later");
+        }
+      }
+    },
+    [timer]
+  );
+
+  const pauseTimerForTask = useCallback(async () => {
+    if (!timer.activeTimerTaskId) return;
+    const taskId = timer.activeTimerTaskId;
+    const frozen = timer.timerState.elapsedSeconds;
+
+    timer.pauseTimer();
 
     try {
-      const response = await api.post(`/tasks/${activeTimer._id}/timer/resume`);
-      if (response.data.success) {
-        setIsTimerRunning(true);
-        toast.success(`⏱️ Timer resumed for "${activeTimer.title}"`);
-        await fetchDashboardData();
-      } else {
-        toast.error(response.data.message || "Failed to resume timer");
-      }
-    } catch (error: any) {
-      console.error("Resume timer error:", error);
-      // Fallback: resume locally
-      setIsTimerRunning(true);
-      toast.error("Timer resumed locally. Syncing with server...");
-      setTimeout(async () => {
-        try {
-          await api.post(`/tasks/${activeTimer._id}/timer/resume`);
-        } catch (e) {
-          console.error("Sync failed:", e);
-        }
-      }, 1000);
+      await api.post(`/tasks/${taskId}/timer/pause`, { elapsedTime: frozen });
+    } catch (err) {
+      console.warn("Pause sync failed:", err);
     }
-  };
+  }, [timer]);
 
+  const resumeTimerForTask = useCallback(async () => {
+    if (!timer.activeTimerTaskId) return;
+    const taskId = timer.activeTimerTaskId;
+
+    timer.resumeTimer();
+
+    try {
+      await api.post(`/tasks/${taskId}/timer/resume`);
+    } catch (err) {
+      console.warn("Resume sync failed:", err);
+    }
+  }, [timer]);
+
+  const stopTimerForTask = useCallback(async () => {
+    if (!timer.activeTimerTaskId) return;
+    const taskId = timer.activeTimerTaskId;
+
+    const result = await timer.stopTimer(taskId);
+    if (result.success) {
+      toast.success(`⏹️ Timer stopped • ${result.displayTime}`);
+      await fetchDashboardData();
+    }
+  }, [timer, fetchDashboardData]);
+
+  // ============ Task completion ============
   const completeTaskLocal = async (taskId: string) => {
-    setIsTimerRunning(false);
+    // Stop timer if it's running for this task
+    if (timer.isTimerActiveForTask(taskId)) {
+      await timer.stopTimer(taskId);
+    }
 
     try {
-      const response = await api.patch(`/tasks/${taskId}/complete`);
-      if (response.data.success) {
-        toast.success(`✅ Task completed!`);
-        setActiveTimer(null);
-        setTimerSeconds(0);
+      const res = await api.patch(`/tasks/${taskId}/complete`);
+      if (res.data.success) {
+        toast.success("✅ Task completed!");
         await fetchDashboardData();
         return;
       }
-    } catch (error: any) {
-      console.error("Complete task error:", error);
+    } catch (err) {
+      console.error("Complete task error:", err);
     }
 
-    // Fallback
-    toast.success(`✅ Task completed locally!`);
-    setActiveTimer(null);
-    setTimerSeconds(0);
-    setAllTasks(prev => prev.map(t =>
-      t._id === taskId ? { ...t, status: "completed", isTimerRunning: false } : t
-    ));
+    toast.success("✅ Task completed locally!");
+    setAllTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId ? { ...t, status: "completed", isTimerRunning: false } : t
+      )
+    );
     await fetchDashboardData();
   };
 
   const handleCompleteTask = (task: Task) => {
     const hasEvidence = task.evidenceUrls && task.evidenceUrls.length > 0;
-
     if (task.evidenceRequired && !hasEvidence) {
       setEvidenceTask(task);
       setEvidenceText("");
       setShowEvidenceModal(true);
       return;
     }
-
     completeTaskLocal(task._id);
   };
 
@@ -406,38 +341,34 @@ export default function EmployeeDashboard() {
 
     setSubmittingEvidence(true);
     try {
-      const evidenceUrls = evidenceText
+      const urls = evidenceText
         .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
-      if (evidenceUrls.length === 0) {
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (urls.length === 0) {
         toast.error("Please provide at least one evidence item");
-        setSubmittingEvidence(false);
         return;
       }
 
-      const response = await api.patch(`/tasks/${evidenceTask._id}/status`, {
+      if (timer.isTimerActiveForTask(evidenceTask._id)) {
+        await timer.stopTimer(evidenceTask._id);
+      }
+
+      const res = await api.patch(`/tasks/${evidenceTask._id}/status`, {
         status: "completed",
-        evidenceUrls: evidenceUrls,
+        evidenceUrls: urls,
         approvalNote: "Task completed with evidence",
       });
 
-      if (response.data.success) {
+      if (res.data.success) {
         toast.success("✅ Task completed with evidence!");
         setShowEvidenceModal(false);
         setEvidenceTask(null);
         setEvidenceText("");
-        setActiveTimer(null);
-        setTimerSeconds(0);
-        setIsTimerRunning(false);
         await fetchDashboardData();
-      } else {
-        throw new Error("Failed to complete task");
       }
-    } catch (error: any) {
-      console.error("Error submitting evidence:", error);
-      toast.error(error.response?.data?.message || "Failed to complete task with evidence");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to complete task");
     } finally {
       setSubmittingEvidence(false);
     }
@@ -447,6 +378,41 @@ export default function EmployeeDashboard() {
     setSelectedTask(task);
     setShowTaskDetail(true);
   };
+
+  // ============ Derived: today's tasks ============
+  const todaysTasksList = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let filtered = allTasks.filter((task) => {
+      const d = new Date(task.dueDate || task.deadline);
+      d.setHours(0, 0, 0, 0);
+      return (
+        d.getTime() === today.getTime() ||
+        (task.status !== "completed" && task.status !== "cancelled")
+      );
+    });
+
+    if (taskFilter === "running") {
+      filtered = filtered.filter(
+        (t) => t.status === "in_progress" || timer.isTimerActiveForTask(t._id)
+      );
+    } else if (taskFilter === "pending") {
+      filtered = filtered.filter(
+        (t) => t.status === "pending" || t.status === "overdue"
+      );
+    }
+    return filtered.slice(0, 5);
+  }, [allTasks, taskFilter, timer]);
+
+  // ============ Active timer box data ============
+  const activeTimerTask = useMemo(() => {
+    if (!timer.activeTimerTaskId) return null;
+    return allTasks.find((t) => t._id === timer.activeTimerTaskId) || null;
+  }, [timer.activeTimerTaskId, allTasks]);
+
+  const activeTimerSeconds = timer.timerState.elapsedSeconds;
+  const isActiveRunning = timer.isTimerRunning;
 
   const getTrialStatus = () => {
     if (!user?.trial) return null;
@@ -461,12 +427,36 @@ export default function EmployeeDashboard() {
     return {
       type: "active",
       title: `${timeLeft?.days || 7} Days Free Trial`,
-      message: `Enjoy your free trial features.`,
+      message: "Enjoy your free trial features.",
       color: "from-emerald-500 to-teal-600",
     };
   };
 
   const trialStatus = getTrialStatus();
+
+  const formatTimer = (s: number) => {
+    const safe = Math.max(0, Math.floor(s || 0));
+    const h = Math.floor(safe / 3600);
+    const m = Math.floor((safe % 3600) / 60);
+    const sec = safe % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  };
+
+  const renderEvidenceBadge = (task: Task) => {
+    if (!task?.evidenceRequired) return null;
+    const has = task.evidenceUrls && task.evidenceUrls.length > 0;
+    return (
+      <span
+        className={`text-[10px] font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 ${has
+            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+            : "bg-amber-50 text-amber-700 border-amber-200"
+          }`}
+      >
+        <Paperclip size={10} />
+        {has ? "Evidence Submitted" : "Evidence Required"}
+      </span>
+    );
+  };
 
   if (loading) {
     return (
@@ -477,42 +467,6 @@ export default function EmployeeDashboard() {
   }
 
   if (!stats) return null;
-
-  const getFilteredTasks = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    let filtered = allTasks.filter((task) => {
-      const dueDate = new Date(task.dueDate);
-      dueDate.setHours(0, 0, 0, 0);
-      return dueDate.getTime() === today.getTime() || (task.status !== "completed" && task.status !== "cancelled");
-    });
-    if (taskFilter === "running") {
-      filtered = filtered.filter((task) => task.isTimerRunning === true || task.status === "in_progress");
-    } else if (taskFilter === "pending") {
-      filtered = filtered.filter((task) => task.status === "pending" || task.status === "overdue");
-    }
-    return filtered.slice(0, 5);
-  };
-
-  const todaysTasksList = getFilteredTasks();
-
-  const renderEvidenceBadge = (task: Task) => {
-    if (!task?.evidenceRequired) return null;
-
-    const hasEvidence = (task.evidenceUrls && task.evidenceUrls.length > 0);
-
-    return (
-      <span
-        className={`text-[10px] font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 ${hasEvidence
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-            : "bg-amber-50 text-amber-700 border-amber-200"
-          }`}
-      >
-        <Paperclip size={10} />
-        {hasEvidence ? "Evidence Submitted" : "Evidence Required"}
-      </span>
-    );
-  };
 
   return (
     <div className="space-y-6 container mx-auto px-4 sm:px-6 py-6 bg-gray-50/50 min-h-screen">
@@ -548,117 +502,150 @@ export default function EmployeeDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-          Good morning, {user?.fullName?.split(" ")[0] || "Tanvir"} 👋
+          Good morning, {user?.fullName?.split(" ")[0] || "there"} 👋
         </h1>
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          </button>
           <button
             onClick={() => setShowCreateModal(true)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl flex items-center gap-2 transition shadow-sm"
           >
-            <Plus size={16} />
-            Add Task
+            <Plus size={16} /> Add Task
           </button>
         </div>
       </div>
 
-      {/* Stats Cards Grid */}
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="text-2xl font-black text-gray-900 tracking-tight">{stats.todayTasks}</div>
-            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">TODAY'S TASKS</div>
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              {stats.todayTasks}
+            </div>
+            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">
+              TODAY'S TASKS
+            </div>
           </div>
-          <div className="text-xs font-semibold text-blue-600 mt-2">{stats.todayRemaining} remaining</div>
+          <div className="text-xs font-semibold text-blue-600 mt-2">
+            {stats.todayRemaining} remaining
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="text-2xl font-black text-gray-900 tracking-tight">{stats.completedTasks}</div>
-            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">COMPLETED</div>
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              {stats.completedTasks}
+            </div>
+            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">
+              COMPLETED
+            </div>
           </div>
-          <div className="text-xs font-semibold text-emerald-600 mt-2">↑ {stats.completionRate}% done</div>
+          <div className="text-xs font-semibold text-emerald-600 mt-2">
+            ↑ {stats.completionRate}% done
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="text-2xl font-black text-gray-900 tracking-tight">{stats.hoursLoggedToday || "0h"}</div>
-            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">HOURS TODAY</div>
+            <div className="text-2xl font-black text-gray-900 tracking-tight">
+              {stats.hoursLoggedToday || "0h"}
+            </div>
+            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">
+              HOURS TODAY
+            </div>
           </div>
-          <div className="text-xs font-medium text-gray-400 mt-2">of {stats.hoursTarget}h target</div>
+          <div className="text-xs font-medium text-gray-400 mt-2">
+            of {stats.hoursTarget}h target
+          </div>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col justify-between">
           <div>
-            <div className="text-2xl font-black text-rose-600 tracking-tight">{stats.overdueTasks}</div>
-            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">OVERDUE</div>
+            <div className="text-2xl font-black text-rose-600 tracking-tight">
+              {stats.overdueTasks}
+            </div>
+            <div className="text-[11px] font-bold text-gray-400 tracking-wider uppercase mt-0.5">
+              OVERDUE
+            </div>
           </div>
           <div className="text-xs font-semibold text-rose-500 mt-2">Needs action</div>
         </div>
       </div>
 
-      {/* Main Content Layout */}
+      {/* Main layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Today's Tasks List */}
+        {/* Left: Today's Tasks */}
         <div className="lg:col-span-2 space-y-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <h2 className="font-bold text-gray-900 text-base">Today's Tasks</h2>
               <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-full">
-                <button
-                  onClick={() => setTaskFilter("all")}
-                  className={`px-3 py-1 text-xs font-medium rounded-full transition ${taskFilter === "all" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                    }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setTaskFilter("running")}
-                  className={`px-3 py-1 text-xs font-medium rounded-full transition ${taskFilter === "running" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                    }`}
-                >
-                  Running
-                </button>
-                <button
-                  onClick={() => setTaskFilter("pending")}
-                  className={`px-3 py-1 text-xs font-medium rounded-full transition ${taskFilter === "pending" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-900"
-                    }`}
-                >
-                  Pending
-                </button>
+                {(["all", "running", "pending"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setTaskFilter(f)}
+                    className={`px-3 py-1 text-xs font-medium rounded-full transition capitalize ${taskFilter === f
+                        ? "bg-white text-gray-900 shadow-sm"
+                        : "text-gray-500 hover:text-gray-900"
+                      }`}
+                  >
+                    {f}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="divide-y divide-gray-50">
               {todaysTasksList.length === 0 ? (
-                <div className="text-center py-12 text-gray-400 text-sm">No tasks for today! 🎉</div>
+                <div className="text-center py-12 text-gray-400 text-sm">
+                  No tasks for today! 🎉
+                </div>
               ) : (
                 todaysTasksList.map((task) => {
-                  const isRunning = task.isTimerRunning || activeTimer?._id === task._id;
+                  const taskIsActive = timer.isTimerActiveForTask(task._id);
+                  const taskIsRunning = taskIsActive && timer.isTimerRunning;
+                  const taskIsPaused = taskIsActive && !timer.isTimerRunning;
                   const isCompleted = task.status === "completed";
-                  const isOverdue = task.status === "overdue" || new Date(task.dueDate) < new Date();
+                  const isOverdue =
+                    task.status === "overdue" ||
+                    new Date(task.dueDate || task.deadline) < new Date();
 
                   return (
                     <div
                       key={task._id}
-                      className={`flex items-center justify-between px-6 py-3.5 transition hover:bg-gray-50/80 ${isRunning ? "bg-blue-50/40" : ""
+                      className={`flex items-center justify-between px-6 py-3.5 transition hover:bg-gray-50/80 ${taskIsActive ? "bg-blue-50/40" : ""
                         }`}
                     >
                       <div className="flex items-center gap-3.5 min-w-0">
                         {isCompleted ? (
                           <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
-                        ) : isRunning ? (
+                        ) : taskIsRunning ? (
                           <div className="w-5 h-5 rounded-full border-2 border-blue-600 flex items-center justify-center shrink-0">
                             <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse" />
+                          </div>
+                        ) : taskIsPaused ? (
+                          <div className="w-5 h-5 rounded-full border-2 border-amber-500 flex items-center justify-center shrink-0">
+                            <div className="w-1.5 h-3 bg-amber-500 rounded-sm" />
                           </div>
                         ) : isOverdue ? (
                           <div className="w-5 h-5 rounded-full border-2 border-rose-500 shrink-0" />
                         ) : (
                           <div className="w-5 h-5 rounded-full border-2 border-gray-300 shrink-0" />
                         )}
-                        <div>
+                        <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <span
-                              className={`text-sm font-medium truncate ${isCompleted ? "text-gray-400 line-through" : isOverdue ? "text-rose-600 font-semibold" : "text-gray-800"
+                              className={`text-sm font-medium truncate ${isCompleted
+                                  ? "text-gray-400 line-through"
+                                  : isOverdue
+                                    ? "text-rose-600 font-semibold"
+                                    : "text-gray-800"
                                 }`}
                             >
                               {task.title}
@@ -679,20 +666,61 @@ export default function EmployeeDashboard() {
                             Done
                           </span>
                         )}
-                        {isRunning && (
-                          <span className="text-xs font-semibold px-2 py-0.5 text-blue-600 flex items-center gap-1">
-                            ▶ {formatTimerTime(timerSeconds)}
-                          </span>
+
+                        {/* Running: elapsed + Pause */}
+                        {taskIsRunning && (
+                          <>
+                            <span className="text-xs font-semibold px-2 py-0.5 text-blue-600 flex items-center gap-1 tabular-nums">
+                              ▶ {formatTimer(activeTimerSeconds)}
+                            </span>
+                            <button
+                              onClick={pauseTimerForTask}
+                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 rounded-lg transition"
+                              title="Pause"
+                            >
+                              <Pause size={14} />
+                            </button>
+                          </>
                         )}
-                        {!isRunning && !isCompleted && (
+
+                        {/* Paused: frozen time + Resume + Stop */}
+                        {taskIsPaused && (
+                          <>
+                            <span className="text-xs font-semibold px-2 py-0.5 text-amber-600 flex items-center gap-1 tabular-nums">
+                              ⏸ {formatTimer(activeTimerSeconds)}
+                            </span>
+                            <button
+                              onClick={resumeTimerForTask}
+                              className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition"
+                              title="Resume"
+                            >
+                              <Play size={14} />
+                            </button>
+                            <button
+                              onClick={stopTimerForTask}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                              title="Stop"
+                            >
+                              <Square size={14} />
+                            </button>
+                          </>
+                        )}
+
+                        {/* Idle non-completed: Start */}
+                        {!taskIsActive && !isCompleted && (
                           <button
-                            onClick={() => startTimer(task)}
-                            className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition"
+                            onClick={() => startTimerForTask(task)}
+                            className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition disabled:opacity-40"
                             title="Start timer"
+                            disabled={
+                              timer.activeTimerTaskId !== null &&
+                              timer.activeTimerTaskId !== task._id
+                            }
                           >
                             <Play size={14} />
                           </button>
                         )}
+
                         <button
                           onClick={() => handleViewTaskDetail(task)}
                           className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition"
@@ -700,6 +728,7 @@ export default function EmployeeDashboard() {
                         >
                           <EyeIcon size={14} />
                         </button>
+
                         {!isCompleted && (
                           <button
                             onClick={() => handleCompleteTask(task)}
@@ -709,18 +738,22 @@ export default function EmployeeDashboard() {
                             <CheckCircle size={14} />
                           </button>
                         )}
-                        {task.priority && !isCompleted && !isRunning && (
+
+                        {task.priority && !isCompleted && !taskIsActive && (
                           <span
                             className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md uppercase tracking-wider ${task.priority === "high" || task.priority === "urgent"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-600"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-gray-100 text-gray-600"
                               }`}
                           >
                             {task.priority}
                           </span>
                         )}
+
                         {isOverdue && !isCompleted && (
-                          <span className="text-xs font-medium text-rose-500">Overdue</span>
+                          <span className="text-xs font-medium text-rose-500">
+                            Overdue
+                          </span>
                         )}
                       </div>
                     </div>
@@ -731,90 +764,143 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        {/* Right Column - Active Timer & Workload */}
+        {/* Right: Active Timer + Workload */}
         <div className="space-y-6">
-          {/* Active Timer Box */}
           <div className="bg-[#0B132B] text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">ACTIVE TIMER</span>
-              <div className={`w-2 h-2 rounded-full ${isTimerRunning ? "bg-emerald-400 animate-pulse" : activeTimer ? "bg-amber-400" : "bg-gray-500"
-                }`} />
+              <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase">
+                {activeTimerTask
+                  ? isActiveRunning
+                    ? "ACTIVE TIMER"
+                    : "TIMER PAUSED"
+                  : "NO ACTIVE TIMER"}
+              </span>
+              <div
+                className={`w-2 h-2 rounded-full ${activeTimerTask && isActiveRunning
+                    ? "bg-emerald-400 animate-pulse"
+                    : activeTimerTask
+                      ? "bg-amber-400"
+                      : "bg-gray-500"
+                  }`}
+              />
             </div>
 
-            <div className="text-sm font-medium text-gray-200 truncate mb-2">
-              {activeTimer ? activeTimer.title : "No active timer running"}
+            <div className="text-sm font-medium text-gray-200 truncate mb-1">
+              {activeTimerTask ? activeTimerTask.title : "Start a timer from any task"}
             </div>
 
-            <div className="text-4xl font-black font-mono tracking-tight my-3">
-              {activeTimer ? formatTimerTime(timerSeconds) : "00:00:00"}
+            {activeTimerTask?.projectId?.name && (
+              <div className="text-xs text-gray-400 mb-2 truncate">
+                {activeTimerTask.projectId.name}
+              </div>
+            )}
+
+            <div className="text-4xl font-black font-mono tracking-tight my-3 tabular-nums">
+              {activeTimerTask ? formatTimer(activeTimerSeconds) : "00:00:00"}
             </div>
 
-            {activeTimer && (
+            {activeTimerTask && (
               <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden my-4">
                 <div
-                  className="bg-blue-500 h-full rounded-full transition-all duration-1000"
+                  className={`h-full rounded-full transition-all duration-1000 ${isActiveRunning ? "bg-blue-500" : "bg-amber-500"
+                    }`}
                   style={{
-                    width: `${Math.min((timerSeconds / 28800) * 100, 100)}%`
+                    width: `${Math.min((activeTimerSeconds / 28800) * 100, 100)}%`,
                   }}
                 />
               </div>
             )}
 
-            {activeTimer ? (
+            {activeTimerTask ? (
               <div className="flex items-center gap-3 mt-4">
                 <button
-                  onClick={isTimerRunning ? pauseTimer : resumeTimer}
-                  className="flex-1 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2"
+                  onClick={isActiveRunning ? pauseTimerForTask : resumeTimerForTask}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 ${isActiveRunning
+                      ? "bg-amber-500/90 hover:bg-amber-500 text-white shadow-lg shadow-amber-500/20"
+                      : "bg-emerald-500/90 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                    }`}
                 >
-                  {isTimerRunning ? <Pause size={16} /> : <Play size={16} />}
-                  {isTimerRunning ? "Pause" : "Resume"}
+                  {isActiveRunning ? <Pause size={16} /> : <Play size={16} />}
+                  {isActiveRunning ? "Pause" : "Resume"}
                 </button>
+
                 <button
-                  onClick={() => activeTimer && handleCompleteTask(activeTimer)}
+                  onClick={stopTimerForTask}
+                  className="py-2.5 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition"
+                  title="Stop"
+                >
+                  <Square size={16} />
+                </button>
+
+                <button
+                  onClick={() =>
+                    activeTimerTask && handleCompleteTask(activeTimerTask)
+                  }
                   className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
                   <CheckCircle size={16} />
                   Done
                 </button>
+
                 <button
-                  onClick={() => activeTimer && handleViewTaskDetail(activeTimer)}
-                  className="py-2.5 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2"
+                  onClick={() =>
+                    activeTimerTask && handleViewTaskDetail(activeTimerTask)
+                  }
+                  className="py-2.5 px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-semibold transition"
                 >
                   <EyeIcon size={16} />
                 </button>
               </div>
             ) : (
-              <p className="text-xs text-gray-400 mt-2">Start a timer from any task list item on the left.</p>
+              <p className="text-xs text-gray-400 mt-2">
+                Start a timer from any task list item on the left.
+              </p>
             )}
           </div>
 
-          {/* My Workload Section */}
+          {/* Workload */}
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-bold text-gray-900 text-sm">My Workload</h3>
-              {/* <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-xs font-medium">
-                <span className="px-2.5 py-1 bg-white text-gray-900 rounded-md shadow-sm">Week</span>
-                <span className="px-2.5 py-1 text-gray-400">Month</span>
-              </div> */}
             </div>
 
             <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden mb-3">
               <div
                 className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                style={{ width: `${Math.min((stats.hoursLoggedToday / stats.hoursTarget) * 100, 100)}%` }}
+                style={{
+                  width: `${Math.min(
+                    (stats.hoursLoggedToday / stats.hoursTarget) * 100,
+                    100
+                  )}%`,
+                }}
               />
             </div>
 
             <div className="flex items-center justify-between text-xs text-gray-400 font-medium mb-4">
               <span>{stats.hoursLoggedToday || 0}h done</span>
-              <span>{Math.max(0, stats.hoursTarget - (stats.hoursLoggedToday || 0)).toFixed(1)}h free</span>
+              <span>
+                {Math.max(
+                  0,
+                  stats.hoursTarget - (stats.hoursLoggedToday || 0)
+                ).toFixed(1)}
+                h free
+              </span>
             </div>
 
             <div className="space-y-2 pt-2 border-t border-gray-50">
               {recentTasks.slice(0, 3).map((task) => (
-                <div key={task._id} className="flex items-center justify-between text-xs">
-                  <span className="text-gray-600 font-medium truncate max-w-[150px]">✓ {task.title}</span>
-                  <span className="text-gray-400">{task.status === "completed" ? "done" : `${task.estimatedHours || 8}h est.`}</span>
+                <div
+                  key={task._id}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <span className="text-gray-600 font-medium truncate max-w-[150px]">
+                    ✓ {task.title}
+                  </span>
+                  <span className="text-gray-400">
+                    {task.status === "completed"
+                      ? "done"
+                      : `${task.estimatedHours || 8}h est.`}
+                  </span>
                 </div>
               ))}
             </div>
@@ -822,7 +908,122 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {/* Evidence Submission Modal */}
+      {/* Task Detail Modal */}
+      <AnimatePresence>
+        {showTaskDetail && selectedTask && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowTaskDetail(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.18 }}
+              className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-2 h-2 rounded-full shrink-0 ${selectedTask.status === "completed"
+                          ? "bg-emerald-500"
+                          : selectedTask.status === "in_progress"
+                            ? "bg-blue-500"
+                            : selectedTask.status === "overdue"
+                              ? "bg-rose-500"
+                              : "bg-amber-500"
+                        }`}
+                    />
+                    <h3 className="text-base font-bold text-gray-900 truncate">
+                      {selectedTask.title}
+                    </h3>
+                  </div>
+                  {selectedTask.projectId?.name && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      Project: {selectedTask.projectId.name}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowTaskDetail(false)}
+                  className="p-1.5 hover:bg-gray-100 rounded-lg transition shrink-0 ml-2"
+                >
+                  <X size={16} className="text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 max-h-[calc(90vh-160px)] overflow-y-auto">
+                {selectedTask.description && (
+                  <p className="p-3 bg-gray-50 text-gray-700 rounded-xl border border-gray-100 text-sm leading-relaxed">
+                    {selectedTask.description}
+                  </p>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-gray-50 rounded-xl">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">
+                      Status
+                    </span>
+                    <p className="font-semibold text-gray-800 mt-0.5 capitalize">
+                      {selectedTask.status.replace("_", " ")}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">
+                      Priority
+                    </span>
+                    <p className="font-semibold text-gray-800 mt-0.5 capitalize">
+                      {selectedTask.priority || "normal"}
+                    </p>
+                  </div>
+                </div>
+
+                {selectedTask.assignedTo && (
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                      {selectedTask.assignedTo.fullName?.charAt(0) || "U"}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-800 text-sm">
+                        {selectedTask.assignedTo.fullName}
+                      </p>
+                      <p className="text-[11px] text-gray-400">Assignee</p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTask.evidenceRequired && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                    <Info size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-amber-800">
+                      Evidence is required to complete this task.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-2">
+                <Link
+                  href={`/tasks/${selectedTask._id}`}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition"
+                >
+                  Open Full View
+                </Link>
+                <button
+                  onClick={() => setShowTaskDetail(false)}
+                  className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-semibold transition"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Evidence Modal */}
       <AnimatePresence>
         {showEvidenceModal && evidenceTask && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -838,7 +1039,9 @@ export default function EmployeeDashboard() {
                     <Text className="w-5 h-5 text-indigo-500" />
                     Submit Evidence
                   </h2>
-                  <p className="text-xs text-gray-500">Evidence is required to complete this task</p>
+                  <p className="text-xs text-gray-500">
+                    Evidence is required to complete this task
+                  </p>
                 </div>
                 <button
                   onClick={() => {
@@ -856,9 +1059,11 @@ export default function EmployeeDashboard() {
                 <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start gap-3">
                   <AlertTriangleIcon className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">Evidence Required</p>
+                    <p className="text-sm font-medium text-amber-800">
+                      Evidence Required
+                    </p>
                     <p className="text-xs text-amber-700">
-                      Please provide evidence details below. You can add URLs or describe the evidence.
+                      Please provide evidence details below. One item per line.
                     </p>
                   </div>
                 </div>
@@ -871,7 +1076,7 @@ export default function EmployeeDashboard() {
                     value={evidenceText}
                     onChange={(e) => setEvidenceText(e.target.value)}
                     rows={6}
-                    placeholder="Enter evidence details or URLs...\n\nExample:\n- https://drive.google.com/file/evidence1\n- https://docs.google.com/document/evidence2\n- Screenshots attached in comments\n- Source code: https://github.com/..."
+                    placeholder={`Enter evidence details or URLs...\n\nExample:\n- https://drive.google.com/file/evidence1\n- https://docs.google.com/document/evidence2\n- Source code: https://github.com/...`}
                     className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none text-gray-800 placeholder:text-gray-400 font-mono text-sm"
                   />
                   <p className="text-xs text-gray-400 mt-1.5">
@@ -888,13 +1093,11 @@ export default function EmployeeDashboard() {
                   >
                     {submittingEvidence ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Submitting...
+                        <Loader2 className="w-4 h-4 animate-spin" /> Submitting...
                       </>
                     ) : (
                       <>
-                        <Send className="w-4 h-4" />
-                        Submit with Evidence & Complete
+                        <Send className="w-4 h-4" /> Submit with Evidence & Complete
                       </>
                     )}
                   </button>
@@ -915,7 +1118,6 @@ export default function EmployeeDashboard() {
         )}
       </AnimatePresence>
 
-      {/* Create Task Modal */}
       <CreateTaskModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}

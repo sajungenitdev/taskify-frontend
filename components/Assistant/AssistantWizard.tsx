@@ -73,6 +73,9 @@ interface AssistantData {
   }>;
 }
 
+const HIDE_DURATION_MS = 10_000; // 10 seconds
+const HIDE_STORAGE_KEY = "assistantHiddenUntil";
+
 export default function AssistantWizard() {
   const { user } = useAuth();
   const pathname = usePathname();
@@ -81,35 +84,35 @@ export default function AssistantWizard() {
   const [data, setData] = useState<AssistantData | null>(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
+
+  // 👇 Hide state + timer
+  const [isHidden, setIsHidden] = useState(false);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Fetch assistant data
   const fetchAssistantData = useCallback(async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     try {
-      // Fetch tasks stats
       const tasksResponse = await api.get("/tasks/my-statistics");
-      // Fetch notifications
       const notificationsResponse = await api.get("/notifications?limit=5");
-      // Fetch user profile
       const profileResponse = await api.get("/auth/me");
 
       const taskStats = tasksResponse.data.data || {};
       const notifications = notificationsResponse.data.data || [];
       const profile = profileResponse.data.data || {};
 
-      // Calculate completion rate
       const totalTasks = taskStats.total || 0;
       const completedTasks = taskStats.byStatus?.completed || 0;
-      const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      const completionRate =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      const onTimeRate =
+        completionRate > 0 ? Math.min(completionRate + 10, 100) : 0;
 
-      // Calculate on-time rate (simplified)
-      const onTimeRate = completionRate > 0 ? Math.min(completionRate + 10, 100) : 0;
-
-      // Quick actions based on role
       const quickActions = [
         {
           label: "My Tasks",
@@ -125,8 +128,11 @@ export default function AssistantWizard() {
         },
       ];
 
-      // Add role-specific actions
-      if (user.role === "admin" || user.role === "super_admin" || user.role === "hr_manager") {
+      if (
+        user.role === "admin" ||
+        user.role === "super_admin" ||
+        user.role === "hr_manager"
+      ) {
         quickActions.push({
           label: "Users",
           icon: <Users className="w-4 h-4" />,
@@ -157,7 +163,7 @@ export default function AssistantWizard() {
         performance: {
           completionRate,
           onTimeRate,
-          averageRating: 4.2, // Mock data, can be fetched from reviews
+          averageRating: 4.2,
           totalHours: taskStats.totalEstimatedHours || 0,
         },
         notifications: {
@@ -182,7 +188,6 @@ export default function AssistantWizard() {
       });
     } catch (error) {
       console.error("Error fetching assistant data:", error);
-      // Set mock data if API fails
       setData({
         tasks: {
           total: 0,
@@ -237,20 +242,76 @@ export default function AssistantWizard() {
     }
   }, [user, fetchAssistantData]);
 
-  // Refresh data periodically
+  // Refresh data periodically (only when panel is closed)
   useEffect(() => {
     if (!user) return;
-    
+
     const interval = setInterval(() => {
       if (!isOpen) {
         fetchAssistantData();
       }
-    }, 60000); // Refresh every minute
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [user, isOpen, fetchAssistantData]);
 
-  // Click outside to close
+  // ---------------------------------------------------------------
+  // 👇 Hide / auto-return logic
+  // ---------------------------------------------------------------
+  const handleHide = useCallback(() => {
+    setIsHidden(true);
+    setIsOpen(false);
+
+    const until = Date.now() + HIDE_DURATION_MS;
+
+    // Persist across page navigations
+    try {
+      sessionStorage.setItem(HIDE_STORAGE_KEY, String(until));
+    } catch {
+      /* ignore */
+    }
+
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    hideTimeoutRef.current = setTimeout(() => {
+      setIsHidden(false);
+      hideTimeoutRef.current = null;
+      try {
+        sessionStorage.removeItem(HIDE_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+    }, HIDE_DURATION_MS);
+  }, []);
+
+  // Restore a hide state if the user navigated during the 10s window
+  useEffect(() => {
+    try {
+      const until = Number(sessionStorage.getItem(HIDE_STORAGE_KEY) || 0);
+      const now = Date.now();
+      if (until > now) {
+        setIsHidden(true);
+        hideTimeoutRef.current = setTimeout(() => {
+          setIsHidden(false);
+          hideTimeoutRef.current = null;
+          try {
+            sessionStorage.removeItem(HIDE_STORAGE_KEY);
+          } catch {
+            /* ignore */
+          }
+        }, until - now);
+      } else {
+        sessionStorage.removeItem(HIDE_STORAGE_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    return () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    };
+  }, []);
+
+  // Click outside to close the panel
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -269,14 +330,16 @@ export default function AssistantWizard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  // Hide on certain pages (login, onboarding, etc.)
+  // Hide on certain pages
   useEffect(() => {
-    const hiddenPaths = ["/login", "/register", "/forgot-password", "/reset-password", "/onboarding"];
-    if (hiddenPaths.includes(pathname)) {
-      setIsVisible(false);
-    } else {
-      setIsVisible(true);
-    }
+    const hiddenPaths = [
+      "/login",
+      "/register",
+      "/forgot-password",
+      "/reset-password",
+      "/onboarding",
+    ];
+    setIsVisible(!hiddenPaths.includes(pathname));
   }, [pathname]);
 
   if (!isVisible || !user) return null;
@@ -296,7 +359,6 @@ export default function AssistantWizard() {
 
   const roleBadge = getRoleBadge(user.role);
 
-  // Format time
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -314,57 +376,83 @@ export default function AssistantWizard() {
 
   return (
     <>
-      {/* Floating Button */}
-      <motion.button
-        ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="fixed bottom-3 right-5 z-50 group assistance-wizard-button"
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-      >
-        <div className="relative">
-          {/* Pulse Animation */}
-          <div className="absolute inset-0 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 opacity-30 animate-ping" />
-          
-          {/* Button */}
-          <div className="relative w-14 h-14 rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 flex items-center justify-center hover:shadow-xl hover:shadow-indigo-500/40 transition-all duration-300">
-            <Sparkles className="w-6 h-6 text-white" />
-            
-            {/* Notification Badge */}
-            {data?.notifications.unread && data.notifications.unread > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-md">
-                {data.notifications.unread > 9 ? "9+" : data.notifications.unread}
-              </span>
-            )}
-          </div>
-
-          {/* Tooltip on hover */}
-          <AnimatePresence>
-            {isHovered && !isOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="absolute bottom-full right-0 mb-3 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-xl"
-              >
-                <span className="flex items-center gap-2">
-                  <Sparkles className="w-3 h-3 text-indigo-400" />
-                  Assistant
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </motion.button>
-
-      {/* Assistant Panel */}
+      {/* ============================================================ */}
+      {/* Floating Button                                              */}
+      {/* ============================================================ */}
       <AnimatePresence>
-        {isOpen && (
+        {!isHidden && (
+          <motion.div
+            key="assistant-fab"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 20 }}
+            className="fixed bottom-3 right-5 z-50"
+          >
+            <div className="relative">
+              {/* Pulse Animation */}
+              <div className="absolute inset-0 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 opacity-30 animate-ping" />
+
+              {/* Main button */}
+              <motion.button
+                ref={buttonRef}
+                onClick={() => setIsOpen(!isOpen)}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="relative w-14 h-14 rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 flex items-center justify-center hover:shadow-xl hover:shadow-indigo-500/40 transition-all duration-300"
+                aria-label="Open assistant"
+              >
+                <Sparkles className="w-6 h-6 text-white" />
+
+                {/* Notification Badge */}
+                {data?.notifications.unread && data.notifications.unread > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-md">
+                    {data.notifications.unread > 9 ? "9+" : data.notifications.unread}
+                  </span>
+                )}
+              </motion.button>
+
+              {/* 👇 Close / hide button — top-left of the widget */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleHide();
+                }}
+                className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow-sm text-gray-500 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition z-10"
+                title="Hide for 10 seconds"
+                aria-label="Hide assistant for 10 seconds"
+              >
+                <X size={11} />
+              </button>
+
+              {/* Tooltip on hover */}
+              <AnimatePresence>
+                {isHovered && !isOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute bottom-full right-0 mb-3 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-xl pointer-events-none"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      Assistant
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ============================================================ */}
+      {/* Assistant Panel                                              */}
+      {/* ============================================================ */}
+      <AnimatePresence>
+        {isOpen && !isHidden && (
           <motion.div
             ref={panelRef}
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -381,7 +469,9 @@ export default function AssistantWizard() {
                 </div>
                 <div>
                   <h3 className="text-white font-semibold text-sm">Assistant</h3>
-                  <p className="text-white/70 text-[10px]">Your workspace summary</p>
+                  <p className="text-white/70 text-[10px]">
+                    Your workspace summary
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -389,12 +479,14 @@ export default function AssistantWizard() {
                   onClick={fetchAssistantData}
                   disabled={isLoading}
                   className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
+                  title="Refresh"
                 >
                   <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
                   className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
+                  title="Close"
                 >
                   <X size={16} />
                 </button>
@@ -415,7 +507,9 @@ export default function AssistantWizard() {
                     Hello, {data?.user.fullName?.split(" ")[0] || "User"}! 👋
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${roleBadge.color}`}>
+                    <span
+                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${roleBadge.color}`}
+                    >
                       {roleBadge.label}
                     </span>
                     <span className="text-[10px] text-gray-400">
@@ -428,15 +522,23 @@ export default function AssistantWizard() {
               {/* Quick Stats */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                  <p className="text-lg font-bold text-blue-600">{data?.tasks.total || 0}</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    {data?.tasks.total || 0}
+                  </p>
                   <p className="text-[9px] text-blue-500 font-medium">Total Tasks</p>
                 </div>
                 <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-                  <p className="text-lg font-bold text-emerald-600">{data?.tasks.completed || 0}</p>
-                  <p className="text-[9px] text-emerald-500 font-medium">Completed</p>
+                  <p className="text-lg font-bold text-emerald-600">
+                    {data?.tasks.completed || 0}
+                  </p>
+                  <p className="text-[9px] text-emerald-500 font-medium">
+                    Completed
+                  </p>
                 </div>
                 <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-                  <p className="text-lg font-bold text-amber-600">{data?.tasks.pending || 0}</p>
+                  <p className="text-lg font-bold text-amber-600">
+                    {data?.tasks.pending || 0}
+                  </p>
                   <p className="text-[9px] text-amber-500 font-medium">Pending</p>
                 </div>
               </div>
@@ -451,24 +553,38 @@ export default function AssistantWizard() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-500">Completion</span>
-                      <span className="text-xs font-bold text-emerald-600">{data?.performance.completionRate || 0}%</span>
+                      <span className="text-xs font-bold text-emerald-600">
+                        {data?.performance.completionRate || 0}%
+                      </span>
                     </div>
                     <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-emerald-500 rounded-full transition-all"
-                        style={{ width: `${Math.min(data?.performance.completionRate || 0, 100)}%` }}
+                        style={{
+                          width: `${Math.min(
+                            data?.performance.completionRate || 0,
+                            100
+                          )}%`,
+                        }}
                       />
                     </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] text-gray-500">On Time</span>
-                      <span className="text-xs font-bold text-blue-600">{data?.performance.onTimeRate || 0}%</span>
+                      <span className="text-xs font-bold text-blue-600">
+                        {data?.performance.onTimeRate || 0}%
+                      </span>
                     </div>
                     <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-blue-500 rounded-full transition-all"
-                        style={{ width: `${Math.min(data?.performance.onTimeRate || 0, 100)}%` }}
+                        style={{
+                          width: `${Math.min(
+                            data?.performance.onTimeRate || 0,
+                            100
+                          )}%`,
+                        }}
                       />
                     </div>
                   </div>
@@ -477,11 +593,15 @@ export default function AssistantWizard() {
                   <span className="text-[10px] text-gray-400">Rating</span>
                   <div className="flex items-center gap-1">
                     <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    <span className="text-xs font-medium text-gray-700">{data?.performance.averageRating || 0}</span>
+                    <span className="text-xs font-medium text-gray-700">
+                      {data?.performance.averageRating || 0}
+                    </span>
                     <span className="text-[10px] text-gray-400">/ 5</span>
                   </div>
                   <span className="text-[10px] text-gray-400">•</span>
-                  <span className="text-[10px] text-gray-400">{data?.performance.totalHours || 0}h logged</span>
+                  <span className="text-[10px] text-gray-400">
+                    {data?.performance.totalHours || 0}h logged
+                  </span>
                 </div>
               </div>
 
@@ -501,15 +621,27 @@ export default function AssistantWizard() {
                   </div>
                   <div className="space-y-2">
                     {data.notifications.latest.slice(0, 3).map((notif) => (
-                      <div 
-                        key={notif._id} 
-                        className={`flex items-start gap-2 p-2 rounded-lg ${!notif.isRead ? 'bg-indigo-50/50 border border-indigo-100' : 'bg-white'}`}
+                      <div
+                        key={notif._id}
+                        className={`flex items-start gap-2 p-2 rounded-lg ${!notif.isRead
+                            ? "bg-indigo-50/50 border border-indigo-100"
+                            : "bg-white"
+                          }`}
                       >
-                        <div className={`w-1.5 h-1.5 rounded-full mt-1.5 ${!notif.isRead ? 'bg-indigo-500' : 'bg-gray-300'}`} />
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full mt-1.5 ${!notif.isRead ? "bg-indigo-500" : "bg-gray-300"
+                            }`}
+                        />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-800 truncate">{notif.title}</p>
-                          <p className="text-[10px] text-gray-500 truncate">{notif.message}</p>
-                          <p className="text-[9px] text-gray-400 mt-0.5">{formatTime(notif.createdAt)}</p>
+                          <p className="text-xs font-medium text-gray-800 truncate">
+                            {notif.title}
+                          </p>
+                          <p className="text-[10px] text-gray-500 truncate">
+                            {notif.message}
+                          </p>
+                          <p className="text-[9px] text-gray-400 mt-0.5">
+                            {formatTime(notif.createdAt)}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -525,26 +657,6 @@ export default function AssistantWizard() {
                 </div>
               )}
 
-              {/* Quick Actions */}
-              {/* <div>
-                <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <Zap className="w-3 h-3 text-indigo-500" />
-                  Quick Actions
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {data?.quickActions.map((action, index) => (
-                    <Link
-                      key={index}
-                      href="/tasks/my"
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-white text-xs font-medium transition hover:opacity-90 ${action.color}`}
-                    >
-                      {action.icon}
-                      {action.label}
-                    </Link>
-                  ))}
-                </div>
-              </div> */}
-
               {/* Task Status */}
               <div>
                 <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
@@ -553,26 +665,60 @@ export default function AssistantWizard() {
                 </h4>
                 <div className="space-y-1.5">
                   {[
-                    { label: "Pending", value: data?.tasks.pending || 0, color: "bg-gray-400" },
-                    { label: "In Progress", value: data?.tasks.inProgress || 0, color: "bg-blue-500" },
-                    { label: "Submitted", value: data?.tasks.submitted || 0, color: "bg-purple-500" },
-                    { label: "Completed", value: data?.tasks.completed || 0, color: "bg-emerald-500" },
-                    { label: "Overdue", value: data?.tasks.overdue || 0, color: "bg-rose-500" },
-                    { label: "Rejected", value: data?.tasks.rejected || 0, color: "bg-red-500" },
+                    {
+                      label: "Pending",
+                      value: data?.tasks.pending || 0,
+                      color: "bg-gray-400",
+                    },
+                    {
+                      label: "In Progress",
+                      value: data?.tasks.inProgress || 0,
+                      color: "bg-blue-500",
+                    },
+                    {
+                      label: "Submitted",
+                      value: data?.tasks.submitted || 0,
+                      color: "bg-purple-500",
+                    },
+                    {
+                      label: "Completed",
+                      value: data?.tasks.completed || 0,
+                      color: "bg-emerald-500",
+                    },
+                    {
+                      label: "Overdue",
+                      value: data?.tasks.overdue || 0,
+                      color: "bg-rose-500",
+                    },
+                    {
+                      label: "Rejected",
+                      value: data?.tasks.rejected || 0,
+                      color: "bg-red-500",
+                    },
                   ].map((status) => (
-                    <div key={status.label} className="flex items-center justify-between">
-                      <span className="text-[10px] text-gray-500">{status.label}</span>
+                    <div
+                      key={status.label}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="text-[10px] text-gray-500">
+                        {status.label}
+                      </span>
                       <div className="flex items-center gap-2 flex-1 mx-2">
                         <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full ${status.color} rounded-full transition-all`}
-                            style={{ 
-                              width: `${data?.tasks.total ? ((status.value / data.tasks.total) * 100) : 0}%` 
+                            style={{
+                              width: `${data?.tasks.total
+                                  ? (status.value / data.tasks.total) * 100
+                                  : 0
+                                }%`,
                             }}
                           />
                         </div>
                       </div>
-                      <span className="text-xs font-medium text-gray-700">{status.value}</span>
+                      <span className="text-xs font-medium text-gray-700">
+                        {status.value}
+                      </span>
                     </div>
                   ))}
                 </div>

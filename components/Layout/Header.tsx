@@ -623,9 +623,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
           <Link
             href="/tasks/my" title="My Task"
-            className="hidden lg:flex items-center gap-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-2.5 py-1.5 text-xs font-medium  shadow-sm transition-all "
+            className="px-3.5 py-2 bg-white  hover:bg-indigo-600 hover:text-white rounded-md transition flex items-center gap-1.5 text-xs font-semibold text-slate-700 shadow-xs"
           >
-            <ListTodo size={15} />
+            <ListTodo size={15} /> Task
           </Link>
 
           {/* Notifications Dropdown */}

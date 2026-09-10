@@ -1,187 +1,145 @@
-// components/tasks/ExtensionRequestModal.tsx
 "use client";
-
 import { useState } from "react";
-import { X, CalendarClock, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
-import { Task } from "@/types/task";
-import { formatDate } from "@/utils/task-helpers";
+import type { Task } from "../../types/tasks";
+import { formatDate } from "../../utils/formatters";
 
-interface ExtensionRequestModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    task: Task | null;
-    onSuccess: () => void;
+interface Props {
+  isOpen: boolean;
+  task: Task;
+  onClose: () => void;
+  onSubmitted: () => void;
 }
 
-export default function ExtensionRequestModal({
-    isOpen,
-    onClose,
-    task,
-    onSuccess,
-}: ExtensionRequestModalProps) {
-    const [submitting, setSubmitting] = useState(false);
-    const [extensionData, setExtensionData] = useState({
-        requestedDate: "",
-        reason: "",
-    });
+export function ExtensionModal({ isOpen, task, onClose, onSubmitted }: Props) {
+  const [requestedDate, setRequestedDate] = useState("");
+  const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-    const handleSubmit = async () => {
-        if (!extensionData.requestedDate) {
-            toast.error("Please select a new deadline");
-            return;
-        }
+  const isOverdue =
+    task.deadline &&
+    new Date(task.deadline) < new Date() &&
+    task.status !== "completed";
 
-        if (!extensionData.reason.trim()) {
-            toast.error("Please provide a reason for extension");
-            return;
-        }
+  const reset = () => {
+    setRequestedDate("");
+    setReason("");
+  };
 
-        if (!task) {
-            toast.error("No task selected");
-            return;
-        }
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
 
-        setSubmitting(true);
-        try {
-            const response = await api.post(`/tasks/${task._id}/request-extension`, {
-                requestedDate: extensionData.requestedDate,
-                reason: extensionData.reason.trim(),
-            });
+  const handleSubmit = async () => {
+    if (!requestedDate) {
+      toast.error("Please select a new deadline");
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error("Please provide a reason for extension");
+      return;
+    }
 
-            if (response.data.success) {
-                toast.success("✅ Extension request submitted successfully!");
-                setExtensionData({ requestedDate: "", reason: "" });
-                onSuccess();
-                onClose();
-            }
-        } catch (error: any) {
-            console.error("Error requesting extension:", error);
-            toast.error(error.response?.data?.message || "Failed to request extension");
-        } finally {
-            setSubmitting(false);
-        }
-    };
+    setSubmitting(true);
+    try {
+      const response = await api.post(`/tasks/${task._id}/request-extension`, {
+        requestedDate,
+        reason: reason.trim(),
+      });
 
-    const handleClose = () => {
-        setExtensionData({ requestedDate: "", reason: "" });
+      if (response.data.success) {
+        toast.success("Extension request submitted successfully!");
+        reset();
+        onSubmitted();
         onClose();
-    };
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to request extension");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    if (!isOpen || !task) return null;
-
-    return (
+  return (
+    <AnimatePresence>
+      {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md"
-            >
-                <div className="p-6">
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center">
-                                <CalendarClock className="w-5 h-5 text-amber-600" />
-                            </div>
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800">Request Extension</h3>
-                                <p className="text-xs text-slate-500 line-clamp-1">{task.title}</p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={handleClose}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg transition"
-                        >
-                            <X size={18} className="text-slate-400" />
-                        </button>
-                    </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xl">📅</span>
+                <h3 className="text-xl font-bold text-gray-900">Request Extension</h3>
+              </div>
 
-                    <p className="text-sm text-slate-500 mb-4">
-                        Request a new deadline for this task. Your manager will review the request.
-                    </p>
+              <p className="text-xs text-gray-500 mb-4">
+                {task.title || "Task"} · Due: {formatDate(task.deadline)}
+              </p>
 
-                    {/* Current Deadline */}
-                    <div className="mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                        <p className="text-xs text-slate-500">Current Deadline</p>
-                        <p className="text-sm font-semibold text-slate-700">
-                            {formatDate(task.deadline)}
-                        </p>
-                    </div>
-
-                    {/* New Deadline */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            New Deadline <span className="text-rose-500">*</span>
-                        </label>
-                        <input
-                            type="date"
-                            value={extensionData.requestedDate}
-                            onChange={(e) =>
-                                setExtensionData({
-                                    ...extensionData,
-                                    requestedDate: e.target.value,
-                                })
-                            }
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition"
-                            min={new Date().toISOString().split("T")[0]}
-                        />
-                        <p className="text-xs text-slate-400 mt-1">
-                            Current deadline: {formatDate(task.deadline)}
-                        </p>
-                    </div>
-
-                    {/* Reason */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Reason <span className="text-rose-500">*</span>
-                        </label>
-                        <textarea
-                            rows={3}
-                            value={extensionData.reason}
-                            onChange={(e) =>
-                                setExtensionData({
-                                    ...extensionData,
-                                    reason: e.target.value,
-                                })
-                            }
-                            placeholder="Explain why you need an extension..."
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 outline-none transition resize-none"
-                        />
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-3">
-                        <button
-                            onClick={handleSubmit}
-                            disabled={submitting}
-                            className="flex-1 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                        >
-                            {submitting ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Submitting...
-                                </>
-                            ) : (
-                                <>
-                                    <CalendarClock size={16} />
-                                    Submit Request
-                                </>
-                            )}
-                        </button>
-                        <button
-                            onClick={handleClose}
-                            disabled={submitting}
-                            className="flex-1 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg transition"
-                        >
-                            Cancel
-                        </button>
-                    </div>
+              {isOverdue && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5">
+                  <span className="text-red-500 text-sm mt-0.5">⚠️</span>
+                  <p className="text-xs text-red-600 leading-relaxed">
+                    This task is overdue. An extension will be logged against your KPI
+                    timeliness score.
+                  </p>
                 </div>
-            </motion.div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+                  New Requested Deadline
+                </label>
+                <input
+                  type="datetime-local"
+                  value={requestedDate}
+                  onChange={(e) => setRequestedDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition text-sm"
+                  min={task.deadline || new Date().toISOString().split("T")[0]}
+                />
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+                  Reason for Extension <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Explain why you need an extension..."
+                  className="w-full px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition resize-none text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleClose}
+                  className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-medium rounded-xl transition text-sm shadow-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition flex items-center justify-center gap-2 shadow-sm shadow-blue-500/20 disabled:opacity-50 text-sm"
+                >
+                  {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Send Request
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
-    );
+      )}
+    </AnimatePresence>
+  );
 }

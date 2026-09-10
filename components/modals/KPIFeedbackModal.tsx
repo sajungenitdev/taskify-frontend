@@ -15,6 +15,7 @@ import {
     Edit2,
     Trash2,
     AlertCircle,
+    Info,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
@@ -51,7 +52,7 @@ interface KPIFeedbackModalProps {
     month: string;
     year: number;
     currentUserRole: string;
-    currentUserId?: string; // Recommended to accurately check own feedback ownership
+    currentUserId?: string;
     onFeedbackAdded?: () => void;
 }
 
@@ -81,7 +82,7 @@ export default function KPIFeedbackModal({
     const [loading, setLoading] = useState<boolean>(true);
     const [submitting, setSubmitting] = useState<boolean>(false);
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [deletingId, setDeletingId] = useState<string | null>(null); // State for inline delete confirmation
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const [comment, setComment] = useState<string>("");
     const [rating, setRating] = useState<number>(0);
     const [hoverRating, setHoverRating] = useState<number>(0);
@@ -89,38 +90,96 @@ export default function KPIFeedbackModal({
     const [isLocked, setIsLocked] = useState<boolean>(false);
     const [lockMessage, setLockMessage] = useState<string>("");
     const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null);
+    // 👇 New: track whether the KPI record actually exists on the backend
+    const [hasKPI, setHasKPI] = useState<boolean>(true);
 
     const canProvideFeedback = ROLES_WITH_FEEDBACK_PERMISSION.includes(currentUserRole);
 
+    // Detect whether kpiId is a real Mongo ObjectId
+    const isValidObjectId = (id: string): boolean =>
+        typeof id === "string" && /^[a-f\d]{24}$/i.test(id);
+
+    // Detect whether kpiId is a synthetic "calculated_*" ID
+    const isSyntheticKpiId = (id: string): boolean =>
+        typeof id === "string" &&
+        /^calculated_[a-f\d]{24}_[A-Za-z]+_\d{4}$/i.test(id);
+
     // ============ DATA FETCHING ============
     const fetchFeedbackAndLockStatus = useCallback(async () => {
-        if (!kpiId) return;
+        if (!isOpen) return;
+
+        // Skip fetch entirely for obviously invalid IDs
+        if (!kpiId || (!isValidObjectId(kpiId) && !isSyntheticKpiId(kpiId))) {
+            console.warn("⚠️ Invalid kpiId — skipping fetch:", kpiId);
+            setFeedbackList([]);
+            setIsLocked(false);
+            setLockMessage("");
+            setHasKPI(true);
+            setLoading(false);
+            return;
+        }
+
         setLoading(true);
         setError(null);
 
         try {
-            // Concurrent fetch for feedback list & lock status if available
-            const [feedbackRes] = await Promise.all([
-                api.get(`/kpi/feedback/${kpiId}`).catch(() => null),
-                api.get(`/kpi/lock-status/${employeeId}`, { params: { month, year } }).catch(() => null),
-            ]);
+            // 1. Fetch feedback (backend tolerates missing KPI → returns 200 with hasKPI: false)
+            let feedbackOk = false;
+            try {
+                const feedbackRes = await api.get(`/kpi/feedback/${kpiId}`);
+                if (feedbackRes?.data?.success) {
+                    feedbackOk = true;
+                    const responseData = feedbackRes.data.data || {};
+                    const rawList = Array.isArray(responseData)
+                        ? responseData
+                        : responseData.feedback || [];
+                    const activeList = rawList.filter((f: Feedback) => !f.isDeleted);
 
-            if (feedbackRes?.data?.success) {
-                const responseData = feedbackRes.data.data;
-                const rawList = Array.isArray(responseData) ? responseData : responseData.feedback || [];
-                const activeList = rawList.filter((f: Feedback) => !f.isDeleted);
+                    setFeedbackList(activeList);
+                    setIsLocked(!!responseData.isLocked);
+                    setLockMessage(responseData.lockMessage || "");
+                    // 👇 Key: track whether the KPI exists on the backend
+                    setHasKPI(responseData.hasKPI !== false);
+                }
+            } catch (feedbackErr: any) {
+                // Expected 404 → treat as "no KPI yet", not an error
+                if (feedbackErr?.response?.status === 404) {
+                    setFeedbackList([]);
+                    setIsLocked(false);
+                    setLockMessage("");
+                    setHasKPI(false);
+                } else {
+                    console.error("Feedback fetch failed:", feedbackErr);
+                }
+            }
 
-                setFeedbackList(activeList);
-                setIsLocked(responseData.isLocked || false);
-                setLockMessage(responseData.lockMessage || "");
+            // 2. Fetch lock status separately (best-effort; never blocks UI)
+            try {
+                const lockRes = await api.get(`/kpi/lock-status/${employeeId}`, {
+                    params: { month, year },
+                });
+                if (lockRes?.data?.success && !feedbackOk) {
+                    setIsLocked(!!lockRes.data.data?.locked);
+                    setLockMessage(
+                        lockRes.data.data?.lockMessage ||
+                        "KPI is locked. Feedback is read-only."
+                    );
+                }
+            } catch (lockErr: any) {
+                // Silent — lock status is optional
+                if (lockErr?.response?.status !== 404) {
+                    console.warn("Lock status fetch failed:", lockErr?.message);
+                }
             }
         } catch (err: any) {
             console.error("Error fetching feedback dependencies:", err);
-            setError(err.response?.data?.message || "Failed to load feedback records.");
+            setError(
+                err?.response?.data?.message || "Failed to load feedback records."
+            );
         } finally {
             setLoading(false);
         }
-    }, [kpiId, employeeId, month, year]);
+    }, [kpiId, employeeId, month, year, isOpen]);
 
     useEffect(() => {
         if (isOpen) {
@@ -147,7 +206,15 @@ export default function KPIFeedbackModal({
         }
 
         if (isLocked) {
-            toast.error(lockMessage || "KPI period is locked. Modifications are disabled.");
+            toast.error(
+                lockMessage || "KPI period is locked. Modifications are disabled."
+            );
+            return;
+        }
+
+        // Ensure kpiId is usable (real or synthetic — backend accepts both)
+        if (!isValidObjectId(kpiId) && !isSyntheticKpiId(kpiId)) {
+            toast.error("Invalid KPI identifier. Please refresh and try again.");
             return;
         }
 
@@ -160,13 +227,22 @@ export default function KPIFeedbackModal({
 
             let response;
             if (editingId) {
-                response = await api.put(`/kpi/feedback/${kpiId}/${editingId}`, payload);
+                response = await api.put(
+                    `/kpi/feedback/${kpiId}/${editingId}`,
+                    payload
+                );
             } else {
                 response = await api.post(`/kpi/feedback/${kpiId}`, payload);
             }
 
             if (response.data.success) {
-                toast.success(editingId ? "Feedback updated successfully!" : "Feedback posted successfully!");
+                toast.success(
+                    editingId
+                        ? "Feedback updated successfully!"
+                        : "Feedback posted successfully!"
+                );
+                // The first post will have auto-created the KPI, so refetching
+                // will now return hasKPI: true.
                 await fetchFeedbackAndLockStatus();
                 resetForm();
                 if (onFeedbackAdded) onFeedbackAdded();
@@ -197,21 +273,31 @@ export default function KPIFeedbackModal({
 
         try {
             setSubmitting(true);
-            const response = await api.delete(`/kpi/feedback/${kpiId}/${feedbackId}`);
+            const response = await api.delete(
+                `/kpi/feedback/${kpiId}/${feedbackId}`
+            );
 
             if (response.data.success) {
                 toast.success("Feedback deleted successfully.");
-                setFeedbackList((prev) => prev.filter((f) => f._id !== feedbackId));
+                setFeedbackList((prev) =>
+                    prev.filter((f) => f._id !== feedbackId)
+                );
                 setDeletingId(null);
                 if (onFeedbackAdded) onFeedbackAdded();
             }
         } catch (err: any) {
             console.error("Deletion error:", err);
             if (err?.response?.status === 404) {
-                setFeedbackList((prev) => prev.filter((f) => f._id !== feedbackId));
+                // Already gone — treat as success
+                setFeedbackList((prev) =>
+                    prev.filter((f) => f._id !== feedbackId)
+                );
+                setDeletingId(null);
                 toast.success("Feedback entry removed.");
             } else {
-                toast.error(err.response?.data?.message || "Failed to delete feedback.");
+                toast.error(
+                    err.response?.data?.message || "Failed to delete feedback."
+                );
             }
         } finally {
             setSubmitting(false);
@@ -267,8 +353,8 @@ export default function KPIFeedbackModal({
             >
                 <Star
                     className={`w-5 h-5 ${starIdx <= (hoverRating || rating)
-                        ? "fill-amber-400 text-amber-400"
-                        : "text-gray-200"
+                            ? "fill-amber-400 text-amber-400"
+                            : "text-gray-200"
                         } transition-colors`}
                 />
             </button>
@@ -292,7 +378,9 @@ export default function KPIFeedbackModal({
                             <MessageSquare className="w-5 h-5 text-emerald-600" />
                         </div>
                         <div>
-                            <h2 className="text-base font-bold text-gray-900">Performance Feedback</h2>
+                            <h2 className="text-base font-bold text-gray-900">
+                                Performance Feedback
+                            </h2>
                             <p className="text-xs text-gray-500">
                                 {employeeName} • {month} {year}
                             </p>
@@ -311,8 +399,29 @@ export default function KPIFeedbackModal({
                     <div className="mx-6 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 shrink-0">
                         <Lock className="w-4 h-4 text-amber-600 shrink-0" />
                         <div className="text-xs">
-                            <span className="font-semibold text-amber-800">KPI Locked: </span>
-                            <span className="text-amber-700">{lockMessage || "This evaluation period is finalized. Entries are read-only."}</span>
+                            <span className="font-semibold text-amber-800">
+                                KPI Locked:{" "}
+                            </span>
+                            <span className="text-amber-700">
+                                {lockMessage ||
+                                    "This evaluation period is finalized. Entries are read-only."}
+                            </span>
+                        </div>
+                    </div>
+                )}
+
+                {/* KPI Not Calculated Yet Banner */}
+                {!loading && !hasKPI && !isLocked && (
+                    <div className="mx-6 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3 shrink-0">
+                        <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                        <div className="text-xs">
+                            <span className="font-semibold text-blue-800">
+                                KPI Not Yet Calculated:{" "}
+                            </span>
+                            <span className="text-blue-700">
+                                Posting the first feedback will create this KPI
+                                record automatically.
+                            </span>
                         </div>
                     </div>
                 )}
@@ -338,7 +447,9 @@ export default function KPIFeedbackModal({
 
                             {/* Rating Selector */}
                             <div className="flex items-center gap-3 mb-3">
-                                <span className="text-xs font-medium text-gray-500">Rating Score:</span>
+                                <span className="text-xs font-medium text-gray-500">
+                                    Rating Score:
+                                </span>
                                 <div className="flex gap-1">{renderInteractiveStars()}</div>
                                 {rating > 0 && (
                                     <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
@@ -375,7 +486,9 @@ export default function KPIFeedbackModal({
                                     ) : (
                                         <>
                                             <Send className="w-3.5 h-3.5" />
-                                            <span>{editingId ? "Update Feedback" : "Post Feedback"}</span>
+                                            <span>
+                                                {editingId ? "Update Feedback" : "Post Feedback"}
+                                            </span>
                                         </>
                                     )}
                                 </button>
@@ -394,7 +507,9 @@ export default function KPIFeedbackModal({
                                 className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition"
                                 title="Refresh feed"
                             >
-                                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                                <RefreshCw
+                                    className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+                                />
                             </button>
                         </div>
 
@@ -411,20 +526,37 @@ export default function KPIFeedbackModal({
                         ) : feedbackList.length === 0 ? (
                             <div className="text-center py-12 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
                                 <MessageSquare className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                                <p className="text-sm font-medium text-gray-600">No feedback entries recorded</p>
-                                <p className="text-xs text-gray-400 mt-0.5">Reviews and comments will appear here.</p>
+                                <p className="text-sm font-medium text-gray-600">
+                                    No feedback entries recorded
+                                </p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                    Reviews and comments will appear here.
+                                </p>
                             </div>
                         ) : (
                             <div className="space-y-3">
                                 {feedbackList.map((item) => {
-                                    const creator = item.createdBy || { fullName: "Anonymous", role: "employee" };
+                                    const creator = item.createdBy || {
+                                        _id: "unknown",
+                                        fullName: "Anonymous",
+                                        email: "",
+                                        role: "employee",
+                                    };
 
-                                    const isCreator = currentUserId ? creator._id === currentUserId : false;
-                                    const isAdmin = ["super_admin", "admin"].includes(currentUserRole);
-                                    const isManager = ["hr_manager", "dept_manager", "project_manager"].includes(currentUserRole);
+                                    const isCreator = currentUserId
+                                        ? creator._id === currentUserId
+                                        : false;
+                                    const isAdmin = ["super_admin", "admin"].includes(
+                                        currentUserRole
+                                    );
+                                    const isManager = [
+                                        "hr_manager",
+                                        "dept_manager",
+                                        "project_manager",
+                                    ].includes(currentUserRole);
 
-                                    // Only the creator or admins/managers can manage feedback
-                                    const canManage = !isLocked && (isCreator || isAdmin || isManager);
+                                    const canManage =
+                                        !isLocked && (isCreator || isAdmin || isManager);
                                     const isExpanded = expandedFeedbackId === item._id;
                                     const isConfirmingDelete = deletingId === item._id;
 
@@ -440,7 +572,11 @@ export default function KPIFeedbackModal({
                                                 <div className="flex items-start gap-3 min-w-0">
                                                     <div className="w-9 h-9 rounded-full bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0 overflow-hidden text-emerald-800 font-bold text-xs">
                                                         {creator.avatar ? (
-                                                            <img src={creator.avatar} alt={creator.fullName} className="w-full h-full object-cover" />
+                                                            <img
+                                                                src={creator.avatar}
+                                                                alt={creator.fullName}
+                                                                className="w-full h-full object-cover"
+                                                            />
                                                         ) : (
                                                             getInitials(creator.fullName)
                                                         )}
@@ -451,11 +587,17 @@ export default function KPIFeedbackModal({
                                                             <span className="text-xs font-bold text-gray-900 truncate">
                                                                 {creator.fullName}
                                                             </span>
-                                                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getRoleBadgeStyles(creator.role)}`}>
+                                                            <span
+                                                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${getRoleBadgeStyles(
+                                                                    creator.role
+                                                                )}`}
+                                                            >
                                                                 {formatRoleName(creator.role)}
                                                             </span>
                                                             {item.isEdited && (
-                                                                <span className="text-[10px] text-gray-400 italic">(edited)</span>
+                                                                <span className="text-[10px] text-gray-400 italic">
+                                                                    (edited)
+                                                                </span>
                                                             )}
                                                         </div>
 
@@ -467,14 +609,16 @@ export default function KPIFeedbackModal({
                                                                         <Star
                                                                             key={s}
                                                                             className={`w-3.5 h-3.5 ${s <= item.rating!
-                                                                                ? "fill-amber-400 text-amber-400"
-                                                                                : "text-gray-200"
+                                                                                    ? "fill-amber-400 text-amber-400"
+                                                                                    : "text-gray-200"
                                                                                 }`}
                                                                         />
                                                                     ))}
                                                                 </div>
                                                             )}
-                                                            <span className="text-[10px] text-gray-400">• {formatDate(item.createdAt)}</span>
+                                                            <span className="text-[10px] text-gray-400">
+                                                                • {formatDate(item.createdAt)}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -509,7 +653,9 @@ export default function KPIFeedbackModal({
                                                         exit={{ opacity: 0, height: 0 }}
                                                         className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center justify-between gap-2"
                                                     >
-                                                        <span className="text-xs font-medium text-red-700">Delete this entry permanently?</span>
+                                                        <span className="text-xs font-medium text-red-700">
+                                                            Delete this entry permanently?
+                                                        </span>
                                                         <div className="flex items-center gap-1.5 shrink-0">
                                                             <button
                                                                 onClick={() => setDeletingId(null)}
@@ -522,7 +668,9 @@ export default function KPIFeedbackModal({
                                                                 disabled={submitting}
                                                                 className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition font-medium flex items-center gap-1"
                                                             >
-                                                                {submitting && <Loader2 className="w-3 h-3 animate-spin" />}
+                                                                {submitting && (
+                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                )}
                                                                 Confirm Delete
                                                             </button>
                                                         </div>
@@ -533,12 +681,16 @@ export default function KPIFeedbackModal({
                                             {/* Comment Body */}
                                             <div className="mt-2.5 text-xs text-gray-700 leading-relaxed">
                                                 {isExpanded || item.comment.length <= 180 ? (
-                                                    <p className="whitespace-pre-wrap">{item.comment}</p>
+                                                    <p className="whitespace-pre-wrap">
+                                                        {item.comment}
+                                                    </p>
                                                 ) : (
                                                     <div>
                                                         <p>{item.comment.substring(0, 180)}...</p>
                                                         <button
-                                                            onClick={() => setExpandedFeedbackId(item._id)}
+                                                            onClick={() =>
+                                                                setExpandedFeedbackId(item._id)
+                                                            }
                                                             className="text-emerald-600 hover:text-emerald-700 font-semibold mt-1 inline-block"
                                                         >
                                                             Read more

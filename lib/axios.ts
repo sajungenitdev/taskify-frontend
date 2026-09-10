@@ -832,28 +832,28 @@ api.interceptors.response.use(
  */
 export const getFileUrl = (url: string): string => {
   if (!url) return '';
-  
+
   // If it's already a full URL with http or https, return it as is
   if (url.startsWith('http://') || url.startsWith('https://')) {
     return url;
   }
-  
+
   // Get the API base URL from environment
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-  
+
   // Remove /api/v1 from base URL if present
   let baseUrl = apiBaseUrl.replace('/api/v1', '');
-  
+
   // Remove trailing slash if present
   if (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.slice(0, -1);
   }
-  
+
   // Ensure the URL starts with /
   if (!url.startsWith('/')) {
     url = '/' + url;
   }
-  
+
   return `${baseUrl}${url}`;
 };
 

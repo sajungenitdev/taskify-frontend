@@ -1576,12 +1576,12 @@ export default function CreateTaskModal({
                   disabled={!!formData.endTime || isQuickTask || isEmployee || isSubTask}
                 />
               </div>
-              {isEmployee && (
+              {/* {isEmployee && (
                 <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   Auto-set to tomorrow
                 </p>
-              )}
+              )} */}
               {isSubTask && (
                 <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
@@ -1841,11 +1841,19 @@ export default function CreateTaskModal({
             </div>
 
             {/* Modal Footer */}
-            <div className="flex gap-3 pt-4 border-t border-gray-200">
+            <div className="flex justify-end gap-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition-all"
+              >
+                Cancel
+              </button>
+
               <button
                 type="submit"
                 disabled={loading || isCreatingProject}
-                className="flex-1 bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="px-5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium py-2.5 rounded-lg transition-all shadow-md shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {loading || isCreatingProject ? (
                   <>
@@ -1862,7 +1870,7 @@ export default function CreateTaskModal({
                   <>
                     <Sparkles size={16} />
                     {isEmployee
-                      ? "Create Task for Yourself"
+                      ? "Create Task"
                       : isMilestone
                         ? "Create Milestone"
                         : isSubTask
@@ -1870,13 +1878,6 @@ export default function CreateTaskModal({
                           : "Create Task"}
                   </>
                 )}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 rounded-lg transition-all"
-              >
-                Cancel
               </button>
             </div>
           </form>
