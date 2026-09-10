@@ -31,8 +31,14 @@ export function useTaskDetail() {
                 title: taskData.title || "Untitled Task",
                 description: taskData.description || "",
                 estimatedHours: taskData.estimatedHours || 0,
-                assignedTo: taskData.assignedTo || { _id: "", fullName: "Unassigned", email: "" },
-                assignedBy: taskData.assignedBy || { _id: "", fullName: "Unknown" },
+                assignedTo:
+                    taskData.assignedTo || {
+                        _id: "",
+                        fullName: "Unassigned",
+                        email: "",
+                    },
+                assignedBy:
+                    taskData.assignedBy || { _id: "", fullName: "Unknown" },
                 createdAt: taskData.createdAt || new Date().toISOString(),
                 updatedAt: taskData.updatedAt || new Date().toISOString(),
                 commentsCount: taskData.commentsCount || 0,
@@ -57,19 +63,30 @@ export function useTaskDetail() {
 
             if (taskData.evidenceUrls?.length > 0) setHasSubmittedEvidence(true);
 
+            // ✅ Narrow optional fields before use
+            const subTaskCount = formattedTask.subTaskCount ?? 0;
+            const isMilestone = formattedTask.isMilestone ?? false;
+
             // Fetch sub-tasks
-            if (formattedTask.subTaskCount > 0 && !formattedTask.isMilestone) {
+            if (subTaskCount > 0 && !isMilestone) {
                 try {
-                    const subResponse = await api.get(`/tasks/${formattedTask._id}/subtasks`);
+                    const subResponse = await api.get(
+                        `/tasks/${formattedTask._id}/subtasks`
+                    );
                     if (subResponse.data.success) {
                         setSubTasks(subResponse.data.data || []);
                     } else {
-                        setTask((prev) => (prev ? { ...prev, subTaskCount: 0 } : null));
+                        // Reset subTaskCount to 0 on the task so we don't try again
+                        setTask((prev) =>
+                            prev ? { ...prev, subTaskCount: 0 } : null
+                        );
                         setSubTasks([]);
                     }
                 } catch (subError: any) {
                     if (subError.response?.status === 404) {
-                        setTask((prev) => (prev ? { ...prev, subTaskCount: 0 } : null));
+                        setTask((prev) =>
+                            prev ? { ...prev, subTaskCount: 0 } : null
+                        );
                     }
                     setSubTasks([]);
                 }
@@ -77,7 +94,8 @@ export function useTaskDetail() {
                 setSubTasks([]);
             }
         } catch (err: any) {
-            const msg = err.response?.data?.message || "Failed to fetch task";
+            const msg =
+                err.response?.data?.message || "Failed to fetch task";
             setError(msg);
             if (err.response?.status !== 403) toast.error(msg);
         } finally {
