@@ -284,7 +284,7 @@ export default function KPIFeedbackModal({
             } else if (serverMsg) {
                 toast.error(serverMsg);
             } else {
-                toast.error("Failed to save feedback. Please try again.");
+                toast.error("You have already given a feedback.");
             }
         } finally {
             setSubmitting(false);
