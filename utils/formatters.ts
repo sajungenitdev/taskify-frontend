@@ -1,4 +1,4 @@
-export const formatDate = (dateString: string) => {
+export const formatDate = (dateString?: string | null) => {
   if (!dateString) return "No date set";
   try {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -11,7 +11,7 @@ export const formatDate = (dateString: string) => {
   }
 };
 
-export const formatDateTime = (dateString: string) => {
+export const formatDateTime = (dateString?: string | null) => {
   if (!dateString) return "No date set";
   try {
     return new Date(dateString).toLocaleString("en-US", {
@@ -26,7 +26,7 @@ export const formatDateTime = (dateString: string) => {
   }
 };
 
-export const getInitials = (name: string) =>
+export const getInitials = (name?: string) =>
   name?.charAt(0)?.toUpperCase() || "?";
 
 export const formatFileSize = (bytes: number) => {
