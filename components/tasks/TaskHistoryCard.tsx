@@ -7,7 +7,7 @@ Calendar,
 RefreshCw,
 User,
 } from "lucide-react";
-import type { Task } from "../../types/tasks";
+import type { Task } from "@/types/task";
 import { formatDateTime } from "../../utils/formatters";
 
 interface Props {

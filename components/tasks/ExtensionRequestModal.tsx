@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/axios";
-import type { Task } from "../../types/tasks";
+import type { Task } from "@/types/task";
 import { formatDate } from "../../utils/formatters";
 
 interface Props {

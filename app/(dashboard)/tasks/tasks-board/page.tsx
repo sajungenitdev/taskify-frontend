@@ -31,7 +31,7 @@ import {
   getRelativeTime
 } from "@/utils/task-helpers";
 import CreateTaskModal from "@/components/tasks/CreateTaskModal";
-import ExtensionRequestModal from "@/components/tasks/ExtensionRequestModal";
+import ExtensionRequestModal, { ExtensionModal } from "@/components/tasks/ExtensionRequestModal";
 
 export default function TasksBoardPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -1222,19 +1222,21 @@ export default function TasksBoardPage() {
       />
 
       {/* Extension Request Modal */}
-      <ExtensionRequestModal
-        isOpen={showExtensionModal}
-        onClose={() => {
-          setShowExtensionModal(false);
-          setSelectedTaskForExtension(null);
-        }}
-        task={selectedTaskForExtension}
-        onSuccess={() => {
-          fetchTasks();
-          fetchMyExtensionRequests();
-          fetchAllExtensionRequests();
-        }}
-      />
+      {selectedTaskForExtension && (
+        <ExtensionModal
+          isOpen={showExtensionModal}
+          onClose={() => {
+            setShowExtensionModal(false);
+            setSelectedTaskForExtension(null);
+          }}
+          task={selectedTaskForExtension as any} 
+          onSubmitted={() => {
+            fetchTasks();
+            fetchMyExtensionRequests();
+            fetchAllExtensionRequests();
+          }}
+        />
+      )}
 
       {/* Reject Modal */}
       {showRejectModal && (
