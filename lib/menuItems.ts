@@ -781,6 +781,23 @@ export const SUB_ITEMS = {
     ],
     { description: "Client directory with visit history and RFQs" },
   ),
+  crmDeals: createSubNavItem(
+    "crm-deals",
+    "Deals",
+    "/crm/deals",
+    Building2,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Client directory with visit history and RFQs" },
+  ),
   crmForecast: createSubNavItem(
     "crm-forecast",
     "Sales Forecast",

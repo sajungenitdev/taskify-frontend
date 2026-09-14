@@ -1,6 +1,7 @@
 // app/(dashboard)/crm/deals/[id]/page.tsx
 "use client";
-import { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useCallback, memo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +17,8 @@ import {
     ExternalLink,
     Building2,
     User as UserIcon,
+    RefreshCw,
+    FolderCheck,
 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { StageBadge } from "@/components/crm/StageBadge";
@@ -29,102 +32,123 @@ import type { DealActivity, Lead } from "@/types/crm/crm.types";
 
 export default function DealWorkspacePage() {
     const params = useParams<{ id: string }>();
-    const [lead, setLead] = useState<
-        (Lead & { activities: DealActivity[] }) | null
-    >(null);
+    const [lead, setLead] = useState<(Lead & { activities: DealActivity[] }) | null>(null);
     const [loading, setLoading] = useState(true);
     const [openLog, setOpenLog] = useState(false);
     const [openFollow, setOpenFollow] = useState(false);
     const [openConvert, setOpenConvert] = useState(false);
     const [markingWon, setMarkingWon] = useState(false);
 
-    const load = async () => {
+    const loadDeal = useCallback(async () => {
+        if (!params.id) return;
         setLoading(true);
         try {
             const data = await leadApi.get(params.id);
             setLead(data);
         } catch (e) {
-            toast.error((e as Error).message);
+            toast.error((e as Error).message || "Failed to load deal record");
         } finally {
             setLoading(false);
         }
-    };
-
-    useEffect(() => {
-        load();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.id]);
 
-    if (loading || !lead) {
-        return (
-            <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 dark:from-[#070f22] dark:via-[#0a1730] dark:to-[#070f22]">
-                <div className="mx-auto container p-6 lg:p-8">
-                    <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-gray-800 dark:bg-[#0d1b33] dark:text-gray-400">
-                        Loading deal...
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    useEffect(() => {
+        void loadDeal();
+    }, [loadDeal]);
 
     const markWon = async () => {
+        if (!lead) return;
         setMarkingWon(true);
         try {
             await leadApi.changeStage(lead._id, "won");
-            toast.success("Deal marked as won");
-            await load();
+            toast.success("Deal moved to Won");
+            await loadDeal();
         } catch (e) {
-            toast.error((e as Error).message);
+            toast.error((e as Error).message || "Failed to update deal stage");
         } finally {
             setMarkingWon(false);
         }
     };
 
+    if (loading || !lead) {
+        return (
+            <main className="min-h-screen bg-slate-50/70 p-6 lg:p-8">
+                <div className="mx-auto max-w-7xl space-y-6">
+                    <div className="h-4 w-28 animate-pulse rounded-md bg-slate-200" />
+                    <div className="h-28 w-full animate-pulse rounded-2xl border border-slate-200/80 bg-white" />
+                    <div className="grid gap-6 lg:grid-cols-3">
+                        <div className="h-80 animate-pulse rounded-2xl border border-slate-200/80 bg-white" />
+                        <div className="h-80 animate-pulse rounded-2xl border border-slate-200/80 bg-white lg:col-span-2" />
+                    </div>
+                </div>
+            </main>
+        );
+    }
+
     const projectObj =
         lead.projectId && typeof lead.projectId === "object" ? lead.projectId : null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 dark:from-[#070f22] dark:via-[#0a1730] dark:to-[#070f22]">
-            <div className="mx-auto container space-y-6 p-6 lg:p-8">
-                {/* ---------- Back ---------- */}
-                <Link
-                    href="/crm/pipeline"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400"
-                >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Back to pipeline
-                </Link>
+        <main className="min-h-screen bg-slate-50/70 pb-16 text-slate-900">
+            <div className="mx-auto max-w-7xl space-y-6 p-6 lg:p-8">
+                {/* Navigation Breadcrumb */}
+                <nav aria-label="Breadcrumb">
+                    <Link
+                        href="/crm/pipeline"
+                        className="group inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-slate-900"
+                    >
+                        <ArrowLeft className="h-3.5 w-3.5 transition-transform duration-150 group-hover:-translate-x-0.5" />
+                        <span>Return to Pipeline</span>
+                    </Link>
+                </nav>
 
-                {/* ---------- Header ---------- */}
-                <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                {/* Executive Header Banner */}
+                <header className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex items-start gap-4">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/20">
-                            <Briefcase className="h-6 w-6" />
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-white shadow-md shadow-slate-900/10">
+                            <Briefcase className="h-6 w-6 text-indigo-400" />
                         </div>
                         <div className="min-w-0">
-                            <h1 className="truncate text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
-                                {lead.dealName || lead.companyName}
-                            </h1>
-                            <p className="mt-1 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                <Building2 className="h-3.5 w-3.5" />
-                                {lead.companyName}
-                                <span className="text-gray-300 dark:text-gray-700">·</span>
-                                <UserIcon className="h-3.5 w-3.5" />
-                                {getOwnerName(lead.owner)}
-                            </p>
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <h1 className="truncate text-xl font-bold tracking-tight text-slate-900">
+                                    {lead.dealName || lead.companyName}
+                                </h1>
+                                <StageBadge stage={lead.stage} />
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 font-medium">
+                                <span className="flex items-center gap-1">
+                                    <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                                    <span className="text-slate-700">{lead.companyName}</span>
+                                </span>
+                                <span className="text-slate-300">·</span>
+                                <span className="flex items-center gap-1">
+                                    <UserIcon className="h-3.5 w-3.5 text-slate-400" />
+                                    <span>{getOwnerName(lead.owner)}</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
 
+                    {/* Action Bar */}
                     <div className="flex flex-wrap items-center gap-2">
-                        <StageBadge stage={lead.stage} />
+                        <button
+                            type="button"
+                            onClick={() => void loadDeal()}
+                            disabled={loading}
+                            aria-label="Refresh Record"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-2xs transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-slate-900/10 cursor-pointer disabled:opacity-50"
+                            title="Refresh Record"
+                        >
+                            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin text-slate-900" : ""}`} />
+                        </button>
 
                         <button
                             type="button"
                             onClick={() => setOpenFollow(true)}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-[#0d1b33] dark:text-gray-200 dark:hover:bg-white/5"
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:bg-slate-50 hover:text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-slate-900/10 cursor-pointer"
                         >
-                            <Calendar className="h-4 w-4" />
-                            Schedule follow-up
+                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                            <span>Follow-up</span>
                         </button>
 
                         {lead.stage !== "won" && lead.stage !== "lost" && (
@@ -132,10 +156,10 @@ export default function DealWorkspacePage() {
                                 type="button"
                                 onClick={markWon}
                                 disabled={markingWon}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20"
+                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-200/90 bg-emerald-50 px-3.5 text-xs font-semibold text-emerald-700 shadow-2xs transition-colors hover:bg-emerald-100 disabled:opacity-60 cursor-pointer"
                             >
-                                <CheckCircle className="h-4 w-4" />
-                                {markingWon ? "Marking..." : "Mark won"}
+                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>{markingWon ? "Marking..." : "Mark Won"}</span>
                             </button>
                         )}
 
@@ -143,128 +167,151 @@ export default function DealWorkspacePage() {
                             <button
                                 type="button"
                                 onClick={() => setOpenConvert(true)}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 px-4 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-700 hover:to-purple-700"
+                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-semibold text-white shadow-xs transition-colors hover:bg-slate-800 focus:outline-hidden focus:ring-2 focus:ring-slate-900/20 cursor-pointer"
                             >
-                                <Rocket className="h-4 w-4" />
-                                Convert to project
+                                <Rocket className="h-3.5 w-3.5 text-indigo-400" />
+                                <span>Convert to Project</span>
                             </button>
                         )}
 
                         {projectObj && (
                             <Link
                                 href={`/projects/${projectObj._id}`}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 text-sm font-medium text-white shadow-lg shadow-emerald-500/25 transition hover:from-emerald-700 hover:to-teal-700"
+                                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-xs font-semibold text-indigo-700 shadow-2xs transition-colors hover:bg-indigo-100"
                             >
-                                <ExternalLink className="h-4 w-4" />
-                                Open project
+                                <FolderCheck className="h-3.5 w-3.5" />
+                                <span>Open Project</span>
+                                <ExternalLink className="h-3 w-3 opacity-60" />
                             </Link>
                         )}
                     </div>
                 </header>
 
-                {/* ---------- Grid ---------- */}
+                {/* Content Workspace Grid */}
                 <div className="grid gap-6 lg:grid-cols-3">
-                    {/* Left column: deal info */}
+                    {/* Summary Panel */}
                     <section className="space-y-4">
-                        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-[#0d1b33]">
-                            <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
-                                <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                    <Sparkles className="h-4 w-4 text-indigo-500" />
-                                    Deal Summary
-                                </h2>
+                        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <div className="flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-slate-900" />
+                                    <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                                        Deal Valuation
+                                    </h2>
+                                </div>
+                                {lead.score !== undefined && (
+                                    <span
+                                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-700"
+                                        title="Proprietary Lead Score"
+                                    >
+                                        Score {lead.score}
+                                    </span>
+                                )}
                             </div>
 
-                            <div className="space-y-1 px-5 py-4">
-                                <Row
+                            <div className="divide-y divide-slate-100 pt-1">
+                                <DealDataRow
                                     icon={DollarSign}
-                                    label="Value"
-                                    value={formatMoney(lead.value, lead.currency)}
-                                    highlight
+                                    label="Deal Value"
+                                    value={formatMoney(lead.value, lead.currency || "BDT")}
+                                    isCurrency
                                 />
-                                <Row
+                                <DealDataRow
                                     icon={Percent}
-                                    label="Probability"
-                                    value={`${lead.probability}%`}
+                                    label="Win Probability"
+                                    value={`${lead.probability ?? (lead.stage === "won" ? 100 : 50)}%`}
                                 />
-                                <Row
+                                <DealDataRow
                                     icon={CalendarClock}
-                                    label="Expected close"
-                                    value={formatDate(lead.expectedCloseDate)}
+                                    label="Expected Close"
+                                    value={lead.expectedCloseDate ? formatDate(lead.expectedCloseDate) : "Not established"}
                                 />
-                                <Row
-                                    icon={Sparkles}
-                                    label="Score"
-                                    value={String(lead.score ?? 0)}
+                                <DealDataRow
+                                    icon={Calendar}
+                                    label="Created Date"
+                                    value={formatDate(lead.createdAt)}
                                 />
+
                                 {projectObj && (
-                                    <Row
-                                        icon={Rocket}
-                                        label="Project"
-                                        value={projectObj.name}
-                                    />
+                                    <div className="flex items-center justify-between gap-3 py-3">
+                                        <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
+                                            <Rocket className="h-3.5 w-3.5 text-slate-400" />
+                                            <span>Linked Project</span>
+                                        </span>
+                                        <Link
+                                            href={`/projects/${projectObj._id}`}
+                                            className="truncate text-xs font-bold text-indigo-600 hover:underline max-w-[170px]"
+                                            title={projectObj.name}
+                                        >
+                                            {projectObj.name}
+                                        </Link>
+                                    </div>
                                 )}
                             </div>
                         </div>
                     </section>
 
-                    {/* Right column: activity timeline */}
+                    {/* Activity Timeline Ledger */}
                     <section className="lg:col-span-2">
-                        <ActivityTimeline
-                            activities={lead.activities}
-                            onLogActivity={() => setOpenLog(true)}
-                        />
+                        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+                            <ActivityTimeline
+                                activities={lead.activities}
+                                onLogActivity={() => setOpenLog(true)}
+                            />
+                        </div>
                     </section>
                 </div>
             </div>
 
+            {/* Action Modals */}
             <LogActivityModal
                 open={openLog}
                 onOpenChange={setOpenLog}
                 leadId={lead._id}
-                onCreated={() => load()}
+                onCreated={() => void loadDeal()}
             />
             <ScheduleFollowUpModal
                 open={openFollow}
                 onOpenChange={setOpenFollow}
                 leadId={lead._id}
-                onCreated={() => load()}
+                onCreated={() => void loadDeal()}
             />
             <ConvertToProjectModal
                 open={openConvert}
                 onOpenChange={setOpenConvert}
                 leadId={lead._id}
                 defaultName={lead.dealName || lead.companyName}
-                onConverted={() => load()}
+                onConverted={() => void loadDeal()}
             />
-        </div>
+        </main>
     );
 }
 
-function Row({
-    icon: Icon,
-    label,
-    value,
-    highlight,
-}: {
+interface DealDataRowProps {
     icon: React.ComponentType<{ className?: string }>;
     label: string;
     value: string;
-    highlight?: boolean;
-}) {
+    isCurrency?: boolean;
+}
+
+const DealDataRow = memo(function DealDataRow({
+    icon: Icon,
+    label,
+    value,
+    isCurrency = false,
+}: DealDataRowProps) {
     return (
-        <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-2.5 last:border-0 dark:border-gray-800">
-            <span className="inline-flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                <Icon className="h-3.5 w-3.5" />
-                {label}
+        <div className="flex items-center justify-between gap-3 py-3">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500">
+                <Icon className="h-3.5 w-3.5 text-slate-400" />
+                <span>{label}</span>
             </span>
             <span
-                className={`truncate text-sm font-semibold ${highlight
-                        ? "text-gray-900 dark:text-white"
-                        : "text-gray-700 dark:text-gray-200"
+                className={`truncate font-mono text-xs ${isCurrency ? "text-base font-bold text-slate-950" : "font-semibold text-slate-800"
                     }`}
             >
                 {value}
             </span>
         </div>
     );
-}
+});
