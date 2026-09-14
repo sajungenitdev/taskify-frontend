@@ -17,7 +17,7 @@ import {
     Users2,
 } from "lucide-react";
 import { formatDate, formatDateTime } from "@/utils/formatters";
-import type { Expense, ExpenseStatus } from "@/types/expense";
+import type { Expense} from "@/types/expense";
 
 // ==========================================
 // Props Interface
