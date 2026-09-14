@@ -69,20 +69,56 @@ export function monthLabel(ym: string) {
   });
 }
 
-export function initials(name?: string) {
-  if (!name) return "?";
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+/**
+ * Extract up to two uppercase initials from any input.
+ *
+ * Safely handles:
+ *   - a plain string: "John Doe" → "JD"
+ *   - null / undefined / "" → "?"
+ *   - a User/owner object with { fullName } or { name }
+ *   - a number or any other type → "?"
+ */
+export function initials(name?: unknown): string {
+  const str =
+    typeof name === "string"
+      ? name
+      : name && typeof name === "object"
+        ? (name as { fullName?: string; name?: string }).fullName ??
+          (name as { name?: string }).name ??
+          ""
+        : "";
+
+  const trimmed = str.trim();
+  if (!trimmed) return "?";
+
+  return (
+    trimmed
+      .split(/\s+/)
+      .map((p) => p[0] ?? "")
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?"
+  );
 }
 
+/**
+ * Return a safe display name for a User reference.
+ *
+ * Handles:
+ *   - object with { fullName }
+ *   - object with { name }
+ *   - object with { email } as a last resort
+ *   - a plain string id
+ *   - null / undefined
+ */
 export function getOwnerName(owner: unknown): string {
   if (!owner) return "—";
-  if (typeof owner === "string") return owner;
-  return (owner as { fullName?: string }).fullName ?? "—";
+  if (typeof owner === "string") return owner || "—";
+  if (typeof owner === "object") {
+    const o = owner as { fullName?: string; name?: string; email?: string };
+    return o.fullName ?? o.name ?? o.email ?? "—";
+  }
+  return "—";
 }
 
 export function getOwnerId(owner: unknown): string {
