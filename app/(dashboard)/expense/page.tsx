@@ -60,6 +60,12 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
     GBP: "£",
 };
 
+/**
+ * Order the dropdown shows currencies in. Anything not listed
+ * (from newly-added currencies) falls through to the end.
+ */
+const CURRENCY_PRIORITY = ["BDT", "SAR", "USD", "AED", "INR", "EUR", "GBP"];
+
 // ==========================================
 // Helpers
 // ==========================================
@@ -92,67 +98,60 @@ const aggregateByCurrency = (
         .map(([currency, total]) => ({ currency, total }))
         .sort((a, b) => b.total - a.total);
 };
-const renderCurrencyTotals = (
+
+/**
+ * Render the total for a single selected currency.
+ * Never stacks, never shows "all".
+ */
+const renderSelectedCurrencyTotal = (
     totals: { currency: string; total: number }[],
-    emptyText: string = "0",
-    currencyFilter: string = "all"
+    currencyCode: string
 ): React.ReactNode => {
-    // ---------- Filter mode ----------
-    if (currencyFilter !== "all") {
-        const match = totals.find(
-            (t) => t.currency.toUpperCase() === currencyFilter.toUpperCase()
-        );
+    const code = (currencyCode || "BDT").toUpperCase();
+    const match = totals.find((t) => t.currency.toUpperCase() === code);
+    const amount = match?.total ?? 0;
 
-        if (!match || match.total === 0) {
-            return (
-                <span className="text-2xl font-black font-mono tracking-tight text-slate-300">
-                    {getCurrencySymbol(currencyFilter)}0
-                </span>
-            );
-        }
-
-        return (
-            <span className="text-2xl font-black font-mono tracking-tight">
-                {getCurrencySymbol(match.currency)}
-                {formatAmount(match.total)}
-            </span>
-        );
-    }
-
-    // ---------- All mode ----------
-    if (totals.length === 0) {
+    // When zero, render in muted gray
+    if (amount === 0) {
         return (
             <span className="text-2xl font-black font-mono tracking-tight text-slate-300">
-                {emptyText}
+                {getCurrencySymbol(code)}0
             </span>
         );
     }
 
-    if (totals.length === 1) {
-        const { currency, total } = totals[0];
-        return (
-            <span className="text-2xl font-black font-mono tracking-tight">
-                {getCurrencySymbol(currency)}
-                {formatAmount(total)}
-            </span>
-        );
-    }
-
-    // ---------- Multiple: side by side ----------
     return (
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="text-2xl font-black font-mono tracking-tight">
+            {getCurrencySymbol(code)}
+            {formatAmount(amount)}
+        </span>
+    );
+};
+
+/**
+ * Render a small compact multi-currency total.
+ * Used for the queue card's subtext (which shows all currencies).
+ */
+const renderCompactCurrencyTotals = (
+    totals: { currency: string; total: number }[],
+    emptyText: string = "৳0 pending sign-off"
+): React.ReactNode => {
+    if (totals.length === 0) return <span>{emptyText}</span>;
+
+    return (
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {totals.map((t) => (
                 <span key={t.currency} className="inline-flex items-baseline">
-                    <span className="text-lg font-black font-mono tracking-tight">
+                    <span className="font-bold text-slate-600">
                         {getCurrencySymbol(t.currency)}
                         {formatAmount(t.total)}
                     </span>
-                    <span className="ml-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span className="ml-0.5 text-[10px] font-bold text-slate-400 uppercase">
                         {t.currency}
                     </span>
                 </span>
             ))}
-        </div>
+        </span>
     );
 };
 
@@ -166,7 +165,7 @@ interface StatCardProps {
     subtext: React.ReactNode;
     valueColorClass: string;
     icon: React.ElementType;
-    headerAction?: React.ReactNode;   // 👈 NEW — slot for a select/button in the header
+    headerAction?: React.ReactNode;
 }
 
 const StatCard = memo(function StatCard({
@@ -184,7 +183,6 @@ const StatCard = memo(function StatCard({
                     {label}
                 </p>
 
-                {/* 👇 Show the action (select) or fall back to the icon */}
                 {headerAction ? (
                     headerAction
                 ) : (
@@ -194,11 +192,7 @@ const StatCard = memo(function StatCard({
                 )}
             </div>
 
-            <div
-                className={`text-2xl font-black font-mono tracking-tight mt-2 ${valueColorClass}`}
-            >
-                {value}
-            </div>
+            <div className={`mt-2 ${valueColorClass}`}>{value}</div>
 
             <p className="text-xs text-slate-400 mt-1">{subtext}</p>
         </div>
@@ -227,8 +221,9 @@ export default function ExpensesPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
-    // 👇 Currency filter for the Total Amount card
-    const [totalCurrencyFilter, setTotalCurrencyFilter] = useState<string>("all");
+    // 👇 Currency filter for the Total Amount card — defaults to BDT
+    const [totalCurrencyFilter, setTotalCurrencyFilter] =
+        useState<string>("BDT");
 
     // Modal Visibility States
     const [showCreate, setShowCreate] = useState(false);
@@ -442,7 +437,6 @@ export default function ExpensesPage() {
             if (e.status === "approved") approved++;
         }
 
-        // Currency-aware total: only approved + paid
         const totals = aggregateByCurrency(
             allExpenses,
             (e) => e.status === "approved" || e.status === "paid"
@@ -470,14 +464,34 @@ export default function ExpensesPage() {
         return { pending, totals };
     }, [approvalGroups]);
 
-    // 👇 All currencies present in the loaded expenses (for the dropdown)
+    /**
+     * Currencies to show in the dropdown:
+     *  - Always include BDT (the default), even if there are no BDT expenses
+     *  - Add every currency that actually appears in the loaded expenses
+     *  - Sort by CURRENCY_PRIORITY so the order is stable
+     */
     const availableCurrencies = useMemo(() => {
-        const set = new Set<string>();
+        const set = new Set<string>(["BDT"]);
         for (const e of allExpenses) {
             set.add((e.currency || "BDT").toUpperCase());
         }
-        return Array.from(set).sort();
+
+        return Array.from(set).sort((a, b) => {
+            const ia = CURRENCY_PRIORITY.indexOf(a);
+            const ib = CURRENCY_PRIORITY.indexOf(b);
+            if (ia === -1 && ib === -1) return a.localeCompare(b);
+            if (ia === -1) return 1;
+            if (ib === -1) return -1;
+            return ia - ib;
+        });
     }, [allExpenses]);
+
+    // If the currently selected currency disappears from the list, reset to BDT
+    useEffect(() => {
+        if (!availableCurrencies.includes(totalCurrencyFilter)) {
+            setTotalCurrencyFilter("BDT");
+        }
+    }, [availableCurrencies, totalCurrencyFilter]);
 
     const handleOpenDelete = useCallback(
         (id: string) => {
@@ -565,19 +579,14 @@ export default function ExpensesPage() {
                         icon={CheckCircle2}
                     />
 
-                    {/* 👇 Total Amount with currency filter select */}
+                    {/* Total Amount with currency selector (default BDT) */}
                     <StatCard
                         label="Total Amount"
-                        value={renderCurrencyTotals(
+                        value={renderSelectedCurrencyTotal(
                             generalStats.totals,
-                            "0",
                             totalCurrencyFilter
                         )}
-                        subtext={
-                            totalCurrencyFilter === "all"
-                                ? "Combined approved & paid"
-                                : `Approved & paid in ${totalCurrencyFilter}`
-                        }
+                        subtext={`Approved & paid in ${totalCurrencyFilter}`}
                         valueColorClass="text-slate-950"
                         icon={Wallet}
                         headerAction={
@@ -587,9 +596,8 @@ export default function ExpensesPage() {
                                     setTotalCurrencyFilter(e.target.value)
                                 }
                                 className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900/10 cursor-pointer"
-                                aria-label="Filter total amount by currency"
+                                aria-label="Select currency for total amount"
                             >
-                                <option value="all">All</option>
                                 {availableCurrencies.map((code) => (
                                     <option key={code} value={code}>
                                         {getCurrencySymbol(code)} {code}
@@ -603,7 +611,7 @@ export default function ExpensesPage() {
                         <StatCard
                             label="Team Approval Queue"
                             value={queueStats.pending}
-                            subtext={renderCurrencyTotals(
+                            subtext={renderCompactCurrencyTotals(
                                 queueStats.totals,
                                 "৳0 pending sign-off"
                             )}
