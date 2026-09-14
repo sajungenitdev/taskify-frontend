@@ -10,7 +10,6 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-  type TooltipProps,
 } from "recharts";
 import { BarChart3, TrendingUp, DollarSign } from "lucide-react";
 import { monthLabel, formatMoney } from "@/utils/format";
@@ -133,7 +132,18 @@ export const ForecastChart = memo(function ForecastChart({
 // Custom Tooltip
 // ============================================================================
 
-interface CustomTooltipProps extends TooltipProps<number, string> {
+interface TooltipPayloadItem {
+  dataKey?: string | number;
+  value?: number | string;
+  name?: string;
+  color?: string;
+  [key: string]: unknown;
+}
+
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string | number;
   currency: Currency;
 }
 
