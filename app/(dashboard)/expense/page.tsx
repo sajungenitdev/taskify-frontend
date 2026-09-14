@@ -23,11 +23,12 @@ import MyExpensesTable from "@/components/modals/MyExpensesTable";
 import ApprovalQueueTable from "@/components/modals/ApprovalQueueTable";
 import CreateExpenseModal from "@/components/modals/CreateExpenseModal";
 import ViewExpenseModal from "@/components/modals/ViewExpenseModal";
+import EditExpenseModal from "@/components/modals/EditExpenseModal";
 import DeleteExpenseDialog from "@/components/modals/DeleteExpenseDialog";
 import RejectExpenseModal from "@/components/modals/RejectExpenseModal";
 
 // ==========================================
-// Types & Domain Definitions
+// Types & Constants
 // ==========================================
 
 export type ExpenseTab = "my" | "queue";
@@ -49,15 +50,111 @@ interface RejectModalState {
 
 const APPROVER_ROLES = ["super_admin", "admin", "hr_manager"] as const;
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+    BDT: "৳",
+    SAR: "﷼",
+    USD: "$",
+    AED: "د.إ",
+    INR: "₹",
+    EUR: "€",
+    GBP: "£",
+};
+
 // ==========================================
 // Helpers
 // ==========================================
 
-const formatBDT = (amount: number): string =>
-    new Intl.NumberFormat("en-BD", {
+const formatAmount = (amount: number): string =>
+    new Intl.NumberFormat("en-US", {
         maximumFractionDigits: 0,
         minimumFractionDigits: 0,
     }).format(amount);
+
+const getCurrencySymbol = (code?: string): string =>
+    CURRENCY_SYMBOLS[(code || "BDT").toUpperCase()] || code || "";
+
+/**
+ * Aggregate totals per currency.
+ */
+const aggregateByCurrency = (
+    expenses: Expense[],
+    filterFn: (e: Expense) => boolean = () => true
+): { currency: string; total: number }[] => {
+    const map = new Map<string, number>();
+
+    for (const e of expenses) {
+        if (!filterFn(e)) continue;
+        const code = (e.currency || "BDT").toUpperCase();
+        map.set(code, (map.get(code) || 0) + (e.amount || 0));
+    }
+
+    return Array.from(map.entries())
+        .map(([currency, total]) => ({ currency, total }))
+        .sort((a, b) => b.total - a.total);
+};
+const renderCurrencyTotals = (
+    totals: { currency: string; total: number }[],
+    emptyText: string = "0",
+    currencyFilter: string = "all"
+): React.ReactNode => {
+    // ---------- Filter mode ----------
+    if (currencyFilter !== "all") {
+        const match = totals.find(
+            (t) => t.currency.toUpperCase() === currencyFilter.toUpperCase()
+        );
+
+        if (!match || match.total === 0) {
+            return (
+                <span className="text-2xl font-black font-mono tracking-tight text-slate-300">
+                    {getCurrencySymbol(currencyFilter)}0
+                </span>
+            );
+        }
+
+        return (
+            <span className="text-2xl font-black font-mono tracking-tight">
+                {getCurrencySymbol(match.currency)}
+                {formatAmount(match.total)}
+            </span>
+        );
+    }
+
+    // ---------- All mode ----------
+    if (totals.length === 0) {
+        return (
+            <span className="text-2xl font-black font-mono tracking-tight text-slate-300">
+                {emptyText}
+            </span>
+        );
+    }
+
+    if (totals.length === 1) {
+        const { currency, total } = totals[0];
+        return (
+            <span className="text-2xl font-black font-mono tracking-tight">
+                {getCurrencySymbol(currency)}
+                {formatAmount(total)}
+            </span>
+        );
+    }
+
+    // ---------- Multiple: side by side ----------
+    return (
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {totals.map((t) => (
+                <span key={t.currency} className="inline-flex items-baseline">
+                    <span className="text-lg font-black font-mono tracking-tight">
+                        {getCurrencySymbol(t.currency)}
+                        {formatAmount(t.total)}
+                    </span>
+                    <span className="ml-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        {t.currency}
+                    </span>
+                </span>
+            ))}
+        </div>
+    );
+};
 
 // ==========================================
 // Sub-Components
@@ -65,10 +162,11 @@ const formatBDT = (amount: number): string =>
 
 interface StatCardProps {
     label: string;
-    value: string | number;
-    subtext: string;
+    value: React.ReactNode;
+    subtext: React.ReactNode;
     valueColorClass: string;
     icon: React.ElementType;
+    headerAction?: React.ReactNode;   // 👈 NEW — slot for a select/button in the header
 }
 
 const StatCard = memo(function StatCard({
@@ -77,20 +175,31 @@ const StatCard = memo(function StatCard({
     subtext,
     valueColorClass,
     icon: Icon,
+    headerAction,
 }: StatCardProps) {
     return (
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs hover:shadow-sm transition-shadow">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
                 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     {label}
                 </p>
-                <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-slate-400">
-                    <Icon className="w-4 h-4" />
-                </div>
+
+                {/* 👇 Show the action (select) or fall back to the icon */}
+                {headerAction ? (
+                    headerAction
+                ) : (
+                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-slate-400">
+                        <Icon className="w-4 h-4" />
+                    </div>
+                )}
             </div>
-            <p className={`text-2xl font-black font-mono tracking-tight mt-2 ${valueColorClass}`}>
+
+            <div
+                className={`text-2xl font-black font-mono tracking-tight mt-2 ${valueColorClass}`}
+            >
                 {value}
-            </p>
+            </div>
+
             <p className="text-xs text-slate-400 mt-1">{subtext}</p>
         </div>
     );
@@ -118,10 +227,17 @@ export default function ExpensesPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
+    // 👇 Currency filter for the Total Amount card
+    const [totalCurrencyFilter, setTotalCurrencyFilter] = useState<string>("all");
+
     // Modal Visibility States
     const [showCreate, setShowCreate] = useState(false);
     const [viewExpense, setViewExpense] = useState<Expense | null>(null);
-    const [deleteExpenseItem, setDeleteExpenseItem] = useState<{ id: string; title?: string } | null>(null);
+    const [editExpense, setEditExpense] = useState<Expense | null>(null);
+    const [deleteExpenseItem, setDeleteExpenseItem] = useState<{
+        id: string;
+        title?: string;
+    } | null>(null);
     const [rejectData, setRejectData] = useState<RejectModalState | null>(null);
 
     // ============ AUTH GUARD ============
@@ -173,7 +289,9 @@ export default function ExpensesPage() {
             }
         } catch (error) {
             const err = error as AxiosError<{ message?: string }>;
-            toast.error(err.response?.data?.message || "Failed to load approval queue");
+            toast.error(
+                err.response?.data?.message || "Failed to load approval queue"
+            );
         } finally {
             setLoadingQueue(false);
         }
@@ -181,7 +299,6 @@ export default function ExpensesPage() {
 
     useEffect(() => {
         if (!isAuthenticated) return;
-
         let isSubscribed = true;
 
         const loadInitialData = async () => {
@@ -203,7 +320,10 @@ export default function ExpensesPage() {
 
     const handleRefresh = async () => {
         setRefreshing(true);
-        await Promise.all([fetchExpenses(), isApprover ? fetchQueue() : Promise.resolve()]);
+        await Promise.all([
+            fetchExpenses(),
+            isApprover ? fetchQueue() : Promise.resolve(),
+        ]);
         setRefreshing(false);
         toast.success("Expense data refreshed");
     };
@@ -212,14 +332,18 @@ export default function ExpensesPage() {
     const handleApprove = async (id: string) => {
         setProcessingId(id);
         try {
-            const res = await api.patch<ApiResponse<unknown>>(`/expenses/${id}/approve`);
+            const res = await api.patch<ApiResponse<unknown>>(
+                `/expenses/${id}/approve`
+            );
             if (res.data.success !== false) {
                 toast.success("Expense authorized");
                 await Promise.all([fetchExpenses(), fetchQueue()]);
             }
         } catch (error) {
             const err = error as AxiosError<{ message?: string }>;
-            toast.error(err.response?.data?.message || "Failed to approve expense");
+            toast.error(
+                err.response?.data?.message || "Failed to approve expense"
+            );
         } finally {
             setProcessingId(null);
         }
@@ -227,7 +351,9 @@ export default function ExpensesPage() {
 
     const handleBulkApprove = async (ids: string[]) => {
         try {
-            await Promise.all(ids.map((id) => api.patch(`/expenses/${id}/approve`)));
+            await Promise.all(
+                ids.map((id) => api.patch(`/expenses/${id}/approve`))
+            );
             toast.success(`${ids.length} expense(s) authorized`);
             await Promise.all([fetchExpenses(), fetchQueue()]);
         } catch {
@@ -237,14 +363,23 @@ export default function ExpensesPage() {
 
     const executeBulkDelete = async (ids: string[], toastId: string) => {
         toast.dismiss(toastId);
-        const loadingToast = toast.loading(`Deleting ${ids.length} expense(s)...`);
+        const loadingToast = toast.loading(
+            `Deleting ${ids.length} expense(s)...`
+        );
 
         try {
             await Promise.all(ids.map((id) => api.delete(`/expenses/${id}`)));
-            toast.success(`${ids.length} expense(s) deleted`, { id: loadingToast });
-            await Promise.all([fetchExpenses(), isApprover ? fetchQueue() : Promise.resolve()]);
+            toast.success(`${ids.length} expense(s) deleted`, {
+                id: loadingToast,
+            });
+            await Promise.all([
+                fetchExpenses(),
+                isApprover ? fetchQueue() : Promise.resolve(),
+            ]);
         } catch {
-            toast.error("Failed to delete selected expenses", { id: loadingToast });
+            toast.error("Failed to delete selected expenses", {
+                id: loadingToast,
+            });
         }
     };
 
@@ -256,7 +391,8 @@ export default function ExpensesPage() {
                 <div className="flex flex-col gap-2.5 py-1">
                     <div>
                         <p className="text-xs font-bold text-slate-900">
-                            Delete {ids.length} selected expense{ids.length > 1 ? "s" : ""}?
+                            Delete {ids.length} selected expense
+                            {ids.length > 1 ? "s" : ""}?
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
                             This action cannot be undone.
@@ -299,37 +435,57 @@ export default function ExpensesPage() {
     const generalStats = useMemo(() => {
         let pending = 0;
         let approved = 0;
-        let totalAmount = 0;
 
         for (let i = 0; i < allExpenses.length; i++) {
             const e = allExpenses[i];
             if (e.status === "pending") pending++;
             if (e.status === "approved") approved++;
-            if (e.status === "approved" || e.status === "paid") {
-                totalAmount += e.amount;
-            }
         }
 
-        return { pending, approved, totalAmount };
+        // Currency-aware total: only approved + paid
+        const totals = aggregateByCurrency(
+            allExpenses,
+            (e) => e.status === "approved" || e.status === "paid"
+        );
+
+        return { pending, approved, totals };
     }, [allExpenses]);
 
     const queueStats = useMemo(() => {
         let pending = 0;
-        let total = 0;
 
         for (let i = 0; i < approvalGroups.length; i++) {
-            const g = approvalGroups[i];
-            pending += g.pendingCount;
-            total += g.totalAmount;
+            pending += approvalGroups[i].pendingCount;
         }
 
-        return { pending, total };
+        const allQueueExpenses: Expense[] = approvalGroups.flatMap(
+            (g) => g.expenses ?? []
+        );
+
+        const totals = aggregateByCurrency(
+            allQueueExpenses,
+            (e) => e.status === "pending"
+        );
+
+        return { pending, totals };
     }, [approvalGroups]);
 
-    const handleOpenDelete = useCallback((id: string) => {
-        const target = allExpenses.find((e) => e._id === id);
-        setDeleteExpenseItem({ id, title: target?.title });
+    // 👇 All currencies present in the loaded expenses (for the dropdown)
+    const availableCurrencies = useMemo(() => {
+        const set = new Set<string>();
+        for (const e of allExpenses) {
+            set.add((e.currency || "BDT").toUpperCase());
+        }
+        return Array.from(set).sort();
     }, [allExpenses]);
+
+    const handleOpenDelete = useCallback(
+        (id: string) => {
+            const target = allExpenses.find((e) => e._id === id);
+            setDeleteExpenseItem({ id, title: target?.title });
+        },
+        [allExpenses]
+    );
 
     const handleOpenReject = useCallback((id: string, title: string) => {
         setRejectData({ id, title });
@@ -373,7 +529,10 @@ export default function ExpensesPage() {
                             className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors text-slate-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-slate-900/10 shadow-xs cursor-pointer"
                             title="Refresh logs"
                         >
-                            <RefreshCw size={16} className={refreshing ? "animate-spin text-slate-900" : ""} />
+                            <RefreshCw
+                                size={16}
+                                className={refreshing ? "animate-spin text-slate-900" : ""}
+                            />
                         </button>
                         <button
                             type="button"
@@ -387,7 +546,10 @@ export default function ExpensesPage() {
                 </header>
 
                 {/* Analytic Metrics */}
-                <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Expense Statistics">
+                <section
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+                    aria-label="Expense Statistics"
+                >
                     <StatCard
                         label={isApprover ? "Total Pending" : "My Pending Claims"}
                         value={generalStats.pending}
@@ -402,18 +564,49 @@ export default function ExpensesPage() {
                         valueColorClass="text-emerald-600"
                         icon={CheckCircle2}
                     />
+
+                    {/* 👇 Total Amount with currency filter select */}
                     <StatCard
                         label="Total Amount"
-                        value={`৳${formatBDT(generalStats.totalAmount)}`}
-                        subtext="Combined approved & paid"
+                        value={renderCurrencyTotals(
+                            generalStats.totals,
+                            "0",
+                            totalCurrencyFilter
+                        )}
+                        subtext={
+                            totalCurrencyFilter === "all"
+                                ? "Combined approved & paid"
+                                : `Approved & paid in ${totalCurrencyFilter}`
+                        }
                         valueColorClass="text-slate-950"
                         icon={Wallet}
+                        headerAction={
+                            <select
+                                value={totalCurrencyFilter}
+                                onChange={(e) =>
+                                    setTotalCurrencyFilter(e.target.value)
+                                }
+                                className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900/10 cursor-pointer"
+                                aria-label="Filter total amount by currency"
+                            >
+                                <option value="all">All</option>
+                                {availableCurrencies.map((code) => (
+                                    <option key={code} value={code}>
+                                        {getCurrencySymbol(code)} {code}
+                                    </option>
+                                ))}
+                            </select>
+                        }
                     />
+
                     {isApprover && (
                         <StatCard
                             label="Team Approval Queue"
                             value={queueStats.pending}
-                            subtext={`৳${formatBDT(queueStats.total)} pending sign-off`}
+                            subtext={renderCurrencyTotals(
+                                queueStats.totals,
+                                "৳0 pending sign-off"
+                            )}
                             valueColorClass="text-rose-600"
                             icon={AlertCircle}
                         />
@@ -422,7 +615,10 @@ export default function ExpensesPage() {
 
                 {/* Navigation Tabs */}
                 {isApprover && (
-                    <nav className="flex items-center gap-2 border-b border-slate-200/80" aria-label="Expense Views">
+                    <nav
+                        className="flex items-center gap-2 border-b border-slate-200/80"
+                        aria-label="Expense Views"
+                    >
                         <button
                             type="button"
                             onClick={() => setActiveTab("my")}
@@ -478,6 +674,7 @@ export default function ExpensesPage() {
                             <MyExpensesTable
                                 expenses={allExpenses}
                                 onView={setViewExpense}
+                                onEdit={setEditExpense}
                                 onDelete={handleOpenDelete}
                                 onBulkDelete={handleBulkDelete}
                             />
@@ -511,6 +708,16 @@ export default function ExpensesPage() {
                 isOpen={Boolean(viewExpense)}
                 expense={viewExpense}
                 onClose={() => setViewExpense(null)}
+            />
+
+            <EditExpenseModal
+                isOpen={Boolean(editExpense)}
+                expense={editExpense}
+                onClose={() => setEditExpense(null)}
+                onUpdated={async () => {
+                    await fetchExpenses();
+                    if (isApprover) await fetchQueue();
+                }}
             />
 
             <DeleteExpenseDialog

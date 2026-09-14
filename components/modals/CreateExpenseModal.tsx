@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback, memo } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X,
@@ -29,6 +29,8 @@ export type ExpenseCategory =
     | "personal"
     | "other";
 
+export type CurrencyCode = "BDT" | "SAR" | "USD" | "AED" | "INR" | "EUR" | "GBP";
+
 export interface GeoCoordinates {
     lat: number;
     lng: number;
@@ -39,7 +41,7 @@ export interface ExpensePayload {
     description: string;
     category: ExpenseCategory;
     amount: number;
-    currency: "BDT";
+    currency: CurrencyCode;
     guests: number;
     expenseDate: string;
     location: {
@@ -70,6 +72,20 @@ const CATEGORY_OPTIONS: { value: ExpenseCategory; label: string }[] = [
     { value: "other", label: "Other" },
 ];
 
+const CURRENCY_OPTIONS: {
+    value: CurrencyCode;
+    symbol: string;
+    label: string;
+}[] = [
+        { value: "BDT", symbol: "৳", label: "BDT — Bangladeshi Taka" },
+        { value: "SAR", symbol: "﷼", label: "SAR — Saudi Riyal" },
+        { value: "USD", symbol: "$", label: "USD — US Dollar" },
+        { value: "AED", symbol: "د.إ", label: "AED — UAE Dirham" },
+        { value: "INR", symbol: "₹", label: "INR — Indian Rupee" },
+        { value: "EUR", symbol: "€", label: "EUR — Euro" },
+        { value: "GBP", symbol: "£", label: "GBP — British Pound" },
+    ];
+
 const MAX_FILE_SIZE_MB = 3;
 const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024; // 8 MB safety threshold for base64
 
@@ -80,6 +96,9 @@ const ALLOWED_MIME_TYPES = [
     "image/gif",
     "application/pdf",
 ];
+
+const getCurrencySymbol = (code: CurrencyCode): string =>
+    CURRENCY_OPTIONS.find((c) => c.value === code)?.symbol || code;
 
 // ==========================================
 // Main Component
@@ -95,6 +114,7 @@ export default function CreateExpenseModal({
     const [description, setDescription] = useState("");
     const [category, setCategory] = useState<ExpenseCategory>("transport");
     const [amount, setAmount] = useState("");
+    const [currency, setCurrency] = useState<CurrencyCode>("BDT");
     const [guests, setGuests] = useState("");
     const [expenseDate, setExpenseDate] = useState(
         () => new Date().toISOString().split("T")[0]
@@ -113,12 +133,13 @@ export default function CreateExpenseModal({
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Reset form when modal opens or closes
+    // Reset form when modal opens
     const resetForm = useCallback(() => {
         setTitle("");
         setDescription("");
         setCategory("transport");
         setAmount("");
+        setCurrency("BDT");
         setGuests("");
         setExpenseDate(new Date().toISOString().split("T")[0]);
         setLocationLabel("");
@@ -153,7 +174,7 @@ export default function CreateExpenseModal({
                 toast.success("GPS location tagged successfully");
                 setIsLocating(false);
             },
-            (error) => {
+            () => {
                 toast.error("Unable to obtain GPS coordinates");
                 setIsLocating(false);
             },
@@ -173,7 +194,7 @@ export default function CreateExpenseModal({
         }
 
         if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-            toast.error("Only image formats (JPEG, PNG, WebP) and PDFs are supported");
+            toast.error("Only images (JPEG, PNG, WebP) and PDFs are supported");
             if (fileInputRef.current) fileInputRef.current.value = "";
             return;
         }
@@ -234,7 +255,7 @@ export default function CreateExpenseModal({
             description: description.trim(),
             category,
             amount: numericAmount,
-            currency: "BDT",
+            currency, // 👈 selected currency
             guests: category === "meals" ? parseInt(guests, 10) || 0 : 0,
             expenseDate,
             location: {
@@ -311,7 +332,7 @@ export default function CreateExpenseModal({
 
                         {/* Modal Body */}
                         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
-                            {/* Title Field */}
+                            {/* Title */}
                             <div>
                                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Expense Title <span className="text-rose-500">*</span>
@@ -327,28 +348,30 @@ export default function CreateExpenseModal({
                                 />
                             </div>
 
-                            {/* Category & Amount Row */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-                                        Category <span className="text-rose-500">*</span>
-                                    </label>
-                                    <select
-                                        value={category}
-                                        onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
-                                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
-                                    >
-                                        {CATEGORY_OPTIONS.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                            {/* Category */}
+                            <div>
+                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                                    Category <span className="text-rose-500">*</span>
+                                </label>
+                                <select
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value as ExpenseCategory)}
+                                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
+                                >
+                                    {CATEGORY_OPTIONS.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
 
-                                <div>
+                            {/* Amount + Currency */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div className="sm:col-span-2">
                                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
-                                        Amount (৳) <span className="text-rose-500">*</span>
+                                        Amount ({getCurrencySymbol(currency)}){" "}
+                                        <span className="text-rose-500">*</span>
                                     </label>
                                     <input
                                         type="number"
@@ -361,9 +384,26 @@ export default function CreateExpenseModal({
                                         className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 font-mono placeholder:text-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                                        Currency <span className="text-rose-500">*</span>
+                                    </label>
+                                    <select
+                                        value={currency}
+                                        onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
+                                        className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 outline-none transition"
+                                    >
+                                        {CURRENCY_OPTIONS.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                                {opt.symbol} {opt.value}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
-                            {/* Dynamic Meal Guests Field */}
+                            {/* Guests (meals only) */}
                             {category === "meals" && (
                                 <div>
                                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
@@ -380,7 +420,7 @@ export default function CreateExpenseModal({
                                 </div>
                             )}
 
-                            {/* Date Field */}
+                            {/* Date */}
                             <div>
                                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Expense Date <span className="text-rose-500">*</span>
@@ -395,7 +435,7 @@ export default function CreateExpenseModal({
                                 />
                             </div>
 
-                            {/* Description Field */}
+                            {/* Description */}
                             <div>
                                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Description / Note
@@ -410,7 +450,7 @@ export default function CreateExpenseModal({
                                 />
                             </div>
 
-                            {/* Location with GPS Verification */}
+                            {/* Location */}
                             <div>
                                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Location (GPS Verification)
@@ -446,7 +486,7 @@ export default function CreateExpenseModal({
                                 )}
                             </div>
 
-                            {/* Receipt Upload Field */}
+                            {/* Receipt */}
                             <div>
                                 <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
                                     Receipt or Proof (Max {MAX_FILE_SIZE_MB}MB)
@@ -514,7 +554,7 @@ export default function CreateExpenseModal({
                                 )}
                             </div>
 
-                            {/* Policy Informational Note */}
+                            {/* Info note */}
                             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 flex items-start gap-2.5">
                                 <Info size={15} className="text-slate-600 mt-0.5 shrink-0" />
                                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -523,7 +563,7 @@ export default function CreateExpenseModal({
                                 </p>
                             </div>
 
-                            {/* Action Buttons */}
+                            {/* Actions */}
                             <div className="pt-2 flex items-center gap-3">
                                 <button
                                     type="button"
