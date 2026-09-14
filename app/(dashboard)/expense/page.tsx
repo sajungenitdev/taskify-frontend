@@ -132,12 +132,9 @@ export default function ExpensesPage() {
     }, [authLoading, isAuthenticated, router]);
 
     // ============ FETCH ACTIONS ============
-    // If Super Admin / Admin / HR, fetch all expenses from `/expenses`. Otherwise fetch `/expenses/my`.
     const fetchExpenses = useCallback(async () => {
         try {
             setLoadingExpenses(true);
-
-            // ✅ Admins hit /all, employees hit /my — no silent fallback
             const endpoint = isApprover ? "/expenses/all" : "/expenses/my";
             const res = await api.get<ApiResponse<any>>(endpoint);
 
@@ -238,16 +235,64 @@ export default function ExpensesPage() {
         }
     };
 
-    const handleBulkDelete = async (ids: string[]) => {
-        if (!confirm(`Are you sure you want to delete ${ids.length} expense record(s)?`)) return;
+    const executeBulkDelete = async (ids: string[], toastId: string) => {
+        toast.dismiss(toastId);
+        const loadingToast = toast.loading(`Deleting ${ids.length} expense(s)...`);
 
         try {
             await Promise.all(ids.map((id) => api.delete(`/expenses/${id}`)));
-            toast.success(`${ids.length} expense(s) deleted`);
+            toast.success(`${ids.length} expense(s) deleted`, { id: loadingToast });
             await Promise.all([fetchExpenses(), isApprover ? fetchQueue() : Promise.resolve()]);
         } catch {
-            toast.error("Failed to delete selected expenses");
+            toast.error("Failed to delete selected expenses", { id: loadingToast });
         }
+    };
+
+    const handleBulkDelete = (ids: string[]) => {
+        if (!ids.length) return;
+
+        toast(
+            (t) => (
+                <div className="flex flex-col gap-2.5 py-1">
+                    <div>
+                        <p className="text-xs font-bold text-slate-900">
+                            Delete {ids.length} selected expense{ids.length > 1 ? "s" : ""}?
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                            This action cannot be undone.
+                        </p>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100">
+                        <button
+                            type="button"
+                            onClick={() => toast.dismiss(t.id)}
+                            className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => executeBulkDelete(ids, t.id)}
+                            className="px-3 py-1 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-2xs transition cursor-pointer"
+                        >
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            ),
+            {
+                duration: 8000,
+                position: "top-center",
+                style: {
+                    borderRadius: "1rem",
+                    border: "1px solid #e2e8f0",
+                    padding: "0.85rem 1rem",
+                    boxShadow: "0 10px 25px -5px rgba(15, 23, 42, 0.15)",
+                    background: "#ffffff",
+                },
+            }
+        );
     };
 
     // ============ SUMMARY METRICS ============
