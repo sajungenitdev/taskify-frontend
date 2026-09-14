@@ -381,6 +381,7 @@ export default function Sidebar({
   const sectionOrder: SectionId[] = [
     "main",
     "kpi",
+    "crm",
     "projects",
     "tasks",
     "team",

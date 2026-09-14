@@ -148,6 +148,7 @@ export interface SectionConfig {
 
 export type SectionId =
   | "main"
+  | "crm"
   | "projects"
   | "tasks"
   | "team"
@@ -199,6 +200,12 @@ export const SECTIONS: Record<SectionId, SectionConfig> = {
     title: "PERFORMANCE & KPI",
     icon: Trophy,
     priority: 5,
+  },
+  crm: {
+    id: "crm",
+    title: "CRM",
+    icon: HandHelping,
+    priority: 6,
   },
   projects: {
     id: "projects",
@@ -404,6 +411,23 @@ export const MAIN_ITEMS = {
     { section: "kpi", description: "Define and track Key Performance Indicators" },
   ),
 
+  // CRM
+  crmManagement: createNavItem(
+    "crm-management",
+    "CRM",
+    "/crm",
+    HandHelping,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.HR_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { section: "crm", description: "Manage contacts, deals, clients, and sales" },
+  ),
+
   // Projects
   projects: createNavItem(
     "projects",
@@ -521,37 +545,6 @@ export const SUB_ITEMS = {
     ],
     { description: "Update your personal information" },
   ),
-  // accountSettings: createSubNavItem(
-  //   "account-settings",
-  //   "Account Settings",
-  //   "/settings/account",
-  //   Settings,
-  //   "My Profile",
-  //   [
-  //     ROLES.SUPER_ADMIN,
-  //     ROLES.ADMIN,
-  //     ROLES.HR_MANAGER,
-  //     ROLES.EMPLOYEE,
-  //     ROLES.DEPT_MANAGER,
-  //     ROLES.EMPLOYEE
-  //   ],
-  //   { description: "Manage your account preferences" },
-  // ),
-  // securitySettings: createSubNavItem(
-  //   "security-settings",
-  //   "Security",
-  //   "/settings/security",
-  //   ShieldCheck,
-  //   "My Profile",
-  //   [
-  //     ROLES.SUPER_ADMIN,
-  //     ROLES.ADMIN,
-  //     ROLES.HR_MANAGER,
-  //     ROLES.EMPLOYEE,
-  //     ROLES.DEPT_MANAGER,
-  //   ],
-  //   { description: "Manage your security settings" },
-  // ),
   onboarding: createSubNavItem(
     "onboarding",
     "Onboarding",
@@ -617,11 +610,6 @@ export const SUB_ITEMS = {
     MessageCircle,
     "My Profile",
     [ROLES.ALL],
-    // {
-    //   badge: "New",
-    //   badgeColor: "bg-linear-to-r from-indigo-500 to-purple-500",
-    //   description: "Get intelligent assistance from AI",
-    // },
   ),
 
 
@@ -722,6 +710,127 @@ export const SUB_ITEMS = {
       ROLES.EMPLOYEE
     ],
     { description: "Track KPI trends over time" },
+  ),
+
+  // CRM Sub-items
+  crmDashboard: createSubNavItem(
+    "crm-dashboard",
+    "CRM Overview",
+    "/crm",
+    LayoutDashboard,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Overview of contacts, deals, and pipeline" },
+  ),
+  crmContacts: createSubNavItem(
+    "crm-contacts",
+    "Contacts",
+    "/crm/contacts",
+    Users,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Directory of contacts with owner, tag, and source" },
+  ),
+  crmPipeline: createSubNavItem(
+    "crm-pipeline",
+    "Sales Pipeline",
+    "/crm/pipeline",
+    Kanban,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Kanban board for deals across pipeline stages" },
+  ),
+  crmClients: createSubNavItem(
+    "crm-clients",
+    "Clients",
+    "/crm/clients",
+    Building2,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Client directory with visit history and RFQs" },
+  ),
+  crmForecast: createSubNavItem(
+    "crm-forecast",
+    "Sales Forecast",
+    "/crm/forecast",
+    TrendingUp,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Weighted monthly revenue forecast" },
+  ),
+  crmLeaderboard: createSubNavItem(
+    "crm-leaderboard",
+    "Sales Leaderboard",
+    "/crm/leaderboard",
+    Trophy,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Rep performance by won revenue and activity" },
+  ),
+  crmActivities: createSubNavItem(
+    "crm-activities",
+    "My Activity Feed",
+    "/crm/activities",
+    Activity,
+    "CRM",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Your recent calls, emails, and follow-ups" },
   ),
 
   // User Management Sub-items
