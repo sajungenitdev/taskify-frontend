@@ -374,6 +374,18 @@ export const MAIN_ITEMS = {
       description: "Manage departments and organizational structure",
     },
   ),
+  // Department Management
+  expenseManagement: createNavItem(
+    "expense-management",
+    "Expense Management",
+    "/expense",
+    Building2,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.EMPLOYEE],
+    {
+      section: "main",
+      description: "Manage departments and organizational structure",
+    },
+  ),
 
   // KPI Management
   kpiManagement: createNavItem(
