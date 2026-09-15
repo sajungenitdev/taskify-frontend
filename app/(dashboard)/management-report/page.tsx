@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 
 export type TaskStatus =
@@ -93,6 +93,26 @@ const PERCENT_OPTIONS: EvalRating[] = [
     "--",
 ];
 
+const COLUMNS = [
+    "status",
+    "priority",
+    "startDate",
+    "endDate",
+    "givenDuration",
+    "day",
+    "taskDescription",
+    "deliverDate",
+    "totalHrs",
+    "workLinkText",
+    "supervisor",
+    "hr",
+    "ceo",
+    "statusCol",
+    "comments",
+] as const;
+
+type ColumnKey = (typeof COLUMNS)[number];
+
 const DAYS_OF_WEEK = [
     "Sunday",
     "Monday",
@@ -105,6 +125,22 @@ const DAYS_OF_WEEK = [
 
 function getDayName(year: number, monthZeroIndexed: number, day: number) {
     return DAYS_OF_WEEK[new Date(year, monthZeroIndexed, day).getDay()];
+}
+
+function toIsoDate(usDateStr: string): string {
+    if (!usDateStr) return "";
+    const parts = usDateStr.split("/");
+    if (parts.length === 3) {
+        const [m, d, y] = parts;
+        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+    }
+    return usDateStr;
+}
+
+function fromIsoDate(isoStr: string): string {
+    if (!isoStr) return "";
+    const [y, m, d] = isoStr.split("-");
+    return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y}`;
 }
 
 const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
@@ -122,12 +158,12 @@ const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
             priority: "Medium",
             startDate: dateStr,
             endDate: dateStr,
-            givenDuration: "0:00",
+            givenDuration: "00:00",
             day: dayName,
             taskDescription: "Official Off",
             isRedNote: true,
             deliverDate: dateStr,
-            totalHrs: "0:00",
+            totalHrs: "00:00",
             workLinkText: "Official Off (July Mass Uprising Day)",
             isOffDay: true,
             supervisor: "100%",
@@ -145,12 +181,12 @@ const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
             priority: "Medium",
             startDate: dateStr,
             endDate: dateStr,
-            givenDuration: "0:00",
+            givenDuration: "00:00",
             day: dayName,
             taskDescription: "Official Off",
             isRedNote: true,
             deliverDate: dateStr,
-            totalHrs: "0:00",
+            totalHrs: "00:00",
             workLinkText: "Official Off Day",
             isOffDay: true,
             supervisor: "100%",
@@ -168,12 +204,12 @@ const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
             priority: "Medium",
             startDate: dateStr,
             endDate: dateStr,
-            givenDuration: "0:00",
+            givenDuration: "00:00",
             day: dayName,
             taskDescription: "Sick Leave Taken",
             isRedNote: true,
             deliverDate: dateStr,
-            totalHrs: "0:00",
+            totalHrs: "00:00",
             workLinkText: "Official Off Day",
             isOffDay: true,
             supervisor: "0%",
@@ -183,73 +219,6 @@ const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
         };
     }
 
-    const sampleDescriptions: Record<
-        number,
-        { desc: string; sup: EvalRating; hr: EvalRating; ceo: EvalRating }
-    > = {
-        2: {
-            desc: "Timer begins counting up. Timer persists and syncs with live elapsed time.",
-            sup: "75%",
-            hr: "75%",
-            ceo: "80%",
-        },
-        3: {
-            desc: "Daily bar chart displays correct hours per day. Task-by-task timer log matches actual sessions performed.",
-            sup: "85%",
-            hr: "85%",
-            ceo: "85%",
-        },
-        4: {
-            desc: "Daily bar chart displays correct hours per day. Task-by-task timer log matches actual sessions performed.",
-            sup: "80%",
-            hr: "75%",
-            ceo: "75%",
-        },
-        6: {
-            desc: "Project Module are created and also fully working. User can now assign under a project.",
-            sup: "90%",
-            hr: "80%",
-            ceo: "90%",
-        },
-        8: {
-            desc: "Project Calculation now fully calculate the accurate Cost. And logic fully working.",
-            sup: "75%",
-            hr: "85%",
-            ceo: "80%",
-        },
-        9: {
-            desc: "Ai Services Basement Creation Complete with github connect also vercel and others Credential added.",
-            sup: "80%",
-            hr: "80%",
-            ceo: "85%",
-        },
-        10: {
-            desc: "Make the frontend home page complete with same to same design as give.",
-            sup: "75%",
-            hr: "75%",
-            ceo: "80%",
-        },
-        11: {
-            desc: "Make the others page as static but complete other pages and also live push for view.",
-            sup: "90%",
-            hr: "90%",
-            ceo: "90%",
-        },
-        13: {
-            desc: "Task management design update and also some error solve, with new user register with team.",
-            sup: "85%",
-            hr: "75%",
-            ceo: "75%",
-        },
-    };
-
-    const sample = sampleDescriptions[dayNum] || {
-        desc: "Feature updates, UI responsive adjustments, bug fixing and client review sync.",
-        sup: "85%",
-        hr: "80%",
-        ceo: "80%",
-    };
-
     return {
         id: dayNum,
         dayNum,
@@ -257,16 +226,21 @@ const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
         priority: "Medium",
         startDate: dateStr,
         endDate: dateStr,
-        givenDuration: "0:00",
+        givenDuration: "08:00",
         day: dayName,
-        taskDescription: sample.desc,
+        taskDescription:
+            dayNum === 2
+                ? "Timer begins counting up. Timer persists and syncs with live elapsed time."
+                : dayNum === 3
+                    ? "Daily bar chart displays correct hours per day. Task-by-task timer log matches actual sessions performed."
+                    : "Feature updates, UI responsive adjustments, bug fixing and client review sync.",
         deliverDate: dateStr,
-        totalHrs: "0:00",
+        totalHrs: "08:00",
         workLinkText: "https://taskify-frontend-alpha.vercel.app/login",
         workLinkUrl: "https://taskify-frontend-alpha.vercel.app/login",
-        supervisor: sample.sup,
-        hr: sample.hr,
-        ceo: sample.ceo,
+        supervisor: "85%",
+        hr: "80%",
+        ceo: "80%",
         comments: "",
     };
 });
@@ -310,7 +284,21 @@ export default function ManagementReportPage() {
     const [rows, setRows] = useState<TaskRowData[]>(INITIAL_ROWS);
     const [activeTab, setActiveTab] = useState("Aug");
 
-    const updateRow = <K extends keyof TaskRowData>(
+    // Selection Matrix
+    const [selectedCol, setSelectedCol] = useState<ColumnKey | null>(null);
+    const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
+    const [selectionRange, setSelectionRange] = useState<{
+        startR: number;
+        startC: number;
+        endR: number;
+        endC: number;
+    } | null>(null);
+    const [, setIsSelecting] = useState(false);
+    const [dragFillSource, setDragFillSource] = useState<{ r: number; c: number } | null>(null);
+
+    const tableRef = useRef<HTMLDivElement>(null);
+
+    const updateRow = useCallback(<K extends keyof TaskRowData>(
         id: number,
         key: K,
         value: TaskRowData[K]
@@ -327,13 +315,13 @@ export default function ManagementReportPage() {
                 return updated;
             })
         );
-    };
+    }, []);
 
+    // Aggregations
     const {
         avgSupervisor,
         avgHr,
         avgCeo,
-        overallPerformancePercent,
         overallStatusLabel,
         threePersonsCombinedAvg,
     } = useMemo(() => {
@@ -379,14 +367,160 @@ export default function ManagementReportPage() {
             avgSupervisor: supCount ? `${Math.round(sAvg)}%` : "0%",
             avgHr: hrCount ? `${Math.round(hAvg)}%` : "0%",
             avgCeo: ceoCount ? `${Math.round(cAvg)}%` : "0%",
-            overallPerformancePercent: `${Math.round(combinedAvg)}%`,
             overallStatusLabel: statusLabel,
             threePersonsCombinedAvg: `${Math.round(combinedAvg)}%`,
         };
     }, [rows]);
 
+    const getCellRawValue = useCallback(
+        (rowIdx: number, colIdx: number): string => {
+            const row = rows[rowIdx];
+            if (!row) return "";
+            const colKey = COLUMNS[colIdx];
+            if (colKey === "statusCol") {
+                return calculateStatus(row.supervisor, row.hr, row.ceo);
+            }
+            return String(row[colKey as keyof TaskRowData] ?? "");
+        },
+        [rows]
+    );
+
+    // Copy support (Ctrl+C / Cmd+C)
+    const handleCopy = useCallback(
+        (e: ClipboardEvent) => {
+            if (selectedCol) {
+                const colIdx = COLUMNS.indexOf(selectedCol);
+                const text = rows.map((_, rIdx) => getCellRawValue(rIdx, colIdx)).join("\n");
+                e.clipboardData?.setData("text/plain", text);
+                e.preventDefault();
+                return;
+            }
+
+            if (selectionRange) {
+                const minR = Math.min(selectionRange.startR, selectionRange.endR);
+                const maxR = Math.max(selectionRange.startR, selectionRange.endR);
+                const minC = Math.min(selectionRange.startC, selectionRange.endC);
+                const maxC = Math.max(selectionRange.startC, selectionRange.endC);
+
+                const lines: string[] = [];
+                for (let r = minR; r <= maxR; r++) {
+                    const lineCells: string[] = [];
+                    for (let c = minC; c <= maxC; c++) {
+                        lineCells.push(getCellRawValue(r, c));
+                    }
+                    lines.push(lineCells.join("\t"));
+                }
+                e.clipboardData?.setData("text/plain", lines.join("\n"));
+                e.preventDefault();
+                return;
+            }
+
+            if (selectedCell) {
+                const text = getCellRawValue(selectedCell.r, selectedCell.c);
+                e.clipboardData?.setData("text/plain", text);
+                e.preventDefault();
+            }
+        },
+        [selectedCol, selectionRange, selectedCell, rows, getCellRawValue]
+    );
+
+    // Keyboard Navigation
+    const handleKeyDown = useCallback(
+        (e: KeyboardEvent) => {
+            if (
+                document.activeElement?.tagName === "INPUT" ||
+                document.activeElement?.tagName === "SELECT"
+            ) {
+                return;
+            }
+
+            if (!selectedCell) return;
+
+            const { r, c } = selectedCell;
+            if (e.key === "ArrowUp" && r > 0) {
+                setSelectedCell({ r: r - 1, c });
+                setSelectionRange(null);
+                setSelectedCol(null);
+            } else if (e.key === "ArrowDown" && r < rows.length - 1) {
+                setSelectedCell({ r: r + 1, c });
+                setSelectionRange(null);
+                setSelectedCol(null);
+            } else if (e.key === "ArrowLeft" && c > 0) {
+                setSelectedCell({ r, c: c - 1 });
+                setSelectionRange(null);
+                setSelectedCol(null);
+            } else if (e.key === "ArrowRight" && c < COLUMNS.length - 1) {
+                setSelectedCell({ r, c: c + 1 });
+                setSelectionRange(null);
+                setSelectedCol(null);
+            }
+        },
+        [selectedCell, rows.length]
+    );
+
+    useEffect(() => {
+        window.addEventListener("copy", handleCopy);
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("copy", handleCopy);
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [handleCopy, handleKeyDown]);
+
+    const handleDragFillEnd = (targetR: number) => {
+        if (!dragFillSource) return;
+        const sourceVal = getCellRawValue(dragFillSource.r, dragFillSource.c);
+        const colKey = COLUMNS[dragFillSource.c] as keyof TaskRowData;
+
+        const minR = Math.min(dragFillSource.r, targetR);
+        const maxR = Math.max(dragFillSource.r, targetR);
+
+        setRows((prev) =>
+            prev.map((r, idx) => {
+                if (idx >= minR && idx <= maxR && colKey !== ("statusCol" as unknown)) {
+                    return { ...r, [colKey]: sourceVal };
+                }
+                return r;
+            })
+        );
+        setDragFillSource(null);
+    };
+
+    const isCellSelected = (r: number, c: number) => {
+        if (selectedCol && COLUMNS[c] === selectedCol) return true;
+        if (selectedCell && selectedCell.r === r && selectedCell.c === c) return true;
+        if (selectionRange) {
+            const minR = Math.min(selectionRange.startR, selectionRange.endR);
+            const maxR = Math.max(selectionRange.startR, selectionRange.endR);
+            const minC = Math.min(selectionRange.startC, selectionRange.endC);
+            const maxC = Math.max(selectionRange.startC, selectionRange.endC);
+            return r >= minR && r <= maxR && c >= minC && c <= maxC;
+        }
+        return false;
+    };
+
     return (
-        <div className="flex h-screen w-full flex-col bg-[#f8fafd] text-[#1f1f1f] antialiased select-none font-sans">
+        <div
+            className="flex h-screen w-full flex-col bg-[#f8fafd] text-[#1f1f1f] antialiased select-none font-sans"
+            onMouseUp={() => {
+                setIsSelecting(false);
+                if (dragFillSource && selectedCell) {
+                    handleDragFillEnd(selectedCell.r);
+                }
+            }}
+        >
+            <style>{`
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        input[type="date"],
+        input[type="time"] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
+
             {/* =========================================================================
           TOP BANNER / HEADER BLOCK
       ========================================================================= */}
@@ -395,12 +529,14 @@ export default function ManagementReportPage() {
                 <div className="flex w-52 shrink-0 items-center border-r border-[#d3d3d3] bg-[#fbf0d9] px-4 py-2">
                     <div className="flex items-center gap-3">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">
-                            MONTH <br /> <span className="font-serif text-2xl font-bold tracking-tight text-[#a82d44]">
+                            MONTH <br />
+                            <span className="font-serif text-2xl font-bold tracking-tight text-[#a82d44]">
                                 Aug-2026
                             </span>
                         </span>
                     </div>
                 </div>
+
                 {/* ------------------------------------------------------------- */}
                 {/* BOX 1: PERFORMANCE AVERAGE BOX                                 */}
                 {/* ------------------------------------------------------------- */}
@@ -408,13 +544,11 @@ export default function ManagementReportPage() {
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-100">
                         PERFORMANCE
                     </span>
-                    <span className="font-sans text-2xl font-black tracking-tight text-white leading-none my-1">
-                        {overallPerformancePercent}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[#2ee69c]">
+                    <span className="text-[25px] pt-2 font-black uppercase tracking-wider text-[#2ee69c]">
                         {overallStatusLabel}
                     </span>
                 </div>
+
                 {/* ------------------------------------------------------------- */}
                 {/* BOX 2: 3 PERSON MARK COMBINED AVERAGE                         */}
                 {/* ------------------------------------------------------------- */}
@@ -437,10 +571,6 @@ export default function ManagementReportPage() {
                     </h1>
                 </div>
 
-
-
-
-
                 {/* Target Header */}
                 <div className="flex w-44 shrink-0 items-center justify-center border-r border-[#d8caaa] bg-[#faebd7] px-3 text-center">
                     <span className="font-serif text-lg font-bold leading-tight text-[#1a1a1a]">
@@ -451,7 +581,6 @@ export default function ManagementReportPage() {
                 {/* Live Project Deployment Box */}
                 <div className="flex flex-1 min-w-[340px] flex-col justify-center bg-[#fdf4e3] px-4 py-2 text-[11px] leading-relaxed text-slate-800">
                     <ul className="space-y-1.5 list-none">
-                        {/* Project 1 */}
                         <li>
                             <div className="flex items-center gap-1.5 font-bold text-slate-900">
                                 <span className="h-1.5 w-1.5 rounded-full bg-slate-800 shrink-0" />
@@ -484,39 +613,20 @@ export default function ManagementReportPage() {
                                 </li>
                                 <li className="flex items-center gap-1.5 truncate">
                                     <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">Ai Services Backend:</span>
+                                    <span className="shrink-0 font-medium">EVC Website:</span>
                                     <a
-                                        href="https://ngenit-ai-services.vercel.app/admin"
+                                        href="https://evc-ngen-it.vercel.app/"
                                         target="_blank"
                                         rel="noreferrer"
                                         className="text-[#1a73e8] underline truncate hover:text-blue-800"
                                     >
-                                        https://ngenit-ai-services.vercel.app/admin
+                                        https://evc-ngen-it.vercel.app/
                                     </a>
                                 </li>
                                 <li className="flex items-center gap-1.5 truncate">
                                     <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">Ai Services Backend:</span>
-                                    <a
-                                        href="https://ngenit-ai-services.vercel.app/admin"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[#1a73e8] underline truncate hover:text-blue-800"
-                                    >
-                                        https://ngenit-ai-services.vercel.app/admin
-                                    </a>
-                                </li>
-                                <li className="flex items-center gap-1.5 truncate">
-                                    <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">Ai Services Backend:</span>
-                                    <a
-                                        href="https://ngenit-ai-services.vercel.app/admin"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[#1a73e8] underline truncate hover:text-blue-800"
-                                    >
-                                        https://ngenit-ai-services.vercel.app/admin
-                                    </a>
+                                    <span className="shrink-0 font-medium">EVC Admin Panel:</span>
+                                    <span>Complete</span>
                                 </li>
                             </ul>
                         </li>
@@ -527,7 +637,7 @@ export default function ManagementReportPage() {
             {/* =========================================================================
           SPREADSHEET TABLE GRID
       ========================================================================= */}
-            <div className="flex-1 overflow-auto bg-white">
+            <div className="flex-1 overflow-auto bg-white" ref={tableRef}>
                 <table className="w-full border-collapse text-left text-xs">
                     <thead>
                         {/* Primary Category Headings */}
@@ -551,37 +661,53 @@ export default function ManagementReportPage() {
 
                         {/* Column Identifiers */}
                         <tr className="border-b border-[#c4c7c5] bg-[#f8f9fa] text-center text-[10px] font-bold uppercase tracking-wide text-slate-700">
-                            <th className="w-32 border-r border-[#e0e0e0] px-2 py-2">STATUS</th>
-                            <th className="w-24 border-r border-[#e0e0e0] px-2 py-2">PRIORITY</th>
-                            <th className="w-24 border-r border-[#e0e0e0] px-2 py-2">START DATE</th>
-                            <th className="w-24 border-r border-[#e0e0e0] px-2 py-2">END DATE</th>
-                            <th className="w-24 border-r border-[#e0e0e0] px-2 py-2">GIVEN DURATION</th>
-                            <th className="w-24 border-r border-[#e0e0e0] px-2 py-2">Day</th>
-                            <th className="min-w-[340px] border-r border-[#e0e0e0] px-3 py-2 text-left">
-                                TASK DESCRIPTION
-                            </th>
-                            <th className="w-24 border-r border-[#e0e0e0] bg-[#e6f4ea] px-2 py-2 text-slate-800">
-                                DELIVER DATE
-                            </th>
-                            <th className="w-20 border-r border-[#e0e0e0] bg-[#e6f4ea] px-2 py-2 text-slate-800">
-                                Total Hrs
-                            </th>
-                            <th className="min-w-[280px] border-r border-[#e0e0e0] px-3 py-2 text-left">
-                                Work Activities Link
-                            </th>
-                            <th className="w-24 border-r border-[#e0e0e0] bg-[#c2d7e2] px-2 py-2 text-slate-800">
-                                SUPERVISOR
-                            </th>
-                            <th className="w-24 border-r border-[#e0e0e0] bg-[#c2d7e2] px-2 py-2 text-slate-800">
-                                HR
-                            </th>
-                            <th className="w-24 border-r border-[#e0e0e0] bg-[#c2d7e2] px-2 py-2 text-slate-800">
-                                CEO
-                            </th>
-                            <th className="w-28 border-r border-[#e0e0e0] bg-[#1a4454] px-2 py-2 text-white">
-                                STATUS
-                            </th>
-                            <th className="min-w-[140px] px-3 py-2 text-left">COMMENTS</th>
+                            {COLUMNS.map((colKey) => {
+                                const labels: Record<ColumnKey, string> = {
+                                    status: "STATUS",
+                                    priority: "PRIORITY",
+                                    startDate: "START DATE",
+                                    endDate: "END DATE",
+                                    givenDuration: "GIVEN DURATION",
+                                    day: "DAY",
+                                    taskDescription: "TASK DESCRIPTION",
+                                    deliverDate: "DELIVER DATE",
+                                    totalHrs: "Total Hrs",
+                                    workLinkText: "Work Activities Link",
+                                    supervisor: "SUPERVISOR",
+                                    hr: "HR",
+                                    ceo: "CEO",
+                                    statusCol: "STATUS",
+                                    comments: "COMMENTS",
+                                };
+
+                                const isDeliverable = colKey === "deliverDate" || colKey === "totalHrs";
+                                const isStakeholder =
+                                    colKey === "supervisor" || colKey === "hr" || colKey === "ceo";
+                                const isStatus = colKey === "statusCol";
+
+                                const isColSelected = selectedCol === colKey;
+
+                                return (
+                                    <th
+                                        key={colKey}
+                                        onClick={() => {
+                                            setSelectedCol(colKey);
+                                            setSelectedCell(null);
+                                            setSelectionRange(null);
+                                        }}
+                                        className={`cursor-pointer border-r border-[#e0e0e0] px-2 py-2 transition-colors ${isDeliverable
+                                            ? "bg-[#e6f4ea] text-slate-800"
+                                            : isStakeholder
+                                                ? "bg-[#c2d7e2] text-slate-800"
+                                                : isStatus
+                                                    ? "bg-[#1a4454] text-white"
+                                                    : "bg-[#f8f9fa] text-slate-700"
+                                            } ${isColSelected ? "!bg-[#d3e3fd] !text-blue-900 ring-2 ring-blue-500 inset-0" : "hover:bg-slate-200"}`}
+                                    >
+                                        {labels[colKey]}
+                                    </th>
+                                );
+                            })}
                         </tr>
 
                         {/* Aggregations & Instructions Row */}
@@ -617,13 +743,21 @@ export default function ManagementReportPage() {
                     </thead>
 
                     <tbody className="divide-y divide-[#e0e0e0]">
-                        {rows.map((row) => {
+                        {rows.map((row, rIdx) => {
                             const currentStatus = calculateStatus(row.supervisor, row.hr, row.ceo);
 
                             return (
                                 <tr key={row.id} className="hover:bg-[#f8fafd] transition-colors group">
-                                    {/* Status Dropdown */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* Status (0) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 0 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 0) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <div className="relative flex items-center justify-center">
                                             <select
                                                 value={row.status}
@@ -642,8 +776,16 @@ export default function ManagementReportPage() {
                                         </div>
                                     </td>
 
-                                    {/* Priority Dropdown */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* Priority (1) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 1 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 1) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <div className="relative flex items-center justify-center">
                                             <select
                                                 value={row.priority}
@@ -662,43 +804,120 @@ export default function ManagementReportPage() {
                                         </div>
                                     </td>
 
-                                    {/* Start Date */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* Start Date Picker (2) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 2 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 2) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
-                                            type="text"
-                                            value={row.startDate}
-                                            onChange={(e) => updateRow(row.id, "startDate", e.target.value)}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
+                                            type="date"
+                                            value={toIsoDate(row.startDate)}
+                                            onChange={(e) => {
+                                                const newDate = fromIsoDate(e.target.value);
+                                                updateRow(row.id, "startDate", newDate);
+                                                if (e.target.value) {
+                                                    const [y, m, d] = e.target.value.split("-").map(Number);
+                                                    updateRow(row.id, "day", getDayName(y, m - 1, d));
+                                                }
+                                            }}
+                                            onClick={(e) => {
+                                                try {
+                                                    (e.target as HTMLInputElement).showPicker?.();
+                                                } catch { }
+                                            }}
+                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
                                         />
                                     </td>
 
-                                    {/* End Date */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* End Date Picker (3) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 3 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 3) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
-                                            type="text"
-                                            value={row.endDate}
-                                            onChange={(e) => updateRow(row.id, "endDate", e.target.value)}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
+                                            type="date"
+                                            value={toIsoDate(row.endDate)}
+                                            onChange={(e) =>
+                                                updateRow(row.id, "endDate", fromIsoDate(e.target.value))
+                                            }
+                                            onClick={(e) => {
+                                                try {
+                                                    (e.target as HTMLInputElement).showPicker?.();
+                                                } catch { }
+                                            }}
+                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
                                         />
                                     </td>
 
-                                    {/* Given Duration */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* Given Duration Time (4) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 4 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 4) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
-                                            type="text"
+                                            type="time"
                                             value={row.givenDuration}
                                             onChange={(e) => updateRow(row.id, "givenDuration", e.target.value)}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
+                                            onClick={(e) => {
+                                                try {
+                                                    (e.target as HTMLInputElement).showPicker?.();
+                                                } catch { }
+                                            }}
+                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
                                         />
                                     </td>
 
-                                    {/* Day */}
-                                    <td className="border-r border-[#e0e0e0] px-2 py-1.5 text-center text-[11px] font-medium text-slate-700">
-                                        {row.day}
+                                    {/* Day Selector (5) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 5 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 5) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
+                                        <div className="relative flex items-center justify-center">
+                                            <select
+                                                value={row.day}
+                                                onChange={(e) => updateRow(row.id, "day", e.target.value)}
+                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1 text-center text-[11px] font-medium text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
+                                            >
+                                                {DAYS_OF_WEEK.map((d) => (
+                                                    <option key={d} value={d}>
+                                                        {d}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-slate-400" />
+                                        </div>
                                     </td>
 
-                                    {/* Task Description */}
-                                    <td className="border-r border-[#e0e0e0] p-1">
+                                    {/* Task Description (6) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 6 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-1 ${isCellSelected(rIdx, 6) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
                                             type="text"
                                             value={row.taskDescription}
@@ -712,28 +931,64 @@ export default function ManagementReportPage() {
                                         />
                                     </td>
 
-                                    {/* Deliver Date */}
-                                    <td className="border-r border-[#e0e0e0] bg-[#eef7f0] p-0.5 text-center">
+                                    {/* Deliver Date Picker (7) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 7 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] bg-[#eef7f0] p-0.5 text-center ${isCellSelected(rIdx, 7) ? "bg-[#d3e3fd] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
-                                            type="text"
-                                            value={row.deliverDate}
-                                            onChange={(e) => updateRow(row.id, "deliverDate", e.target.value)}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
+                                            type="date"
+                                            value={toIsoDate(row.deliverDate)}
+                                            onChange={(e) =>
+                                                updateRow(row.id, "deliverDate", fromIsoDate(e.target.value))
+                                            }
+                                            onClick={(e) => {
+                                                try {
+                                                    (e.target as HTMLInputElement).showPicker?.();
+                                                } catch { }
+                                            }}
+                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
                                         />
                                     </td>
 
-                                    {/* Total Hrs */}
-                                    <td className="border-r border-[#e0e0e0] bg-[#eef7f0] p-0.5 text-center">
+                                    {/* Total Hrs Time (8) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 8 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] bg-[#eef7f0] p-0.5 text-center ${isCellSelected(rIdx, 8) ? "bg-[#d3e3fd] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
-                                            type="text"
+                                            type="time"
                                             value={row.totalHrs}
                                             onChange={(e) => updateRow(row.id, "totalHrs", e.target.value)}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
+                                            onClick={(e) => {
+                                                try {
+                                                    (e.target as HTMLInputElement).showPicker?.();
+                                                } catch { }
+                                            }}
+                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
                                         />
                                     </td>
 
-                                    {/* Work Link / Activity Note */}
-                                    <td className="border-r border-[#e0e0e0] p-1">
+                                    {/* Work Link (9) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 9 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-1 ${isCellSelected(rIdx, 9) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <div className="flex items-center gap-1">
                                             <input
                                                 type="text"
@@ -759,8 +1014,16 @@ export default function ManagementReportPage() {
                                         </div>
                                     </td>
 
-                                    {/* Supervisor Score */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* Supervisor (10) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 10 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 10) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <div className="relative flex items-center justify-center">
                                             <select
                                                 value={row.supervisor}
@@ -779,8 +1042,16 @@ export default function ManagementReportPage() {
                                         </div>
                                     </td>
 
-                                    {/* HR Score */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* HR (11) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 11 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 11) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <div className="relative flex items-center justify-center">
                                             <select
                                                 value={row.hr}
@@ -799,8 +1070,16 @@ export default function ManagementReportPage() {
                                         </div>
                                     </td>
 
-                                    {/* CEO Score */}
-                                    <td className="border-r border-[#e0e0e0] p-0.5 text-center">
+                                    {/* CEO (12) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 12 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 12) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <div className="relative flex items-center justify-center">
                                             <select
                                                 value={row.ceo}
@@ -819,8 +1098,16 @@ export default function ManagementReportPage() {
                                         </div>
                                     </td>
 
-                                    {/* Dynamic Status Badge */}
-                                    <td className="border-r border-[#e0e0e0] px-2 py-1 text-center whitespace-nowrap">
+                                    {/* Status Badge (13) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 13 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative border-r border-[#e0e0e0] px-2 py-1 text-center whitespace-nowrap ${isCellSelected(rIdx, 13) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <span
                                             className={`inline-block w-full rounded py-0.5 font-mono text-[10px] font-bold ${currentStatus === "OUTSTANDING"
                                                 ? "bg-slate-100 text-slate-900 border border-slate-300"
@@ -837,8 +1124,16 @@ export default function ManagementReportPage() {
                                         </span>
                                     </td>
 
-                                    {/* Comments */}
-                                    <td className="p-1">
+                                    {/* Comments (14) */}
+                                    <td
+                                        onClick={() => {
+                                            setSelectedCell({ r: rIdx, c: 14 });
+                                            setSelectionRange(null);
+                                            setSelectedCol(null);
+                                        }}
+                                        className={`relative p-1 ${isCellSelected(rIdx, 14) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
+                                            }`}
+                                    >
                                         <input
                                             type="text"
                                             value={row.comments}
@@ -846,6 +1141,17 @@ export default function ManagementReportPage() {
                                             placeholder="Add comments..."
                                             className="h-7 w-full rounded border border-transparent bg-transparent px-2 text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
                                         />
+
+                                        {/* Drag Fill Handle */}
+                                        {selectedCell?.r === rIdx && selectedCell?.c === 14 && (
+                                            <div
+                                                onMouseDown={(e) => {
+                                                    e.stopPropagation();
+                                                    setDragFillSource({ r: rIdx, c: 14 });
+                                                }}
+                                                className="absolute bottom-0 right-0 h-2 w-2 cursor-crosshair bg-[#1a73e8]"
+                                            />
+                                        )}
                                     </td>
                                 </tr>
                             );
