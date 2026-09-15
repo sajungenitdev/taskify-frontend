@@ -393,6 +393,18 @@ export const MAIN_ITEMS = {
       description: "Manage departments and organizational structure",
     },
   ),
+  // Department Management
+  managementReport: createNavItem(
+    "management-report",
+    "Management Report",
+    "/management-report",
+    Building2,
+    [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER, ROLES.EMPLOYEE],
+    {
+      section: "main",
+      description: "Manage departments and organizational structure",
+    },
+  ),
 
   // KPI Management
   kpiManagement: createNavItem(
@@ -612,8 +624,6 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
   ),
 
-
-  // KPI Dashboard Sub-items
   kpiOverview: createSubNavItem(
     "kpi-overview",
     "KPI Overview",

@@ -1074,7 +1074,7 @@ export default function Sidebar({
 
       <style jsx global>{`
         .main-sidebar {
-          background-image: url(/images/sidebar-bg-1.png);
+          // background-image: url(/images/sidebar-bg-1.png);
           background-size: cover;
           background-position: center;
           background-repeat: no-repeat;
