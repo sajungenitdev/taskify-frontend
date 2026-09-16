@@ -23,7 +23,7 @@ export interface SubmissionInfoPayload {
   advertisementUploadedBy?: string;
   tenderLink?: string;
   recordedBy: string;
-  tenderType: "eGP" | "RFQ";
+  tenderType: "eGP" | "RFQ" | "Hardcopy Ref.";
   responsiblePerson: string;
   lastDateOfPurchase?: string;
   lastDateOfSubmission?: string;
