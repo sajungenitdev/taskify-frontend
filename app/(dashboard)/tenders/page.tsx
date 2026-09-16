@@ -12,12 +12,16 @@ import { TenderOverviewQuickActions } from "@/components/tender/TenderOverviewQu
 import {
   useTenderOverview,
   useUpcomingDeadlines,
+  useTenderPerformance,
+  useRecentActivity,
 } from "@/hooks/tender/useTenderOverview";
 
 export default function TenderOverviewPage() {
   const router = useRouter();
   const { data: overview, loading: overviewLoading } = useTenderOverview();
   const { data: upcoming, loading: upcomingLoading } = useUpcomingDeadlines();
+  const { data: performance, loading: perfLoading } = useTenderPerformance();
+  const { data: recent, loading: recentLoading } = useRecentActivity(10);
 
   return (
     <main className="min-h-screen bg-[#faf7f0] pb-16 text-slate-900">
@@ -46,46 +50,30 @@ export default function TenderOverviewPage() {
               <TenderOverviewPipeline stages={overview.pipeline} />
             )}
 
-            {/* Performance chart — static for now; wire once endpoint exists */}
-            <TenderOverviewPerformance
-              data={[
-                { month: "Apr", won: 0, lost: 1 },
-                { month: "May", won: 1, lost: 0 },
-                { month: "Jun", won: 0, lost: 1 },
-                { month: "Jul", won: 0, lost: 1 },
-                { month: "Aug", won: 1, lost: 0 },
-                { month: "Sep", won: 0, lost: 0 },
-              ]}
-              winRate={40}
-            />
+            {/* Performance chart — now dynamic */}
+            {perfLoading || !performance ? (
+              <div className="h-[280px] animate-pulse rounded-xl border border-slate-200/80 bg-white" />
+            ) : (
+              <TenderOverviewPerformance
+                data={performance.data}
+                winRate={performance.winRate}
+              />
+            )}
           </div>
 
           <div className="space-y-6">
             {upcomingLoading ? (
               <div className="h-[280px] animate-pulse rounded-xl border border-slate-200/80 bg-white" />
             ) : (
-              <TenderOverviewUpcoming items={upcoming} />
+              <TenderOverviewUpcoming items={upcoming ?? []} />
             )}
 
-            {/* Recent activity — static for now; wire once endpoint exists */}
-            <TenderOverviewRecent
-              items={[
-                {
-                  id: "r1",
-                  kind: "submitted",
-                  tenderer: "Pubali Bank Ltd.",
-                  message: "Kiosk self-service desk submitted",
-                  timeAgo: "3 days ago",
-                },
-                {
-                  id: "r2",
-                  kind: "uploaded",
-                  tenderer: "BPDB",
-                  message: "Tender notice uploaded — Acronis renewal",
-                  timeAgo: "Today",
-                },
-              ]}
-            />
+            {/* Recent activity — now dynamic */}
+            {recentLoading ? (
+              <div className="h-[280px] animate-pulse rounded-xl border border-slate-200/80 bg-white" />
+            ) : (
+              <TenderOverviewRecent items={recent ?? []} />
+            )}
           </div>
         </div>
 

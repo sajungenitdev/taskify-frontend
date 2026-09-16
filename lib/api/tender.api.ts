@@ -273,6 +273,25 @@ export interface UpcomingTender {
   value: string;
 }
 
+export interface MonthPerformance {
+  month: string;
+  won: number;
+  lost: number;
+}
+
+export interface TenderActivity {
+  id: string;
+  kind: "submitted" | "won" | "lost" | "uploaded" | "discussed";
+  tenderer: string;
+  message: string;
+  timeAgo: string;
+}
+
+export interface PerformanceResponse {
+  data: MonthPerformance[];
+  winRate: number;
+}
+
 /* ============================================================
  * OVERVIEW
  * ============================================================ */
@@ -281,9 +300,24 @@ export const overviewApi = {
     fetch(`${TENDER_BASE}/overview`, { headers: authHeaders() })
       .then(handle<ApiResponse<TenderOverviewData>>)
       .then((r) => r.data),
+
   upcoming: () =>
     fetch(`${TENDER_BASE}/overview/upcoming`, { headers: authHeaders() })
       .then(handle<ApiResponse<UpcomingTender[]>>)
+      .then((r) => r.data),
+
+  // NEW
+  performance: () =>
+    fetch(`${TENDER_BASE}/overview/performance`, { headers: authHeaders() })
+      .then(handle<ApiResponse<PerformanceResponse>>)
+      .then((r) => r.data),
+
+  // NEW
+  recentActivity: (limit = 10) =>
+    fetch(`${TENDER_BASE}/overview/recent-activity?limit=${limit}`, {
+      headers: authHeaders(),
+    })
+      .then(handle<ApiResponse<TenderActivity[]>>)
       .then((r) => r.data),
 };
 
