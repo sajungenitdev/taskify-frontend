@@ -4,22 +4,22 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
 import { DocTaskRow, type DocTask } from "./DocTaskRow";
-import {
-  SubmissionChecklist,
-  type ChecklistItem,
-} from "./SubmissionChecklist";
+import { SubmissionChecklist } from "./SubmissionChecklist";
 import { ReadinessBar } from "./ReadinessBar";
-import { docTaskApi } from "@/lib/api/tender.api";
+import { docTaskApi, tenderApi } from "@/lib/api/tender.api";
 import toast from "react-hot-toast";
 
-/* ---------- Types ---------- */
-
 export interface SubmissionAttachment {
+  _id: string;
   name: string;
+  url: string;
+  size: number;
+  mimeType: string;
 }
 
 export interface SubmissionInfoPayload {
   advertisementFile?: string;
+  advertisementUrl?: string;
   advertisementUploadedBy?: string;
   tenderLink?: string;
   recordedBy: string;
@@ -39,33 +39,67 @@ export interface SubmissionDetailData {
   deadlineDays: number;
   readiness: number;
   docTasks: DocTask[];
-  checklist: ChecklistItem[];
+  checklist: {
+    id: string;
+    label: string;
+    checked: boolean;
+    isCustom?: boolean;
+  }[];
   info: SubmissionInfoPayload;
   notifyAction?: { label: string; onClick: () => void };
 }
 
 interface Props {
   data: SubmissionDetailData;
-  /** Called after a doc task mutation succeeds — use to refetch from parent */
   onTaskMutated?: () => void;
 }
 
 const TABS = ["Tender Preparation", "Tender Info"] as const;
 type Tab = (typeof TABS)[number];
 
-/* ---------- Component ---------- */
+function fullFileUrl(url: string) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const base =
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
+  const origin = base.replace(/\/api\/v1\/?$/, "");
+  return `${origin}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function fileSizeLabel(bytes: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function SubmissionDetail({ data, onTaskMutated }: Props) {
   const [tab, setTab] = useState<Tab>("Tender Preparation");
   const [showDetails, setShowDetails] = useState(true);
-
-  // Repeater state
   const [tasks, setTasks] = useState<DocTask[]>(data.docTasks);
+  const [checklist, setChecklist] = useState(data.checklist);
+  const [uploadingAd, setUploadingAd] = useState(false);
 
-  /* ---------- KEY FIX: re-seed tasks when the parent switches tender ---------- */
+  /* ============================================================
+   * DEBUG LOGS — remove after fixing the attachments issue
+   * ============================================================ */
+  useEffect(() => {
+    console.log("%c=== SubmissionDetail received data ===", "background:#000;color:#0ff;padding:2px 6px;font-weight:bold");
+    console.log("data.id:", data.id);
+    console.log("data.tenderer:", data.tenderer);
+    console.log("data.info:", data.info);
+    console.log("data.info.attachments:", data.info?.attachments);
+    console.log("data.info.attachments.length:", data.info?.attachments?.length);
+    console.log("data.info.advertisementFile:", data.info?.advertisementFile);
+    console.log("data.info.advertisementUrl:", data.info?.advertisementUrl);
+    console.log("data.checklist:", data.checklist);
+  }, [data]);
+  /* ============================================================ */
+
   useEffect(() => {
     setTasks(data.docTasks);
-  }, [data.id, data.docTasks]);
+    setChecklist(data.checklist);
+  }, [data.id, data.docTasks, data.checklist]);
 
   const addTask = () => {
     const draft: DocTask = {
@@ -88,11 +122,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
   const saveTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
-
     const finalTitle = task.title.trim() || "Untitled task";
     const finalOwner = task.owner.trim() || "—";
 
-    // optimistic local update
     setTasks((prev) =>
       prev.map((t) =>
         t.id === id
@@ -108,19 +140,15 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
         status: task.status,
         fileName: task.fileName,
       });
-
-      // swap the draft id for the real _id so future updates/deletes work
       setTasks((prev) =>
         prev.map((t) =>
           t.id === id ? { ...t, id: created._id, isDraft: false } : t,
         ),
       );
-
       toast.success("Document task added");
       onTaskMutated?.();
     } catch (e) {
       toast.error((e as Error).message || "Failed to add document task");
-      // rollback
       setTasks((prev) => prev.filter((t) => t.id !== id));
     }
   };
@@ -130,30 +158,76 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
   };
 
   const removeTask = async (id: string) => {
-    // if it's a draft, just remove locally
     const target = tasks.find((t) => t.id === id);
     if (target?.isDraft) {
       setTasks((prev) => prev.filter((t) => t.id !== id));
       return;
     }
-
-    // optimistic
     const snapshot = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== id));
-
     try {
       await docTaskApi.remove(data.id, id);
       toast.success("Document task removed");
       onTaskMutated?.();
     } catch (e) {
       toast.error((e as Error).message || "Failed to remove document task");
-      setTasks(snapshot); // rollback
+      setTasks(snapshot);
+    }
+  };
+
+  const uploadTaskFile = async (taskId: string, file: File) => {
+    const loadingId = toast.loading(`Uploading ${file.name}...`);
+    try {
+      const att = await tenderApi.uploadAttachment(data.id, file);
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                fileName: att.name,
+                fileUrl: fullFileUrl(att.url),
+                status: "Done",
+              }
+            : t,
+        ),
+      );
+      toast.success("File uploaded", { id: loadingId });
+      onTaskMutated?.();
+    } catch (e) {
+      toast.error((e as Error).message || "Upload failed", { id: loadingId });
+    }
+  };
+
+  const toggleChecklist = async (id: string, checked: boolean) => {
+    const next = checklist.map((c) =>
+      c.id === id ? { ...c, checked } : c,
+    );
+    const previous = checklist;
+    setChecklist(next);
+    try {
+      await tenderApi.updateChecklist(data.id, next);
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to save checklist");
+      setChecklist(previous);
+    }
+  };
+
+  const replaceAdvertisement = async (file: File) => {
+    setUploadingAd(true);
+    const loadingId = toast.loading(`Uploading ${file.name}...`);
+    try {
+      await tenderApi.uploadAdvertisement(data.id, file);
+      toast.success("Advertisement replaced", { id: loadingId });
+      onTaskMutated?.();
+    } catch (e) {
+      toast.error((e as Error).message || "Upload failed", { id: loadingId });
+    } finally {
+      setUploadingAd(false);
     }
   };
 
   return (
     <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      {/* Header row */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-amber-100 px-5 py-4">
         <div className="min-w-0">
           <span className="inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
@@ -162,7 +236,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
           <h2 className="mt-1.5 text-base font-bold text-slate-900">
             {data.tenderer} — {data.title}
           </h2>
-
           <div className="mt-2 flex items-center gap-3">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Submission Readiness
@@ -171,7 +244,7 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
           </div>
         </div>
 
-        {data.notifyAction && (
+        {/* {data.notifyAction && (
           <button
             type="button"
             onClick={data.notifyAction.onClick}
@@ -179,10 +252,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
           >
             {data.notifyAction.label}
           </button>
-        )}
+        )} */}
       </div>
 
-      {/* Tabs */}
       <div className="flex items-center justify-between border-b border-slate-100 px-5">
         <div className="flex items-center gap-1">
           {TABS.map((t) => {
@@ -192,10 +264,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
-                    ? "text-slate-900"
-                    : "text-slate-500 hover:text-slate-800"
-                  }`}
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
+                  active ? "text-slate-900" : "text-slate-500 hover:text-slate-800"
+                }`}
               >
                 {t}
                 {active && (
@@ -224,7 +295,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
         )}
       </div>
 
-      {/* Preparation tab */}
       {tab === "Tender Preparation" && showDetails && (
         <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-[1fr_360px]">
           <div>
@@ -241,6 +311,7 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                   onSave={() => saveTask(task.id)}
                   onCancel={() => cancelTask(task.id)}
                   onRemove={() => removeTask(task.id)}
+                  onUploadFile={(file) => uploadTaskFile(task.id, file)}
                 />
               ))}
             </div>
@@ -255,12 +326,14 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
           </div>
 
           <aside>
-            <SubmissionChecklist items={data.checklist} />
+            <SubmissionChecklist
+              items={checklist}
+              onToggle={toggleChecklist}
+            />
           </aside>
         </div>
       )}
 
-      {/* Info tab (unchanged) */}
       {tab === "Tender Info" && (
         <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
           <div className="space-y-4">
@@ -281,12 +354,34 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
-                  >
-                    Replace
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {data.info.advertisementUrl && (
+                      <a
+                        href={fullFileUrl(data.info.advertisementUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        View
+                      </a>
+                    )}
+                    <label
+                      className={`cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${
+                        uploadingAd ? "pointer-events-none opacity-60" : ""
+                      }`}
+                    >
+                      {uploadingAd ? "Uploading…" : "Replace"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        disabled={uploadingAd}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) replaceAdvertisement(f);
+                        }}
+                      />
+                    </label>
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-center text-[11px] text-slate-500">
@@ -352,41 +447,41 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
           <div className="space-y-4">
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                File Attachments
+                File Attachments ({data.info.attachments.length})
               </p>
               <ul className="space-y-1.5">
-                {data.info.attachments.map((f, i) => (
+                {data.info.attachments.length === 0 && (
+                  <li className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-center text-[11px] text-slate-400">
+                    No attachments.
+                  </li>
+                )}
+                {data.info.attachments.map((f) => (
                   <li
-                    key={i}
+                    key={f._id}
                     className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
                   >
-                    <span className="flex items-center gap-2 truncate text-[11px] font-medium text-slate-700">
-                      <FileText className="h-3.5 w-3.5 text-slate-400" />
-                      {f.name}
+                    <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{f.name}</span>
+                      {f.size > 0 && (
+                        <span className="shrink-0 text-[10px] text-slate-400">
+                          ({fileSizeLabel(f.size)})
+                        </span>
+                      )}
                     </span>
-                    <button
-                      type="button"
-                      className="text-[10px] font-semibold text-indigo-600 hover:underline"
-                    >
-                      View
-                    </button>
+                    {f.url && (
+                      <a
+                        href={fullFileUrl(f.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-semibold text-indigo-600 hover:underline"
+                      >
+                        View
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
-
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Add attachment (filename)..."
-                  className="h-9 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-[11px] placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  + Attach
-                </button>
-              </div>
             </div>
 
             <div>

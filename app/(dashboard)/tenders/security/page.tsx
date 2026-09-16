@@ -24,6 +24,7 @@ import {
     toSecurityStatsTiles,
     type SecurityRowUI,
 } from "@/lib/api/mappers";
+import { SecurityNotifyModal } from "@/components/tender/modal/SecurityNotifyModal";
 
 /* ---------- Config ---------- */
 const ENTITIES = ["NGL-26", "NG-26", "JT"];
@@ -34,6 +35,7 @@ const TYPES: SecurityType[] = [
 ];
 
 export default function TenderSecurityPage() {
+    const [notifyEntity, setNotifyEntity] = useState<string | null>(null);
     const [filters, setFilters] = useState<FilterState>({
         entity: "all",
         type: "all",
@@ -165,11 +167,25 @@ export default function TenderSecurityPage() {
                         onUpdate={(id, patch) => { updateRow(id, patch); }}
                         onCreate={(d) => { if (d.id) void saveRow(d as SecurityRowUI); }}
                         onDelete={(id) => { void deleteRow(id); }}
+                        onNotify={(id) => {
+                            const row = uiRows.find((r) => r.id === id);
+                            if (row) setNotifyEntity(row.entity);
+                        }}
                     />
                 )}
 
-                <SecurityFooter />
+                <SecurityFooter rows={uiRows} />
             </div>
+            <SecurityNotifyModal
+                open={!!notifyEntity}
+                onOpenChange={(o) => !o && setNotifyEntity(null)}
+                entity={notifyEntity ?? ""}
+                onSend={async (emails) => {
+                    // Replace with your real API call
+                    console.log("Send to:", emails);
+                    toast.success(`Notification sent to ${emails.length} recipient(s)`);
+                }}
+            />
         </main>
     );
 }

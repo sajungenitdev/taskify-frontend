@@ -1,5 +1,7 @@
+// components/tender/submission/SubmissionTable.tsx
 "use client";
 
+import { Trash2, Eye } from "lucide-react";
 import { ReadinessBar } from "./ReadinessBar";
 
 export interface SubmissionRow {
@@ -9,10 +11,10 @@ export interface SubmissionRow {
   submitted: "Submitted" | "Not yet";
   status: string;
   statusColor:
-    | "in-progress"    // orange
-    | "pending"        // rose
-    | "complete"       // emerald
-    | "banking";       // amber
+    | "in-progress"
+    | "pending"
+    | "complete"
+    | "banking";
   readiness: number;
 }
 
@@ -27,9 +29,19 @@ interface Props {
   rows: SubmissionRow[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onDelete?: (id: string) => void;
+  onView?: (id: string) => void;
 }
 
-export function SubmissionTable({ rows, selectedId, onSelect }: Props) {
+export function SubmissionTable({
+  rows,
+  selectedId,
+  onSelect,
+  onDelete,
+  onView,
+}: Props) {
+  const hasActions = Boolean(onDelete || onView);
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       <div className="w-full overflow-x-auto">
@@ -41,6 +53,9 @@ export function SubmissionTable({ rows, selectedId, onSelect }: Props) {
               <th className="px-5 py-3">Submitted</th>
               <th className="px-5 py-3">Status</th>
               <th className="px-5 py-3">Readiness</th>
+              {hasActions && (
+                <th className="w-[90px] px-5 py-3 text-right">Actions</th>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -83,9 +98,54 @@ export function SubmissionTable({ rows, selectedId, onSelect }: Props) {
                   <td className="px-5 py-3">
                     <ReadinessBar percent={r.readiness} />
                   </td>
+
+                  {hasActions && (
+                    <td className="px-5 py-3 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* {onView && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onView(r.id);
+                            }}
+                            className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                            title="View"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                        )} */}
+
+                        {onDelete && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(r.id);
+                            }}
+                            className="rounded-md p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               );
             })}
+
+            {rows.length === 0 && (
+              <tr>
+                <td
+                  colSpan={5 + (hasActions ? 1 : 0)}
+                  className="px-5 py-10 text-center text-[12px] text-slate-400"
+                >
+                  No submissions yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

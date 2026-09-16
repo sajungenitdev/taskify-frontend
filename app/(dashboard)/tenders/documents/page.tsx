@@ -22,11 +22,12 @@ import {
   useCompanyDocs,
   useCompanyDocCounts,
 } from "@/hooks/tender/useCompanyDocs";
-import { companyDocApi, tenderApi } from "@/lib/api/tender.api";
+import { companyDocApi, CompanyDocCategory, tenderApi } from "@/lib/api/tender.api";
 import { toCompanyDocUI, type CompanyDocUI } from "@/lib/api/mappers";
 import { useEffect } from "react";
 import { AddDocModal } from "@/components/tender/documents/AddDocModal";
 import { ViewDocModal } from "@/components/tender/documents/modal/ViewDocModal";
+import { confirmToast } from "@/lib/confirmToast";
 
 /* ---------- Config ---------- */
 const SECTORS = ["Power & Energy", "Financial", "Government"];
@@ -114,8 +115,7 @@ export default function CompanyDocsPage() {
       });
       const target = targets.find((t) => t.id === importTargetId);
       toast.success(
-        `${selectedIds.size} document${
-          selectedIds.size === 1 ? "" : "s"
+        `${selectedIds.size} document${selectedIds.size === 1 ? "" : "s"
         } imported to ${target?.label ?? "tender"}`,
       );
       setSelectedIds(new Set());
@@ -130,21 +130,64 @@ export default function CompanyDocsPage() {
     title: string;
     reference?: string;
     validity?: string;
+    file?: File;
+    category?: CompanyDocCategory;
+    docType?: string;
   }) => {
     try {
-      await companyDocApi.create({
-        category: tab,
+      /* 1. Create the record */
+      const created = await companyDocApi.create({
+        category: payload.category ?? tab,
         title: payload.title,
         reference: payload.reference,
         validity: payload.validity,
         status: "Valid",
+        docType: payload.docType,
       });
-      toast.success("Document saved");
+
+      /* 2. Upload the file if one was chosen */
+      if (payload.file) {
+        const loadingId = toast.loading(`Uploading ${payload.file.name}...`);
+        try {
+          await companyDocApi.uploadDocFile(created._id, payload.file);
+          toast.success("Document saved", { id: loadingId });
+        } catch (e) {
+          toast.error(
+            (e as Error).message || "File upload failed",
+            { id: loadingId },
+          );
+        }
+      } else {
+        toast.success("Document saved");
+      }
+
       setAddOpen(false);
       await Promise.all([refetch(), refetchCounts()]);
     } catch (e) {
       toast.error((e as Error).message || "Save failed");
     }
+  };
+  const handleDelete = (doc: CompanyDocUI) => {
+    confirmToast({
+      title: `Delete "${doc.title}"?`,
+      description:
+        "This will permanently remove the document and its attached file.",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        const loadingId = toast.loading("Deleting...");
+        try {
+          await companyDocApi.remove(doc.id);
+          toast.success("Document deleted", { id: loadingId });
+          await Promise.all([refetch(), refetchCounts()]);
+        } catch (e) {
+          toast.error(
+            (e as Error).message || "Delete failed",
+            { id: loadingId },
+          );
+        }
+      },
+    });
   };
 
   return (
@@ -154,18 +197,16 @@ export default function CompanyDocsPage() {
 
         <DocsTabs active={tab} counts={counts} onChange={setTab} />
 
-        {tab !== "experience" && (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#8f6100]"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Legal Doc
-            </button>
-          </div>
-        )}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#8f6100]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {tab === "experience" ? "Add Work Experience" : "Add Document"}
+          </button>
+        </div>
 
         {tab === "experience" && (
           <DocsFilterBar
@@ -193,6 +234,7 @@ export default function CompanyDocsPage() {
               if (doc.action === "Replace") setAddOpen(true);
               else setViewDoc(doc);
             }}
+            onDelete={handleDelete}
           />
         )}
       </div>

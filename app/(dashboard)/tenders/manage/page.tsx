@@ -110,11 +110,7 @@ function mapRows(
           type: <TenderTypeBadge type={t.tenderType} />,
           deadline: <DeadlineCell days={daysLeft(t.lastDateOfSubmission)} />,
           value: t.tentativeBudget ? budgetLabel(t.tentativeBudget) : "—",
-          status: (
-            <DocsStatusBadge
-              status={(t.docStatus as any) ?? "Pending"}
-            />
-          ),
+          status: <DocsStatusBadge status={t.docStatus} />,
         },
       };
     }
@@ -172,6 +168,55 @@ export default function TenderManagePage() {
   const handleTabChange = (next: TenderTab) => {
     setTab(next);
     setSelectedId(null);
+  };
+
+  const handleSubmitTender = async (tender: Tender) => {
+    try {
+      await tenderApi.changeStage(
+        tender._id,
+        "submitted",
+        "Submitted to client",
+      );
+      toast.success(`${tender.tenderer} marked as submitted`);
+      await refetch();
+      setTab("submitted");
+      setSelectedId(null);
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to submit");
+    }
+  };
+  const handleMarkWon = async (tender: Tender) => {
+    try {
+      await tenderApi.changeStage(tender._id, "won", "Client awarded");
+      toast.success(`${tender.tenderer} marked as WON`);
+      await refetch();
+      setSelectedId(null);
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to update");
+    }
+  };
+
+  const handleMarkLost = async (tender: Tender) => {
+    const reason = window.prompt(
+      "Why was this tender lost? (optional — click OK to confirm)",
+      "",
+    );
+    if (reason === null) return;
+
+    try {
+      await tenderApi.changeStage(
+        tender._id,
+        "lost",
+        "Lost to competitor",
+        reason || "Not specified",
+      );
+      toast.success(`${tender.tenderer} marked as LOST`);
+      await refetch();
+      setTab("lost");
+      setSelectedId(null);
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to update");
+    }
   };
 
   /* ---------- Lookup ---------- */
@@ -235,9 +280,21 @@ export default function TenderManagePage() {
     });
   };
 
-  /* ---------- Eye handler for Potential tab ---------- */
+  /* ---------- Eye handlers (open checklist modal) ---------- */
   const handleViewPotential = (id: string) => {
     const t = groups.potential.find((x) => x._id === id);
+    if (t) setChecklistTender(t);
+  };
+  const handleViewActive = (id: string) => {
+    const t = groups.active.find((x) => x._id === id);
+    if (t) setChecklistTender(t);
+  };
+  const handleViewSubmitted = (id: string) => {
+    const t = groups.submitted.find((x) => x._id === id);
+    if (t) setChecklistTender(t);
+  };
+  const handleViewLost = (id: string) => {
+    const t = groups.lost.find((x) => x._id === id);
     if (t) setChecklistTender(t);
   };
 
@@ -319,7 +376,6 @@ export default function TenderManagePage() {
                         throw e;
                       }
                     }}
-                    /* ---------- NEW ---------- */
                     onUploadAdvertisement={async (file) => {
                       const loadingId = toast.loading(
                         `Uploading ${file.name}...`,
@@ -354,13 +410,14 @@ export default function TenderManagePage() {
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
                   onDelete={handleDelete}
-                  onView={setSelectedId}
+                  onView={handleViewActive}
                   onEdit={handleEdit}
                 />
                 {selected && (
                   <TenderDetailActive
                     key={selected._id}
                     data={toActiveDetail(selected)}
+                    onSubmit={() => handleSubmitTender(selected)}
                   />
                 )}
               </>
@@ -374,13 +431,15 @@ export default function TenderManagePage() {
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
                   onDelete={handleDelete}
-                  onView={setSelectedId}
+                  onView={handleViewSubmitted}
                   onEdit={handleEdit}
                 />
                 {selected && (
                   <TenderDetailSubmitted
                     key={selected._id}
                     data={toSubmittedDetail(selected)}
+                    onMarkWon={() => handleMarkWon(selected)}
+                    onMarkLost={() => handleMarkLost(selected)}
                   />
                 )}
               </>
@@ -394,7 +453,7 @@ export default function TenderManagePage() {
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
                   onDelete={handleDelete}
-                  onView={setSelectedId}
+                  onView={handleViewLost}
                   onEdit={handleEdit}
                 />
                 {selected && (

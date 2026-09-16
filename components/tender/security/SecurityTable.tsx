@@ -1,5 +1,7 @@
+// components/tender/security/SecurityTable.tsx
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { EntityBadge, DocsBadge, BellIcon } from "./SecurityBadges";
 
 export type SecurityType =
@@ -13,10 +15,9 @@ export interface SecurityRow {
   clientDescription: string;
   type: SecurityType;
   amount: number;
-  currency: string;         // "৳"
-  dueDate: string;          // "20 Oct 2026" or "" for drafts
+  currency: string;
+  dueDate: string;
   docsStatus: "Attached" | "Missing";
-  /** true when this row is a draft being edited in the table footer */
   isDraft?: boolean;
 }
 
@@ -27,6 +28,7 @@ interface Props {
   onCreate?: (draft: SecurityRow) => void | Promise<void>;
   onUpdate?: (id: string, patch: Partial<SecurityRow>) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
+  onNotify?: (id: string) => void;   // ← NEW
 }
 
 export function SecurityTable({
@@ -36,6 +38,7 @@ export function SecurityTable({
   onCreate,
   onUpdate,
   onDelete,
+  onNotify,                          // ← NEW
 }: Props) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -49,7 +52,7 @@ export function SecurityTable({
               <th className="px-4 py-3 w-[120px]">Amount</th>
               <th className="px-4 py-3 w-[130px]">Due Date</th>
               <th className="px-4 py-3 w-[120px]">Docs</th>
-              <th className="px-4 py-3 w-[60px]"></th>
+              <th className="px-4 py-3 w-[100px] text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -65,10 +68,7 @@ export function SecurityTable({
                   onCancel={() => onDelete?.(r.id)}
                 />
               ) : (
-                <tr
-                  key={r.id}
-                  className="hover:bg-slate-50/60"
-                >
+                <tr key={r.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3">
                     <EntityBadge entity={r.entity} />
                   </td>
@@ -88,8 +88,28 @@ export function SecurityTable({
                   <td className="px-4 py-3">
                     <DocsBadge status={r.docsStatus} />
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <BellIcon tone="warn" />
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onNotify?.(r.id)}
+                        className="rounded-md p-1.5 text-amber-500 transition hover:bg-amber-50 hover:text-amber-600"
+                        title="Notify Finance"
+                        aria-label="Notify Finance"
+                      >
+                        <BellIcon tone="warn" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => onDelete?.(r.id)}
+                        className="rounded-md p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                        title="Delete"
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ),
@@ -124,7 +144,6 @@ function DraftRow({
 
   return (
     <tr className="bg-amber-50/40">
-      {/* Entity */}
       <td className="px-4 py-3">
         <select
           className={cellInput}
@@ -139,7 +158,6 @@ function DraftRow({
         </select>
       </td>
 
-      {/* Description */}
       <td className="px-4 py-3">
         <input
           className={cellInput}
@@ -149,7 +167,6 @@ function DraftRow({
         />
       </td>
 
-      {/* Type */}
       <td className="px-4 py-3">
         <select
           className={cellInput}
@@ -166,7 +183,6 @@ function DraftRow({
         </select>
       </td>
 
-      {/* Amount */}
       <td className="px-4 py-3">
         <div className="flex items-center gap-1">
           <span className="text-[11px] text-slate-500">৳</span>
@@ -183,7 +199,6 @@ function DraftRow({
         </div>
       </td>
 
-      {/* Due Date */}
       <td className="px-4 py-3">
         <input
           type="date"
@@ -192,22 +207,20 @@ function DraftRow({
             const v = e.target.value;
             const formatted = v
               ? new Date(v).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })
               : "";
             onChange({ dueDate: formatted });
           }}
         />
       </td>
 
-      {/* Docs status (read-only "Missing" pill until saved) */}
       <td className="px-4 py-3">
         <DocsBadge status="Missing" />
       </td>
 
-      {/* Save / Cancel */}
       <td className="px-4 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
           <button

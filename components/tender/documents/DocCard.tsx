@@ -1,11 +1,10 @@
 // components/tender/documents/DocCard.tsx
 "use client";
 
-import { FileText, Trophy } from "lucide-react";
+import { FileText, Trophy, Trash2 } from "lucide-react";
 import { StatusPill } from "./StatusPill";
 import type { CompanyDocUI } from "@/lib/api/mappers";
 
-/** Re-export for consumers that import `CompanyDoc` from here */
 export type CompanyDoc = CompanyDocUI;
 
 interface Props {
@@ -13,9 +12,23 @@ interface Props {
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
   onAction?: (doc: CompanyDocUI) => void;
+  onDelete?: (doc: CompanyDocUI) => void;   // ← NEW
 }
 
-export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
+function fileSizeLabel(bytes?: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function DocCard({
+  doc,
+  selected,
+  onToggleSelect,
+  onAction,
+  onDelete,                                 // ← NEW
+}: Props) {
   const isExpiring = doc.status === "Expiring Soon";
   const isExperience = doc.category === "experience";
 
@@ -23,21 +36,38 @@ export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
   if (isExperience || (doc.chips && doc.chips.length > 0)) {
     return (
       <article
-        className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${selected
+        className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${
+          selected
             ? "border-slate-900 ring-1 ring-slate-900/5"
             : "border-slate-200/80 hover:border-slate-300"
-          }`}
+        }`}
       >
         <div className="flex items-start justify-between">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
             <Trophy className="h-5 w-5" />
           </div>
-          <input
-            type="checkbox"
-            checked={!!selected}
-            onChange={() => onToggleSelect?.(doc.id)}
-            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-          />
+          <div className="flex items-center gap-1">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(doc);
+                }}
+                className="rounded-md p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
+                title="Delete"
+                aria-label="Delete"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <input
+              type="checkbox"
+              checked={!!selected}
+              onChange={() => onToggleSelect?.(doc.id)}
+              className="h-4 w-4 cursor-pointer rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+            />
+          </div>
         </div>
 
         <div className="mt-3 min-w-0 flex-1">
@@ -64,13 +94,27 @@ export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => onAction?.(doc)}
-          className="mt-4 self-start text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:underline"
-        >
-          View Certificate →
-        </button>
+        {doc.fileName && (
+          <p className="mt-3 flex items-center gap-1.5 truncate border-t border-slate-100 pt-2 text-[10px] text-slate-400">
+            <FileText className="h-3 w-3 shrink-0" />
+            <span className="truncate">{doc.fileName}</span>
+            {doc.fileSize ? (
+              <span className="shrink-0">
+                ({fileSizeLabel(doc.fileSize)})
+              </span>
+            ) : null}
+          </p>
+        )}
+
+        <div className="mt-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => onAction?.(doc)}
+            className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:underline"
+          >
+            View Certificate →
+          </button>
+        </div>
       </article>
     );
   }
@@ -78,23 +122,40 @@ export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
   /* ---------- Legal / certificate card variant ---------- */
   return (
     <article
-      className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${isExpiring
+      className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${
+        isExpiring
           ? "border-orange-300 ring-1 ring-orange-100"
           : selected
             ? "border-slate-900"
             : "border-slate-200/80 hover:border-slate-300"
-        }`}
+      }`}
     >
       <div className="flex items-start justify-between">
         <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
           <FileText className="h-5 w-5" />
         </div>
-        <input
-          type="checkbox"
-          checked={!!selected}
-          onChange={() => onToggleSelect?.(doc.id)}
-          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-        />
+        <div className="flex items-center gap-1">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(doc);
+              }}
+              className="rounded-md p-1.5 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600"
+              title="Delete"
+              aria-label="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <input
+            type="checkbox"
+            checked={!!selected}
+            onChange={() => onToggleSelect?.(doc.id)}
+            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+          />
+        </div>
       </div>
 
       <div className="mt-3 min-w-0 flex-1">
@@ -109,6 +170,18 @@ export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
         {doc.validity && (
           <p className="mt-0.5 truncate text-[11px] text-slate-500">
             {doc.validity}
+          </p>
+        )}
+
+        {doc.fileName && (
+          <p className="mt-2 flex items-center gap-1.5 truncate text-[10px] text-slate-400">
+            <FileText className="h-3 w-3 shrink-0" />
+            <span className="truncate">{doc.fileName}</span>
+            {doc.fileSize ? (
+              <span className="shrink-0">
+                ({fileSizeLabel(doc.fileSize)})
+              </span>
+            ) : null}
           </p>
         )}
       </div>

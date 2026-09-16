@@ -9,6 +9,7 @@ interface Props {
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
   onAction?: (doc: CompanyDocUI) => void;
+  onDelete?: (doc: CompanyDocUI) => void;   // ← NEW
   emptyMessage?: string;
 }
 
@@ -17,6 +18,7 @@ export function DocsGrid({
   selectedIds,
   onToggleSelect,
   onAction,
+  onDelete,                                 // ← NEW
   emptyMessage = "No documents in this category yet.",
 }: Props) {
   if (!docs.length) {
@@ -36,6 +38,7 @@ export function DocsGrid({
           selected={selectedIds.has(doc.id)}
           onToggleSelect={onToggleSelect}
           onAction={onAction}
+          onDelete={onDelete}                // ← NEW
         />
       ))}
     </div>

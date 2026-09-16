@@ -1,3 +1,4 @@
+// components/tender/submission/DocTaskRow.tsx
 "use client";
 
 import { FileText, Trash2 } from "lucide-react";
@@ -9,8 +10,8 @@ export interface DocTask {
   title: string;
   owner: string;
   fileName: string;
+  fileUrl?: string;
   status: DocStatus;
-  /** true if this row is a new entry not yet persisted */
   isDraft?: boolean;
 }
 
@@ -26,6 +27,7 @@ interface Props {
   onSave?: () => void;
   onCancel?: () => void;
   onRemove?: () => void;
+  onUploadFile?: (file: File) => void;
 }
 
 export function DocTaskRow({
@@ -34,6 +36,7 @@ export function DocTaskRow({
   onSave,
   onCancel,
   onRemove,
+  onUploadFile,
 }: Props) {
   /* ---------- Draft (editable) row ---------- */
   if (task.isDraft) {
@@ -99,7 +102,7 @@ export function DocTaskRow({
     );
   }
 
-  /* ---------- Static row (unchanged from before) ---------- */
+  /* ---------- Static row ---------- */
   return (
     <div className="flex items-center justify-between gap-4 border-b border-slate-100 py-3.5 last:border-0">
       <div className="flex min-w-0 items-start gap-3">
@@ -126,29 +129,41 @@ export function DocTaskRow({
           {task.status}
         </span>
 
-        {task.status === "Done" && (
-          <button
-            type="button"
+        {task.status === "Done" && task.fileUrl && (
+          <a
+            href={task.fileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
           >
             View
-          </button>
+          </a>
         )}
         {task.status === "In Progress" && (
-          <button
-            type="button"
-            className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
-          >
+          <label className="inline-flex h-7 cursor-pointer items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50">
             Replace
-          </button>
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && onUploadFile) onUploadFile(f);
+              }}
+            />
+          </label>
         )}
         {task.status === "Pending" && (
-          <button
-            type="button"
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-[#a97400] px-2.5 text-[10px] font-semibold text-white hover:bg-[#8f6100]"
-          >
+          <label className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md bg-[#a97400] px-2.5 text-[10px] font-semibold text-white hover:bg-[#8f6100]">
             + Upload
-          </button>
+            <input
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f && onUploadFile) onUploadFile(f);
+              }}
+            />
+          </label>
         )}
 
         <button

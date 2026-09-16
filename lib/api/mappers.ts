@@ -1,23 +1,19 @@
-// lib/api/mappers.ts — append
-
-import type { TenderSecurity } from "./tender.api";
+// lib/api/mappers.ts
+import type { TenderSecurity, CompanyDocument } from "./tender.api";
 import { budgetLabel, fmtDate } from "./tender.mapper";
-import type { CompanyDocument } from "./tender.api";
 
 /* ============================================================
  * SECURITY MAPPERS
  * ============================================================ */
 
-/** UI-friendly shape: converts `dueDate` ISO → short display string,
- *  formats amount with ৳ symbol. */
 export interface SecurityRowUI {
     id: string;
     entity: string;
     clientDescription: string;
     type: TenderSecurity["type"];
     amount: number;
-    currency: string;       // always "৳" for display
-    dueDate: string;        // "20 Oct 2026" or "" for blank
+    currency: string;
+    dueDate: string;
     docsStatus: "Attached" | "Missing";
     isDraft?: boolean;
 }
@@ -35,7 +31,6 @@ export function toSecurityUIRow(r: TenderSecurity): SecurityRowUI {
     };
 }
 
-/** Stats tile shape from the /security/stats response. */
 export function toSecurityStatsTiles(s: {
     totalPending: number;
     entitiesAffected: number;
@@ -66,7 +61,6 @@ export function toSecurityStatsTiles(s: {
  * COMPANY DOC MAPPERS
  * ============================================================ */
 
-/** UI shape used by DocCard / DocsGrid / AddDocModal */
 export interface CompanyDocUI {
     id: string;
     category: CompanyDocument["category"];
@@ -76,6 +70,10 @@ export interface CompanyDocUI {
     status: CompanyDocument["status"];
     action?: "View" | "Replace";
     fileUrl?: string;
+    fileName?: string;
+    fileSize?: number;
+    fileMime?: string;
+    docType?: string;
     subtitle?: string;
     chips?: string[];
 }
@@ -90,6 +88,10 @@ export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
         status: d.status,
         action: d.action || "View",
         fileUrl: d.fileUrl || undefined,
+        fileName: d.fileName || undefined,
+        fileSize: d.fileSize ?? 0,
+        fileMime: d.fileMime || undefined,
+        docType: d.docType || undefined,
         subtitle: d.subtitle || undefined,
         chips: Array.isArray(d.chips) ? d.chips : [],
     };

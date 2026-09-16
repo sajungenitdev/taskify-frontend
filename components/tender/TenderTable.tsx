@@ -216,19 +216,24 @@ export function TenderTypeBadge({
 export function DocsStatusBadge({
   status,
 }: {
-  status: "In Progress" | "Pending" | "Done" | "Reviewing";
+  status?: string;
 }) {
-  const map = {
-    "In Progress": "border-orange-200 bg-orange-50 text-orange-700",
-    Pending: "border-rose-200 bg-rose-50 text-rose-700",
-    Done: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    Reviewing: "border-amber-200 bg-amber-50 text-amber-700",
-  } as const;
+  const map: Record<string, string> = {
+    "Docs pending": "border-rose-200 bg-rose-50 text-rose-700",
+    "Docs in progress": "border-orange-200 bg-orange-50 text-orange-700",
+    Complete: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    "Banking docs pending": "border-amber-200 bg-amber-50 text-amber-700",
+  };
+
+  const label = status?.trim() || "Docs pending";
+  const styles =
+    map[label] ?? "border-slate-200 bg-slate-50 text-slate-600";
+
   return (
     <span
-      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold ${map[status]}`}
+      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold ${styles}`}
     >
-      {status}
+      {label}
     </span>
   );
 }

@@ -831,6 +831,23 @@ export const SUB_ITEMS = {
     ],
     { description: "Company documents and templates" },
   ),
+  tenderWon: createSubNavItem(
+    "tender-won",
+    "Tender Won",
+    "/tenders/won",
+    FileText,
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Company documents and templates" },
+  ),
 
 
   // CRM Sub-items

@@ -1,8 +1,8 @@
 // components/tender/documents/modals/AddDocModal.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Upload, X, FileText } from "lucide-react";
 import type { CompanyDocCategory } from "@/lib/api/tender.api";
 
 interface Props {
@@ -13,8 +13,29 @@ interface Props {
     title: string;
     reference?: string;
     validity?: string;
+    file?: File;
+    category?: CompanyDocCategory;
+    docType?: string;
   }) => Promise<void> | void;
 }
+
+const CATEGORIES: { id: CompanyDocCategory; label: string }[] = [
+  { id: "legal", label: "Legal Doc" },
+  { id: "profiles", label: "Company Profile" },
+  { id: "experience", label: "Work Experience" },
+  { id: "certificates", label: "Partnership Certificate" },
+];
+
+const DOC_TYPES = [
+  "Certificate",
+  "Registration",
+  "License",
+  "NOC",
+  "Clearance",
+  "Insurance",
+  "Guarantee",
+  "Other",
+];
 
 const inputCls =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10";
@@ -25,13 +46,17 @@ const labelCls =
 export function AddDocModal({
   open,
   onOpenChange,
+  category,
   onSubmit,
 }: Props) {
   const [title, setTitle] = useState("");
   const [reference, setReference] = useState("");
   const [validity, setValidity] = useState("");
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [cat, setCat] = useState<CompanyDocCategory>(category);
+  const [docType, setDocType] = useState(DOC_TYPES[0]);
+  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   /* Reset on open */
   useEffect(() => {
@@ -39,9 +64,13 @@ export function AddDocModal({
       setTitle("");
       setReference("");
       setValidity("");
-      setFileName(null);
+      setCat(category);
+      setDocType(DOC_TYPES[0]);
+      setFile(null);
+      setSaving(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, [open]);
+  }, [open, category]);
 
   /* Esc close + body scroll lock */
   useEffect(() => {
@@ -70,6 +99,9 @@ export function AddDocModal({
         title: title.trim(),
         reference: reference.trim() || undefined,
         validity: validity.trim() || undefined,
+        category: cat,
+        docType,
+        file: file ?? undefined,
       });
     } finally {
       setSaving(false);
@@ -82,22 +114,21 @@ export function AddDocModal({
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => !saving && onOpenChange(false)}
       />
 
-      {/* Panel */}
       <div className="relative z-10 w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-slate-900">
-              Add Legal Doc
+              Add Company Document
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              Add a new legal/registration document to the company library.
+              Upload a file and choose its category — it will appear in the
+              matching tab.
             </p>
           </div>
           <button
@@ -112,8 +143,42 @@ export function AddDocModal({
         </div>
 
         {/* Body */}
-        <div className="space-y-4 px-6 py-5">
-          {/* Document name */}
+        <div className="max-h-[70vh] space-y-4 overflow-y-auto px-6 py-5">
+          {/* Category + Type (NEW) */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className={labelCls}>Category *</label>
+              <select
+                className={inputCls}
+                value={cat}
+                onChange={(e) =>
+                  setCat(e.target.value as CompanyDocCategory)
+                }
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Document Type *</label>
+              <select
+                className={inputCls}
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+              >
+                {DOC_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Name */}
           <div>
             <label className={labelCls}>Document Name *</label>
             <input
@@ -150,25 +215,57 @@ export function AddDocModal({
             </div>
           </div>
 
-          {/* File upload (visual only — no upload endpoint yet) */}
+          {/* File upload — real file now */}
           <div>
-            <label className={labelCls}>Upload File</label>
-            <label className="flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 transition hover:bg-slate-50">
-              <span className="rounded-md border border-slate-300 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                Choose File
+            <label className={labelCls}>Attach File</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                setFile(f ?? null);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50"
+            >
+              <span className="flex items-center gap-2 truncate">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 shadow-sm">
+                  {file ? (
+                    <FileText className="h-4 w-4" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[12px] font-semibold text-slate-700">
+                    {file ? file.name : "Choose a file to upload"}
+                  </span>
+                  <span className="block text-[10px] text-slate-400">
+                    {file
+                      ? `${(file.size / 1024).toFixed(0)} KB · ${file.type || "unknown"}`
+                      : "PDF, images, Word — up to 25 MB"}
+                  </span>
+                </span>
               </span>
-              <span className="truncate text-slate-500">
-                {fileName ?? "No file chosen"}
-              </span>
-              <input
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  setFileName(f ? f.name : null);
-                }}
-              />
-            </label>
+              {file && (
+                <span
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFile(null);
+                    if (fileInputRef.current)
+                      fileInputRef.current.value = "";
+                  }}
+                  className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </span>
+              )}
+            </button>
           </div>
         </div>
 

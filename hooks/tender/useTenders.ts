@@ -3,7 +3,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { tenderApi, type Tender, type TenderStage } from "@/lib/api/tender.api";
+import {
+  tenderApi,
+  securityApi,
+  type Tender,
+  type TenderStage,
+} from "@/lib/api/tender.api";
 
 export function useTenders(params?: {
   stage?: string;
@@ -38,7 +43,9 @@ export function useTenders(params?: {
   return { data, loading, error, refetch };
 }
 
-/** Fetch all four stages in parallel and return grouped counts + rows. */
+/* ============================================================
+ * Grouped tenders — all 5 stages fetched in parallel
+ * ============================================================ */
 export function useTendersGrouped() {
   const [groups, setGroups] = useState<Record<TenderStage, Tender[]>>({
     potential: [],
@@ -54,18 +61,19 @@ export function useTendersGrouped() {
     setLoading(true);
     setError(null);
     try {
-      const [p, a, s, l] = await Promise.all([
+      const [p, a, s, l, w] = await Promise.all([
         tenderApi.list({ stage: "potential", limit: 200 }),
         tenderApi.list({ stage: "active", limit: 200 }),
         tenderApi.list({ stage: "submitted", limit: 200 }),
         tenderApi.list({ stage: "lost", limit: 200 }),
+        tenderApi.list({ stage: "won", limit: 200 }),
       ]);
       setGroups({
         potential: p.data,
         active: a.data,
         submitted: s.data,
         lost: l.data,
-        won: [],
+        won: w.data,
       });
     } catch (e) {
       const msg = (e as Error).message || "Failed to load tenders";
@@ -83,9 +91,44 @@ export function useTendersGrouped() {
   return { groups, loading, error, refetch };
 }
 
-/** Compute the 5 stat tiles from the grouped data. */
+/* ============================================================
+ * Stats — 5 KPI tiles
+ * ============================================================ */
 export function useTenderStats() {
   const { groups, loading, refetch } = useTendersGrouped();
+
+  const [securityPending, setSecurityPending] = useState<{
+    amount: number;
+    entities: number;
+  }>({ amount: 0, entities: 0 });
+
+  // Fetch security pending — separate endpoint
+  const refetchSecurity = useCallback(async () => {
+    try {
+      const s = await securityApi.stats();
+      setSecurityPending({
+        amount: s.totalPending ?? 0,
+        entities: s.entitiesAffected ?? 0,
+      });
+    } catch {
+      // silent — security stats are optional
+      setSecurityPending({ amount: 0, entities: 0 });
+    }
+  }, []);
+
+  useEffect(() => {
+    refetchSecurity();
+  }, [refetchSecurity]);
+
+  // Combine refetches so callers get everything fresh
+  const refetchAll = useCallback(async () => {
+    await Promise.all([refetch(), refetchSecurity()]);
+  }, [refetch, refetchSecurity]);
+
+  const won = groups.won.length;
+  const lost = groups.lost.length;
+  const decided = won + lost;
+  const winRate = decided === 0 ? 0 : Math.round((won / decided) * 100);
 
   const stats = [
     {
@@ -105,21 +148,17 @@ export function useTenderStats() {
     },
     {
       label: "Win Rate (FY26)",
-      value: (() => {
-        const won = groups.won.length;
-        const lost = groups.lost.length;
-        if (won + lost === 0) return "0%";
-        return `${Math.round((won / (won + lost)) * 100)}%`;
-      })(),
-      hint: `${groups.won.length} Won · ${groups.lost.length} Lost`,
+      value: `${winRate}%`,
+      hint: `${won} Won · ${lost} Lost`,
     },
     {
       label: "Tender Security Pending",
-      value: "৳0",
-      hint: "Across 0 entities",
+      value: `৳${securityPending.amount.toLocaleString("en-IN")}`,
+      hint: `Across ${securityPending.entities} ${securityPending.entities === 1 ? "entity" : "entities"
+        }`,
       highlighted: true,
     },
   ];
 
-  return { groups, stats, loading, refetch };
+  return { groups, stats, loading, refetch: refetchAll };
 }

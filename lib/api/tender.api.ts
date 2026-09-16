@@ -133,9 +133,9 @@ export interface Tender {
   readiness?: number;
   docStatus?: string;
   advertisementFile?: string;
-  advertisementUrl?: string;              // ← NEW
+  advertisementUrl?: string;
   advertisementUploadedBy?: string;
-  advertisementUploadedAt?: string;       // ← NEW
+  advertisementUploadedAt?: string;
   note?: string;
   eligibility?: string;
   attachments?: TenderAttachment[];
@@ -174,6 +174,22 @@ export interface SubmissionRow {
   readiness: number;
 }
 
+/* ---------- Submission Detail (matches new backend shape) ---------- */
+export interface SubmissionAttachment {
+  _id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
+export interface SubmissionChecklistItem {
+  id: string;
+  label: string;
+  checked: boolean;
+  isCustom?: boolean;
+}
+
 export interface SubmissionDetail {
   id: string;
   tenderer: string;
@@ -187,15 +203,12 @@ export interface SubmissionDetail {
     fileName: string;
     status: "Pending" | "In Progress" | "Done";
   }[];
-  checklist: {
-    id: string;
-    label: string;
-    value: string;
-    tone: "neutral" | "progress" | "warn";
-  }[];
+  checklist: SubmissionChecklistItem[];
   info: {
     advertisementFile?: string;
+    advertisementUrl?: string;
     advertisementUploadedBy?: string;
+    advertisementUploadedAt?: string;
     tenderLink?: string;
     recordedBy: string;
     tenderType: TenderType;
@@ -203,7 +216,7 @@ export interface SubmissionDetail {
     lastDateOfPurchase?: string;
     lastDateOfSubmission?: string;
     note?: string;
-    attachments: { name: string }[];
+    attachments: SubmissionAttachment[];
     eligibility?: string;
   };
 }
@@ -239,6 +252,10 @@ export interface CompanyDocument {
   status: CompanyDocStatus;
   action?: "View" | "Replace";
   fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  fileMime?: string;
+  docType?: string;
   subtitle?: string;
   chips?: string[];
   createdAt: string;
@@ -306,13 +323,11 @@ export const overviewApi = {
       .then(handle<ApiResponse<UpcomingTender[]>>)
       .then((r) => r.data),
 
-  // NEW
   performance: () =>
     fetch(`${TENDER_BASE}/overview/performance`, { headers: authHeaders() })
       .then(handle<ApiResponse<PerformanceResponse>>)
       .then((r) => r.data),
 
-  // NEW
   recentActivity: (limit = 10) =>
     fetch(`${TENDER_BASE}/overview/recent-activity?limit=${limit}`, {
       headers: authHeaders(),
@@ -422,7 +437,7 @@ export const tenderApi = {
       .then(handle<ApiResponse<null>>)
       .then(() => true),
 
-  /* ---------- Advertisement (NEW) ---------- */
+  /* ---------- Advertisement ---------- */
   uploadAdvertisement: async (id: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -612,4 +627,25 @@ export const companyDocApi = {
       headers: authHeaders(),
       body: JSON.stringify(payload),
     }).then(handle<ApiResponse<null>>),
+
+  uploadDocFile: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const token =
+      typeof window !== "undefined"
+        ? localStorage.getItem("token") ||
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("token")
+        : null;
+    const res = await fetch(`${TENDER_BASE}/docs/${id}/file`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.success === false) {
+      throw new Error(json.message || `Upload failed with ${res.status}`);
+    }
+    return json.data;
+  },
 };

@@ -12,11 +12,29 @@ interface Props {
   doc: CompanyDocUI | null;
 }
 
+/* Convert "/uploads/..." → "http://localhost:5000/uploads/..." */
+function fullFileUrl(url?: string) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const base =
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
+  const origin = base.replace(/\/api\/v1\/?$/, "");
+  return `${origin}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function fileSizeLabel(bytes: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function ViewDocModal({ open, onOpenChange, doc }: Props) {
   /* Esc close + body scroll lock */
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onOpenChange(false);
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" && onOpenChange(false);
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -28,10 +46,9 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
 
   if (!open || !doc) return null;
 
-  const isPDF = doc.fileUrl?.toLowerCase().endsWith(".pdf");
-  const isImage = doc.fileUrl
-    ? /\.(jpg|jpeg|png|webp|gif)$/i.test(doc.fileUrl)
-    : false;
+  const url = fullFileUrl(doc.fileUrl);
+  const isPDF = url.toLowerCase().endsWith(".pdf");
+  const isImage = url ? /\.(jpg|jpeg|png|webp|gif)$/i.test(url) : false;
 
   return (
     <div
@@ -39,13 +56,11 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
       role="dialog"
       aria-modal="true"
     >
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
       />
 
-      {/* Panel */}
       <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
@@ -53,13 +68,23 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
               <FileText className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h2 className="text-base font-bold text-slate-900">
                 {doc.title}
               </h2>
               {doc.reference && (
                 <p className="mt-0.5 font-mono text-[11px] text-slate-500">
                   {doc.reference}
+                </p>
+              )}
+              {doc.fileName && (
+                <p className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+                  <span className="truncate">{doc.fileName}</span>
+                  {doc.fileSize ? (
+                    <span className="shrink-0 text-slate-400">
+                      ({fileSizeLabel(doc.fileSize)})
+                    </span>
+                  ) : null}
                 </p>
               )}
             </div>
@@ -94,19 +119,29 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
                 {doc.validity ?? "—"}
               </p>
             </div>
+            {doc.docType && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Type
+                </p>
+                <p className="mt-1 text-[12px] font-medium text-slate-800">
+                  {doc.docType}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Preview area */}
-          {isPDF && doc.fileUrl ? (
+          {isPDF && url ? (
             <iframe
-              src={doc.fileUrl}
+              src={url}
               title={doc.title}
               className="h-72 w-full rounded-lg border border-slate-200"
             />
-          ) : isImage && doc.fileUrl ? (
+          ) : isImage && url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={doc.fileUrl}
+              src={url}
               alt={doc.title}
               className="h-72 w-full rounded-lg border border-slate-200 bg-slate-50 object-contain"
             />
@@ -114,10 +149,12 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
             <div className="flex h-72 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60">
               <FileText className="h-10 w-10 text-slate-300" />
               <p className="mt-2 text-xs font-medium text-slate-500">
-                No file uploaded
+                No preview available
               </p>
               <p className="mt-0.5 max-w-xs text-center text-[11px] text-slate-400">
-                Attach a file from the Add Document modal to preview it here.
+                {url
+                  ? "This file type can't be previewed — use Download or Open in New Tab."
+                  : "Attach a file from the Add Document modal to preview it here."}
               </p>
             </div>
           )}
@@ -144,9 +181,9 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
         <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <button
             type="button"
-            disabled={!doc.fileUrl}
+            disabled={!url}
             onClick={() => {
-              if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
+              if (url) window.open(url, "_blank");
             }}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -155,12 +192,12 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
           </button>
           <button
             type="button"
-            disabled={!doc.fileUrl}
+            disabled={!url}
             onClick={() => {
-              if (!doc.fileUrl) return;
+              if (!url) return;
               const a = document.createElement("a");
-              a.href = doc.fileUrl;
-              a.download = doc.title;
+              a.href = url;
+              a.download = doc.fileName || doc.title;
               a.click();
             }}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-[11px] font-semibold text-white hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"

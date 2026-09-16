@@ -1,4 +1,4 @@
-// lib/api/mappers.ts
+// lib/api/tender.mapper.ts
 import type {
     Tender,
     TenderAttachment,
@@ -47,11 +47,6 @@ export function budgetLabel(n?: number | null): string {
     return `৳${n.toLocaleString("en-IN")}`;
 }
 
-/**
- * Normalize an attachments array from the API so every item keeps its `_id`
- * (React key), plus url / size / mimeType. Falls back to a deterministic id
- * if the DB didn't provide one — this prevents the "unique key prop" warning.
- */
 export function normalizeAttachments(
     attachments?: TenderAttachment[] | null,
 ): TenderAttachment[] {
@@ -70,7 +65,6 @@ export function normalizeAttachments(
  * TENDER DETAIL MAPPERS
  * ============================================================ */
 
-/** Potential tab → TenderDetailReview props */
 export function toReviewDetail(t: Tender): TenderDetailData {
     return {
         id: t._id,
@@ -94,7 +88,6 @@ export function toReviewDetail(t: Tender): TenderDetailData {
     };
 }
 
-/** Active tab → TenderDetailActive props */
 export function toActiveDetail(t: Tender): ActiveTenderDetail {
     return {
         id: t._id,
@@ -108,10 +101,10 @@ export function toActiveDetail(t: Tender): ActiveTenderDetail {
         docStatus:
             (t.docStatus as ActiveTenderDetail["docStatus"]) ?? "Pending",
         documentTasks: t.note ?? "—",
+        checklist: t.checklist ?? [],
     };
 }
 
-/** Submitted tab → TenderDetailSubmitted props */
 export function toSubmittedDetail(t: Tender): SubmittedTenderDetail {
     return {
         id: t._id,
@@ -132,10 +125,10 @@ export function toSubmittedDetail(t: Tender): SubmittedTenderDetail {
             value: budgetLabel(p.value),
             isUs: p.isUs,
         })),
+        checklist: t.checklist ?? [],
     };
 }
 
-/** Lost tab → TenderDetailLost props */
 export function toLostDetail(t: Tender): LostTenderDetail {
     return {
         id: t._id,
@@ -147,6 +140,7 @@ export function toLostDetail(t: Tender): LostTenderDetail {
         lowestCompliantValue: t.lowestCompliantValue
             ? budgetLabel(t.lowestCompliantValue)
             : undefined,
+        checklist: t.checklist ?? [],
     };
 }
 
@@ -154,7 +148,6 @@ export function toLostDetail(t: Tender): LostTenderDetail {
  * SUBMISSION MAPPERS
  * ============================================================ */
 
-/** UI shape matching SubmissionTable's `SubmissionRow` */
 export interface SubmissionRowUI {
     id: string;
     tenderer: string;
@@ -165,7 +158,6 @@ export interface SubmissionRowUI {
     readiness: number;
 }
 
-/** API row → UI row (adds `statusColor` derived from `status`) */
 export function toSubmissionUIRow(r: SubmissionRow): SubmissionRowUI {
     const s = (r.status || "").toLowerCase();
     const statusColor: SubmissionRowUI["statusColor"] = s.includes("complete")
@@ -187,7 +179,6 @@ export function toSubmissionUIRow(r: SubmissionRow): SubmissionRowUI {
     };
 }
 
-/** Fill safe defaults for missing submission detail fields */
 export function sanitizeSubmissionDetail(
     d: SubmissionDetail,
 ): SubmissionDetail {
@@ -199,8 +190,10 @@ export function sanitizeSubmissionDetail(
             fileName: t.fileName || "No file uploaded yet",
         })),
         checklist: (d.checklist ?? []).map((c) => ({
-            ...c,
-            value: c.value || "—",
+            id: c.id,
+            label: c.label,
+            checked: !!c.checked,
+            isCustom: !!c.isCustom,
         })),
         info: {
             ...d.info,
