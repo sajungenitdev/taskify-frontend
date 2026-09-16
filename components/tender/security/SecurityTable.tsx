@@ -24,9 +24,9 @@ interface Props {
   rows: SecurityRow[];
   entities: string[];
   types: SecurityType[];
-  onCreate?: (draft: Partial<SecurityRow>) => void;
-  onUpdate?: (id: string, patch: Partial<SecurityRow>) => void;
-  onDelete?: (id: string) => void;
+  onCreate?: (draft: SecurityRow) => void | Promise<void>;
+  onUpdate?: (id: string, patch: Partial<SecurityRow>) => void | Promise<void>;
+  onDelete?: (id: string) => void | Promise<void>;
 }
 
 export function SecurityTable({

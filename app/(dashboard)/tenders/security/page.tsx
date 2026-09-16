@@ -63,7 +63,7 @@ export default function TenderSecurityPage() {
         // We keep drafts in a separate client-only state; simplest approach:
         // append a draft to the visible list.
         setDraft({
-            id: `draft-${Date.now()}`,
+            id: `draft-${crypto.randomUUID()}`,
             entity: ENTITIES[0],
             clientDescription: "",
             type: "Tender Security",
@@ -162,9 +162,9 @@ export default function TenderSecurityPage() {
                         rows={draft ? [...uiRows, draft] : uiRows}
                         entities={ENTITIES}
                         types={TYPES}
-                        onUpdate={updateRow}
-                        onCreate={saveRow}
-                        onDelete={deleteRow}
+                        onUpdate={(id, patch) => { updateRow(id, patch); }}
+                        onCreate={(d) => { if (d.id) void saveRow(d as SecurityRowUI); }}
+                        onDelete={(id) => { void deleteRow(id); }}
                     />
                 )}
 
