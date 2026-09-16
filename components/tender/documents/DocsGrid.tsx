@@ -1,12 +1,14 @@
+// components/tender/documents/DocsGrid.tsx
 "use client";
 
-import { DocCard, type CompanyDoc } from "./DocCard";
+import { DocCard } from "./DocCard";
+import type { CompanyDocUI } from "@/lib/api/mappers";
 
 interface Props {
-  docs: CompanyDoc[];
+  docs: CompanyDocUI[];
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
-  onAction?: (doc: CompanyDoc) => void;
+  onAction?: (doc: CompanyDocUI) => void;
   emptyMessage?: string;
 }
 

@@ -3,6 +3,10 @@
     {
       "source": "/api/v1/(.*)",
       "destination": "https://TaskFlow-server-5gat.onrender.com/"
+    },
+    {
+      "source": "/api/v1/(.*)",
+      "destination": "http://localhost:3000/"
     }
   ]
 }

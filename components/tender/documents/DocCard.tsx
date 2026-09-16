@@ -1,29 +1,18 @@
+// components/tender/documents/DocCard.tsx
 "use client";
 
 import { FileText, Trophy } from "lucide-react";
-import { StatusPill, type DocStatus } from "./StatusPill";
+import { StatusPill } from "./StatusPill";
+import type { CompanyDocUI } from "@/lib/api/mappers";
 
-export interface CompanyDoc {
-  id: string;
-  category: "legal" | "profiles" | "experience" | "certificates";
-  title: string;
-  /** For legal docs */
-  reference?: string;
-  validity?: string;
-  status: DocStatus;
-  action?: "View" | "Replace";
-
-  /** For experience / profiles cards */
-  subtitle?: string;             // "Acronis Backup Solutions, ongoing since 2023"
-  chips?: string[];              // ["Power & Energy", "3+ Yrs", "৳5L+"]
-  ctaLabel?: string;             // "View Certificate"
-}
+/** Re-export for consumers that import `CompanyDoc` from here */
+export type CompanyDoc = CompanyDocUI;
 
 interface Props {
-  doc: CompanyDoc;
+  doc: CompanyDocUI;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
-  onAction?: (doc: CompanyDoc) => void;
+  onAction?: (doc: CompanyDocUI) => void;
 }
 
 export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
@@ -31,14 +20,13 @@ export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
   const isExperience = doc.category === "experience";
 
   /* ---------- Experience / Profile card variant ---------- */
-  if (isExperience || doc.chips?.length) {
+  if (isExperience || (doc.chips && doc.chips.length > 0)) {
     return (
       <article
-        className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${
-          selected
+        className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${selected
             ? "border-slate-900 ring-1 ring-slate-900/5"
             : "border-slate-200/80 hover:border-slate-300"
-        }`}
+          }`}
       >
         <div className="flex items-start justify-between">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
@@ -81,22 +69,21 @@ export function DocCard({ doc, selected, onToggleSelect, onAction }: Props) {
           onClick={() => onAction?.(doc)}
           className="mt-4 self-start text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:underline"
         >
-          {doc.ctaLabel ?? "View Certificate"} →
+          View Certificate →
         </button>
       </article>
     );
   }
 
-  /* ---------- Legal / certificate card variant (unchanged) ---------- */
+  /* ---------- Legal / certificate card variant ---------- */
   return (
     <article
-      className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${
-        isExpiring
+      className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${isExpiring
           ? "border-orange-300 ring-1 ring-orange-100"
           : selected
             ? "border-slate-900"
             : "border-slate-200/80 hover:border-slate-300"
-      }`}
+        }`}
     >
       <div className="flex items-start justify-between">
         <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-amber-50 text-amber-700">

@@ -2,18 +2,18 @@
 "use client";
 
 import { useEffect } from "react";
-import { X, FileText, Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, FileText, X } from "lucide-react";
 import { StatusPill } from "../StatusPill";
-import type { CompanyDoc } from "../DocCard";
+import type { CompanyDocUI } from "@/lib/api/mappers";
 
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  doc: CompanyDoc | null;
+  doc: CompanyDocUI | null;
 }
 
 export function ViewDocModal({ open, onOpenChange, doc }: Props) {
-  // Esc close + body scroll lock
+  /* Esc close + body scroll lock */
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onOpenChange(false);
@@ -27,6 +27,11 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
   }, [open, onOpenChange]);
 
   if (!open || !doc) return null;
+
+  const isPDF = doc.fileUrl?.toLowerCase().endsWith(".pdf");
+  const isImage = doc.fileUrl
+    ? /\.(jpg|jpeg|png|webp|gif)$/i.test(doc.fileUrl)
+    : false;
 
   return (
     <div
@@ -71,6 +76,7 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
 
         {/* Body */}
         <div className="space-y-4 px-6 py-5">
+          {/* Metadata row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -90,39 +96,74 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
             </div>
           </div>
 
-          {/* Preview area — placeholder for a real PDF/image viewer */}
-          <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60">
-            <FileText className="h-10 w-10 text-slate-300" />
-            <p className="mt-2 text-xs font-medium text-slate-500">
-              Document preview
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-400">
-              Wire an <code className="font-mono">{"<iframe>"}</code> or PDF
-              viewer here when the file URL is available.
-            </p>
-          </div>
+          {/* Preview area */}
+          {isPDF && doc.fileUrl ? (
+            <iframe
+              src={doc.fileUrl}
+              title={doc.title}
+              className="h-72 w-full rounded-lg border border-slate-200"
+            />
+          ) : isImage && doc.fileUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={doc.fileUrl}
+              alt={doc.title}
+              className="h-72 w-full rounded-lg border border-slate-200 bg-slate-50 object-contain"
+            />
+          ) : (
+            <div className="flex h-72 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/60">
+              <FileText className="h-10 w-10 text-slate-300" />
+              <p className="mt-2 text-xs font-medium text-slate-500">
+                No file uploaded
+              </p>
+              <p className="mt-0.5 max-w-xs text-center text-[11px] text-slate-400">
+                Attach a file from the Add Document modal to preview it here.
+              </p>
+            </div>
+          )}
+
+          {doc.subtitle && (
+            <p className="text-[11px] text-slate-500">{doc.subtitle}</p>
+          )}
+
+          {doc.chips && doc.chips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {doc.chips.map((c) => (
+                <span
+                  key={c}
+                  className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <button
             type="button"
+            disabled={!doc.fileUrl}
             onClick={() => {
-              // TODO: open in new tab
-              console.log("open in new tab:", doc.title);
+              if (doc.fileUrl) window.open(doc.fileUrl, "_blank");
             }}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open in New Tab
           </button>
           <button
             type="button"
+            disabled={!doc.fileUrl}
             onClick={() => {
-              // TODO: trigger download
-              console.log("download:", doc.title);
+              if (!doc.fileUrl) return;
+              const a = document.createElement("a");
+              a.href = doc.fileUrl;
+              a.download = doc.title;
+              a.click();
             }}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-[11px] font-semibold text-white hover:bg-[#8f6100]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-[11px] font-semibold text-white hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
             Download

@@ -1,15 +1,21 @@
-// components/tender/modal/AddTenderModal.tsx
+// components/tender/modal/EditTenderModal.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 import { Loader2, X } from "lucide-react";
 import toast from "react-hot-toast";
-import { tenderApi, type TenderType, type Currency } from "@/lib/api/tender.api";
+import {
+  tenderApi,
+  type Tender,
+  type TenderType,
+} from "@/lib/api/tender.api";
 
 interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  onCreated?: () => void;
+  /** The tender being edited. Null hides the modal. */
+  tender: Tender | null;
+  onUpdated?: () => void;
 }
 
 const inputCls =
@@ -28,52 +34,71 @@ interface FormState {
   responsiblePerson: string;
   lastDateOfPurchase: string;
   lastDateOfSubmission: string;
-  submissionTime: string;
   tentativeBudget: string;
-  scheduleValue: string;
   tenderSecurityAmount: string;
+  performanceSecurityAmount: string;
   mode: string;
-  participate: string;
-  docPurchased: string;
-  contactName: string;
-  contactPhone: string;
-  contactEmail: string;
-  contactAddress: string;
+  readiness: string;
+  docStatus: string;
+  advertisementFile: string;
+  advertisementUploadedBy: string;
   note: string;
+  eligibility: string;
 }
 
-const INITIAL: FormState = {
-  tenderer: "",
-  title: "",
-  tenderType: "eGP",
-  description: "",
-  tenderLink: "",
-  recordedBy: "",
-  responsiblePerson: "",
-  lastDateOfPurchase: "",
-  lastDateOfSubmission: "",
-  submissionTime: "",
-  tentativeBudget: "",
-  scheduleValue: "",
-  tenderSecurityAmount: "",
-  mode: "Online (eGP)",
-  participate: "Yes",
-  docPurchased: "Not Yet",
-  contactName: "",
-  contactPhone: "",
-  contactEmail: "",
-  contactAddress: "",
-  note: "",
-};
+/** ISO → "YYYY-MM-DD" for <input type="date"> */
+function toDateInput(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
-export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
-  const [form, setForm] = useState<FormState>(INITIAL);
+function fromTender(t: Tender): FormState {
+  return {
+    tenderer: t.tenderer ?? "",
+    title: t.title ?? "",
+    tenderType: t.tenderType ?? "eGP",
+    description: t.description ?? "",
+    tenderLink: t.tenderLink ?? "",
+    recordedBy: t.recordedBy ?? "",
+    responsiblePerson: t.responsiblePerson ?? "",
+    lastDateOfPurchase: toDateInput(t.lastDateOfPurchase),
+    lastDateOfSubmission: toDateInput(t.lastDateOfSubmission),
+    tentativeBudget: t.tentativeBudget ? String(t.tentativeBudget) : "",
+    tenderSecurityAmount: t.tenderSecurityAmount
+      ? String(t.tenderSecurityAmount)
+      : "",
+    performanceSecurityAmount: t.performanceSecurityAmount
+      ? String(t.performanceSecurityAmount)
+      : "",
+    mode: t.mode ?? "Online (eGP)",
+    readiness: t.readiness != null ? String(t.readiness) : "0",
+    docStatus: t.docStatus ?? "",
+    advertisementFile: t.advertisementFile ?? "",
+    advertisementUploadedBy: t.advertisementUploadedBy ?? "",
+    note: t.note ?? "",
+    eligibility: t.eligibility ?? "",
+  };
+}
+
+export function EditTenderModal({
+  open,
+  onOpenChange,
+  tender,
+  onUpdated,
+}: Props) {
+  const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
 
-  /* Reset whenever modal opens */
+  /* Reset / hydrate every time the modal opens or the target changes */
   useEffect(() => {
-    if (open) setForm(INITIAL);
-  }, [open]);
+    if (open && tender) {
+      setForm(fromTender(tender));
+    } else {
+      setForm(null);
+    }
+  }, [open, tender]);
 
   /* Esc close + body scroll lock */
   useEffect(() => {
@@ -90,60 +115,56 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
     };
   }, [open, saving, onOpenChange]);
 
-  if (!open) return null;
+  if (!open || !tender || !form) return null;
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
-    setForm((f) => ({ ...f, [k]: v }));
+    setForm((f) => (f ? { ...f, [k]: v } : f));
 
-  const canSave = form.tenderer.trim().length > 0 && form.title.trim().length > 0;
+  const canSave =
+    form.tenderer.trim().length > 0 &&
+    form.title.trim().length > 0 &&
+    !saving;
 
-  const handleSave = async (notify: boolean) => {
+  const handleSave = async () => {
     if (!canSave) {
       toast.error("Tender name and title are required");
       return;
     }
 
-    // Combine date + time for the submission deadline (if a time is provided)
-    let submissionISO: string | undefined;
-    if (form.lastDateOfSubmission) {
-      const dt = form.submissionTime
-        ? new Date(`${form.lastDateOfSubmission} ${form.submissionTime}`)
-        : new Date(form.lastDateOfSubmission);
-      submissionISO = !isNaN(dt.getTime()) ? dt.toISOString() : undefined;
-    }
-
     setSaving(true);
     try {
-      const created = await tenderApi.create({
+      await tenderApi.update(tender._id, {
         tenderer: form.tenderer.trim(),
         title: form.title.trim(),
-        stage: "potential",
         tenderType: form.tenderType,
-        description: form.description.trim() || undefined,
-        tenderLink: form.tenderLink.trim() || undefined,
-        recordedBy: form.recordedBy.trim() || undefined,
-        responsiblePerson: form.responsiblePerson.trim() || undefined,
+        description: form.description.trim() || "",
+        tenderLink: form.tenderLink.trim() || "",
+        recordedBy: form.recordedBy.trim() || "",
+        responsiblePerson: form.responsiblePerson.trim() || "",
         lastDateOfPurchase: form.lastDateOfPurchase
           ? new Date(form.lastDateOfPurchase).toISOString()
-          : undefined,
-        lastDateOfSubmission: submissionISO,
+          : null,
+        lastDateOfSubmission: form.lastDateOfSubmission
+          ? new Date(form.lastDateOfSubmission).toISOString()
+          : null,
         tentativeBudget: Number(form.tentativeBudget) || 0,
         tenderSecurityAmount: Number(form.tenderSecurityAmount) || 0,
+        performanceSecurityAmount:
+          Number(form.performanceSecurityAmount) || 0,
         mode: form.mode,
-        note: form.note.trim() || undefined,
-      });
+        readiness: Number(form.readiness) || 0,
+        docStatus: form.docStatus,
+        advertisementFile: form.advertisementFile.trim() || "",
+        advertisementUploadedBy: form.advertisementUploadedBy.trim() || "",
+        note: form.note.trim() || "",
+        eligibility: form.eligibility.trim() || "",
+      } as Partial<Tender>);
 
-      toast.success(
-        notify
-          ? "Tender saved — notifications sent"
-          : "Tender added to Potential",
-      );
-
-      onCreated?.();
+      toast.success("Tender updated");
+      onUpdated?.();
       onOpenChange(false);
-      void created; // available if you want to use the returned doc
     } catch (e) {
-      toast.error((e as Error).message || "Failed to save tender");
+      toast.error((e as Error).message || "Failed to update tender");
     } finally {
       setSaving(false);
     }
@@ -161,17 +182,16 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
         <div className="flex items-start justify-between border-b border-slate-100 px-5 py-4">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Add Tender to Potential
+              Edit Tender — {tender.tenderer}
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              Manually record a tender that wasn&apos;t picked up by the
-              automated daily search — matches the fields tracked in the master
-              Tender Record sheet.
+              Update the record. Changes are saved immediately and reflected
+              across the pipeline.
             </p>
           </div>
           <button
             type="button"
-            onClick={() => onOpenChange(false)}
+            onClick={() => !saving && onOpenChange(false)}
             disabled={saving}
             className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
             aria-label="Close"
@@ -189,7 +209,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Tender Name *</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. Rural Electrification Board"
                   value={form.tenderer}
                   onChange={(e) => set("tenderer", e.target.value)}
                 />
@@ -198,7 +217,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Opportunity Title *</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. Substation Control Panel Supply"
                   value={form.title}
                   onChange={(e) => set("title", e.target.value)}
                 />
@@ -221,7 +239,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Description / Item</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. Substation Control Panel Supply"
                   value={form.description}
                   onChange={(e) => set("description", e.target.value)}
                 />
@@ -230,7 +247,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Tender Notice Link</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. eGP.gov.bd/reb/2609-scp"
                   value={form.tenderLink}
                   onChange={(e) => set("tenderLink", e.target.value)}
                 />
@@ -239,7 +255,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Recorded By</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. Akramul"
                   value={form.recordedBy}
                   onChange={(e) => set("recordedBy", e.target.value)}
                 />
@@ -248,7 +263,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Responsible Person</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. Nahid Hasan"
                   value={form.responsiblePerson}
                   onChange={(e) => set("responsiblePerson", e.target.value)}
                 />
@@ -265,7 +279,9 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                   type="date"
                   className={inputCls}
                   value={form.lastDateOfPurchase}
-                  onChange={(e) => set("lastDateOfPurchase", e.target.value)}
+                  onChange={(e) =>
+                    set("lastDateOfPurchase", e.target.value)
+                  }
                 />
               </div>
               <div>
@@ -280,49 +296,56 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 />
               </div>
               <div>
-                <label className={labelCls}>Submission Time</label>
-                <input
-                  className={inputCls}
-                  placeholder="e.g. 3:00 PM"
-                  value={form.submissionTime}
-                  onChange={(e) => set("submissionTime", e.target.value)}
-                />
-              </div>
-              <div>
                 <label className={labelCls}>Tentative Budget (৳)</label>
                 <input
                   type="number"
                   className={inputCls}
-                  placeholder="e.g. 500000"
                   value={form.tentativeBudget}
-                  onChange={(e) => set("tentativeBudget", e.target.value)}
+                  onChange={(e) =>
+                    set("tentativeBudget", e.target.value)
+                  }
                 />
               </div>
-              <div className="col-span-2">
-                <label className={labelCls}>Tender Schedule Value (৳)</label>
+              <div>
+                <label className={labelCls}>Readiness (%)</label>
                 <input
                   type="number"
+                  min={0}
+                  max={100}
                   className={inputCls}
-                  placeholder="e.g. 500 (doc fee)"
-                  value={form.scheduleValue}
-                  onChange={(e) => set("scheduleValue", e.target.value)}
+                  value={form.readiness}
+                  onChange={(e) => set("readiness", e.target.value)}
                 />
               </div>
             </div>
           </Section>
 
-          {/* SECURITY & SUBMISSION */}
-          <Section title="Security & Submission">
+          {/* SECURITY */}
+          <Section title="Security">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Tender Security Amount (৳)</label>
+                <label className={labelCls}>
+                  Tender Security Amount (৳)
+                </label>
                 <input
                   type="number"
                   className={inputCls}
-                  placeholder="e.g. 25000"
                   value={form.tenderSecurityAmount}
                   onChange={(e) =>
                     set("tenderSecurityAmount", e.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelCls}>
+                  Performance Security (৳)
+                </label>
+                <input
+                  type="number"
+                  className={inputCls}
+                  value={form.performanceSecurityAmount}
+                  onChange={(e) =>
+                    set("performanceSecurityAmount", e.target.value)
                   }
                 />
               </div>
@@ -339,81 +362,71 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 </select>
               </div>
               <div>
-                <label className={labelCls}>Participate?</label>
+                <label className={labelCls}>Docs Status</label>
                 <select
                   className={inputCls}
-                  value={form.participate}
-                  onChange={(e) => set("participate", e.target.value)}
+                  value={form.docStatus}
+                  onChange={(e) => set("docStatus", e.target.value)}
                 >
-                  <option>Yes</option>
-                  <option>No</option>
-                  <option>Undecided</option>
-                </select>
-              </div>
-              <div>
-                <label className={labelCls}>Tender Doc Purchased?</label>
-                <select
-                  className={inputCls}
-                  value={form.docPurchased}
-                  onChange={(e) => set("docPurchased", e.target.value)}
-                >
-                  <option>Yes</option>
-                  <option>Not Yet</option>
+                  <option value="">—</option>
+                  <option value="Docs pending">Docs pending</option>
+                  <option value="Docs in progress">Docs in progress</option>
+                  <option value="Complete">Complete</option>
+                  <option value="Banking docs pending">
+                    Banking docs pending
+                  </option>
                 </select>
               </div>
             </div>
           </Section>
 
-          {/* CLIENT CONTACT */}
-          <Section title="Client Contact (used for automatic Client 360 record capture)">
+          {/* ADVERTISEMENT */}
+          <Section title="Advertisement">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Contact Name</label>
+                <label className={labelCls}>Advertisement File</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. Md. Kamal Hossain"
-                  value={form.contactName}
-                  onChange={(e) => set("contactName", e.target.value)}
+                  placeholder="e.g. Tender_Notice_BPDB.pdf"
+                  value={form.advertisementFile}
+                  onChange={(e) =>
+                    set("advertisementFile", e.target.value)
+                  }
                 />
               </div>
               <div>
-                <label className={labelCls}>Phone</label>
+                <label className={labelCls}>Uploaded By</label>
                 <input
                   className={inputCls}
-                  placeholder="e.g. 01711-000000"
-                  value={form.contactPhone}
-                  onChange={(e) => set("contactPhone", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Email</label>
-                <input
-                  className={inputCls}
-                  placeholder="e.g. procurement@reb.gov.bd"
-                  value={form.contactEmail}
-                  onChange={(e) => set("contactEmail", e.target.value)}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Address</label>
-                <input
-                  className={inputCls}
-                  placeholder="e.g. REB HQ, Dhaka"
-                  value={form.contactAddress}
-                  onChange={(e) => set("contactAddress", e.target.value)}
+                  placeholder="e.g. Akramul · today"
+                  value={form.advertisementUploadedBy}
+                  onChange={(e) =>
+                    set("advertisementUploadedBy", e.target.value)
+                  }
                 />
               </div>
             </div>
           </Section>
 
-          {/* COMMENTS */}
-          <Section title="Comments">
+          {/* NOTES */}
+          <Section title="Notes">
             <textarea
               rows={3}
               className={`${inputCls} h-auto resize-none py-2`}
-              placeholder="General / Manager / MD comments"
               value={form.note}
               onChange={(e) => set("note", e.target.value)}
+              placeholder="General notes, follow-ups, reminders"
+            />
+          </Section>
+
+          {/* ELIGIBILITY */}
+          <Section title="Eligibility / Important Records">
+            <textarea
+              rows={3}
+              className={`${inputCls} h-auto resize-none py-2`}
+              value={form.eligibility}
+              onChange={(e) => set("eligibility", e.target.value)}
+              placeholder="Requirements, thresholds, references"
             />
           </Section>
         </div>
@@ -422,21 +435,20 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
         <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
           <button
             type="button"
-            onClick={() => handleSave(true)}
-            disabled={saving || !canSave}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => !saving && onOpenChange(false)}
+            disabled={saving}
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save &amp; Notify New Tender
+            Cancel
           </button>
           <button
             type="button"
-            onClick={() => handleSave(false)}
-            disabled={saving || !canSave}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={handleSave}
+            disabled={!canSave}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save Tender
+            {saving ? "Saving..." : "Save Changes"}
           </button>
         </div>
       </div>
@@ -444,6 +456,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
   );
 }
 
+/* ---------- Section wrapper ---------- */
 function Section({
   title,
   children,

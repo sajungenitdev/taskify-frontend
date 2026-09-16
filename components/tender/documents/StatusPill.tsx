@@ -1,3 +1,4 @@
+// components/tender/documents/StatusPill.tsx
 "use client";
 
 export type DocStatus = "Valid" | "Expiring Soon" | "Expired";

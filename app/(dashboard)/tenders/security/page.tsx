@@ -1,6 +1,8 @@
+// app/(dashboard)/tenders/security/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { SecurityHeader } from "@/components/tender/security/SecurityHeader";
 import { SecurityStats } from "@/components/tender/security/SecurityStats";
 import {
@@ -9,10 +11,19 @@ import {
 } from "@/components/tender/security/SecurityFilters";
 import {
     SecurityTable,
-    type SecurityRow,
     type SecurityType,
 } from "@/components/tender/security/SecurityTable";
 import { SecurityFooter } from "@/components/tender/security/SecurityFooter";
+import {
+    useSecurity,
+    useSecurityStats,
+} from "@/hooks/tender/useSecurity";
+import { securityApi } from "@/lib/api/tender.api";
+import {
+    toSecurityUIRow,
+    toSecurityStatsTiles,
+    type SecurityRowUI,
+} from "@/lib/api/mappers";
 
 /* ---------- Config ---------- */
 const ENTITIES = ["NGL-26", "NG-26", "JT"];
@@ -22,132 +33,36 @@ const TYPES: SecurityType[] = [
     "Bank Guarantee",
 ];
 
-/* ---------- Seed data ---------- */
-const INITIAL_ROWS: SecurityRow[] = [
-    {
-        id: "r1",
-        entity: "NGL-26",
-        clientDescription: "Bangladesh Bank — EViews Software",
-        type: "Tender Security",
-        amount: 50000,
-        currency: "৳",
-        dueDate: "20 Oct 2026",
-        docsStatus: "Attached",
-    },
-    {
-        id: "r2",
-        entity: "NGL-26",
-        clientDescription: "Bangladesh Bank — EViews Software",
-        type: "Performance Security",
-        amount: 213000,
-        currency: "৳",
-        dueDate: "20 Oct 2026",
-        docsStatus: "Attached",
-    },
-    {
-        id: "r3",
-        entity: "NGL-26",
-        clientDescription: "University of Asia Pacific — Pharmaceuticals",
-        type: "Tender Security",
-        amount: 4500,
-        currency: "৳",
-        dueDate: "05 Nov 2026",
-        docsStatus: "Missing",
-    },
-    {
-        id: "r4",
-        entity: "NGL-26",
-        clientDescription: "University of Asia Pacific — Civil Engineering",
-        type: "Tender Security",
-        amount: 3695,
-        currency: "৳",
-        dueDate: "05 Nov 2026",
-        docsStatus: "Missing",
-    },
-    {
-        id: "r5",
-        entity: "NG-26",
-        clientDescription: "Sonali Bank PLC — Radmin Software",
-        type: "Tender Security",
-        amount: 35000,
-        currency: "৳",
-        dueDate: "15 Sep 2026",
-        docsStatus: "Attached",
-    },
-    {
-        id: "r6",
-        entity: "NG-26",
-        clientDescription: "EGCB — Acronis Backup",
-        type: "Tender Security",
-        amount: 110000,
-        currency: "৳",
-        dueDate: "15 Sep 2026",
-        docsStatus: "Attached",
-    },
-    {
-        id: "r7",
-        entity: "NG-26",
-        clientDescription: "EGCB — Acronis Backup",
-        type: "Performance Security",
-        amount: 449752.5,
-        currency: "৳",
-        dueDate: "15 Sep 2026",
-        docsStatus: "Missing",
-    },
-    {
-        id: "r8",
-        entity: "JT",
-        clientDescription: "Pending deposit",
-        type: "Bank Guarantee",
-        amount: 10500,
-        currency: "৳",
-        dueDate: "30 Sep 2026",
-        docsStatus: "Missing",
-    },
-];
-
-/* ---------- Page ---------- */
 export default function TenderSecurityPage() {
-    const [rows, setRows] = useState<SecurityRow[]>(INITIAL_ROWS);
     const [filters, setFilters] = useState<FilterState>({
         entity: "all",
         type: "all",
         docs: "all",
     });
 
-    /* Apply filters */
-    const filtered = useMemo(() => {
-        return rows.filter((r) => {
-            if (r.isDraft) return true; // always show draft row
-            if (filters.entity !== "all" && r.entity !== filters.entity) return false;
-            if (filters.type !== "all" && r.type !== filters.type) return false;
-            if (filters.docs !== "all" && r.docsStatus !== filters.docs) return false;
-            return true;
-        });
-    }, [rows, filters]);
+    const { rows, loading, refetch } = useSecurity({
+        entity: filters.entity === "all" ? undefined : filters.entity,
+        type: filters.type === "all" ? undefined : filters.type,
+        docs: filters.docs === "all" ? undefined : filters.docs,
+        limit: 200,
+    });
 
-    /* Derived stats */
-    const stats = useMemo(() => {
-        const nonDraft = rows.filter((r) => !r.isDraft);
-        const totalPending = nonDraft.reduce((s, r) => s + r.amount, 0);
-        const entitiesAffected = new Set(nonDraft.map((r) => r.entity)).size;
+    const { stats, loading: statsLoading, refetch: refetchStats } =
+        useSecurityStats();
 
-        return [
-            {
-                label: "Total Pending Security",
-                value: `৳${totalPending.toLocaleString("en-IN")}`,
-            },
-            { label: "Entities Affected", value: String(entitiesAffected) },
-            { label: "Receivable Outstanding", value: "৳0" },
-            { label: "Payable Outstanding", value: "৳0" },
-        ];
-    }, [rows]);
+    /* ---------- Filtered rows (server does most of the work; keep this for
+         the draft row which lives only on the client) ---------- */
+    const uiRows: SecurityRowUI[] = useMemo(
+        () => rows.map(toSecurityUIRow),
+        [rows],
+    );
 
-    /* Add a fresh draft row */
+    /* ---------- Add new draft row ---------- */
     const addRecord = () => {
-        // only one draft at a time
-        if (rows.some((r) => r.isDraft)) return;
-        const draft: SecurityRow = {
+        if (uiRows.some((r) => r.isDraft)) return;
+        // We keep drafts in a separate client-only state; simplest approach:
+        // append a draft to the visible list.
+        setDraft({
             id: `draft-${Date.now()}`,
             entity: ENTITIES[0],
             clientDescription: "",
@@ -157,58 +72,102 @@ export default function TenderSecurityPage() {
             dueDate: "",
             docsStatus: "Missing",
             isDraft: true,
-        };
-        setRows((prev) => [...prev, draft]);
+        });
     };
 
-    /* Update a draft row */
-    const updateRow = (id: string, patch: Partial<SecurityRow>) => {
-        setRows((prev) =>
-            prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-        );
-    };
+    const [draft, setDraft] = useState<SecurityRowUI | null>(null);
 
-    /* Save a draft → promote to normal row */
-    const saveRow = (draft: SecurityRow) => {
-        if (!draft.clientDescription.trim()) {
-            // basic guard: don't save empty descriptions
+    /* ---------- Save draft → POST ---------- */
+    const saveRow = async (r: SecurityRowUI) => {
+        if (!r.clientDescription.trim()) {
+            toast.error("Description is required");
             return;
         }
-        setRows((prev) =>
-            prev.map((r) =>
-                r.id === draft.id
-                    ? { ...r, isDraft: false, docsStatus: "Missing" }
-                    : r,
-            ),
-        );
-        // TODO: POST /api/v1/tenders/security
+        try {
+            await securityApi.create({
+                entity: r.entity,
+                clientDescription: r.clientDescription,
+                type: r.type,
+                amount: r.amount,
+                docsStatus: r.docsStatus,
+                // dueDate comes as display string — convert back to ISO
+                ...(r.dueDate ? { dueDate: new Date(r.dueDate).toISOString() } : {}),
+            });
+            toast.success("Security record saved");
+            setDraft(null);
+            await Promise.all([refetch(), refetchStats()]);
+        } catch (e) {
+            toast.error((e as Error).message || "Save failed");
+        }
     };
 
-    /* Delete a row (also used for cancel draft) */
-    const deleteRow = (id: string) => {
-        setRows((prev) => prev.filter((r) => r.id !== id));
-        // TODO: DELETE /api/v1/tenders/security/:id
+    /* ---------- Update a live row ---------- */
+    const updateRow = (id: string, patch: Partial<SecurityRowUI>) => {
+        if (draft && draft.id === id) {
+            setDraft({ ...draft, ...patch });
+        }
+        // Server rows are read-only on this page for now
     };
+
+    /* ---------- Delete (also used for "Cancel" on the draft) ---------- */
+    const deleteRow = async (id: string) => {
+        if (draft && draft.id === id) {
+            setDraft(null);
+            return;
+        }
+        try {
+            await securityApi.remove(id);
+            toast.success("Security record deleted");
+            await Promise.all([refetch(), refetchStats()]);
+        } catch (e) {
+            toast.error((e as Error).message || "Delete failed");
+        }
+    };
+
+    /* ---------- Stat tiles ---------- */
+    const statTiles = useMemo(
+        () => (stats ? toSecurityStatsTiles(stats) : []),
+        [stats],
+    );
 
     return (
         <main className="min-h-screen bg-[#faf7f0] pb-16 text-slate-900">
             <div className="mx-auto max-w-[1600px] space-y-6 p-6 lg:p-8">
                 <SecurityHeader onAdd={addRecord} />
-                <SecurityStats stats={stats} />
+
+                {statsLoading || !stats ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div
+                                key={i}
+                                className="h-[80px] animate-pulse rounded-xl border border-slate-200/80 bg-white"
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <SecurityStats stats={statTiles} />
+                )}
+
                 <SecurityFilters
                     value={filters}
                     entities={ENTITIES}
                     types={TYPES}
                     onChange={setFilters}
                 />
-                <SecurityTable
-                    rows={filtered}
-                    entities={ENTITIES}
-                    types={TYPES}
-                    onCreate={saveRow}
-                    onUpdate={updateRow}
-                    onDelete={deleteRow}
-                />
+
+                {loading ? (
+                    <div className="h-[300px] animate-pulse rounded-xl border border-slate-200/80 bg-white" />
+                ) : (
+                    <SecurityTable
+                        rows={draft ? [...uiRows, draft] : uiRows}
+                        entities={ENTITIES}
+                        types={TYPES}
+                        onUpdate={updateRow}
+                        onCreate={saveRow}
+                        onDelete={deleteRow}
+                    />
+                )}
+
                 <SecurityFooter />
             </div>
         </main>

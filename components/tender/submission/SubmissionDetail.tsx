@@ -1,13 +1,16 @@
+// components/tender/submission/SubmissionDetail.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
-import { DocTaskRow, type DocTask, type DocStatus } from "./DocTaskRow";
+import { DocTaskRow, type DocTask } from "./DocTaskRow";
 import {
   SubmissionChecklist,
   type ChecklistItem,
 } from "./SubmissionChecklist";
 import { ReadinessBar } from "./ReadinessBar";
+import { docTaskApi } from "@/lib/api/tender.api";
+import toast from "react-hot-toast";
 
 /* ---------- Types ---------- */
 
@@ -43,6 +46,8 @@ export interface SubmissionDetailData {
 
 interface Props {
   data: SubmissionDetailData;
+  /** Called after a doc task mutation succeeds — use to refetch from parent */
+  onTaskMutated?: () => void;
 }
 
 const TABS = ["Tender Preparation", "Tender Info"] as const;
@@ -50,12 +55,17 @@ type Tab = (typeof TABS)[number];
 
 /* ---------- Component ---------- */
 
-export function SubmissionDetail({ data }: Props) {
+export function SubmissionDetail({ data, onTaskMutated }: Props) {
   const [tab, setTab] = useState<Tab>("Tender Preparation");
   const [showDetails, setShowDetails] = useState(true);
 
-  // Repeater state — seeded from props, then editable locally
+  // Repeater state
   const [tasks, setTasks] = useState<DocTask[]>(data.docTasks);
+
+  /* ---------- KEY FIX: re-seed tasks when the parent switches tender ---------- */
+  useEffect(() => {
+    setTasks(data.docTasks);
+  }, [data.id, data.docTasks]);
 
   const addTask = () => {
     const draft: DocTask = {
@@ -75,29 +85,70 @@ export function SubmissionDetail({ data }: Props) {
     );
   };
 
-  const saveTask = (id: string) => {
+  const saveTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    const finalTitle = task.title.trim() || "Untitled task";
+    const finalOwner = task.owner.trim() || "—";
+
+    // optimistic local update
     setTasks((prev) =>
       prev.map((t) =>
         t.id === id
-          ? {
-              ...t,
-              title: t.title.trim() || "Untitled task",
-              owner: t.owner.trim() || "—",
-              isDraft: false,
-            }
+          ? { ...t, title: finalTitle, owner: finalOwner, isDraft: false }
           : t,
       ),
     );
-    // TODO: POST /api/v1/tenders/submissions/:id/documents
+
+    try {
+      const created = await docTaskApi.add(data.id, {
+        title: finalTitle,
+        owner: finalOwner,
+        status: task.status,
+        fileName: task.fileName,
+      });
+
+      // swap the draft id for the real _id so future updates/deletes work
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, id: created._id, isDraft: false } : t,
+        ),
+      );
+
+      toast.success("Document task added");
+      onTaskMutated?.();
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to add document task");
+      // rollback
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+    }
   };
 
   const cancelTask = (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const removeTask = (id: string) => {
+  const removeTask = async (id: string) => {
+    // if it's a draft, just remove locally
+    const target = tasks.find((t) => t.id === id);
+    if (target?.isDraft) {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      return;
+    }
+
+    // optimistic
+    const snapshot = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    // TODO: DELETE /api/v1/tenders/submissions/:id/documents/:taskId
+
+    try {
+      await docTaskApi.remove(data.id, id);
+      toast.success("Document task removed");
+      onTaskMutated?.();
+    } catch (e) {
+      toast.error((e as Error).message || "Failed to remove document task");
+      setTasks(snapshot); // rollback
+    }
   };
 
   return (
@@ -141,11 +192,10 @@ export function SubmissionDetail({ data }: Props) {
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
-                  active
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
                     ? "text-slate-900"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 {t}
                 {active && (

@@ -1,21 +1,33 @@
+// components/tender/TenderDetailReview.tsx
 "use client";
 
-import { ExternalLink, FileText, Upload, MessageCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ExternalLink,
+  FileText,
+  Upload,
+  MessageCircle,
+  Trash2,
+  Plus,
+} from "lucide-react";
+import type { TenderAttachment } from "@/lib/api/tender.api";
 
 export interface TenderDetailData {
   id: string;
   tenderer: string;
   title: string;
   advertisementFile?: string;
+  advertisementUrl?: string;              // ← NEW
   advertisementUploadedBy?: string;
+  advertisementUploadedAt?: string;       // ← NEW
   tenderLink?: string;
   recordedBy: string;
-  tenderType: "eGP" | "RFQ";
+  tenderType: "eGP" | "RFQ" | "Hardcopy Ref." | string;
   responsiblePerson: string;
   lastDateOfPurchase?: string;
   lastDateOfSubmission?: string;
   note?: string;
-  attachments?: { name: string }[];
+  attachments?: TenderAttachment[];
   eligibility?: string;
 }
 
@@ -26,8 +38,32 @@ interface Props {
   onApprove?: () => void;
   onCheckEligibility?: () => void;
   onDiscuss?: () => void;
+  onOpenChecklist?: () => void;
+  onUploadAttachment?: (file: File) => Promise<void>;
+  onDeleteAttachment?: (attachmentId: string) => Promise<void>;
+  onUploadAdvertisement?: (file: File) => Promise<void>;   // ← NEW
+  onDeleteAdvertisement?: () => Promise<void>;             // ← NEW
   showApprovalButtons?: boolean;
 }
+
+/* ---------- Helpers ---------- */
+
+function fullFileUrl(url: string) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
+  const origin = base.replace(/\/api\/v1\/?$/, "");
+  return `${origin}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+function fileSizeLabel(bytes: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/* ---------- Component ---------- */
 
 export function TenderDetailReview({
   data,
@@ -36,13 +72,74 @@ export function TenderDetailReview({
   onApprove,
   onCheckEligibility,
   onDiscuss,
+  onOpenChecklist,
+  onUploadAttachment,
+  onDeleteAttachment,
+  onUploadAdvertisement,      // ← NEW
+  onDeleteAdvertisement,      // ← NEW
   showApprovalButtons = true,
 }: Props) {
   const hasAd = Boolean(data.advertisementFile);
 
+  const [attachments, setAttachments] = useState<TenderAttachment[]>(
+    data.attachments ?? [],
+  );
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
+
+  // ----- Advertisement state (NEW) -----
+  const [pendingAd, setPendingAd] = useState<File | null>(null);
+  const [uploadingAd, setUploadingAd] = useState(false);
+  const [adInputKey, setAdInputKey] = useState(0);
+
+  useEffect(() => {
+    setAttachments(data.attachments ?? []);
+    setPendingFile(null);
+    setFileInputKey((k) => k + 1);
+    setPendingAd(null);
+    setAdInputKey((k) => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.id]);
+
+  const handleUpload = async () => {
+    if (!pendingFile || !onUploadAttachment) return;
+    setSaving(true);
+    try {
+      await onUploadAttachment(pendingFile);
+      setPendingFile(null);
+      setFileInputKey((k) => k + 1);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemove = async (attachmentId: string) => {
+    const previous = attachments;
+    setAttachments((prev) => prev.filter((a) => a._id !== attachmentId));
+    try {
+      await onDeleteAttachment?.(attachmentId);
+    } catch {
+      setAttachments(previous);
+    }
+  };
+
+  // ----- Advertisement handlers (NEW) -----
+  const handleAdUpload = async () => {
+    if (!pendingAd || !onUploadAdvertisement) return;
+    setUploadingAd(true);
+    try {
+      await onUploadAdvertisement(pendingAd);
+      setPendingAd(null);
+      setAdInputKey((k) => k + 1);
+    } finally {
+      setUploadingAd(false);
+    }
+  };
+
   return (
     <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      {/* Header bar */}
+      {/* ---------- Header ---------- */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 px-5 py-3">
         <div className="flex items-center gap-3">
           <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
@@ -81,7 +178,7 @@ export function TenderDetailReview({
         )}
       </div>
 
-      {/* Body — two columns */}
+      {/* ---------- Body ---------- */}
       <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
         {/* Left column */}
         <div className="space-y-4">
@@ -89,6 +186,7 @@ export function TenderDetailReview({
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Tender Advertisement
             </p>
+
             {hasAd ? (
               <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-3 py-2.5">
                 <div className="flex min-w-0 items-center gap-2">
@@ -102,13 +200,45 @@ export function TenderDetailReview({
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={onReplaceAd}
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  Replace
-                </button>
+                <div className="flex items-center gap-2">
+                  {data.advertisementUrl && (
+                    <a
+                      href={fullFileUrl(data.advertisementUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      View
+                    </a>
+                  )}
+                  <label
+                    className={`cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${uploadingAd ? "pointer-events-none opacity-60" : ""
+                      }`}
+                  >
+                    {uploadingAd ? "Uploading…" : "Replace"}
+                    <input
+                      key={adInputKey}
+                      type="file"
+                      className="hidden"
+                      disabled={uploadingAd}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setPendingAd(f);
+                        if (onUploadAdvertisement) {
+                          setUploadingAd(true);
+                          try {
+                            await onUploadAdvertisement(f);
+                            setPendingAd(null);
+                            setAdInputKey((k) => k + 1);
+                          } finally {
+                            setUploadingAd(false);
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
             ) : (
               <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-2.5">
@@ -116,21 +246,44 @@ export function TenderDetailReview({
                   <FileText className="h-4 w-4" />
                   <div>
                     <p className="text-xs font-medium text-slate-600">
-                      No advertisement image uploaded
+                      {pendingAd ? pendingAd.name : "No advertisement image uploaded"}
                     </p>
                     <p className="text-[10px] text-slate-400">
-                      RFQ received directly by email
+                      {pendingAd
+                        ? "Click Upload to save"
+                        : "RFQ received directly by email"}
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={onUploadAd}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
-                >
-                  <Upload className="h-3 w-3" />
-                  Upload
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <label
+                    className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${uploadingAd ? "pointer-events-none opacity-60" : ""
+                      }`}
+                  >
+                    <Upload className="h-3 w-3" />
+                    Choose
+                    <input
+                      key={adInputKey}
+                      type="file"
+                      className="hidden"
+                      disabled={uploadingAd}
+                      onChange={(e) =>
+                        setPendingAd(e.target.files?.[0] ?? null)
+                      }
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={handleAdUpload}
+                    disabled={uploadingAd || !pendingAd}
+                    className="inline-flex h-7 items-center gap-1 rounded-md bg-[#a97400] px-2.5 text-[10px] font-semibold text-white hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Upload className="h-3 w-3" />
+                    {uploadingAd ? "Uploading…" : "Upload"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -200,45 +353,99 @@ export function TenderDetailReview({
           </div>
         </div>
 
-        {/* Right column */}
+        {/* Right column — File Attachments */}
         <div className="space-y-4">
           <div>
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               File Attachments
             </p>
+
             <ul className="space-y-1.5">
-              {(data.attachments ?? []).map((f, i) => (
+              {attachments.map((f) => (
                 <li
-                  key={i}
-                  className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
+                  key={f._id}
+                  className="group flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
                 >
-                  <span className="flex items-center gap-2 truncate text-[11px] font-medium text-slate-700">
-                    <FileText className="h-3.5 w-3.5 text-slate-400" />
-                    {f.name}
+                  <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                    <span className="truncate">{f.name}</span>
+                    {f.size > 0 && (
+                      <span className="shrink-0 text-[10px] text-slate-400">
+                        ({fileSizeLabel(f.size)})
+                      </span>
+                    )}
                   </span>
-                  <button
-                    type="button"
-                    className="text-[10px] font-semibold text-indigo-600 hover:underline"
-                  >
-                    View
-                  </button>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    {f.url && (
+                      <a
+                        href={fullFileUrl(f.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-semibold text-indigo-600 hover:underline"
+                      >
+                        View
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(f._id)}
+                      className="rounded-md p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
+                      title="Remove"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </li>
               ))}
+
+              {attachments.length === 0 && (
+                <li
+                  key="empty-attachments"
+                  className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-center text-[11px] text-slate-400"
+                >
+                  No attachments yet.
+                </li>
+              )}
             </ul>
 
             <div className="mt-3 flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Add attachment (filename)..."
-                className="h-9 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-[11px] placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
-              />
+              <label
+                className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${saving ? "pointer-events-none opacity-60" : ""
+                  }`}
+              >
+                <Upload className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="truncate text-slate-500">
+                  {pendingFile
+                    ? pendingFile.name
+                    : "Choose a file to upload…"}
+                </span>
+                <input
+                  key={fileInputKey}
+                  type="file"
+                  className="hidden"
+                  disabled={saving}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setPendingFile(f);
+                  }}
+                />
+              </label>
+
               <button
                 type="button"
-                className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                onClick={handleUpload}
+                disabled={saving || !pendingFile}
+                className="inline-flex h-9 items-center gap-1 rounded-lg bg-[#a97400] px-3 text-[11px] font-semibold text-white transition hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                + Attach
+                <Plus className="h-3 w-3" />
+                {saving ? "Uploading…" : "Upload"}
               </button>
             </div>
+
+            <p className="mt-1.5 text-[10px] text-slate-400">
+              PDF, images, Word, Excel, archives up to 25 MB.
+            </p>
           </div>
 
           <div>
@@ -257,8 +464,6 @@ export function TenderDetailReview({
     </section>
   );
 }
-
-/* ---------- helpers ---------- */
 
 function Field({
   label,
