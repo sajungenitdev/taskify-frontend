@@ -328,7 +328,16 @@ export default function Sidebar({
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === href;
-    return pathname === href || pathname.startsWith(`${href}/`);
+
+    // Exact match
+    if (pathname === href) return true;
+
+    // Prefix match — but only if the route is NOT a known "index" style route
+    // that would otherwise shadow its siblings.
+    const indexRoutes = ["/tenders", "/crm", "/projects", "/tasks", "/hr"];
+    if (indexRoutes.includes(href)) return false;
+
+    return pathname.startsWith(`${href}/`);
   };
 
   const isParentActive = (parentName: string) => {
@@ -382,6 +391,7 @@ export default function Sidebar({
     "main",
     "kpi",
     "crm",
+    "tender",
     "projects",
     "tasks",
     "team",

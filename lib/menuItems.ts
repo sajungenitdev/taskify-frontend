@@ -91,6 +91,7 @@ import {
   GitMerge,
   GitBranch as GitBranchIcon,
   CreditCard,
+  Shield,
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -156,7 +157,8 @@ export type SectionId =
   | "reports"
   | "system"
   | "support"
-  | "kpi";
+  | "kpi"
+  | "tender";
 
 // ============================================================================
 // ROLE DEFINITIONS
@@ -249,6 +251,7 @@ export const SECTIONS: Record<SectionId, SectionConfig> = {
     icon: LifeBuoyIcon,
     priority: 70,
   },
+  tender: { id: "tender", title: "TENDER MANAGEMENT", icon: FileText, priority: 80 },
 };
 
 // ============================================================================
@@ -423,6 +426,24 @@ export const MAIN_ITEMS = {
     { section: "kpi", description: "Define and track Key Performance Indicators" },
   ),
 
+  // Tender Management
+  // Tender Management
+  tenderManagement: createNavItem(
+    "tender-management",
+    "Tender Management",
+    "/tenders",
+    FileText,
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.DEPT_MANAGER,
+      ROLES.HR_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { section: "tender", description: "Manage tender processes and submissions" },
+  ),
   // CRM
   crmManagement: createNavItem(
     "crm-management",
@@ -722,6 +743,96 @@ export const SUB_ITEMS = {
     { description: "Track KPI trends over time" },
   ),
 
+  // ==========================================================================
+  // Tender Management — sub-items
+  // ==========================================================================
+  tenderDashboard: createSubNavItem(
+    "tender-dashboard",
+    "Tender Overview",
+    "/tenders",
+    LayoutDashboard,
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Overview of tenders and submissions" },
+  ),
+  tenderManage: createSubNavItem(
+    "tender-manage",
+    "Tender Management",
+    "/tenders/manage",
+    Settings,
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Manage all tender processes" },
+  ),
+  tenderSubmissions: createSubNavItem(
+    "tender-submissions",
+    "Tender Submissions",
+    "/tenders/submissions",
+    FileText,
+    "Tender Management",              // ← fixed: matches the main item's name
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "View and manage tender submissions" },
+  ),
+  tenderSecurity: createSubNavItem(
+    "tender-security",
+    "Tender Security",
+    "/tenders/security",
+    ShieldCheck,                      // ← uses the icon that's already imported
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Tender security and payment guarantees" },
+  ),
+  tenderDocuments: createSubNavItem(
+    "tender-documents",
+    "Tender Documents",
+    "/tenders/documents",
+    FileText,
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Company documents and templates" },
+  ),
+
+
   // CRM Sub-items
   crmDashboard: createSubNavItem(
     "crm-dashboard",
@@ -979,24 +1090,6 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER],
     { description: "View completed and archived projects" },
   ),
-  // projectResources: createSubNavItem(
-  //   "project-resources",
-  //   "Project Resources",
-  //   "/projects/resources",
-  //   Users,
-  //   "Projects",
-  //   [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.PROJECT_MANAGER],
-  //   { description: "Manage project resources and allocation" },
-  // ),
-  // projectTemplates: createSubNavItem(
-  //   "project-templates",
-  //   "Project Templates",
-  //   "/projects/templates",
-  //   Layers,
-  //   "Projects",
-  //   [ROLES.ALL],
-  //   { description: "Manage and reuse project templates" },
-  // ),
 
   // Tasks Sub-items
   myTasks: createSubNavItem(
@@ -1237,15 +1330,6 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
     { description: "Manage new employee onboarding" },
   ),
-  // employeeOffboarding: createSubNavItem(
-  //   "employee-offboarding",
-  //   "Employee Offboarding",
-  //   "/offboarding",
-  //   UserMinus,
-  //   "HR Management",
-  //   [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.HR_MANAGER],
-  //   { description: "Manage employee offboarding process" },
-  // ),
   trainingPrograms: createSubNavItem(
     "training-programs",
     "Training Programs",
@@ -1349,15 +1433,6 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN],
     { description: "Configure email settings and templates" },
   ),
-  // securityConfig: createSubNavItem(
-  //   "security-config",
-  //   "Security Settings",
-  //   "/settings/security",
-  //   ShieldCheck,
-  //   "System Settings",
-  //   [ROLES.SUPER_ADMIN, ROLES.ADMIN],
-  //   { description: "Configure security settings and policies" },
-  // ),
   auditLogs: createSubNavItem(
     "audit-logs",
     "Audit Logs",
@@ -1367,15 +1442,6 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN],
     { description: "View system audit logs and activity" },
   ),
-  // billing: createSubNavItem(
-  //   "billing",
-  //   "Billing",
-  //   "/settings/billing",
-  //   CreditCard,
-  //   "System Settings",
-  //   [ROLES.SUPER_ADMIN, ROLES.ADMIN,ROLES.EMPLOYEE],
-  //   { description: "Manage billing, invoices, and subscriptions" },
-  // ),
   pricingPlans: createSubNavItem(
     "pricing-plans",
     "Pricing Plans",
@@ -1385,15 +1451,6 @@ export const SUB_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.EMPLOYEE],
     { description: "Manage billing, invoices, and subscriptions" },
   ),
-  // backupManagement: createSubNavItem(
-  //   "backup-management",
-  //   "Backup Management",
-  //   "/settings/backup",
-  //   DatabaseBackup,
-  //   "System Settings",
-  //   [ROLES.SUPER_ADMIN],
-  //   { description: "Manage system backups and restore" },
-  // ),
 
   // Help & Support Sub-items
   helpCenter: createSubNavItem(
@@ -1449,15 +1506,6 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
     { description: "View and manage support tickets" },
   ),
-  // systemStatus: createSubNavItem(
-  //   "system-status",
-  //   "System Status",
-  //   "/help/system-status",
-  //   Activity,
-  //   "Help & Support",
-  //   [ROLES.ALL],
-  //   { description: "Check system health and status" },
-  // ),
   submitFeedback: createSubNavItem(
     "submit-feedback",
     "Submit Feedback",
@@ -1476,15 +1524,6 @@ export const SUB_ITEMS = {
     [ROLES.ALL],
     { description: "View system changes and updates" },
   ),
-  // productRoadmap: createSubNavItem(
-  //   "product-roadmap",
-  //   "Product Roadmap",
-  //   "/help/product-roadmap",
-  //   Rocket,
-  //   "Help & Support",
-  //   [ROLES.ALL],
-  //   { description: "View product development roadmap" },
-  // ),
 } as const;
 
 // ============================================================================

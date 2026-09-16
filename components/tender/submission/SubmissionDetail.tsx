@@ -1,0 +1,377 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
+import { DocTaskRow, type DocTask, type DocStatus } from "./DocTaskRow";
+import {
+  SubmissionChecklist,
+  type ChecklistItem,
+} from "./SubmissionChecklist";
+import { ReadinessBar } from "./ReadinessBar";
+
+/* ---------- Types ---------- */
+
+export interface SubmissionAttachment {
+  name: string;
+}
+
+export interface SubmissionInfoPayload {
+  advertisementFile?: string;
+  advertisementUploadedBy?: string;
+  tenderLink?: string;
+  recordedBy: string;
+  tenderType: "eGP" | "RFQ";
+  responsiblePerson: string;
+  lastDateOfPurchase?: string;
+  lastDateOfSubmission?: string;
+  note?: string;
+  attachments: SubmissionAttachment[];
+  eligibility?: string;
+}
+
+export interface SubmissionDetailData {
+  id: string;
+  tenderer: string;
+  title: string;
+  deadlineDays: number;
+  readiness: number;
+  docTasks: DocTask[];
+  checklist: ChecklistItem[];
+  info: SubmissionInfoPayload;
+  notifyAction?: { label: string; onClick: () => void };
+}
+
+interface Props {
+  data: SubmissionDetailData;
+}
+
+const TABS = ["Tender Preparation", "Tender Info"] as const;
+type Tab = (typeof TABS)[number];
+
+/* ---------- Component ---------- */
+
+export function SubmissionDetail({ data }: Props) {
+  const [tab, setTab] = useState<Tab>("Tender Preparation");
+  const [showDetails, setShowDetails] = useState(true);
+
+  // Repeater state — seeded from props, then editable locally
+  const [tasks, setTasks] = useState<DocTask[]>(data.docTasks);
+
+  const addTask = () => {
+    const draft: DocTask = {
+      id: `draft-${Date.now()}`,
+      title: "",
+      owner: "",
+      fileName: "No file uploaded yet",
+      status: "Pending",
+      isDraft: true,
+    };
+    setTasks((prev) => [...prev, draft]);
+  };
+
+  const patchTask = (id: string, patch: Partial<DocTask>) => {
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    );
+  };
+
+  const saveTask = (id: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === id
+          ? {
+              ...t,
+              title: t.title.trim() || "Untitled task",
+              owner: t.owner.trim() || "—",
+              isDraft: false,
+            }
+          : t,
+      ),
+    );
+    // TODO: POST /api/v1/tenders/submissions/:id/documents
+  };
+
+  const cancelTask = (id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const removeTask = (id: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    // TODO: DELETE /api/v1/tenders/submissions/:id/documents/:taskId
+  };
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      {/* Header row */}
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-amber-100 px-5 py-4">
+        <div className="min-w-0">
+          <span className="inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+            {data.deadlineDays} days to deadline
+          </span>
+          <h2 className="mt-1.5 text-base font-bold text-slate-900">
+            {data.tenderer} — {data.title}
+          </h2>
+
+          <div className="mt-2 flex items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Submission Readiness
+            </span>
+            <ReadinessBar percent={data.readiness} width={140} />
+          </div>
+        </div>
+
+        {data.notifyAction && (
+          <button
+            type="button"
+            onClick={data.notifyAction.onClick}
+            className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          >
+            {data.notifyAction.label}
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center justify-between border-b border-slate-100 px-5">
+        <div className="flex items-center gap-1">
+          {TABS.map((t) => {
+            const active = tab === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
+                  active
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                {t}
+                {active && (
+                  <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[#a97400]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {tab === "Tender Preparation" && (
+          <button
+            type="button"
+            onClick={() => setShowDetails((s) => !s)}
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-800"
+          >
+            {showDetails
+              ? "− Hide Preparation Details"
+              : "+ Show Preparation Details"}
+            {showDetails ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Preparation tab */}
+      {tab === "Tender Preparation" && showDetails && (
+        <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-[1fr_360px]">
+          <div>
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Document Tasks
+            </p>
+
+            <div>
+              {tasks.map((task) => (
+                <DocTaskRow
+                  key={task.id}
+                  task={task}
+                  onChange={(patch) => patchTask(task.id, patch)}
+                  onSave={() => saveTask(task.id)}
+                  onCancel={() => cancelTask(task.id)}
+                  onRemove={() => removeTask(task.id)}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={addTask}
+              className="mt-3 text-[11px] font-semibold text-[#b8860b] hover:underline"
+            >
+              + Add Document Requirement
+            </button>
+          </div>
+
+          <aside>
+            <SubmissionChecklist items={data.checklist} />
+          </aside>
+        </div>
+      )}
+
+      {/* Info tab (unchanged) */}
+      {tab === "Tender Info" && (
+        <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Tender Advertisement
+              </p>
+              {data.info.advertisementFile ? (
+                <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-amber-600" />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-slate-800">
+                        {data.info.advertisementFile}
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        Uploaded by {data.info.advertisementUploadedBy ?? "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Replace
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-center text-[11px] text-slate-500">
+                  No advertisement uploaded yet.
+                </div>
+              )}
+            </div>
+
+            <InfoField label="Tender Link">
+              {data.info.tenderLink ? (
+                <a
+                  href={
+                    data.info.tenderLink.startsWith("http")
+                      ? data.info.tenderLink
+                      : `https://${data.info.tenderLink}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:underline"
+                >
+                  {data.info.tenderLink}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <span className="text-[11px] text-slate-400">
+                  — (no portal link)
+                </span>
+              )}
+            </InfoField>
+
+            <InfoField label="Recorded By" value={data.info.recordedBy} />
+            <InfoField label="Tender Type" value={data.info.tenderType} />
+            <InfoField
+              label="Responsible Person"
+              value={data.info.responsiblePerson}
+            />
+            {data.info.lastDateOfPurchase && (
+              <InfoField
+                label="Last Date of Purchase"
+                value={data.info.lastDateOfPurchase}
+              />
+            )}
+            {data.info.lastDateOfSubmission && (
+              <InfoField
+                label="Last Date of Submission"
+                value={data.info.lastDateOfSubmission}
+              />
+            )}
+
+            <div className="pt-2">
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Note
+              </p>
+              <textarea
+                readOnly
+                value={data.info.note ?? ""}
+                rows={3}
+                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2 text-[11px] leading-relaxed text-slate-700"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                File Attachments
+              </p>
+              <ul className="space-y-1.5">
+                {data.info.attachments.map((f, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
+                  >
+                    <span className="flex items-center gap-2 truncate text-[11px] font-medium text-slate-700">
+                      <FileText className="h-3.5 w-3.5 text-slate-400" />
+                      {f.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[10px] font-semibold text-indigo-600 hover:underline"
+                    >
+                      View
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Add attachment (filename)..."
+                  className="h-9 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-[11px] placeholder:text-slate-400 focus:border-slate-900 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  + Attach
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Eligibility Criteria / Important Records
+              </p>
+              <textarea
+                readOnly
+                value={data.info.eligibility ?? ""}
+                rows={4}
+                className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2 text-[11px] leading-relaxed text-slate-700"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function InfoField({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+      <span className="text-[11px] font-medium text-slate-500">{label}</span>
+      {children ?? (
+        <span className="text-[12px] font-medium text-slate-800">{value}</span>
+      )}
+    </div>
+  );
+}
