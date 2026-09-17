@@ -527,7 +527,7 @@ export default function ManagementReportSheet({
         const minR = Math.min(dragFillSource.r, targetR);
         const maxR = Math.max(dragFillSource.r, targetR);
 
-        if (colKey === "statusCol") {
+        if (COLUMNS[dragFillSource.c] === "statusCol") {
             setDragFillSource(null);
             return;
         }
