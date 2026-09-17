@@ -92,6 +92,7 @@ import {
   GitBranch as GitBranchIcon,
   CreditCard,
   Shield,
+  BarChart3Icon,
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -408,7 +409,6 @@ export const MAIN_ITEMS = {
       description: "Manage departments and organizational structure",
     },
   ),
-
   // KPI Management
   kpiManagement: createNavItem(
     "kpi-management",
@@ -425,8 +425,6 @@ export const MAIN_ITEMS = {
     ],
     { section: "kpi", description: "Define and track Key Performance Indicators" },
   ),
-
-  // Tender Management
   // Tender Management
   tenderManagement: createNavItem(
     "tender-management",
@@ -460,7 +458,6 @@ export const MAIN_ITEMS = {
     ],
     { section: "crm", description: "Manage contacts, deals, clients, and sales" },
   ),
-
   // Projects
   projects: createNavItem(
     "projects",
@@ -470,7 +467,6 @@ export const MAIN_ITEMS = {
     [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.DEPT_MANAGER, ROLES.PROJECT_MANAGER, ROLES.EMPLOYEE],
     { section: "projects", description: "Manage projects, portfolios, and deliverables" },
   ),
-
   // Tasks
   tasks: createNavItem(
     "tasks",
@@ -483,8 +479,6 @@ export const MAIN_ITEMS = {
       description: "Manage and track all your tasks",
     },
   ),
-
-
   // Team
   team: createNavItem(
     "team",
@@ -500,7 +494,6 @@ export const MAIN_ITEMS = {
     ],
     { section: "team", description: "Collaborate with your team members" },
   ),
-
   // Human Resources
   humanResources: createNavItem(
     "human-resources",
@@ -516,7 +509,6 @@ export const MAIN_ITEMS = {
     ],
     { section: "hr", description: "HR management and employee self-service" },
   ),
-
   // Reports
   reports: createNavItem(
     "reports",
@@ -532,7 +524,6 @@ export const MAIN_ITEMS = {
     ],
     { section: "reports", description: "Analytics, insights, and business reports" },
   ),
-
   // System
   system: createNavItem(
     "system",
@@ -545,7 +536,6 @@ export const MAIN_ITEMS = {
       description: "System administration and configuration",
     },
   ),
-
   // Support
   support: createNavItem(
     "support",
@@ -644,6 +634,16 @@ export const SUB_ITEMS = {
     "My Profile",
     [ROLES.ALL],
   ),
+  // allManagementReport: createSubNavItem(
+  //   "all-management-report",
+  //   "All Management Report",
+  //   "/management-report",
+  //   BarChart3Icon,
+  //   "Management Report",
+  //   [ROLES.ALL],
+  // ),
+
+
 
   kpiOverview: createSubNavItem(
     "kpi-overview",

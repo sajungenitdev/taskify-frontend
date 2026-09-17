@@ -1,1191 +1,678 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import api from "@/lib/axios";
+import { useAuth } from "@/contexts/AuthContext";
+import toast from "react-hot-toast";
+import {
+    Users,
+    Search,
+    Download,
+    RefreshCw,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
+    ChevronDown,
+    Filter,
+    Building2,
+    Mail,
+    Phone,
+    Briefcase,
+    MapPin,
+    ShieldCheck,
+    CheckCircle2,
+    XCircle,
+    Eye,
+    BarChart3,
+} from "lucide-react";
+import Link from "next/link";
 
-export type TaskStatus =
-    | "Done - 100%"
-    | "Done - 75%"
-    | "Done - 50%"
-    | "Not Done"
-    | "In Progress"
-    | "Not Yet Started";
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
-export type Priority = "Low" | "Medium" | "High";
-
-export type EvalRating =
-    | "0%"
-    | "10%"
-    | "15%"
-    | "20%"
-    | "25%"
-    | "30%"
-    | "35%"
-    | "40%"
-    | "45%"
-    | "50%"
-    | "55%"
-    | "60%"
-    | "65%"
-    | "70%"
-    | "75%"
-    | "80%"
-    | "85%"
-    | "90%"
-    | "95%"
-    | "100%"
-    | "--";
-
-export interface TaskRowData {
-    id: number;
-    dayNum: number;
-    status: TaskStatus;
-    priority: Priority;
-    startDate: string;
-    endDate: string;
-    givenDuration: string;
-    day: string;
-    taskDescription: string;
-    isRedNote?: boolean;
-    deliverDate: string;
-    totalHrs: string;
-    workLinkText: string;
-    workLinkUrl?: string;
-    isOffDay?: boolean;
-    supervisor: EvalRating;
-    hr: EvalRating;
-    ceo: EvalRating;
-    comments: string;
+interface ManagementUser {
+    _id: string;
+    fullName: string;
+    email: string;
+    role: string;
+    employeeId?: string;
+    department?: { _id?: string; name?: string } | string;
+    phoneNumber?: string;
+    location?: string;
+    position?: string;
+    profilePhoto?: string;
+    isActive?: boolean;
+    onboardingCompleted?: boolean;
+    createdAt?: string;
 }
 
-const STATUS_OPTIONS: TaskStatus[] = [
-    "Done - 100%",
-    "Done - 75%",
-    "Done - 50%",
-    "Not Done",
-    "In Progress",
-    "Not Yet Started",
-];
+type SortKey =
+    | "fullName"
+    | "email"
+    | "role"
+    | "department"
+    | "position"
+    | "createdAt";
 
-const PRIORITY_OPTIONS: Priority[] = ["Low", "Medium", "High"];
+type SortDir = "asc" | "desc";
 
-const PERCENT_OPTIONS: EvalRating[] = [
-    "100%",
-    "95%",
-    "90%",
-    "85%",
-    "80%",
-    "75%",
-    "70%",
-    "65%",
-    "60%",
-    "55%",
-    "50%",
-    "45%",
-    "40%",
-    "35%",
-    "30%",
-    "25%",
-    "20%",
-    "15%",
-    "10%",
-    "0%",
-    "--",
-];
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-const COLUMNS = [
-    "status",
-    "priority",
-    "startDate",
-    "endDate",
-    "givenDuration",
-    "day",
-    "taskDescription",
-    "deliverDate",
-    "totalHrs",
-    "workLinkText",
-    "supervisor",
-    "hr",
-    "ceo",
-    "statusCol",
-    "comments",
-] as const;
+const getDeptName = (u: ManagementUser): string => {
+    if (!u.department) return "—";
+    if (typeof u.department === "string") return u.department;
+    return u.department.name || "—";
+};
 
-type ColumnKey = (typeof COLUMNS)[number];
-
-const DAYS_OF_WEEK = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-];
-
-function getDayName(year: number, monthZeroIndexed: number, day: number) {
-    return DAYS_OF_WEEK[new Date(year, monthZeroIndexed, day).getDay()];
-}
-
-function toIsoDate(usDateStr: string): string {
-    if (!usDateStr) return "";
-    const parts = usDateStr.split("/");
-    if (parts.length === 3) {
-        const [m, d, y] = parts;
-        return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    }
-    return usDateStr;
-}
-
-function fromIsoDate(isoStr: string): string {
-    if (!isoStr) return "";
-    const [y, m, d] = isoStr.split("-");
-    return `${parseInt(m, 10)}/${parseInt(d, 10)}/${y}`;
-}
-
-const INITIAL_ROWS: TaskRowData[] = Array.from({ length: 31 }, (_, idx) => {
-    const dayNum = idx + 1;
-    const dayName = getDayName(2026, 7, dayNum);
-    const isWeekend = dayName === "Friday" || dayName === "Saturday";
-    const isSpecialOff = dayNum === 5;
-    const dateStr = `8/${dayNum}/2026`;
-
-    if (isSpecialOff) {
-        return {
-            id: dayNum,
-            dayNum,
-            status: "Done - 100%",
-            priority: "Medium",
-            startDate: dateStr,
-            endDate: dateStr,
-            givenDuration: "00:00",
-            day: dayName,
-            taskDescription: "Official Off",
-            isRedNote: true,
-            deliverDate: dateStr,
-            totalHrs: "00:00",
-            workLinkText: "Official Off (July Mass Uprising Day)",
-            isOffDay: true,
-            supervisor: "100%",
-            hr: "100%",
-            ceo: "100%",
-            comments: "",
-        };
-    }
-
-    if (isWeekend) {
-        return {
-            id: dayNum,
-            dayNum,
-            status: "Done - 100%",
-            priority: "Medium",
-            startDate: dateStr,
-            endDate: dateStr,
-            givenDuration: "00:00",
-            day: dayName,
-            taskDescription: "Official Off",
-            isRedNote: true,
-            deliverDate: dateStr,
-            totalHrs: "00:00",
-            workLinkText: "Official Off Day",
-            isOffDay: true,
-            supervisor: "100%",
-            hr: "100%",
-            ceo: "100%",
-            comments: "",
-        };
-    }
-
-    if (dayNum === 12) {
-        return {
-            id: dayNum,
-            dayNum,
-            status: "Done - 100%",
-            priority: "Medium",
-            startDate: dateStr,
-            endDate: dateStr,
-            givenDuration: "00:00",
-            day: dayName,
-            taskDescription: "Sick Leave Taken",
-            isRedNote: true,
-            deliverDate: dateStr,
-            totalHrs: "00:00",
-            workLinkText: "Official Off Day",
-            isOffDay: true,
-            supervisor: "0%",
-            hr: "0%",
-            ceo: "0%",
-            comments: "Sick Leave Applied",
-        };
-    }
-
-    return {
-        id: dayNum,
-        dayNum,
-        status: "Done - 100%",
-        priority: "Medium",
-        startDate: dateStr,
-        endDate: dateStr,
-        givenDuration: "08:00",
-        day: dayName,
-        taskDescription:
-            dayNum === 2
-                ? "Timer begins counting up. Timer persists and syncs with live elapsed time."
-                : dayNum === 3
-                    ? "Daily bar chart displays correct hours per day. Task-by-task timer log matches actual sessions performed."
-                    : "Feature updates, UI responsive adjustments, bug fixing and client review sync.",
-        deliverDate: dateStr,
-        totalHrs: "08:00",
-        workLinkText: "https://taskify-frontend-alpha.vercel.app/login",
-        workLinkUrl: "https://taskify-frontend-alpha.vercel.app/login",
-        supervisor: "85%",
-        hr: "80%",
-        ceo: "80%",
-        comments: "",
-    };
-});
-
-const MONTH_TABS = [
-    "Overview",
-    "PROJECT",
-    "All Proj. Record",
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sept",
-    "Oct",
-    "Nov",
-    "Dec",
-];
-
-function calculateStatus(sup: EvalRating, hr: EvalRating, ceo: EvalRating): string {
-    const parseVal = (v: EvalRating) =>
-        v === "--" ? null : parseInt(v.replace("%", ""), 10);
-    const s = parseVal(sup);
-    const h = parseVal(hr);
-    const c = parseVal(ceo);
-
-    const vals = [s, h, c].filter((x): x is number => x !== null);
-    if (vals.length === 0) return "#N/A";
-
-    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    if (avg === 100) return "OUTSTANDING";
-    if (avg >= 85) return "A PERFORMER";
-    if (avg >= 70) return "GOOD JOB";
-    return "BAD";
-}
-
-export default function ManagementReportPage() {
-    const [rows, setRows] = useState<TaskRowData[]>(INITIAL_ROWS);
-    const [activeTab, setActiveTab] = useState("Aug");
-
-    // Selection Matrix
-    const [selectedCol, setSelectedCol] = useState<ColumnKey | null>(null);
-    const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
-    const [selectionRange, setSelectionRange] = useState<{
-        startR: number;
-        startC: number;
-        endR: number;
-        endC: number;
-    } | null>(null);
-    const [, setIsSelecting] = useState(false);
-    const [dragFillSource, setDragFillSource] = useState<{ r: number; c: number } | null>(null);
-
-    const tableRef = useRef<HTMLDivElement>(null);
-
-    const updateRow = useCallback(<K extends keyof TaskRowData>(
-        id: number,
-        key: K,
-        value: TaskRowData[K]
-    ) => {
-        setRows((prev) =>
-            prev.map((r) => {
-                if (r.id !== id) return r;
-                const updated = { ...r, [key]: value };
-                if (key === "taskDescription") {
-                    updated.isRedNote =
-                        String(value).toLowerCase().includes("off") ||
-                        String(value).toLowerCase().includes("leave");
-                }
-                return updated;
-            })
-        );
-    }, []);
-
-    // Aggregations
-    const {
-        avgSupervisor,
-        avgHr,
-        avgCeo,
-        overallStatusLabel,
-        threePersonsCombinedAvg,
-    } = useMemo(() => {
-        let supSum = 0,
-            supCount = 0;
-        let hrSum = 0,
-            hrCount = 0;
-        let ceoSum = 0,
-            ceoCount = 0;
-
-        rows.forEach((r) => {
-            if (r.supervisor !== "--") {
-                supSum += parseInt(r.supervisor.replace("%", ""), 10);
-                supCount++;
-            }
-            if (r.hr !== "--") {
-                hrSum += parseInt(r.hr.replace("%", ""), 10);
-                hrCount++;
-            }
-            if (r.ceo !== "--") {
-                ceoSum += parseInt(r.ceo.replace("%", ""), 10);
-                ceoCount++;
-            }
+const formatDate = (iso?: string): string => {
+    if (!iso) return "—";
+    try {
+        return new Date(iso).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
         });
+    } catch {
+        return "—";
+    }
+};
 
-        const sAvg = supCount ? supSum / supCount : 0;
-        const hAvg = hrCount ? hrSum / hrCount : 0;
-        const cAvg = ceoCount ? ceoSum / ceoCount : 0;
+const roleBadgeColor: Record<string, string> = {
+    super_admin: "bg-purple-100 text-purple-700 border-purple-200",
+    admin: "bg-red-100 text-red-700 border-red-200",
+    hr_manager: "bg-pink-100 text-pink-700 border-pink-200",
+    dept_manager: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    project_manager: "bg-blue-100 text-blue-700 border-blue-200",
+    line_manager: "bg-cyan-100 text-cyan-700 border-cyan-200",
+    employee: "bg-slate-100 text-slate-700 border-slate-200",
+};
 
-        const validScores = [sAvg, hAvg, cAvg].filter((v) => v > 0);
-        const combinedAvg =
-            validScores.length > 0
-                ? validScores.reduce((acc, curr) => acc + curr, 0) / validScores.length
-                : 0;
+const prettyRole = (r: string) =>
+    r
+        .split("_")
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
 
-        let statusLabel = "#N/A";
-        if (combinedAvg === 100) statusLabel = "OUTSTANDING";
-        else if (combinedAvg >= 85) statusLabel = "A PERFORMER";
-        else if (combinedAvg >= 70) statusLabel = "GOOD JOB";
-        else if (combinedAvg > 0) statusLabel = "BAD";
+function resolveImageUrl(imagePath?: string): string | null {
+    if (!imagePath) return null;
+    if (imagePath.startsWith("data:image/")) return imagePath;
+    if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+        return imagePath;
+    }
+    const apiUrl =
+        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
+    const baseUrl = apiUrl.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
+    let path = imagePath.replace(/\\/g, "/");
+    if (!path.startsWith("/")) path = "/" + path;
+    return `${baseUrl}${path}`;
+}
 
-        return {
-            avgSupervisor: supCount ? `${Math.round(sAvg)}%` : "0%",
-            avgHr: hrCount ? `${Math.round(hAvg)}%` : "0%",
-            avgCeo: ceoCount ? `${Math.round(cAvg)}%` : "0%",
-            overallStatusLabel: statusLabel,
-            threePersonsCombinedAvg: `${Math.round(combinedAvg)}%`,
-        };
-    }, [rows]);
+function UserAvatar({
+    src,
+    name,
+    size = 36,
+}: {
+    src?: string;
+    name: string;
+    size?: number;
+}) {
+    const [errored, setErrored] = useState(false);
+    const url = useMemo(() => resolveImageUrl(src), [src]);
 
-    const getCellRawValue = useCallback(
-        (rowIdx: number, colIdx: number): string => {
-            const row = rows[rowIdx];
-            if (!row) return "";
-            const colKey = COLUMNS[colIdx];
-            if (colKey === "statusCol") {
-                return calculateStatus(row.supervisor, row.hr, row.ceo);
-            }
-            return String(row[colKey as keyof TaskRowData] ?? "");
-        },
-        [rows]
-    );
+    const initials =
+        (name || "?")
+            .split(" ")
+            .filter(Boolean)
+            .map((n) => n[0])
+            .slice(0, 2)
+            .join("")
+            .toUpperCase() || "?";
 
-    // Copy support (Ctrl+C / Cmd+C)
-    const handleCopy = useCallback(
-        (e: ClipboardEvent) => {
-            if (selectedCol) {
-                const colIdx = COLUMNS.indexOf(selectedCol);
-                const text = rows.map((_, rIdx) => getCellRawValue(rIdx, colIdx)).join("\n");
-                e.clipboardData?.setData("text/plain", text);
-                e.preventDefault();
-                return;
-            }
-
-            if (selectionRange) {
-                const minR = Math.min(selectionRange.startR, selectionRange.endR);
-                const maxR = Math.max(selectionRange.startR, selectionRange.endR);
-                const minC = Math.min(selectionRange.startC, selectionRange.endC);
-                const maxC = Math.max(selectionRange.startC, selectionRange.endC);
-
-                const lines: string[] = [];
-                for (let r = minR; r <= maxR; r++) {
-                    const lineCells: string[] = [];
-                    for (let c = minC; c <= maxC; c++) {
-                        lineCells.push(getCellRawValue(r, c));
-                    }
-                    lines.push(lineCells.join("\t"));
-                }
-                e.clipboardData?.setData("text/plain", lines.join("\n"));
-                e.preventDefault();
-                return;
-            }
-
-            if (selectedCell) {
-                const text = getCellRawValue(selectedCell.r, selectedCell.c);
-                e.clipboardData?.setData("text/plain", text);
-                e.preventDefault();
-            }
-        },
-        [selectedCol, selectionRange, selectedCell, rows, getCellRawValue]
-    );
-
-    // Keyboard Navigation
-    const handleKeyDown = useCallback(
-        (e: KeyboardEvent) => {
-            if (
-                document.activeElement?.tagName === "INPUT" ||
-                document.activeElement?.tagName === "SELECT"
-            ) {
-                return;
-            }
-
-            if (!selectedCell) return;
-
-            const { r, c } = selectedCell;
-            if (e.key === "ArrowUp" && r > 0) {
-                setSelectedCell({ r: r - 1, c });
-                setSelectionRange(null);
-                setSelectedCol(null);
-            } else if (e.key === "ArrowDown" && r < rows.length - 1) {
-                setSelectedCell({ r: r + 1, c });
-                setSelectionRange(null);
-                setSelectedCol(null);
-            } else if (e.key === "ArrowLeft" && c > 0) {
-                setSelectedCell({ r, c: c - 1 });
-                setSelectionRange(null);
-                setSelectedCol(null);
-            } else if (e.key === "ArrowRight" && c < COLUMNS.length - 1) {
-                setSelectedCell({ r, c: c + 1 });
-                setSelectionRange(null);
-                setSelectedCol(null);
-            }
-        },
-        [selectedCell, rows.length]
-    );
-
-    useEffect(() => {
-        window.addEventListener("copy", handleCopy);
-        window.addEventListener("keydown", handleKeyDown);
-        return () => {
-            window.removeEventListener("copy", handleCopy);
-            window.removeEventListener("keydown", handleKeyDown);
-        };
-    }, [handleCopy, handleKeyDown]);
-
-    const handleDragFillEnd = (targetR: number) => {
-        if (!dragFillSource) return;
-        const sourceVal = getCellRawValue(dragFillSource.r, dragFillSource.c);
-        const colKey = COLUMNS[dragFillSource.c] as keyof TaskRowData;
-
-        const minR = Math.min(dragFillSource.r, targetR);
-        const maxR = Math.max(dragFillSource.r, targetR);
-
-        setRows((prev) =>
-            prev.map((r, idx) => {
-                if (idx >= minR && idx <= maxR && colKey !== ("statusCol" as unknown)) {
-                    return { ...r, [colKey]: sourceVal };
-                }
-                return r;
-            })
+    if (url && !errored) {
+        return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+                src={url}
+                alt={name}
+                width={size}
+                height={size}
+                onError={() => setErrored(true)}
+                className="rounded-full object-cover border border-slate-200 shrink-0"
+                style={{ width: size, height: size }}
+            />
         );
-        setDragFillSource(null);
-    };
-
-    const isCellSelected = (r: number, c: number) => {
-        if (selectedCol && COLUMNS[c] === selectedCol) return true;
-        if (selectedCell && selectedCell.r === r && selectedCell.c === c) return true;
-        if (selectionRange) {
-            const minR = Math.min(selectionRange.startR, selectionRange.endR);
-            const maxR = Math.max(selectionRange.startR, selectionRange.endR);
-            const minC = Math.min(selectionRange.startC, selectionRange.endC);
-            const maxC = Math.max(selectionRange.startC, selectionRange.endC);
-            return r >= minR && r <= maxR && c >= minC && c <= maxC;
-        }
-        return false;
-    };
+    }
 
     return (
         <div
-            className="flex h-screen w-full flex-col bg-[#f8fafd] text-[#1f1f1f] antialiased select-none font-sans"
-            onMouseUp={() => {
-                setIsSelecting(false);
-                if (dragFillSource && selectedCell) {
-                    handleDragFillEnd(selectedCell.r);
-                }
-            }}
+            className="rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-semibold text-xs shrink-0"
+            style={{ width: size, height: size }}
+            aria-label={name}
         >
-            <style>{`
-        input[type="date"]::-webkit-calendar-picker-indicator,
-        input[type="time"]::-webkit-calendar-picker-indicator {
-          display: none !important;
-          -webkit-appearance: none;
+            {initials}
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+export default function ManagementReportPage() {
+    const { user, hasRole } = useAuth();
+
+    const [users, setUsers] = useState<ManagementUser[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const [search, setSearch] = useState("");
+    const [roleFilter, setRoleFilter] = useState<string>("all");
+    const [deptFilter, setDeptFilter] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+
+    const [sortKey, setSortKey] = useState<SortKey>("fullName");
+    const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+
+    const fetchUsers = async (isRefresh = false) => {
+        try {
+            isRefresh ? setRefreshing(true) : setLoading(true);
+            setError(null);
+
+            const res = await api.get("/users", { params: { limit: 1000 } });
+            const payload =
+                res.data?.data?.users ||
+                res.data?.data ||
+                res.data?.users ||
+                res.data ||
+                [];
+            const list: ManagementUser[] = Array.isArray(payload)
+                ? payload
+                : payload.users || [];
+            setUsers(list);
+        } catch (err: any) {
+            const msg =
+                err?.response?.data?.message || err?.message || "Failed to load users";
+            setError(msg);
+            toast.error(msg);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
         }
-        input[type="date"],
-        input[type="time"] {
-          -moz-appearance: textfield;
+    };
+
+    useEffect(() => {
+        fetchUsers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const roles = useMemo(() => {
+        const s = new Set<string>();
+        users.forEach((u) => u.role && s.add(u.role));
+        return Array.from(s).sort();
+    }, [users]);
+
+    const departments = useMemo(() => {
+        const s = new Set<string>();
+        users.forEach((u) => {
+            const d = getDeptName(u);
+            if (d && d !== "—") s.add(d);
+        });
+        return Array.from(s).sort();
+    }, [users]);
+
+    const filtered = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        let out = users.filter((u) => {
+            if (q) {
+                const hay = [u.fullName, u.email, u.employeeId, u.position, getDeptName(u), u.phoneNumber]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase();
+                if (!hay.includes(q)) return false;
+            }
+            if (roleFilter !== "all" && u.role !== roleFilter) return false;
+            if (deptFilter !== "all" && getDeptName(u) !== deptFilter) return false;
+            if (statusFilter !== "all") {
+                const active = u.isActive !== false;
+                if (statusFilter === "active" && !active) return false;
+                if (statusFilter === "inactive" && active) return false;
+            }
+            return true;
+        });
+
+        out = [...out].sort((a, b) => {
+            const dir = sortDir === "asc" ? 1 : -1;
+            const av = sortKey === "department" ? getDeptName(a) : (a as any)[sortKey] ?? "";
+            const bv = sortKey === "department" ? getDeptName(b) : (b as any)[sortKey] ?? "";
+            return String(av).localeCompare(String(bv)) * dir;
+        });
+
+        return out;
+    }, [users, search, roleFilter, deptFilter, statusFilter, sortKey, sortDir]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const paged = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filtered.slice(start, start + pageSize);
+    }, [filtered, currentPage, pageSize]);
+
+    useEffect(() => {
+        setPage(1);
+    }, [search, roleFilter, deptFilter, statusFilter, pageSize]);
+
+    const handleSort = (key: SortKey) => {
+        if (sortKey === key) {
+            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        } else {
+            setSortKey(key);
+            setSortDir("asc");
         }
-      `}</style>
+    };
 
-            {/* =========================================================================
-          TOP BANNER / HEADER BLOCK
-      ========================================================================= */}
-            <div className="flex shrink-0 border-b border-[#c4c7c5] bg-white">
-                {/* Month Title */}
-                <div className="flex w-52 shrink-0 items-center border-r border-[#d3d3d3] bg-[#fbf0d9] px-4 py-2">
-                    <div className="flex items-center gap-3">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 text-center">
-                            MONTH <br />
-                            <span className="font-serif text-2xl font-bold tracking-tight text-[#a82d44]">
-                                Aug-2026
-                            </span>
-                        </span>
-                    </div>
-                </div>
+    const clearFilters = () => {
+        setSearch("");
+        setRoleFilter("all");
+        setDeptFilter("all");
+        setStatusFilter("all");
+    };
 
-                {/* ------------------------------------------------------------- */}
-                {/* BOX 1: PERFORMANCE AVERAGE BOX                                 */}
-                {/* ------------------------------------------------------------- */}
-                <div className="flex w-44 shrink-0 flex-col items-center justify-center border-r border-[#184353] bg-[#225c6e] px-3 py-1.5 text-center text-white">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-100">
-                        PERFORMANCE
-                    </span>
-                    <span className="text-[25px] pt-2 font-black uppercase tracking-wider text-[#2ee69c]">
-                        {overallStatusLabel}
-                    </span>
-                </div>
+    const exportCSV = () => {
+        if (!filtered.length) return toast.error("Nothing to export");
+        const headers = ["Employee ID", "Full Name", "Email", "Phone", "Role", "Department", "Position", "Location", "Status", "Created"];
+        const rows = filtered.map((u) => [
+            u.employeeId || "",
+            u.fullName || "",
+            u.email || "",
+            u.phoneNumber || "",
+            u.role || "",
+            getDeptName(u),
+            u.position || "",
+            u.location || "",
+            u.isActive === false ? "Inactive" : "Active",
+            formatDate(u.createdAt),
+        ]);
+        const escape = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
+        const csv = [headers, ...rows].map((r) => r.map(escape).join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `management-report-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Exported CSV");
+    };
 
-                {/* ------------------------------------------------------------- */}
-                {/* BOX 2: 3 PERSON MARK COMBINED AVERAGE                         */}
-                {/* ------------------------------------------------------------- */}
-                <div className="flex w-44 shrink-0 flex-col items-center justify-center border-r border-[#184353] bg-[#a9c9d7] px-3 py-1.5 text-center">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-[#14323f]">
-                        TOTAL AVG
-                    </span>
-                    <span className="mt-1 font-sans text-2xl font-black tracking-tight text-[#0f242d] leading-none">
-                        {threePersonsCombinedAvg}
-                    </span>
-                    <span className="text-[9px] font-bold uppercase tracking-tight text-[#1e4858] mt-0.5">
-                        (Sup + HR + CEO)
-                    </span>
-                </div>
+    const canManage = hasRole(["super_admin", "admin", "hr_manager", "dept_manager"]);
 
-                {/* Task Report Header */}
-                <div className="flex flex-1 items-center justify-center border-r border-[#1e1528] bg-[#611a3b] py-2 text-white">
-                    <h1 className="text-3xl font-black uppercase tracking-[0.25em] text-white">
-                        TASK REPORT
+    return (
+        <div className="p-4 md:p-6 lg:p-8 space-y-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2">
+                        <Users className="h-7 w-7 text-indigo-600" />
+                        Management Report
                     </h1>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Overview of all users across departments
+                        {user?.fullName ? ` • Signed in as ${user.fullName}` : ""}
+                    </p>
                 </div>
 
-                {/* Target Header */}
-                <div className="flex w-44 shrink-0 items-center justify-center border-r border-[#d8caaa] bg-[#faebd7] px-3 text-center">
-                    <span className="font-serif text-lg font-bold leading-tight text-[#1a1a1a]">
-                        Target Summary For This Month
-                    </span>
-                </div>
-
-                {/* Live Project Deployment Box */}
-                <div className="flex flex-1 min-w-[340px] flex-col justify-center bg-[#fdf4e3] px-4 py-2 text-[11px] leading-relaxed text-slate-800">
-                    <ul className="space-y-1.5 list-none">
-                        <li>
-                            <div className="flex items-center gap-1.5 font-bold text-slate-900">
-                                <span className="h-1.5 w-1.5 rounded-full bg-slate-800 shrink-0" />
-                                <span>Description:</span>
-                            </div>
-                            <ul className="ml-4 mt-0.5 space-y-0.5 text-slate-700">
-                                <li className="flex items-center gap-1.5 truncate">
-                                    <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">Ai Service Frontend:</span>
-                                    <a
-                                        href="https://ngenit-ai-services.vercel.app/"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[#1a73e8] underline truncate hover:text-blue-800"
-                                    >
-                                        https://ngenit-ai-services.vercel.app/
-                                    </a>
-                                </li>
-                                <li className="flex items-center gap-1.5 truncate">
-                                    <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">Ai Services Backend:</span>
-                                    <a
-                                        href="https://ngenit-ai-services.vercel.app/admin"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[#1a73e8] underline truncate hover:text-blue-800"
-                                    >
-                                        https://ngenit-ai-services.vercel.app/admin
-                                    </a>
-                                </li>
-                                <li className="flex items-center gap-1.5 truncate">
-                                    <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">EVC Website:</span>
-                                    <a
-                                        href="https://evc-ngen-it.vercel.app/"
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[#1a73e8] underline truncate hover:text-blue-800"
-                                    >
-                                        https://evc-ngen-it.vercel.app/
-                                    </a>
-                                </li>
-                                <li className="flex items-center gap-1.5 truncate">
-                                    <span className="text-slate-400 text-[9px]">•</span>
-                                    <span className="shrink-0 font-medium">EVC Admin Panel:</span>
-                                    <span>Complete</span>
-                                </li>
-                            </ul>
-                        </li>
-                    </ul>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => fetchUsers(true)}
+                        disabled={refreshing}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                        Refresh
+                    </button>
+                    <button
+                        onClick={exportCSV}
+                        disabled={!filtered.length}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        <Download className="h-4 w-4" />
+                        Export CSV
+                    </button>
                 </div>
             </div>
 
-            {/* =========================================================================
-          SPREADSHEET TABLE GRID
-      ========================================================================= */}
-            <div className="flex-1 overflow-auto bg-white" ref={tableRef}>
-                <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                        {/* Primary Category Headings */}
-                        <tr className="border-b border-[#0d3c61] text-center text-xs font-bold uppercase tracking-wider text-white">
-                            <th colSpan={7} className="border-r border-[#0d3c61] bg-[#0c4a7a] py-2">
-                                PROJECT DETAILS
-                            </th>
-                            <th colSpan={3} className="border-r border-[#265362] bg-[#3a6978] py-2">
-                                DELIVERABLES
-                            </th>
-                            <th colSpan={1} className="border-r border-slate-300 bg-[#748995] py-2">
-                                PROOF / LINK
-                            </th>
-                            <th colSpan={4} className="border-r border-[#153e4d] bg-[#1d4f61] py-2">
-                                STATUS
-                            </th>
-                            <th colSpan={1} className="bg-[#b34718] py-2">
-                                COMMENTS
-                            </th>
-                        </tr>
+            {/* Stat cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <StatCard icon={<Users className="h-5 w-5" />} label="Total Users" value={users.length} color="text-indigo-600 bg-indigo-50" />
+                <StatCard icon={<CheckCircle2 className="h-5 w-5" />} label="Active" value={users.filter((u) => u.isActive !== false).length} color="text-emerald-600 bg-emerald-50" />
+                <StatCard icon={<XCircle className="h-5 w-5" />} label="Inactive" value={users.filter((u) => u.isActive === false).length} color="text-rose-600 bg-rose-50" />
+                <StatCard icon={<Building2 className="h-5 w-5" />} label="Departments" value={departments.length} color="text-amber-600 bg-amber-50" />
+            </div>
 
-                        {/* Column Identifiers */}
-                        <tr className="border-b border-[#c4c7c5] bg-[#f8f9fa] text-center text-[10px] font-bold uppercase tracking-wide text-slate-700">
-                            {COLUMNS.map((colKey) => {
-                                const labels: Record<ColumnKey, string> = {
-                                    status: "STATUS",
-                                    priority: "PRIORITY",
-                                    startDate: "START DATE",
-                                    endDate: "END DATE",
-                                    givenDuration: "GIVEN DURATION",
-                                    day: "DAY",
-                                    taskDescription: "TASK DESCRIPTION",
-                                    deliverDate: "DELIVER DATE",
-                                    totalHrs: "Total Hrs",
-                                    workLinkText: "Work Activities Link",
-                                    supervisor: "SUPERVISOR",
-                                    hr: "HR",
-                                    ceo: "CEO",
-                                    statusCol: "STATUS",
-                                    comments: "COMMENTS",
-                                };
+            {/* Filters */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3 text-slate-700">
+                    <Filter className="h-4 w-4" />
+                    <span className="text-sm font-semibold">Filters</span>
+                    {(search || roleFilter !== "all" || deptFilter !== "all" || statusFilter !== "all") && (
+                        <button onClick={clearFilters} className="ml-auto text-xs text-indigo-600 hover:underline">
+                            Clear all
+                        </button>
+                    )}
+                </div>
 
-                                const isDeliverable = colKey === "deliverDate" || colKey === "totalHrs";
-                                const isStakeholder =
-                                    colKey === "supervisor" || colKey === "hr" || colKey === "ceo";
-                                const isStatus = colKey === "statusCol";
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="relative md:col-span-2">
+                        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search name, email, employee ID, position…"
+                            className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                        />
+                    </div>
 
-                                const isColSelected = selectedCol === colKey;
+                    <select
+                        value={roleFilter}
+                        onChange={(e) => setRoleFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    >
+                        <option value="all">All Roles</option>
+                        {roles.map((r) => (
+                            <option key={r} value={r}>{prettyRole(r)}</option>
+                        ))}
+                    </select>
 
-                                return (
-                                    <th
-                                        key={colKey}
-                                        onClick={() => {
-                                            setSelectedCol(colKey);
-                                            setSelectedCell(null);
-                                            setSelectionRange(null);
-                                        }}
-                                        className={`cursor-pointer border-r border-[#e0e0e0] px-2 py-2 transition-colors ${isDeliverable
-                                            ? "bg-[#e6f4ea] text-slate-800"
-                                            : isStakeholder
-                                                ? "bg-[#c2d7e2] text-slate-800"
-                                                : isStatus
-                                                    ? "bg-[#1a4454] text-white"
-                                                    : "bg-[#f8f9fa] text-slate-700"
-                                            } ${isColSelected ? "!bg-[#d3e3fd] !text-blue-900 ring-2 ring-blue-500 inset-0" : "hover:bg-slate-200"}`}
-                                    >
-                                        {labels[colKey]}
-                                    </th>
-                                );
-                            })}
-                        </tr>
+                    <select
+                        value={deptFilter}
+                        onChange={(e) => setDeptFilter(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                    >
+                        <option value="all">All Departments</option>
+                        {departments.map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                        ))}
+                    </select>
+                </div>
 
-                        {/* Aggregations & Instructions Row */}
-                        <tr className="border-b border-[#c4c7c5] bg-[#ffffff] text-center text-[9px] text-slate-500">
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal italic">
-                                When a task will start
-                            </th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal italic">
-                                Once a Task completed
-                            </th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal font-mono">hrs</th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] bg-[#e6f4ea] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] bg-[#e6f4ea] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] py-1 font-normal">—</th>
-                            <th className="border-r border-[#e0e0e0] bg-[#b0cbdb] py-1 font-mono font-bold text-slate-900">
-                                {avgSupervisor}
-                            </th>
-                            <th className="border-r border-[#e0e0e0] bg-[#b0cbdb] py-1 font-mono font-bold text-slate-900">
-                                {avgHr}
-                            </th>
-                            <th className="border-r border-[#e0e0e0] bg-[#b0cbdb] py-1 font-mono font-bold text-slate-900">
-                                {avgCeo}
-                            </th>
-                            <th className="border-r border-[#e0e0e0] bg-[#1a4454] py-1 font-mono font-bold text-white">
-                                {overallStatusLabel}
-                            </th>
-                            <th className="py-1 font-normal">—</th>
-                        </tr>
-                    </thead>
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                    {(["all", "active", "inactive"] as const).map((s) => (
+                        <button
+                            key={s}
+                            onClick={() => setStatusFilter(s)}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-full border transition ${statusFilter === s
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                }`}
+                        >
+                            {s === "all" ? "All" : s.charAt(0).toUpperCase() + s.slice(1)}
+                        </button>
+                    ))}
 
-                    <tbody className="divide-y divide-[#e0e0e0]">
-                        {rows.map((row, rIdx) => {
-                            const currentStatus = calculateStatus(row.supervisor, row.hr, row.ceo);
+                    <span className="ml-auto text-xs text-slate-500">
+                        {filtered.length} of {users.length} users
+                    </span>
+                </div>
+            </div>
 
-                            return (
-                                <tr key={row.id} className="hover:bg-[#f8fafd] transition-colors group">
-                                    {/* Status (0) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 0 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 0) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="relative flex items-center justify-center">
-                                            <select
-                                                value={row.status}
-                                                onChange={(e) =>
-                                                    updateRow(row.id, "status", e.target.value as TaskStatus)
-                                                }
-                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1.5 py-0.5 text-center text-[11px] font-medium text-slate-800 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                            >
-                                                {STATUS_OPTIONS.map((opt) => (
-                                                    <option key={opt} value={opt}>
-                                                        {opt}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-1.5 h-3 w-3 text-slate-400" />
-                                        </div>
-                                    </td>
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                                <Th sortKey="fullName" current={sortKey} dir={sortDir} onSort={handleSort}>User</Th>
+                                <Th sortKey="email" current={sortKey} dir={sortDir} onSort={handleSort}>Contact</Th>
+                                <Th sortKey="role" current={sortKey} dir={sortDir} onSort={handleSort}>Role</Th>
+                                <Th sortKey="department" current={sortKey} dir={sortDir} onSort={handleSort}>Department</Th>
+                                <Th sortKey="position" current={sortKey} dir={sortDir} onSort={handleSort}>Position</Th>
+                                <th className="px-4 py-3">Status</th>
+                                <Th sortKey="createdAt" current={sortKey} dir={sortDir} onSort={handleSort}>Joined</Th>
+                                <th className="px-4 py-3 text-right">Actions</th>
+                            </tr>
+                        </thead>
 
-                                    {/* Priority (1) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 1 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 1) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="relative flex items-center justify-center">
-                                            <select
-                                                value={row.priority}
-                                                onChange={(e) =>
-                                                    updateRow(row.id, "priority", e.target.value as Priority)
-                                                }
-                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1.5 py-0.5 text-center text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                            >
-                                                {PRIORITY_OPTIONS.map((opt) => (
-                                                    <option key={opt} value={opt}>
-                                                        {opt}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-1.5 h-3 w-3 text-slate-400" />
-                                        </div>
-                                    </td>
-
-                                    {/* Start Date Picker (2) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 2 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 2) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="date"
-                                            value={toIsoDate(row.startDate)}
-                                            onChange={(e) => {
-                                                const newDate = fromIsoDate(e.target.value);
-                                                updateRow(row.id, "startDate", newDate);
-                                                if (e.target.value) {
-                                                    const [y, m, d] = e.target.value.split("-").map(Number);
-                                                    updateRow(row.id, "day", getDayName(y, m - 1, d));
-                                                }
-                                            }}
-                                            onClick={(e) => {
-                                                try {
-                                                    (e.target as HTMLInputElement).showPicker?.();
-                                                } catch { }
-                                            }}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                        />
-                                    </td>
-
-                                    {/* End Date Picker (3) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 3 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 3) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="date"
-                                            value={toIsoDate(row.endDate)}
-                                            onChange={(e) =>
-                                                updateRow(row.id, "endDate", fromIsoDate(e.target.value))
-                                            }
-                                            onClick={(e) => {
-                                                try {
-                                                    (e.target as HTMLInputElement).showPicker?.();
-                                                } catch { }
-                                            }}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                        />
-                                    </td>
-
-                                    {/* Given Duration Time (4) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 4 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 4) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="time"
-                                            value={row.givenDuration}
-                                            onChange={(e) => updateRow(row.id, "givenDuration", e.target.value)}
-                                            onClick={(e) => {
-                                                try {
-                                                    (e.target as HTMLInputElement).showPicker?.();
-                                                } catch { }
-                                            }}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                        />
-                                    </td>
-
-                                    {/* Day Selector (5) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 5 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 5) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="relative flex items-center justify-center">
-                                            <select
-                                                value={row.day}
-                                                onChange={(e) => updateRow(row.id, "day", e.target.value)}
-                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1 text-center text-[11px] font-medium text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                            >
-                                                {DAYS_OF_WEEK.map((d) => (
-                                                    <option key={d} value={d}>
-                                                        {d}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-slate-400" />
-                                        </div>
-                                    </td>
-
-                                    {/* Task Description (6) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 6 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-1 ${isCellSelected(rIdx, 6) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="text"
-                                            value={row.taskDescription}
-                                            onChange={(e) =>
-                                                updateRow(row.id, "taskDescription", e.target.value)
-                                            }
-                                            className={`h-7 w-full rounded border border-transparent bg-transparent px-2 text-[11px] leading-tight hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none ${row.isRedNote
-                                                ? "font-bold text-rose-600 text-center"
-                                                : "text-slate-800"
-                                                }`}
-                                        />
-                                    </td>
-
-                                    {/* Deliver Date Picker (7) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 7 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] bg-[#eef7f0] p-0.5 text-center ${isCellSelected(rIdx, 7) ? "bg-[#d3e3fd] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="date"
-                                            value={toIsoDate(row.deliverDate)}
-                                            onChange={(e) =>
-                                                updateRow(row.id, "deliverDate", fromIsoDate(e.target.value))
-                                            }
-                                            onClick={(e) => {
-                                                try {
-                                                    (e.target as HTMLInputElement).showPicker?.();
-                                                } catch { }
-                                            }}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                        />
-                                    </td>
-
-                                    {/* Total Hrs Time (8) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 8 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] bg-[#eef7f0] p-0.5 text-center ${isCellSelected(rIdx, 8) ? "bg-[#d3e3fd] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="time"
-                                            value={row.totalHrs}
-                                            onChange={(e) => updateRow(row.id, "totalHrs", e.target.value)}
-                                            onClick={(e) => {
-                                                try {
-                                                    (e.target as HTMLInputElement).showPicker?.();
-                                                } catch { }
-                                            }}
-                                            className="h-7 w-full border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                        />
-                                    </td>
-
-                                    {/* Work Link (9) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 9 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-1 ${isCellSelected(rIdx, 9) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            <input
-                                                type="text"
-                                                value={row.workLinkText}
-                                                onChange={(e) =>
-                                                    updateRow(row.id, "workLinkText", e.target.value)
-                                                }
-                                                className={`h-7 flex-1 truncate rounded border border-transparent bg-transparent px-2 text-[11px] hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none ${row.isOffDay
-                                                    ? "font-bold text-rose-600"
-                                                    : "text-[#1a73e8] underline"
-                                                    }`}
-                                            />
-                                            {row.workLinkUrl && !row.isOffDay && (
-                                                <a
-                                                    href={row.workLinkUrl}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="text-slate-400 hover:text-blue-600"
-                                                >
-                                                    <ExternalLink className="h-3 w-3" />
-                                                </a>
-                                            )}
-                                        </div>
-                                    </td>
-
-                                    {/* Supervisor (10) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 10 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 10) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="relative flex items-center justify-center">
-                                            <select
-                                                value={row.supervisor}
-                                                onChange={(e) =>
-                                                    updateRow(row.id, "supervisor", e.target.value as EvalRating)
-                                                }
-                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-800 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                            >
-                                                {PERCENT_OPTIONS.map((p) => (
-                                                    <option key={p} value={p}>
-                                                        {p}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-slate-400" />
-                                        </div>
-                                    </td>
-
-                                    {/* HR (11) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 11 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 11) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="relative flex items-center justify-center">
-                                            <select
-                                                value={row.hr}
-                                                onChange={(e) =>
-                                                    updateRow(row.id, "hr", e.target.value as EvalRating)
-                                                }
-                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-800 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                            >
-                                                {PERCENT_OPTIONS.map((p) => (
-                                                    <option key={p} value={p}>
-                                                        {p}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-slate-400" />
-                                        </div>
-                                    </td>
-
-                                    {/* CEO (12) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 12 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] p-0.5 text-center ${isCellSelected(rIdx, 12) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <div className="relative flex items-center justify-center">
-                                            <select
-                                                value={row.ceo}
-                                                onChange={(e) =>
-                                                    updateRow(row.id, "ceo", e.target.value as EvalRating)
-                                                }
-                                                className="h-7 w-full appearance-none rounded border border-transparent bg-transparent px-1 text-center font-mono text-[11px] text-slate-800 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none cursor-pointer"
-                                            >
-                                                {PERCENT_OPTIONS.map((p) => (
-                                                    <option key={p} value={p}>
-                                                        {p}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-1 h-2.5 w-2.5 text-slate-400" />
-                                        </div>
-                                    </td>
-
-                                    {/* Status Badge (13) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 13 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative border-r border-[#e0e0e0] px-2 py-1 text-center whitespace-nowrap ${isCellSelected(rIdx, 13) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <span
-                                            className={`inline-block w-full rounded py-0.5 font-mono text-[10px] font-bold ${currentStatus === "OUTSTANDING"
-                                                ? "bg-slate-100 text-slate-900 border border-slate-300"
-                                                : currentStatus === "A PERFORMER"
-                                                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                                                    : currentStatus === "GOOD JOB"
-                                                        ? "bg-sky-50 text-sky-800 border border-sky-200"
-                                                        : currentStatus === "BAD"
-                                                            ? "bg-rose-50 text-rose-700 border border-rose-200"
-                                                            : "bg-slate-100 text-slate-500"
-                                                }`}
-                                        >
-                                            {currentStatus}
-                                        </span>
-                                    </td>
-
-                                    {/* Comments (14) */}
-                                    <td
-                                        onClick={() => {
-                                            setSelectedCell({ r: rIdx, c: 14 });
-                                            setSelectionRange(null);
-                                            setSelectedCol(null);
-                                        }}
-                                        className={`relative p-1 ${isCellSelected(rIdx, 14) ? "bg-[#e8f0fe] ring-2 ring-[#1a73e8] z-10" : ""
-                                            }`}
-                                    >
-                                        <input
-                                            type="text"
-                                            value={row.comments}
-                                            onChange={(e) => updateRow(row.id, "comments", e.target.value)}
-                                            placeholder="Add comments..."
-                                            className="h-7 w-full rounded border border-transparent bg-transparent px-2 text-[11px] text-slate-700 hover:border-slate-300 focus:border-[#1a73e8] focus:bg-white focus:outline-none"
-                                        />
-
-                                        {/* Drag Fill Handle */}
-                                        {selectedCell?.r === rIdx && selectedCell?.c === 14 && (
-                                            <div
-                                                onMouseDown={(e) => {
-                                                    e.stopPropagation();
-                                                    setDragFillSource({ r: rIdx, c: 14 });
-                                                }}
-                                                className="absolute bottom-0 right-0 h-2 w-2 cursor-crosshair bg-[#1a73e8]"
-                                            />
-                                        )}
+                        <tbody className="divide-y divide-slate-100">
+                            {loading ? (
+                                <SkeletonRows rows={pageSize} cols={8} />
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan={8} className="px-4 py-10 text-center text-rose-600">{error}</td>
+                                </tr>
+                            ) : paged.length === 0 ? (
+                                <tr>
+                                    <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
+                                        <Users className="h-10 w-10 mx-auto mb-2 text-slate-300" />
+                                        No users match your filters.
                                     </td>
                                 </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
-            </div>
+                            ) : (
+                                paged.map((u) => {
+                                    const active = u.isActive !== false;
+                                    return (
+                                        <tr key={u._id} className="hover:bg-slate-50/60">
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <UserAvatar src={u.profilePhoto} name={u.fullName} size={36} />
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-slate-900 truncate">{u.fullName || "—"}</p>
+                                                        <p className="text-xs text-slate-500 truncate">{u.employeeId || "—"}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
 
-            {/* =========================================================================
-          BOTTOM GOOGLE SHEETS TAB BAR
-      ========================================================================= */}
-            <footer className="flex h-10 shrink-0 items-center border-t border-[#c4c7c5] bg-[#f0f4f9] px-2">
-                <div className="flex items-center gap-1 overflow-x-auto text-xs font-medium text-slate-700">
-                    {MONTH_TABS.map((tab) => {
-                        const isActive = activeTab === tab;
-                        return (
-                            <button
-                                key={tab}
-                                type="button"
-                                onClick={() => setActiveTab(tab)}
-                                className={`flex h-8 items-center gap-1 rounded-t border-t-2 px-3 transition-colors cursor-pointer ${isActive
-                                    ? "border-b-0 border-t-[#1a73e8] bg-white font-bold text-[#1a73e8] shadow-2xs"
-                                    : "border-transparent text-slate-600 hover:bg-slate-200/60"
-                                    }`}
-                            >
-                                <span>{tab}</span>
-                                {isActive && (
-                                    <span className="h-1.5 w-1.5 rounded-full bg-[#1a73e8]" />
-                                )}
-                            </button>
-                        );
-                    })}
+                                            <td className="px-4 py-3">
+                                                <div className="space-y-0.5">
+                                                    <div className="flex items-center gap-1.5 text-slate-700">
+                                                        <Mail className="h-3.5 w-3.5 text-slate-400" />
+                                                        <span className="truncate max-w-[200px]">{u.email || "—"}</span>
+                                                    </div>
+                                                    {u.phoneNumber && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                                            <Phone className="h-3.5 w-3.5 text-slate-400" />
+                                                            {u.phoneNumber}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${roleBadgeColor[u.role] || "bg-slate-100 text-slate-700 border-slate-200"}`}>
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    {prettyRole(u.role || "—")}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-1.5 text-slate-700">
+                                                    <Building2 className="h-3.5 w-3.5 text-slate-400" />
+                                                    {getDeptName(u)}
+                                                </div>
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-1.5 text-slate-700">
+                                                    <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                                                    {u.position || "—"}
+                                                </div>
+                                                {u.location && (
+                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+                                                        <MapPin className="h-3 w-3 text-slate-400" />
+                                                        {u.location}
+                                                    </div>
+                                                )}
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                {active ? (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                        <CheckCircle2 className="h-3 w-3" /> Active
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200">
+                                                        <XCircle className="h-3 w-3" /> Inactive
+                                                    </span>
+                                                )}
+                                            </td>
+
+                                            <td className="px-4 py-3 text-slate-600">
+                                                {formatDate(u.createdAt)}
+                                            </td>
+
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Link
+                                                        href={`/management-report/${u._id}`}
+                                                        title="View Profile"
+                                                        className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-indigo-600 inline-flex items-center"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </Link>
+                                                    <Link
+                                                        href={`/management-report/${u._id}/report`}
+                                                        title="View Task Report"
+                                                        className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-indigo-600 inline-flex items-center"
+                                                    >
+                                                        <BarChart3 className="h-4 w-4" />
+                                                    </Link>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            )}
+                        </tbody>
+                    </table>
                 </div>
-            </footer>
+
+                {!loading && filtered.length > 0 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-200 bg-slate-50/50">
+                        <div className="text-xs text-slate-500">
+                            Showing <span className="font-medium text-slate-700">{(currentPage - 1) * pageSize + 1}</span>{" "}
+                            – <span className="font-medium text-slate-700">{Math.min(currentPage * pageSize, filtered.length)}</span>{" "}
+                            of <span className="font-medium text-slate-700">{filtered.length}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <select
+                                value={pageSize}
+                                onChange={(e) => setPageSize(Number(e.target.value))}
+                                className="px-2 py-1.5 rounded-md border border-slate-200 text-xs bg-white"
+                            >
+                                {[10, 20, 50, 100].map((n) => (
+                                    <option key={n} value={n}>{n} / page</option>
+                                ))}
+                            </select>
+
+                            <button
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="p-1.5 rounded-md border border-slate-200 bg-white disabled:opacity-40 hover:bg-slate-50"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+
+                            <span className="text-xs text-slate-600 min-w-[70px] text-center">
+                                Page {currentPage} / {totalPages}
+                            </span>
+
+                            <button
+                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-1.5 rounded-md border border-slate-200 bg-white disabled:opacity-40 hover:bg-slate-50"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function StatCard({
+    icon,
+    label,
+    value,
+    color,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: number;
+    color: string;
+}) {
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${color}`}>
+                    {icon}
+                </div>
+                <div>
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="text-xl font-bold text-slate-900">{value}</p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function Th({
+    children,
+    sortKey,
+    current,
+    dir,
+    onSort,
+    className = "",
+}: {
+    children: React.ReactNode;
+    sortKey: SortKey;
+    current: SortKey;
+    dir: SortDir;
+    onSort: (k: SortKey) => void;
+    className?: string;
+}) {
+    const active = current === sortKey;
+    return (
+        <th
+            className={`px-4 py-3 cursor-pointer select-none hover:text-slate-700 ${className}`}
+            onClick={() => onSort(sortKey)}
+        >
+            <span className="inline-flex items-center gap-1">
+                {children}
+                {active ? (
+                    dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+                ) : (
+                    <ChevronDown className="h-3 w-3 opacity-30" />
+                )}
+            </span>
+        </th>
+    );
+}
+
+function SkeletonRows({ rows, cols }: { rows: number; cols: number }) {
+    return (
+        <>
+            {Array.from({ length: Math.min(rows, 8) }).map((_, r) => (
+                <tr key={r} className="animate-pulse">
+                    {Array.from({ length: cols }).map((__, c) => (
+                        <td key={c} className="px-4 py-4">
+                            <div className="h-4 bg-slate-100 rounded w-3/4" />
+                        </td>
+                    ))}
+                </tr>
+            ))}
+        </>
     );
 }

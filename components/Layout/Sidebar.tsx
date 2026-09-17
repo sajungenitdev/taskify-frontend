@@ -42,7 +42,7 @@ interface SidebarProps {
 }
 
 // Enhanced Mandala Pattern with primary color
-const MandalaPattern = ({ primaryColor = "#0f2444" }) => (
+const MandalaPattern = ({ primaryColor = "#0d2137" }) => (
   <svg
     className="absolute inset-0 w-full h-full opacity-[0.08]"
     viewBox="0 0 800 800"
@@ -151,7 +151,7 @@ const MandalaPattern = ({ primaryColor = "#0f2444" }) => (
 );
 
 // Subtle animated gradient overlay with primary color
-const AnimatedGradientOverlay = ({ primaryColor = "#0f2444" }) => (
+const AnimatedGradientOverlay = ({ primaryColor = "#0d2137" }) => (
   <div className="absolute inset-0 opacity-30 pointer-events-none">
     <div
       className="absolute top-0 left-0 w-64 h-64 rounded-full blur-3xl animate-pulse"
@@ -195,7 +195,7 @@ export default function Sidebar({
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Primary color
-  const primaryColor = "#0f2444";
+  const primaryColor = "#0d2137";
 
   // Get user role with proper typing
   const userRole = (user?.role || "employee") as UserRole;
@@ -570,7 +570,7 @@ export default function Sidebar({
 
   const sidebarContent = (
     <aside
-      className={`relative bg-[#0f2444] min-h-screen flex flex-col shadow-2xl transition-all duration-300 overflow-visible ${isCollapsed ? "w-20" : "w-80"
+      className={`relative bg-[#0d2137] min-h-screen flex flex-col shadow-2xl transition-all duration-300 overflow-visible ${isCollapsed ? "w-20" : "w-80"
         } sidebar-layout`}
       style={{
         borderRight: "1px solid rgba(255, 255, 255, 0.05)",
@@ -581,8 +581,8 @@ export default function Sidebar({
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 pointer-events-none main-sidebar">
         {/* Dark overlay for readability */}
-        <div className="absolute inset-0 bg-[#0f2444]/80 backdrop-blur-sm" />
-        <div className="absolute inset-0 bg-linear-to-br from-[#0f2444]/60 via-[#0f2444]/40 to-transparent" />
+        <div className="absolute inset-0 bg-[#0d2137]/80 backdrop-blur-sm" />
+        <div className="absolute inset-0 bg-linear-to-br from-[#0d2137]/60 via-[#0d2137]/40 to-transparent" />
       </div>
 
       {/* Mandala Pattern */}
@@ -609,8 +609,8 @@ export default function Sidebar({
         {/* Header with Toggle Button - Fixed height */}
         <div
           className={`shrink-0 px-4 py-[12px] bg-transparent transition-all duration-300 sticky top-0 z-10 ${scrolled
-            ? "bg-[#0f2444]/90 backdrop-blur-md"
-            : "bg-[#0f2444]/60 backdrop-blur-sm"
+            ? "bg-[#0d2137]/90 backdrop-blur-md"
+            : "bg-[#0d2137]/60 backdrop-blur-sm"
             }`}
         >
           <div className="flex items-center justify-between">
@@ -637,7 +637,7 @@ export default function Sidebar({
             </div>
             <button
               onClick={toggleCollapse}
-              className="h-7 bg-[#0f2444] 
+              className="h-7 bg-[#0d2137] 
           hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 
           hover:border-transparent rounded-full items-center justify-center transition-all duration-300 shadow-xl"
             >
@@ -659,7 +659,7 @@ export default function Sidebar({
         {/* Toggle Button */}
         {/* <button
           onClick={toggleCollapse}
-          className="hidden lg:flex fixed top-1/12 -translate-y-1/2 z-[999] w-7 h-7 bg-[#0f2444] 
+          className="hidden lg:flex fixed top-1/12 -translate-y-1/2 z-[999] w-7 h-7 bg-[#0d2137] 
           hover:bg-linear-to-r hover:from-indigo-500 hover:to-purple-500 border-2 border-white/20 
           hover:border-transparent rounded-full items-center justify-center transition-all duration-300 shadow-xl group"
         >
@@ -1008,7 +1008,7 @@ export default function Sidebar({
         </nav>
 
         {/* Footer - Fixed at bottom */}
-        <div className="shrink-0 p-4 border-t border-white/10 bg-linear-to-t from-[#0f2444]/90 via-[#0f2444]/60 to-transparent backdrop-blur-sm">
+        <div className="shrink-0 p-4 border-t border-white/10 bg-linear-to-t from-[#0d2137]/90 via-[#0d2137]/60 to-transparent backdrop-blur-sm">
           <button
             onClick={logout}
             className={`group cursor-pointer relative w-full overflow-hidden rounded-xl transition-all duration-300 ${isCollapsed ? "px-2 py-2.5" : "px-4 py-2.5"
