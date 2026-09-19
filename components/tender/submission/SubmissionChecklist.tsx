@@ -4,7 +4,12 @@
 export interface ChecklistItem {
   id: string;
   label: string;
-  checked: boolean;
+  /** Display text inside the pill — e.g. "N/A", "In progress", "6 days remaining" */
+  value?: string;
+  /** Pill color */
+  tone?: "neutral" | "progress" | "warn";
+  /* These are optional — used by the Manage page's editable checklist */
+  checked?: boolean;
   isCustom?: boolean;
 }
 
@@ -13,8 +18,16 @@ interface Props {
   onToggle?: (id: string, checked: boolean) => void;
 }
 
-export function SubmissionChecklist({ items, onToggle }: Props) {
-  const done = items.filter((i) => i.checked).length;
+const TONE_STYLES: Record<"neutral" | "progress" | "warn", string> = {
+  neutral: "border-slate-200 bg-slate-100 text-slate-600",
+  progress: "border-orange-200 bg-orange-50 text-orange-700",
+  warn: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+export function SubmissionChecklist({ items }: Props) {
+  /* No onToggle here — the submission page renders this read-only.
+   * Checked state is computed on the backend from doc-task statuses
+   * and the deadline, so it doesn't need to be toggled by the user. */
 
   return (
     <div>
@@ -22,9 +35,6 @@ export function SubmissionChecklist({ items, onToggle }: Props) {
         <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
           Submission Checklist
         </p>
-        <span className="text-[10px] font-semibold text-slate-400">
-          {done}/{items.length}
-        </span>
       </div>
 
       {items.length === 0 ? (
@@ -32,43 +42,30 @@ export function SubmissionChecklist({ items, onToggle }: Props) {
           No checklist items yet.
         </div>
       ) : (
-        <ul className="space-y-1.5">
-          {items.map((item) => (
-            <li key={item.id}>
-              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 hover:bg-slate-50">
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={item.checked}
-                  onChange={(e) => onToggle?.(item.id, e.target.checked)}
-                  disabled={!onToggle}
-                />
-                <span
-                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${item.checked
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-slate-300 bg-white"
-                    }`}
-                >
-                  {item.checked && (
-                    <svg
-                      viewBox="0 0 12 12"
-                      className="h-2.5 w-2.5 fill-none stroke-current stroke-2"
-                    >
-                      <path d="M2 6l3 3 5-6" />
-                    </svg>
-                  )}
-                </span>
-                <span
-                  className={`flex-1 text-[11px] ${item.checked
-                      ? "text-slate-500 line-through"
-                      : "text-slate-700"
-                    }`}
-                >
+        <ul>
+          {items.map((item, idx) => {
+            const value = item.value ?? (item.checked ? "Done" : "Pending");
+            const tone: "neutral" | "progress" | "warn" =
+              item.tone ??
+              (item.checked ? "progress" : "warn");
+
+            return (
+              <li
+                key={item.id}
+                className={`flex items-center justify-between py-3 ${idx < items.length - 1 ? "border-b border-slate-100" : ""
+                  }`}
+              >
+                <span className="text-[12px] font-medium text-slate-700">
                   {item.label}
                 </span>
-              </label>
-            </li>
-          ))}
+                <span
+                  className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-[10px] font-semibold ${TONE_STYLES[tone]}`}
+                >
+                  {value}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

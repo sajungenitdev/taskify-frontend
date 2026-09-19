@@ -186,7 +186,12 @@ export interface SubmissionAttachment {
 export interface SubmissionChecklistItem {
   id: string;
   label: string;
-  checked: boolean;
+  /** Pill display text — e.g. "N/A", "In progress", "6 days remaining" */
+  value?: string;
+  /** Pill color */
+  tone?: "neutral" | "progress" | "warn";
+  /* Legacy fields — used by the manage page's stored checklist */
+  checked?: boolean;
   isCustom?: boolean;
 }
 

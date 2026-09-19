@@ -119,6 +119,7 @@ export function toSubmittedDetail(t: Tender): SubmittedTenderDetail {
             : undefined,
         documentsSubmitted: normalizeAttachments(t.attachments).map((a) => ({
             name: a.name,
+            url: a.url,        // ← ADD THIS LINE
         })),
         otherParticipants: (t.otherParticipants ?? []).map((p) => ({
             bidder: p.bidder,
@@ -192,6 +193,8 @@ export function sanitizeSubmissionDetail(
         checklist: (d.checklist ?? []).map((c) => ({
             id: c.id,
             label: c.label,
+            value: c.value,
+            tone: c.tone,
             checked: !!c.checked,
             isCustom: !!c.isCustom,
         })),

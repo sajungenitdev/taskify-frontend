@@ -1,12 +1,20 @@
 // components/tender/submission/SubmissionDetail.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, FileText } from "lucide-react";
-import { DocTaskRow, type DocTask } from "./DocTaskRow";
+import { useEffect, useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  FileText,
+  Trash2,
+  Upload,
+} from "lucide-react";
+import { DocTaskRow, type DocTask, type DocStatus } from "./DocTaskRow";
 import { SubmissionChecklist } from "./SubmissionChecklist";
 import { ReadinessBar } from "./ReadinessBar";
 import { docTaskApi, tenderApi } from "@/lib/api/tender.api";
+import { confirmToast } from "@/lib/confirmToast";
 import toast from "react-hot-toast";
 
 export interface SubmissionAttachment {
@@ -42,7 +50,9 @@ export interface SubmissionDetailData {
   checklist: {
     id: string;
     label: string;
-    checked: boolean;
+    value?: string;
+    tone?: "neutral" | "progress" | "warn";
+    checked?: boolean;
     isCustom?: boolean;
   }[];
   info: SubmissionInfoPayload;
@@ -77,30 +87,21 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
   const [tab, setTab] = useState<Tab>("Tender Preparation");
   const [showDetails, setShowDetails] = useState(true);
   const [tasks, setTasks] = useState<DocTask[]>(data.docTasks);
-  const [checklist, setChecklist] = useState(data.checklist);
   const [uploadingAd, setUploadingAd] = useState(false);
+  const [uploadingAtt, setUploadingAtt] = useState(false);
+  const [deletingAttId, setDeletingAttId] = useState<string | null>(null);
+  const [deletingAd, setDeletingAd] = useState(false);
+  const attachInputRef = useRef<HTMLInputElement>(null);
+  const adInputRef = useRef<HTMLInputElement>(null);
 
-  /* ============================================================
-   * DEBUG LOGS — remove after fixing the attachments issue
-   * ============================================================ */
-  useEffect(() => {
-    console.log("%c=== SubmissionDetail received data ===", "background:#000;color:#0ff;padding:2px 6px;font-weight:bold");
-    console.log("data.id:", data.id);
-    console.log("data.tenderer:", data.tenderer);
-    console.log("data.info:", data.info);
-    console.log("data.info.attachments:", data.info?.attachments);
-    console.log("data.info.attachments.length:", data.info?.attachments?.length);
-    console.log("data.info.advertisementFile:", data.info?.advertisementFile);
-    console.log("data.info.advertisementUrl:", data.info?.advertisementUrl);
-    console.log("data.checklist:", data.checklist);
-  }, [data]);
-  /* ============================================================ */
+  const checklist = data.checklist;
 
   useEffect(() => {
     setTasks(data.docTasks);
-    setChecklist(data.checklist);
-  }, [data.id, data.docTasks, data.checklist]);
+    if (adInputRef.current) adInputRef.current.value = "";
+  }, [data.id, data.docTasks]);
 
+  /* ---------- Doc tasks ---------- */
   const addTask = () => {
     const draft: DocTask = {
       id: `draft-${Date.now()}`,
@@ -122,13 +123,26 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
   const saveTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
+
     const finalTitle = task.title.trim() || "Untitled task";
     const finalOwner = task.owner.trim() || "—";
+
+    const hasPendingFile = !!task.pendingFile;
+    const safeStatus: DocStatus =
+      task.status === "Done" && !hasPendingFile && !task.fileUrl
+        ? "Pending"
+        : task.status;
 
     setTasks((prev) =>
       prev.map((t) =>
         t.id === id
-          ? { ...t, title: finalTitle, owner: finalOwner, isDraft: false }
+          ? {
+            ...t,
+            title: finalTitle,
+            owner: finalOwner,
+            status: safeStatus,
+            isDraft: false,
+          }
           : t,
       ),
     );
@@ -137,15 +151,59 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
       const created = await docTaskApi.add(data.id, {
         title: finalTitle,
         owner: finalOwner,
-        status: task.status,
+        status: safeStatus,
         fileName: task.fileName,
       });
+
       setTasks((prev) =>
         prev.map((t) =>
-          t.id === id ? { ...t, id: created._id, isDraft: false } : t,
+          t.id === id
+            ? { ...t, id: created._id, status: safeStatus, isDraft: false }
+            : t,
         ),
       );
-      toast.success("Document task added");
+
+      if (task.pendingFile) {
+        const loadingId = toast.loading(
+          `Uploading ${task.pendingFile.name}...`,
+        );
+        try {
+          const att = await tenderApi.uploadAttachment(
+            data.id,
+            task.pendingFile,
+          );
+
+          await docTaskApi.update(data.id, created._id, {
+            fileName: att.name,
+            fileUrl: att.url,
+            status: "Done",
+          });
+
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === created._id
+                ? {
+                  ...t,
+                  fileName: att.name,
+                  fileUrl: fullFileUrl(att.url),
+                  status: "Done",
+                  pendingFile: null,
+                }
+                : t,
+            ),
+          );
+
+          toast.success("Task + file saved", { id: loadingId });
+        } catch (e) {
+          toast.error(
+            (e as Error).message || "File upload failed",
+            { id: loadingId },
+          );
+        }
+      } else {
+        toast.success("Document task added");
+      }
+
       onTaskMutated?.();
     } catch (e) {
       toast.error((e as Error).message || "Failed to add document task");
@@ -177,53 +235,140 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
 
   const uploadTaskFile = async (taskId: string, file: File) => {
     const loadingId = toast.loading(`Uploading ${file.name}...`);
+    const snapshot = tasks;
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, fileName: file.name, status: "In Progress" }
+          : t,
+      ),
+    );
+
     try {
       const att = await tenderApi.uploadAttachment(data.id, file);
+
+      await docTaskApi.update(data.id, taskId, {
+        fileName: att.name,
+        fileUrl: att.url,
+        status: "Done",
+      });
+
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
             ? {
-                ...t,
-                fileName: att.name,
-                fileUrl: fullFileUrl(att.url),
-                status: "Done",
-              }
+              ...t,
+              fileName: att.name,
+              fileUrl: fullFileUrl(att.url),
+              status: "Done",
+            }
             : t,
         ),
       );
+
       toast.success("File uploaded", { id: loadingId });
       onTaskMutated?.();
     } catch (e) {
-      toast.error((e as Error).message || "Upload failed", { id: loadingId });
+      toast.error((e as Error).message || "Upload failed", {
+        id: loadingId,
+      });
+      setTasks(snapshot);
     }
   };
 
-  const toggleChecklist = async (id: string, checked: boolean) => {
-    const next = checklist.map((c) =>
-      c.id === id ? { ...c, checked } : c,
-    );
-    const previous = checklist;
-    setChecklist(next);
-    try {
-      await tenderApi.updateChecklist(data.id, next);
-    } catch (e) {
-      toast.error((e as Error).message || "Failed to save checklist");
-      setChecklist(previous);
-    }
-  };
-
-  const replaceAdvertisement = async (file: File) => {
+  /* ---------- Advertisement: upload ---------- */
+  const uploadAdvertisement = async (file: File) => {
     setUploadingAd(true);
     const loadingId = toast.loading(`Uploading ${file.name}...`);
     try {
       await tenderApi.uploadAdvertisement(data.id, file);
-      toast.success("Advertisement replaced", { id: loadingId });
+      toast.success(
+        data.info.advertisementFile
+          ? "Advertisement replaced"
+          : "Advertisement uploaded",
+        { id: loadingId },
+      );
       onTaskMutated?.();
     } catch (e) {
-      toast.error((e as Error).message || "Upload failed", { id: loadingId });
+      toast.error((e as Error).message || "Upload failed", {
+        id: loadingId,
+      });
     } finally {
       setUploadingAd(false);
+      if (adInputRef.current) adInputRef.current.value = "";
     }
+  };
+
+  /* ---------- Advertisement: delete ---------- */
+  const deleteAdvertisement = () => {
+    if (!data.info.advertisementFile) return;
+    confirmToast({
+      title: "Delete advertisement?",
+      description:
+        "The advertisement file will be permanently removed from this tender.",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        setDeletingAd(true);
+        const loadingId = toast.loading("Removing advertisement...");
+        try {
+          await tenderApi.deleteAdvertisement(data.id);
+          toast.success("Advertisement removed", { id: loadingId });
+          onTaskMutated?.();
+        } catch (e) {
+          toast.error(
+            (e as Error).message || "Delete failed",
+            { id: loadingId },
+          );
+        } finally {
+          setDeletingAd(false);
+        }
+      },
+    });
+  };
+
+  /* ---------- Top-level attachments ---------- */
+  const handleAttachFile = async (file: File) => {
+    setUploadingAtt(true);
+    const loadingId = toast.loading(`Uploading ${file.name}...`);
+    try {
+      await tenderApi.uploadAttachment(data.id, file);
+      toast.success("File attached", { id: loadingId });
+      onTaskMutated?.();
+    } catch (e) {
+      toast.error((e as Error).message || "Upload failed", {
+        id: loadingId,
+      });
+    } finally {
+      setUploadingAtt(false);
+      if (attachInputRef.current) attachInputRef.current.value = "";
+    }
+  };
+
+  const deleteAttachment = (attachmentId: string, name: string) => {
+    confirmToast({
+      title: `Delete "${name}"?`,
+      description: "This file will be permanently removed.",
+      confirmLabel: "Delete",
+      variant: "danger",
+      onConfirm: async () => {
+        setDeletingAttId(attachmentId);
+        const loadingId = toast.loading("Removing file...");
+        try {
+          await tenderApi.deleteAttachment(data.id, attachmentId);
+          toast.success("File removed", { id: loadingId });
+          onTaskMutated?.();
+        } catch (e) {
+          toast.error(
+            (e as Error).message || "Delete failed",
+            { id: loadingId },
+          );
+        } finally {
+          setDeletingAttId(null);
+        }
+      },
+    });
   };
 
   return (
@@ -243,18 +388,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             <ReadinessBar percent={data.readiness} width={140} />
           </div>
         </div>
-
-        {/* {data.notifyAction && (
-          <button
-            type="button"
-            onClick={data.notifyAction.onClick}
-            className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-[11px] font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-          >
-            {data.notifyAction.label}
-          </button>
-        )} */}
       </div>
 
+      {/* Tabs */}
       <div className="flex items-center justify-between border-b border-slate-100 px-5">
         <div className="flex items-center gap-1">
           {TABS.map((t) => {
@@ -264,9 +400,10 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
-                  active ? "text-slate-900" : "text-slate-500 hover:text-slate-800"
-                }`}
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
+                  ? "text-slate-900"
+                  : "text-slate-500 hover:text-slate-800"
+                  }`}
               >
                 {t}
                 {active && (
@@ -295,9 +432,10 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
         )}
       </div>
 
+      {/* Tender Preparation */}
       {tab === "Tender Preparation" && showDetails && (
-        <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-[1fr_360px]">
-          <div>
+        <div className="grid grid-cols-1 lg:grid-cols-2">
+          <div className="p-5">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Document Tasks
             </p>
@@ -325,68 +463,104 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             </button>
           </div>
 
-          <aside>
-            <SubmissionChecklist
-              items={checklist}
-              onToggle={toggleChecklist}
-            />
+          {/* Right column — the vertical divider is the border-left */}
+          <aside className="border-t border-slate-100 p-5 lg:border-l lg:border-t-0">
+            <SubmissionChecklist items={checklist} />
           </aside>
         </div>
       )}
 
+      {/* Tender Info */}
       {tab === "Tender Info" && (
         <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
           <div className="space-y-4">
+            {/* ---------- Tender Advertisement ---------- */}
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Tender Advertisement
               </p>
+
+              <input
+                ref={adInputRef}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.gif"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) uploadAdvertisement(f);
+                }}
+              />
+
               {data.info.advertisementFile ? (
-                <div className="flex items-center justify-between rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText className="h-4 w-4 shrink-0 text-amber-600" />
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-slate-800">
+                      <p className="truncate text-[12px] font-semibold text-slate-800">
                         {data.info.advertisementFile}
                       </p>
                       <p className="text-[10px] text-slate-500">
-                        Uploaded by {data.info.advertisementUploadedBy ?? "—"}
+                        Uploaded by{" "}
+                        {data.info.advertisementUploadedBy ?? "—"}
                       </p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     {data.info.advertisementUrl && (
                       <a
                         href={fullFileUrl(data.info.advertisementUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                        className="inline-flex h-7 items-center rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
                       >
                         View
                       </a>
                     )}
-                    <label
-                      className={`cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${
-                        uploadingAd ? "pointer-events-none opacity-60" : ""
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => adInputRef.current?.click()}
+                      disabled={uploadingAd || deletingAd}
+                      className="inline-flex h-7 items-center rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {uploadingAd ? "Uploading…" : "Replace"}
-                      <input
-                        type="file"
-                        className="hidden"
-                        disabled={uploadingAd}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) replaceAdvertisement(f);
-                        }}
-                      />
-                    </label>
+                    </button>
+                    {/* ----- NEW: delete advertisement ----- */}
+                    <button
+                      type="button"
+                      onClick={deleteAdvertisement}
+                      disabled={deletingAd || uploadingAd}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      title="Delete advertisement"
+                      aria-label="Delete advertisement"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-center text-[11px] text-slate-500">
-                  No advertisement uploaded yet.
-                </div>
+                <button
+                  type="button"
+                  onClick={() => adInputRef.current?.click()}
+                  disabled={uploadingAd}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/40 px-3 py-3 text-left transition hover:border-amber-400 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-amber-600 shadow-sm">
+                      <Upload className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[12px] font-semibold text-slate-700">
+                        {uploadingAd
+                          ? "Uploading advertisement…"
+                          : "Upload advertisement"}
+                      </span>
+                      <span className="block text-[10px] text-slate-400">
+                        Image or PDF — up to 15 MB
+                      </span>
+                    </span>
+                  </span>
+                </button>
               )}
             </div>
 
@@ -444,44 +618,98 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             </div>
           </div>
 
+          {/* Right column */}
           <div className="space-y-4">
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 File Attachments ({data.info.attachments.length})
               </p>
+
               <ul className="space-y-1.5">
                 {data.info.attachments.length === 0 && (
                   <li className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-center text-[11px] text-slate-400">
-                    No attachments.
+                    No attachments yet.
                   </li>
                 )}
-                {data.info.attachments.map((f) => (
-                  <li
-                    key={f._id}
-                    className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
-                  >
-                    <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span className="truncate">{f.name}</span>
-                      {f.size > 0 && (
-                        <span className="shrink-0 text-[10px] text-slate-400">
-                          ({fileSizeLabel(f.size)})
-                        </span>
-                      )}
-                    </span>
-                    {f.url && (
-                      <a
-                        href={fullFileUrl(f.url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[10px] font-semibold text-indigo-600 hover:underline"
-                      >
-                        View
-                      </a>
-                    )}
-                  </li>
-                ))}
+                {data.info.attachments.map((f) => {
+                  const deleting = deletingAttId === f._id;
+                  return (
+                    <li
+                      key={f._id}
+                      className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">{f.name}</span>
+                        {f.size > 0 && (
+                          <span className="shrink-0 text-[10px] text-slate-400">
+                            ({fileSizeLabel(f.size)})
+                          </span>
+                        )}
+                      </span>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {f.url && (
+                          <a
+                            href={fullFileUrl(f.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-semibold text-indigo-600 hover:underline"
+                          >
+                            View
+                          </a>
+                        )}
+                        {/* ----- NEW: delete attachment ----- */}
+                        <button
+                          type="button"
+                          onClick={() => deleteAttachment(f._id, f.name)}
+                          disabled={deleting}
+                          className="rounded-md p-1 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                          title="Delete file"
+                          aria-label="Delete file"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
+
+              <div className="mt-3">
+                <input
+                  ref={attachInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+                  className="hidden"
+                  disabled={uploadingAtt}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleAttachFile(f);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => attachInputRef.current?.click()}
+                  disabled={uploadingAtt}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 px-3 py-3 text-left transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-slate-500 shadow-sm">
+                      <Upload className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[12px] font-semibold text-slate-700">
+                        {uploadingAtt
+                          ? "Uploading…"
+                          : "Choose a file to upload"}
+                      </span>
+                      <span className="block text-[10px] text-slate-400">
+                        PDF, images, Word, Excel — up to 25 MB
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              </div>
             </div>
 
             <div>

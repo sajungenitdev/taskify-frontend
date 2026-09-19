@@ -3,6 +3,8 @@
 
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { SubmissionHeader } from "@/components/tender/submission/SubmissionHeader";
 import { SubmissionTable } from "@/components/tender/submission/SubmissionTable";
 import { SubmissionDetail } from "@/components/tender/submission/SubmissionDetail";
@@ -18,8 +20,10 @@ import { tenderApi } from "@/lib/api/tender.api";
 import { confirmToast } from "@/lib/confirmToast";
 
 export default function TenderSubmissionPage() {
+    const router = useRouter();
     const { rows, loading: rowsLoading, refetch: refetchRows } = useSubmissions();
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
 
     /* Auto-select the first row once data arrives */
     useEffect(() => {
@@ -28,9 +32,13 @@ export default function TenderSubmissionPage() {
         }
     }, [rows, selectedId]);
 
-    const { data: detail, loading: detailLoading } =
-        useSubmissionDetail(selectedId);
+    const {
+        data: detail,
+        loading: detailLoading,
+        refetch: refetchDetail,
+    } = useSubmissionDetail(selectedId);
 
+    /* ---------- Delete ---------- */
     const handleDelete = (id: string) => {
         const row = rows.find((r) => r.id === id);
         confirmToast({
@@ -51,6 +59,45 @@ export default function TenderSubmissionPage() {
                         (e as Error).message || "Failed to delete",
                         { id: loadingId },
                     );
+                }
+            },
+        });
+    };
+
+    /* ---------- Final Submit ---------- */
+    const handleFinalSubmit = async () => {
+        if (!detail) return;
+        if (submitting) return;
+
+        const row = rows.find((r) => r.id === detail.id);
+        confirmToast({
+            title: `Submit ${row?.tenderer ?? "this tender"}?`,
+            description:
+                "The tender will be marked as Submitted and moved to the Submitted tab. This cannot be undone from here.",
+            confirmLabel: "Submit Tender",
+            variant: "default",
+            onConfirm: async () => {
+                setSubmitting(true);
+                const loadingId = toast.loading("Submitting tender...");
+                try {
+                    await tenderApi.changeStage(
+                        detail.id,
+                        "submitted",
+                        "Submitted to client",
+                    );
+                    toast.success("Tender marked as submitted", {
+                        id: loadingId,
+                    });
+                    await refetchRows();
+                    setSelectedId(null);
+                    router.push("/tenders/manage?tab=submitted");
+                } catch (e) {
+                    toast.error(
+                        (e as Error).message || "Failed to submit",
+                        { id: loadingId },
+                    );
+                } finally {
+                    setSubmitting(false);
                 }
             },
         });
@@ -82,17 +129,42 @@ export default function TenderSubmissionPage() {
                 )}
 
                 {!detailLoading && detail && (
-                    <SubmissionDetail
-                        data={{
-                            ...sanitizeSubmissionDetail(detail),
-                            notifyAction: {
-                                label: "Notify Finance — Banking Docs Pending",
-                                onClick: () => {
-                                    // TODO: notification endpoint when it exists
+                    <>
+                        <SubmissionDetail
+                            data={{
+                                ...sanitizeSubmissionDetail(detail),
+                                notifyAction: {
+                                    label: "Notify Finance — Banking Docs Pending",
+                                    onClick: () => {
+                                        // TODO: notification endpoint when it exists
+                                    },
                                 },
-                            },
-                        }}
-                    />
+                            }}
+                            onTaskMutated={() => refetchDetail()}
+                        />
+
+                        {/* ---------- Submit Button ---------- */}
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleFinalSubmit}
+                                disabled={submitting}
+                                className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#a97400] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {submitting ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        Submit Tender
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </>
                 )}
             </div>
         </main>

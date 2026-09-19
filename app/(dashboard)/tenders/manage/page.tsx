@@ -1,7 +1,8 @@
 // app/(dashboard)/tenders/manage/page.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { TenderHeader } from "@/components/tender/TenderHeader";
 import { TenderStats } from "@/components/tender/TenderStats";
@@ -139,6 +140,14 @@ function mapRows(
 
 /* ---------- Page ---------- */
 export default function TenderManagePage() {
+  return (
+    <Suspense fallback={null}>
+      <TenderManageContent />
+    </Suspense>
+  );
+}
+
+function TenderManageContent() {
   const { groups, stats, loading, refetch } = useTenderStats();
   const [tab, setTab] = useState<TenderTab>("potential");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -150,6 +159,22 @@ export default function TenderManagePage() {
   const [checklistTender, setChecklistTender] = useState<Tender | null>(
     null,
   );
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  /* Honor ?tab= from URL */
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (
+      t === "potential" ||
+      t === "active" ||
+      t === "submitted" ||
+      t === "lost"
+    ) {
+      setTab(t as TenderTab);
+      setSelectedId(null);
+    }
+  }, [searchParams]);
 
   const currentRows = groups[tab] ?? [];
   const selected =
@@ -172,19 +197,20 @@ export default function TenderManagePage() {
 
   const handleSubmitTender = async (tender: Tender) => {
     try {
-      await tenderApi.changeStage(
-        tender._id,
-        "submitted",
-        "Submitted to client",
+      /* Phase 1: mark as ready-for-submission (stays active). */
+      await tenderApi.update(tender._id, {
+        docStatus: "Docs in progress",
+      });
+      toast.success(
+        `${tender.tenderer} queued for submission — review on the Submissions page`,
       );
-      toast.success(`${tender.tenderer} marked as submitted`);
       await refetch();
-      setTab("submitted");
-      setSelectedId(null);
+      router.push("/tenders/submissions");
     } catch (e) {
-      toast.error((e as Error).message || "Failed to submit");
+      toast.error((e as Error).message || "Failed to queue");
     }
   };
+
   const handleMarkWon = async (tender: Tender) => {
     try {
       await tenderApi.changeStage(tender._id, "won", "Client awarded");
@@ -219,13 +245,11 @@ export default function TenderManagePage() {
     }
   };
 
-  /* ---------- Lookup ---------- */
   const findTenderById = (id: string): Tender | undefined =>
     Object.values(groups)
       .flat()
       .find((x) => x._id === id);
 
-  /* ---------- Delete ---------- */
   const handleDelete = (id: string) => {
     const tender = findTenderById(id);
     confirmToast({
@@ -250,13 +274,11 @@ export default function TenderManagePage() {
     });
   };
 
-  /* ---------- Edit ---------- */
   const handleEdit = (id: string) => {
     const t = findTenderById(id);
     if (t) setEditTender(t);
   };
 
-  /* ---------- Approve ---------- */
   const handleApproveForParticipation = async (tender: Tender) => {
     try {
       await tenderApi.changeStage(
@@ -273,14 +295,12 @@ export default function TenderManagePage() {
     }
   };
 
-  /* ---------- Decline ---------- */
   const handleDecline = (tender: Tender) => {
     toast(`${tender.tenderer} declined — stays in Potential for record`, {
       icon: "ℹ️",
     });
   };
 
-  /* ---------- Eye handlers (open checklist modal) ---------- */
   const handleViewPotential = (id: string) => {
     const t = groups.potential.find((x) => x._id === id);
     if (t) setChecklistTender(t);
@@ -468,7 +488,6 @@ export default function TenderManagePage() {
         )}
       </div>
 
-      {/* ---------- Add Tender ---------- */}
       <AddTenderModal
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -477,7 +496,6 @@ export default function TenderManagePage() {
         }}
       />
 
-      {/* ---------- Edit Tender ---------- */}
       <EditTenderModal
         open={!!editTender}
         onOpenChange={(o) => !o && setEditTender(null)}
@@ -487,7 +505,6 @@ export default function TenderManagePage() {
         }}
       />
 
-      {/* ---------- Eligibility Check ---------- */}
       <EligibilityCheckModal
         open={!!eligibilityTender}
         onOpenChange={(o) => !o && setEligibilityTender(null)}
@@ -504,8 +521,8 @@ export default function TenderManagePage() {
         }}
       />
 
-      {/* ---------- Submission Checklist ---------- */}
       <SubmissionChecklistModal
+        key={checklistTender?._id ?? "none"}
         open={!!checklistTender}
         onOpenChange={(o) => !o && setChecklistTender(null)}
         tenderLabel={

@@ -52,7 +52,8 @@ export function useSubmissionDetail(id: string | null) {
       const res = await submissionApi.get(id);
       setData(res);
     } catch (e) {
-      const msg = (e as Error).message || "Failed to load submission detail";
+      const msg =
+        (e as Error).message || "Failed to load submission detail";
       setError(msg);
       toast.error(msg);
     } finally {

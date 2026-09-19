@@ -102,19 +102,6 @@ export function SubmissionTable({
                   {hasActions && (
                     <td className="px-5 py-3 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1">
-                        {/* {onView && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onView(r.id);
-                            }}
-                            className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-                            title="View"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </button>
-                        )} */}
 
                         {onDelete && (
                           <button
