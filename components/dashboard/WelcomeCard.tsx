@@ -752,13 +752,13 @@ export default function WelcomeCard({ user }: WelcomeCardProps) {
           </motion.div>
 
           {/* Decorative Bottom Gradient */}
-          <motion.div
+          {/* <motion.div
             animate={{
               opacity: isHovered ? 0.6 : 0.2,
             }}
             transition={{ duration: 0.5 }}
             className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-indigo-400/50 to-transparent"
-          />
+          /> */}
         </div>
       </motion.div>
     </AnimatePresence>
