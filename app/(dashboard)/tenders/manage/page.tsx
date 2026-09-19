@@ -4,6 +4,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
+import { FileEdit } from "lucide-react";
 import { TenderHeader } from "@/components/tender/TenderHeader";
 import { TenderStats } from "@/components/tender/TenderStats";
 import { TenderTabs, type TenderTab } from "@/components/tender/TenderTabs";
@@ -63,6 +64,20 @@ const COLUMNS_LOST = [
   { key: "date", label: "Date", width: "12%" },
 ];
 
+const COLUMNS_WON = [
+  { key: "tenderer", label: "Tenderer", width: "22%" },
+  { key: "description", label: "Description", width: "38%" },
+  { key: "bidValue", label: "Winning Bid", width: "18%" },
+  { key: "date", label: "Awarded On", width: "18%" },
+];
+
+const COLUMNS_DRAFTS = [
+  { key: "tenderer", label: "Tenderer", width: "24%" },
+  { key: "description", label: "Description", width: "40%" },
+  { key: "type", label: "Type", width: "12%" },
+  { key: "recorded", label: "Created", width: "20%" },
+];
+
 /* ---------- Helpers ---------- */
 function fmtDate(d?: string) {
   if (!d) return "—";
@@ -87,7 +102,7 @@ function budgetLabel(n?: number) {
 }
 
 function mapRows(
-  stage: "potential" | "active" | "submitted" | "lost",
+  stage: "potential" | "active" | "submitted" | "lost" | "won" | "drafts",
   tenders: Tender[],
 ) {
   return tenders.map((t) => {
@@ -126,6 +141,29 @@ function mapRows(
         },
       };
     }
+    if (stage === "won") {
+      return {
+        id: t._id,
+        cells: {
+          tenderer: t.tenderer,
+          description: t.title,
+          bidValue: t.bidValue ? budgetLabel(t.bidValue) : "—",
+          date: fmtDate(t.updatedAt),
+        },
+      };
+    }
+    if (stage === "drafts") {
+      return {
+        id: t._id,
+        cells: {
+          tenderer: t.tenderer,
+          description: t.title,
+          type: <TenderTypeBadge type={t.tenderType} />,
+          recorded: fmtDate(t.createdAt),
+        },
+      };
+    }
+    // lost
     return {
       id: t._id,
       cells: {
@@ -169,7 +207,9 @@ function TenderManageContent() {
       t === "potential" ||
       t === "active" ||
       t === "submitted" ||
-      t === "lost"
+      t === "lost" ||
+      t === "won" ||
+      t === "drafts"
     ) {
       setTab(t as TenderTab);
       setSelectedId(null);
@@ -186,6 +226,8 @@ function TenderManageContent() {
       active: groups.active.length,
       submitted: groups.submitted.length,
       lost: groups.lost.length,
+      won: groups.won.length,
+      drafts: groups.drafts.length,
     }),
     [groups],
   );
@@ -197,7 +239,6 @@ function TenderManageContent() {
 
   const handleSubmitTender = async (tender: Tender) => {
     try {
-      /* Phase 1: mark as ready-for-submission (stays active). */
       await tenderApi.update(tender._id, {
         docStatus: "Docs in progress",
       });
@@ -216,6 +257,7 @@ function TenderManageContent() {
       await tenderApi.changeStage(tender._id, "won", "Client awarded");
       toast.success(`${tender.tenderer} marked as WON`);
       await refetch();
+      setTab("won");
       setSelectedId(null);
     } catch (e) {
       toast.error((e as Error).message || "Failed to update");
@@ -279,6 +321,32 @@ function TenderManageContent() {
     if (t) setEditTender(t);
   };
 
+  /* ---------- Publish a draft ---------- */
+  const handlePublishDraft = async (tender: Tender) => {
+    confirmToast({
+      title: `Publish "${tender.tenderer}"?`,
+      description:
+        "This will move the tender out of Drafts and into the Potential tab.",
+      confirmLabel: "Publish",
+      variant: "default",
+      onConfirm: async () => {
+        const loadingId = toast.loading("Publishing draft...");
+        try {
+          await tenderApi.update(tender._id, { draft: false });
+          toast.success("Draft published to Potential", { id: loadingId });
+          await refetch();
+          setTab("potential");
+          setSelectedId(null);
+        } catch (e) {
+          toast.error(
+            (e as Error).message || "Failed to publish",
+            { id: loadingId },
+          );
+        }
+      },
+    });
+  };
+
   const handleApproveForParticipation = async (tender: Tender) => {
     try {
       await tenderApi.changeStage(
@@ -301,6 +369,7 @@ function TenderManageContent() {
     });
   };
 
+  /* ---------- Eye handlers (open checklist modal) ---------- */
   const handleViewPotential = (id: string) => {
     const t = groups.potential.find((x) => x._id === id);
     if (t) setChecklistTender(t);
@@ -316,6 +385,14 @@ function TenderManageContent() {
   const handleViewLost = (id: string) => {
     const t = groups.lost.find((x) => x._id === id);
     if (t) setChecklistTender(t);
+  };
+  const handleViewWon = (id: string) => {
+    const t = groups.won.find((x) => x._id === id);
+    if (t) setChecklistTender(t);
+  };
+  const handleViewDraft = (id: string) => {
+    const t = groups.drafts.find((x) => x._id === id);
+    if (t) setEditTender(t);
   };
 
   return (
@@ -342,6 +419,7 @@ function TenderManageContent() {
           <div className="h-[300px] animate-pulse rounded-xl border border-slate-200/80 bg-white" />
         ) : (
           <>
+            {/* ================= POTENTIAL ================= */}
             {tab === "potential" && (
               <>
                 <TenderTable
@@ -422,6 +500,7 @@ function TenderManageContent() {
               </>
             )}
 
+            {/* ================= ACTIVE ================= */}
             {tab === "active" && (
               <>
                 <TenderTable
@@ -443,6 +522,7 @@ function TenderManageContent() {
               </>
             )}
 
+            {/* ================= SUBMITTED ================= */}
             {tab === "submitted" && (
               <>
                 <TenderTable
@@ -465,6 +545,7 @@ function TenderManageContent() {
               </>
             )}
 
+            {/* ================= LOST ================= */}
             {tab === "lost" && (
               <>
                 <TenderTable
@@ -481,6 +562,91 @@ function TenderManageContent() {
                     key={selected._id}
                     data={toLostDetail(selected)}
                   />
+                )}
+              </>
+            )}
+
+            {/* ================= WON ================= */}
+            {tab === "won" && (
+              <>
+                <TenderTable
+                  columns={COLUMNS_WON}
+                  rows={mapRows("won", groups.won)}
+                  selectedId={selected?._id ?? null}
+                  onRowClick={setSelectedId}
+                  onDelete={handleDelete}
+                  onView={handleViewWon}
+                  // onEdit={handleEdit}
+                />
+                {selected && (
+                  <TenderDetailSubmitted
+                    key={selected._id}
+                    data={toSubmittedDetail(selected)}
+                  />
+                )}
+              </>
+            )}
+
+            {/* ================= DRAFTS ================= */}
+            {tab === "drafts" && (
+              <>
+                {groups.drafts.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-12 text-center">
+                    <FileEdit className="mx-auto mb-3 h-6 w-6 text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-600">
+                      No drafts saved.
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Click <strong>+ Add Tender</strong> and choose{" "}
+                      <strong>Save as Draft</strong> to start one.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <TenderTable
+                      columns={COLUMNS_DRAFTS}
+                      rows={mapRows("drafts", groups.drafts)}
+                      selectedId={selected?._id ?? null}
+                      onRowClick={setSelectedId}
+                      onDelete={handleDelete}
+                      onView={handleViewDraft}
+                      onEdit={handleEdit}
+                    />
+                    {selected && (
+                      <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                              Draft
+                            </p>
+                            <h3 className="mt-1 text-sm font-bold text-slate-900">
+                              {selected.tenderer} — {selected.title}
+                            </h3>
+                            <p className="mt-0.5 text-[11px] text-slate-500">
+                              This tender was saved as a draft. Fill in the
+                              missing details and publish it when ready.
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditTender(selected)}
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            >
+                              Complete Draft
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePublishDraft(selected)}
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+                            >
+                              Publish to Potential
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}

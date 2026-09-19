@@ -113,6 +113,7 @@ export interface Tender {
   _id: string;
   tenderer: string;
   title: string;
+  draft?: boolean;                          // ← NEW
   stage: TenderStage;
   tenderType: TenderType;
   description?: string;
@@ -126,7 +127,9 @@ export interface Tender {
   bidValue?: number;
   currency?: Currency;
   tenderSecurityAmount?: number;
+  tenderSecurityValidity?: string;              // ← NEW
   performanceSecurityAmount?: number;
+  performanceSecurityValidity?: string;         // ← NEW
   securityMode?: string;
   submitted?: boolean;
   mode?: string;
@@ -349,6 +352,7 @@ export const tenderApi = {
     stage?: string;
     tenderType?: string;
     search?: string;
+    includeDrafts?: boolean;
     page?: number;
     limit?: number;
   }) =>

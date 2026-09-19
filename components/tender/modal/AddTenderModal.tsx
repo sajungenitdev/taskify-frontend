@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, Save, FileCheck2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { tenderApi, type TenderType, type Currency } from "@/lib/api/tender.api";
+import { tenderApi, type TenderType } from "@/lib/api/tender.api";
 
 interface Props {
   open: boolean;
@@ -32,6 +32,8 @@ interface FormState {
   tentativeBudget: string;
   scheduleValue: string;
   tenderSecurityAmount: string;
+  tenderSecurityValidity: string;
+  performanceSecurityValidity: string;
   mode: string;
   participate: string;
   docPurchased: string;
@@ -56,6 +58,8 @@ const INITIAL: FormState = {
   tentativeBudget: "",
   scheduleValue: "",
   tenderSecurityAmount: "",
+  tenderSecurityValidity: "",
+  performanceSecurityValidity: "",
   mode: "Online (eGP)",
   participate: "Yes",
   docPurchased: "Not Yet",
@@ -70,12 +74,10 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
   const [form, setForm] = useState<FormState>(INITIAL);
   const [saving, setSaving] = useState(false);
 
-  /* Reset whenever modal opens */
   useEffect(() => {
     if (open) setForm(INITIAL);
   }, [open]);
 
-  /* Esc close + body scroll lock */
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -95,15 +97,10 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const canSave = form.tenderer.trim().length > 0 && form.title.trim().length > 0;
+  const canSave =
+    form.tenderer.trim().length > 0 && form.title.trim().length > 0;
 
-  const handleSave = async (notify: boolean) => {
-    if (!canSave) {
-      toast.error("Tender name and title are required");
-      return;
-    }
-
-    // Combine date + time for the submission deadline (if a time is provided)
+  const buildPayload = (draft: boolean) => {
     let submissionISO: string | undefined;
     if (form.lastDateOfSubmission) {
       const dt = form.submissionTime
@@ -112,36 +109,50 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
       submissionISO = !isNaN(dt.getTime()) ? dt.toISOString() : undefined;
     }
 
+    return {
+      tenderer: form.tenderer.trim(),
+      title: form.title.trim(),
+      stage: "potential" as const,
+      draft,
+      tenderType: form.tenderType,
+      description: form.description.trim() || undefined,
+      tenderLink: form.tenderLink.trim() || undefined,
+      recordedBy: form.recordedBy.trim() || undefined,
+      responsiblePerson: form.responsiblePerson.trim() || undefined,
+      lastDateOfPurchase: form.lastDateOfPurchase
+        ? new Date(form.lastDateOfPurchase).toISOString()
+        : undefined,
+      lastDateOfSubmission: submissionISO,
+      tentativeBudget: Number(form.tentativeBudget) || 0,
+      tenderSecurityAmount: Number(form.tenderSecurityAmount) || 0,
+      tenderSecurityValidity: form.tenderSecurityValidity
+        ? new Date(form.tenderSecurityValidity).toISOString()
+        : undefined,
+      performanceSecurityValidity: form.performanceSecurityValidity
+        ? new Date(form.performanceSecurityValidity).toISOString()
+        : undefined,
+      mode: form.mode,
+      note: form.note.trim() || undefined,
+    };
+  };
+
+  const handleSave = async (options: { draft: boolean; notify: boolean }) => {
+    if (!canSave) {
+      toast.error("Tender name and title are required");
+      return;
+    }
     setSaving(true);
     try {
-      const created = await tenderApi.create({
-        tenderer: form.tenderer.trim(),
-        title: form.title.trim(),
-        stage: "potential",
-        tenderType: form.tenderType,
-        description: form.description.trim() || undefined,
-        tenderLink: form.tenderLink.trim() || undefined,
-        recordedBy: form.recordedBy.trim() || undefined,
-        responsiblePerson: form.responsiblePerson.trim() || undefined,
-        lastDateOfPurchase: form.lastDateOfPurchase
-          ? new Date(form.lastDateOfPurchase).toISOString()
-          : undefined,
-        lastDateOfSubmission: submissionISO,
-        tentativeBudget: Number(form.tentativeBudget) || 0,
-        tenderSecurityAmount: Number(form.tenderSecurityAmount) || 0,
-        mode: form.mode,
-        note: form.note.trim() || undefined,
-      });
-
-      toast.success(
-        notify
-          ? "Tender saved — notifications sent"
-          : "Tender added to Potential",
-      );
-
+      await tenderApi.create(buildPayload(options.draft));
+      if (options.draft) {
+        toast.success("Saved as draft — you can complete it later");
+      } else if (options.notify) {
+        toast.success("Tender saved — notifications sent");
+      } else {
+        toast.success("Tender added to Potential");
+      }
       onCreated?.();
       onOpenChange(false);
-      void created; // available if you want to use the returned doc
     } catch (e) {
       toast.error((e as Error).message || "Failed to save tender");
     } finally {
@@ -164,9 +175,8 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
               Add Tender to Potential
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
-              Manually record a tender that wasn&apos;t picked up by the
-              automated daily search — matches the fields tracked in the master
-              Tender Record sheet.
+              Only <strong>Tender Name</strong> and <strong>Title</strong>{" "}
+              are required. Fill the rest when it becomes available.
             </p>
           </div>
           <button
@@ -182,7 +192,6 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
 
         {/* Body */}
         <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-          {/* BASIC INFO */}
           <Section title="Basic Info">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
@@ -190,7 +199,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. Rural Electrification Board"
-                  value={form.tenderer}
+                  value={form.tenderer ?? ""}
                   onChange={(e) => set("tenderer", e.target.value)}
                 />
               </div>
@@ -199,7 +208,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. Substation Control Panel Supply"
-                  value={form.title}
+                  value={form.title ?? ""}
                   onChange={(e) => set("title", e.target.value)}
                 />
               </div>
@@ -207,7 +216,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Tender Type</label>
                 <select
                   className={inputCls}
-                  value={form.tenderType}
+                  value={form.tenderType ?? "eGP"}
                   onChange={(e) =>
                     set("tenderType", e.target.value as TenderType)
                   }
@@ -222,7 +231,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. Substation Control Panel Supply"
-                  value={form.description}
+                  value={form.description ?? ""}
                   onChange={(e) => set("description", e.target.value)}
                 />
               </div>
@@ -231,7 +240,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. eGP.gov.bd/reb/2609-scp"
-                  value={form.tenderLink}
+                  value={form.tenderLink ?? ""}
                   onChange={(e) => set("tenderLink", e.target.value)}
                 />
               </div>
@@ -240,7 +249,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. Akramul"
-                  value={form.recordedBy}
+                  value={form.recordedBy ?? ""}
                   onChange={(e) => set("recordedBy", e.target.value)}
                 />
               </div>
@@ -249,14 +258,13 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. Nahid Hasan"
-                  value={form.responsiblePerson}
+                  value={form.responsiblePerson ?? ""}
                   onChange={(e) => set("responsiblePerson", e.target.value)}
                 />
               </div>
             </div>
           </Section>
 
-          {/* DATES & VALUE */}
           <Section title="Dates & Value">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -264,7 +272,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   type="date"
                   className={inputCls}
-                  value={form.lastDateOfPurchase}
+                  value={form.lastDateOfPurchase ?? ""}
                   onChange={(e) => set("lastDateOfPurchase", e.target.value)}
                 />
               </div>
@@ -273,7 +281,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   type="date"
                   className={inputCls}
-                  value={form.lastDateOfSubmission}
+                  value={form.lastDateOfSubmission ?? ""}
                   onChange={(e) =>
                     set("lastDateOfSubmission", e.target.value)
                   }
@@ -284,7 +292,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. 3:00 PM"
-                  value={form.submissionTime}
+                  value={form.submissionTime ?? ""}
                   onChange={(e) => set("submissionTime", e.target.value)}
                 />
               </div>
@@ -294,7 +302,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                   type="number"
                   className={inputCls}
                   placeholder="e.g. 500000"
-                  value={form.tentativeBudget}
+                  value={form.tentativeBudget ?? ""}
                   onChange={(e) => set("tentativeBudget", e.target.value)}
                 />
               </div>
@@ -304,14 +312,13 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                   type="number"
                   className={inputCls}
                   placeholder="e.g. 500 (doc fee)"
-                  value={form.scheduleValue}
+                  value={form.scheduleValue ?? ""}
                   onChange={(e) => set("scheduleValue", e.target.value)}
                 />
               </div>
             </div>
           </Section>
 
-          {/* SECURITY & SUBMISSION */}
           <Section title="Security & Submission">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -320,9 +327,31 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                   type="number"
                   className={inputCls}
                   placeholder="e.g. 25000"
-                  value={form.tenderSecurityAmount}
+                  value={form.tenderSecurityAmount ?? ""}
                   onChange={(e) =>
                     set("tenderSecurityAmount", e.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Tender Security Validity</label>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={form.tenderSecurityValidity ?? ""}
+                  onChange={(e) =>
+                    set("tenderSecurityValidity", e.target.value)
+                  }
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={labelCls}>Performance Security Validity</label>
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={form.performanceSecurityValidity ?? ""}
+                  onChange={(e) =>
+                    set("performanceSecurityValidity", e.target.value)
                   }
                 />
               </div>
@@ -330,7 +359,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Mode of Submission</label>
                 <select
                   className={inputCls}
-                  value={form.mode}
+                  value={form.mode ?? "Online (eGP)"}
                   onChange={(e) => set("mode", e.target.value)}
                 >
                   <option>Online (eGP)</option>
@@ -342,7 +371,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <label className={labelCls}>Participate?</label>
                 <select
                   className={inputCls}
-                  value={form.participate}
+                  value={form.participate ?? "Yes"}
                   onChange={(e) => set("participate", e.target.value)}
                 >
                   <option>Yes</option>
@@ -350,11 +379,11 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                   <option>Undecided</option>
                 </select>
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className={labelCls}>Tender Doc Purchased?</label>
                 <select
                   className={inputCls}
-                  value={form.docPurchased}
+                  value={form.docPurchased ?? "Not Yet"}
                   onChange={(e) => set("docPurchased", e.target.value)}
                 >
                   <option>Yes</option>
@@ -364,15 +393,14 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
             </div>
           </Section>
 
-          {/* CLIENT CONTACT */}
-          <Section title="Client Contact (used for automatic Client 360 record capture)">
+          <Section title="Client Contact">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Contact Name</label>
                 <input
                   className={inputCls}
                   placeholder="e.g. Md. Kamal Hossain"
-                  value={form.contactName}
+                  value={form.contactName ?? ""}
                   onChange={(e) => set("contactName", e.target.value)}
                 />
               </div>
@@ -381,7 +409,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. 01711-000000"
-                  value={form.contactPhone}
+                  value={form.contactPhone ?? ""}
                   onChange={(e) => set("contactPhone", e.target.value)}
                 />
               </div>
@@ -390,7 +418,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. procurement@reb.gov.bd"
-                  value={form.contactEmail}
+                  value={form.contactEmail ?? ""}
                   onChange={(e) => set("contactEmail", e.target.value)}
                 />
               </div>
@@ -399,45 +427,58 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
                 <input
                   className={inputCls}
                   placeholder="e.g. REB HQ, Dhaka"
-                  value={form.contactAddress}
+                  value={form.contactAddress ?? ""}
                   onChange={(e) => set("contactAddress", e.target.value)}
                 />
               </div>
             </div>
           </Section>
 
-          {/* COMMENTS */}
           <Section title="Comments">
             <textarea
               rows={3}
               className={`${inputCls} h-auto resize-none py-2`}
               placeholder="General / Manager / MD comments"
-              value={form.note}
+              value={form.note ?? ""}
               onChange={(e) => set("note", e.target.value)}
             />
           </Section>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
           <button
             type="button"
-            onClick={() => handleSave(true)}
+            onClick={() => handleSave({ draft: true, notify: false })}
             disabled={saving || !canSave}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save &amp; Notify New Tender
+            <Save className="h-3.5 w-3.5" />
+            Save as Draft
           </button>
-          <button
-            type="button"
-            onClick={() => handleSave(false)}
-            disabled={saving || !canSave}
-            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save Tender
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleSave({ draft: false, notify: true })}
+              disabled={saving || !canSave}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Save &amp; Notify
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSave({ draft: false, notify: false })}
+              disabled={saving || !canSave}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <FileCheck2 className="h-3.5 w-3.5" />
+              Save Tender
+            </button>
+          </div>
         </div>
       </div>
     </div>

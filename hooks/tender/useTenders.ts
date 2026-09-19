@@ -14,6 +14,7 @@ export function useTenders(params?: {
   stage?: string;
   tenderType?: string;
   search?: string;
+  includeDrafts?: boolean;
   limit?: number;
 }) {
   const [data, setData] = useState<Tender[]>([]);
@@ -43,16 +44,19 @@ export function useTenders(params?: {
   return { data, loading, error, refetch };
 }
 
-/* ============================================================
- * Grouped tenders — all 5 stages fetched in parallel
- * ============================================================ */
+/** Extended group shape — six buckets instead of four */
+type TenderGroups = Record<TenderStage, Tender[]> & {
+  drafts: Tender[];
+};
+
 export function useTendersGrouped() {
-  const [groups, setGroups] = useState<Record<TenderStage, Tender[]>>({
+  const [groups, setGroups] = useState<TenderGroups>({
     potential: [],
     active: [],
     submitted: [],
     lost: [],
     won: [],
+    drafts: [],
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,19 +65,27 @@ export function useTendersGrouped() {
     setLoading(true);
     setError(null);
     try {
-      const [p, a, s, l, w] = await Promise.all([
+      const [p, a, s, l, w, d] = await Promise.all([
         tenderApi.list({ stage: "potential", limit: 200 }),
         tenderApi.list({ stage: "active", limit: 200 }),
         tenderApi.list({ stage: "submitted", limit: 200 }),
         tenderApi.list({ stage: "lost", limit: 200 }),
         tenderApi.list({ stage: "won", limit: 200 }),
+        tenderApi.list({ stage: "potential", includeDrafts: true, limit: 200 }),
       ]);
+
+      // Filter drafts out of the potential list (server already excludes them,
+      // but the last call explicitly includes them — split them client-side).
+      const drafts = d.data.filter((t) => t.draft === true);
+      const potential = p.data.filter((t) => t.draft !== true);
+
       setGroups({
-        potential: p.data,
-        active: a.data,
-        submitted: s.data,
-        lost: l.data,
-        won: w.data,
+        potential,
+        active: a.data.filter((t) => t.draft !== true),
+        submitted: s.data.filter((t) => t.draft !== true),
+        lost: l.data.filter((t) => t.draft !== true),
+        won: w.data.filter((t) => t.draft !== true),
+        drafts,
       });
     } catch (e) {
       const msg = (e as Error).message || "Failed to load tenders";
@@ -91,9 +103,6 @@ export function useTendersGrouped() {
   return { groups, loading, error, refetch };
 }
 
-/* ============================================================
- * Stats — 5 KPI tiles
- * ============================================================ */
 export function useTenderStats() {
   const { groups, loading, refetch } = useTendersGrouped();
 
@@ -102,7 +111,6 @@ export function useTenderStats() {
     entities: number;
   }>({ amount: 0, entities: 0 });
 
-  // Fetch security pending — separate endpoint
   const refetchSecurity = useCallback(async () => {
     try {
       const s = await securityApi.stats();
@@ -111,7 +119,6 @@ export function useTenderStats() {
         entities: s.entitiesAffected ?? 0,
       });
     } catch {
-      // silent — security stats are optional
       setSecurityPending({ amount: 0, entities: 0 });
     }
   }, []);
@@ -120,7 +127,6 @@ export function useTenderStats() {
     refetchSecurity();
   }, [refetchSecurity]);
 
-  // Combine refetches so callers get everything fresh
   const refetchAll = useCallback(async () => {
     await Promise.all([refetch(), refetchSecurity()]);
   }, [refetch, refetchSecurity]);
@@ -154,8 +160,9 @@ export function useTenderStats() {
     {
       label: "Tender Security Pending",
       value: `৳${securityPending.amount.toLocaleString("en-IN")}`,
-      hint: `Across ${securityPending.entities} ${securityPending.entities === 1 ? "entity" : "entities"
-        }`,
+      hint: `Across ${securityPending.entities} ${
+        securityPending.entities === 1 ? "entity" : "entities"
+      }`,
       highlighted: true,
     },
   ];
