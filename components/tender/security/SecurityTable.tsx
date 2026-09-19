@@ -1,7 +1,7 @@
 // components/tender/security/SecurityTable.tsx
 "use client";
 
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { EntityBadge, DocsBadge, BellIcon } from "./SecurityBadges";
 
 export type SecurityType =
@@ -19,7 +19,6 @@ export interface SecurityRow {
   dueDate: string;
   docsStatus: "Attached" | "Missing";
   isDraft?: boolean;
-  /** true when this row is in inline edit mode */
   isEditing?: boolean;
 }
 
@@ -31,12 +30,17 @@ interface Props {
   onUpdate?: (id: string, patch: Partial<SecurityRow>) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
   onNotify?: (id: string) => void;
-  /** NEW — called when the user clicks the pencil to start editing */
   onEdit?: (id: string) => void;
-  /** NEW — called when the user clicks the Save (check) button in edit mode */
   onSaveEdit?: (id: string, patch: Partial<SecurityRow>) => void | Promise<void>;
-  /** NEW — called when the user clicks Cancel (X) in edit mode */
   onCancelEdit?: (id: string) => void;
+
+  /* ----- NEW: per-action loading flags -----
+   * The parent tracks which action is in flight for which row, and passes
+   * those down so each button can disable itself independently.
+   */
+  savingId?: string | null; // draft save OR edit save
+  deletingId?: string | null;
+  notifyingId?: string | null;
 }
 
 export function SecurityTable({
@@ -50,6 +54,9 @@ export function SecurityTable({
   onEdit,
   onSaveEdit,
   onCancelEdit,
+  savingId = null,
+  deletingId = null,
+  notifyingId = null,
 }: Props) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -63,12 +70,12 @@ export function SecurityTable({
               <th className="px-4 py-3 w-[120px]">Amount</th>
               <th className="px-4 py-3 w-[130px]">Due Date</th>
               <th className="px-4 py-3 w-[120px]">Docs</th>
-              <th className="px-4 py-3 w-[140px] text-right">Actions</th>
+              <th className="px-4 py-3 w-[160px] text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((r) => {
-              /* ----- Draft row (new record being created) ----- */
+              /* ----- Draft row ----- */
               if (r.isDraft) {
                 return (
                   <DraftRow
@@ -76,6 +83,7 @@ export function SecurityTable({
                     row={r}
                     entities={entities}
                     types={types}
+                    saving={savingId === r.id}
                     onChange={(patch) => onUpdate?.(r.id, patch)}
                     onSave={() => onCreate?.(r)}
                     onCancel={() => onDelete?.(r.id)}
@@ -83,7 +91,7 @@ export function SecurityTable({
                 );
               }
 
-              /* ----- Edit row (existing record being modified) ----- */
+              /* ----- Edit row ----- */
               if (r.isEditing) {
                 return (
                   <EditRow
@@ -91,6 +99,7 @@ export function SecurityTable({
                     row={r}
                     entities={entities}
                     types={types}
+                    saving={savingId === r.id}
                     onChange={(patch) => onUpdate?.(r.id, patch)}
                     onSave={() => onSaveEdit?.(r.id, r)}
                     onCancel={() => onCancelEdit?.(r.id)}
@@ -99,8 +108,18 @@ export function SecurityTable({
               }
 
               /* ----- Static row ----- */
+              const isSaving = savingId === r.id;
+              const isDeleting = deletingId === r.id;
+              const isNotifying = notifyingId === r.id;
+              const rowBusy = isSaving || isDeleting || isNotifying;
+
               return (
-                <tr key={r.id} className="hover:bg-slate-50/60">
+                <tr
+                  key={r.id}
+                  className={`transition-colors ${
+                    rowBusy ? "bg-slate-50/60" : "hover:bg-slate-50/60"
+                  }`}
+                >
                   <td className="px-4 py-3">
                     <EntityBadge entity={r.entity} />
                   </td>
@@ -122,22 +141,29 @@ export function SecurityTable({
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1">
+                      {/* Notify Finance */}
                       <button
                         type="button"
                         onClick={() => onNotify?.(r.id)}
-                        className="rounded-md p-1.5 text-amber-500 transition hover:bg-amber-50 hover:text-amber-600"
-                        title="Notify Finance"
+                        disabled={rowBusy}
+                        className="rounded-md p-1.5 text-amber-500 transition hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={isNotifying ? "Sending…" : "Notify Finance"}
                         aria-label="Notify Finance"
                       >
-                        <BellIcon tone="warn" />
+                        {isNotifying ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" />
+                        ) : (
+                          <BellIcon tone="warn" />
+                        )}
                       </button>
 
-                      {/* ----- NEW: edit button ----- */}
+                      {/* Edit */}
                       {onEdit && (
                         <button
                           type="button"
                           onClick={() => onEdit(r.id)}
-                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          disabled={rowBusy}
+                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
                           title="Edit"
                           aria-label="Edit"
                         >
@@ -145,14 +171,20 @@ export function SecurityTable({
                         </button>
                       )}
 
+                      {/* Delete */}
                       <button
                         type="button"
                         onClick={() => onDelete?.(r.id)}
-                        className="rounded-md p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
-                        title="Delete"
+                        disabled={rowBusy}
+                        className="rounded-md p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={isDeleting ? "Deleting…" : "Delete"}
                         aria-label="Delete"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        {isDeleting ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-500" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -167,12 +199,13 @@ export function SecurityTable({
 }
 
 /* ============================================================================
- * Inline draft row (bottom of table) — create new record
+ * Draft row — inline create
  * ========================================================================== */
 function DraftRow({
   row,
   entities,
   types,
+  saving,
   onChange,
   onSave,
   onCancel,
@@ -180,12 +213,13 @@ function DraftRow({
   row: SecurityRow;
   entities: string[];
   types: SecurityType[];
+  saving: boolean;
   onChange: (patch: Partial<SecurityRow>) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   const cellInput =
-    "h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] focus:border-slate-900 focus:outline-none";
+    "h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] focus:border-slate-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
 
   return (
     <tr className="bg-amber-50/40">
@@ -194,6 +228,7 @@ function DraftRow({
           className={cellInput}
           value={row.entity}
           onChange={(e) => onChange({ entity: e.target.value })}
+          disabled={saving}
         >
           {entities.map((e) => (
             <option key={e} value={e}>
@@ -209,6 +244,7 @@ function DraftRow({
           placeholder="New client / description"
           value={row.clientDescription}
           onChange={(e) => onChange({ clientDescription: e.target.value })}
+          disabled={saving}
         />
       </td>
 
@@ -219,6 +255,7 @@ function DraftRow({
           onChange={(e) =>
             onChange({ type: e.target.value as SecurityType })
           }
+          disabled={saving}
         >
           {types.map((t) => (
             <option key={t} value={t}>
@@ -240,6 +277,7 @@ function DraftRow({
               onChange({ amount: Number(e.target.value) || 0 })
             }
             placeholder="0"
+            disabled={saving}
           />
         </div>
       </td>
@@ -259,6 +297,7 @@ function DraftRow({
               : "";
             onChange({ dueDate: formatted });
           }}
+          disabled={saving}
         />
       </td>
 
@@ -271,14 +310,17 @@ function DraftRow({
           <button
             type="button"
             onClick={onSave}
-            className="inline-flex h-7 items-center rounded-md bg-[#a97400] px-2.5 text-[10px] font-semibold text-white hover:bg-[#8f6100]"
+            disabled={saving}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-[#a97400] px-2.5 text-[10px] font-semibold text-white hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Save
+            {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+            {saving ? "Saving…" : "Save"}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+            disabled={saving}
+            className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancel
           </button>
@@ -289,12 +331,13 @@ function DraftRow({
 }
 
 /* ============================================================================
- * Edit row (same layout as DraftRow, but for an existing record)
+ * Edit row — inline update
  * ========================================================================== */
 function EditRow({
   row,
   entities,
   types,
+  saving,
   onChange,
   onSave,
   onCancel,
@@ -302,14 +345,14 @@ function EditRow({
   row: SecurityRow;
   entities: string[];
   types: SecurityType[];
+  saving: boolean;
   onChange: (patch: Partial<SecurityRow>) => void;
   onSave: () => void;
   onCancel: () => void;
 }) {
   const cellInput =
-    "h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] focus:border-slate-900 focus:outline-none";
+    "h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] focus:border-slate-900 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60";
 
-  /* Convert display date ("20 Oct 2026") back to ISO for the date input */
   const toDateInputValue = (display: string) => {
     if (!display) return "";
     const d = new Date(display);
@@ -327,6 +370,7 @@ function EditRow({
           className={cellInput}
           value={row.entity}
           onChange={(e) => onChange({ entity: e.target.value })}
+          disabled={saving}
         >
           {entities.map((e) => (
             <option key={e} value={e}>
@@ -342,6 +386,7 @@ function EditRow({
           placeholder="Client / description"
           value={row.clientDescription}
           onChange={(e) => onChange({ clientDescription: e.target.value })}
+          disabled={saving}
         />
       </td>
 
@@ -352,6 +397,7 @@ function EditRow({
           onChange={(e) =>
             onChange({ type: e.target.value as SecurityType })
           }
+          disabled={saving}
         >
           {types.map((t) => (
             <option key={t} value={t}>
@@ -373,6 +419,7 @@ function EditRow({
               onChange({ amount: Number(e.target.value) || 0 })
             }
             placeholder="0"
+            disabled={saving}
           />
         </div>
       </td>
@@ -393,6 +440,7 @@ function EditRow({
               : "";
             onChange({ dueDate: formatted });
           }}
+          disabled={saving}
         />
       </td>
 
@@ -405,6 +453,7 @@ function EditRow({
               docsStatus: e.target.value as "Attached" | "Missing",
             })
           }
+          disabled={saving}
         >
           <option value="Attached">Attached</option>
           <option value="Missing">Missing</option>
@@ -416,16 +465,22 @@ function EditRow({
           <button
             type="button"
             onClick={onSave}
-            className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-[10px] font-semibold text-white hover:bg-emerald-700"
+            disabled={saving}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-[10px] font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             title="Save changes"
           >
-            <Check className="h-3 w-3" />
-            Save
+            {saving ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Check className="h-3 w-3" />
+            )}
+            {saving ? "Saving…" : "Save"}
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+            disabled={saving}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             title="Cancel"
           >
             <X className="h-3 w-3" />
