@@ -816,7 +816,7 @@ export const SUB_ITEMS = {
   ),
   tenderDocuments: createSubNavItem(
     "tender-documents",
-    "Tender Documents",
+    "Company Docs",
     "/tenders/documents",
     FileText,
     "Tender Management",
