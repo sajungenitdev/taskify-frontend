@@ -137,12 +137,12 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
       prev.map((t) =>
         t.id === id
           ? {
-            ...t,
-            title: finalTitle,
-            owner: finalOwner,
-            status: safeStatus,
-            isDraft: false,
-          }
+              ...t,
+              title: finalTitle,
+              owner: finalOwner,
+              status: safeStatus,
+              isDraft: false,
+            }
           : t,
       ),
     );
@@ -183,12 +183,12 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             prev.map((t) =>
               t.id === created._id
                 ? {
-                  ...t,
-                  fileName: att.name,
-                  fileUrl: fullFileUrl(att.url),
-                  status: "Done",
-                  pendingFile: null,
-                }
+                    ...t,
+                    fileName: att.name,
+                    fileUrl: fullFileUrl(att.url),
+                    status: "Done",
+                    pendingFile: null,
+                  }
                 : t,
             ),
           );
@@ -258,11 +258,11 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
         prev.map((t) =>
           t.id === taskId
             ? {
-              ...t,
-              fileName: att.name,
-              fileUrl: fullFileUrl(att.url),
-              status: "Done",
-            }
+                ...t,
+                fileName: att.name,
+                fileUrl: fullFileUrl(att.url),
+                status: "Done",
+              }
             : t,
         ),
       );
@@ -400,10 +400,11 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
-                  ? "text-slate-900"
-                  : "text-slate-500 hover:text-slate-800"
-                  }`}
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
+                  active
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
               >
                 {t}
                 {active && (
@@ -432,7 +433,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
         )}
       </div>
 
-      {/* Tender Preparation */}
+      {/* ============================================================
+       * Tender Preparation
+       * ============================================================ */}
       {tab === "Tender Preparation" && showDetails && (
         <div className="grid grid-cols-1 lg:grid-cols-2">
           <div className="p-5">
@@ -463,18 +466,21 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             </button>
           </div>
 
-          {/* Right column — the vertical divider is the border-left */}
+          {/* Right column — vertical divider is the border-left */}
           <aside className="border-t border-slate-100 p-5 lg:border-l lg:border-t-0">
             <SubmissionChecklist items={checklist} />
           </aside>
         </div>
       )}
 
-      {/* Tender Info */}
+      {/* ============================================================
+       * Tender Info
+       * ============================================================ */}
       {tab === "Tender Info" && (
-        <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
-          <div className="space-y-4">
-            {/* ---------- Tender Advertisement ---------- */}
+        <div className="grid grid-cols-1 items-stretch gap-8 p-5 lg:grid-cols-2">
+          {/* ---------- Left column ---------- */}
+          <div className="flex h-full flex-col gap-4">
+            {/* Tender Advertisement */}
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Tender Advertisement
@@ -525,7 +531,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                     >
                       {uploadingAd ? "Uploading…" : "Replace"}
                     </button>
-                    {/* ----- NEW: delete advertisement ----- */}
                     <button
                       type="button"
                       onClick={deleteAdvertisement}
@@ -605,7 +610,8 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
               />
             )}
 
-            <div className="pt-2">
+            {/* Note — pinned to the bottom of the left column */}
+            <div className="mt-auto pt-2">
               <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Note
               </p>
@@ -618,8 +624,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             </div>
           </div>
 
-          {/* Right column */}
-          <div className="space-y-4">
+          {/* ---------- Right column ---------- */}
+          <div className="flex h-full flex-col gap-4">
+            {/* File Attachments */}
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 File Attachments ({data.info.attachments.length})
@@ -658,7 +665,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                             View
                           </a>
                         )}
-                        {/* ----- NEW: delete attachment ----- */}
                         <button
                           type="button"
                           onClick={() => deleteAttachment(f._id, f.name)}
@@ -712,7 +718,8 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
               </div>
             </div>
 
-            <div>
+            {/* Eligibility — pinned to the bottom of the right column */}
+            <div className="mt-auto">
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Eligibility Criteria / Important Records
               </p>

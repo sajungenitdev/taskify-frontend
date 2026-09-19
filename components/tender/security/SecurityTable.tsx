@@ -1,7 +1,7 @@
 // components/tender/security/SecurityTable.tsx
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import { EntityBadge, DocsBadge, BellIcon } from "./SecurityBadges";
 
 export type SecurityType =
@@ -19,6 +19,8 @@ export interface SecurityRow {
   dueDate: string;
   docsStatus: "Attached" | "Missing";
   isDraft?: boolean;
+  /** true when this row is in inline edit mode */
+  isEditing?: boolean;
 }
 
 interface Props {
@@ -28,7 +30,13 @@ interface Props {
   onCreate?: (draft: SecurityRow) => void | Promise<void>;
   onUpdate?: (id: string, patch: Partial<SecurityRow>) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
-  onNotify?: (id: string) => void;   // ← NEW
+  onNotify?: (id: string) => void;
+  /** NEW — called when the user clicks the pencil to start editing */
+  onEdit?: (id: string) => void;
+  /** NEW — called when the user clicks the Save (check) button in edit mode */
+  onSaveEdit?: (id: string, patch: Partial<SecurityRow>) => void | Promise<void>;
+  /** NEW — called when the user clicks Cancel (X) in edit mode */
+  onCancelEdit?: (id: string) => void;
 }
 
 export function SecurityTable({
@@ -38,7 +46,10 @@ export function SecurityTable({
   onCreate,
   onUpdate,
   onDelete,
-  onNotify,                          // ← NEW
+  onNotify,
+  onEdit,
+  onSaveEdit,
+  onCancelEdit,
 }: Props) {
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -52,22 +63,43 @@ export function SecurityTable({
               <th className="px-4 py-3 w-[120px]">Amount</th>
               <th className="px-4 py-3 w-[130px]">Due Date</th>
               <th className="px-4 py-3 w-[120px]">Docs</th>
-              <th className="px-4 py-3 w-[100px] text-right">Actions</th>
+              <th className="px-4 py-3 w-[140px] text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((r) =>
-              r.isDraft ? (
-                <DraftRow
-                  key={r.id}
-                  row={r}
-                  entities={entities}
-                  types={types}
-                  onChange={(patch) => onUpdate?.(r.id, patch)}
-                  onSave={() => onCreate?.(r)}
-                  onCancel={() => onDelete?.(r.id)}
-                />
-              ) : (
+            {rows.map((r) => {
+              /* ----- Draft row (new record being created) ----- */
+              if (r.isDraft) {
+                return (
+                  <DraftRow
+                    key={r.id}
+                    row={r}
+                    entities={entities}
+                    types={types}
+                    onChange={(patch) => onUpdate?.(r.id, patch)}
+                    onSave={() => onCreate?.(r)}
+                    onCancel={() => onDelete?.(r.id)}
+                  />
+                );
+              }
+
+              /* ----- Edit row (existing record being modified) ----- */
+              if (r.isEditing) {
+                return (
+                  <EditRow
+                    key={r.id}
+                    row={r}
+                    entities={entities}
+                    types={types}
+                    onChange={(patch) => onUpdate?.(r.id, patch)}
+                    onSave={() => onSaveEdit?.(r.id, r)}
+                    onCancel={() => onCancelEdit?.(r.id)}
+                  />
+                );
+              }
+
+              /* ----- Static row ----- */
+              return (
                 <tr key={r.id} className="hover:bg-slate-50/60">
                   <td className="px-4 py-3">
                     <EntityBadge entity={r.entity} />
@@ -100,6 +132,19 @@ export function SecurityTable({
                         <BellIcon tone="warn" />
                       </button>
 
+                      {/* ----- NEW: edit button ----- */}
+                      {onEdit && (
+                        <button
+                          type="button"
+                          onClick={() => onEdit(r.id)}
+                          className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          title="Edit"
+                          aria-label="Edit"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => onDelete?.(r.id)}
@@ -112,8 +157,8 @@ export function SecurityTable({
                     </div>
                   </td>
                 </tr>
-              ),
-            )}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -122,7 +167,7 @@ export function SecurityTable({
 }
 
 /* ============================================================================
- * Inline draft row (bottom of table) — edit + save + cancel
+ * Inline draft row (bottom of table) — create new record
  * ========================================================================== */
 function DraftRow({
   row,
@@ -207,10 +252,10 @@ function DraftRow({
             const v = e.target.value;
             const formatted = v
               ? new Date(v).toLocaleDateString("en-GB", {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              })
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
               : "";
             onChange({ dueDate: formatted });
           }}
@@ -235,6 +280,155 @@ function DraftRow({
             onClick={onCancel}
             className="inline-flex h-7 items-center rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
           >
+            Cancel
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/* ============================================================================
+ * Edit row (same layout as DraftRow, but for an existing record)
+ * ========================================================================== */
+function EditRow({
+  row,
+  entities,
+  types,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  row: SecurityRow;
+  entities: string[];
+  types: SecurityType[];
+  onChange: (patch: Partial<SecurityRow>) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  const cellInput =
+    "h-8 w-full rounded-md border border-slate-200 bg-white px-2 text-[11px] focus:border-slate-900 focus:outline-none";
+
+  /* Convert display date ("20 Oct 2026") back to ISO for the date input */
+  const toDateInputValue = (display: string) => {
+    if (!display) return "";
+    const d = new Date(display);
+    if (isNaN(d.getTime())) return "";
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  return (
+    <tr className="bg-sky-50/40">
+      <td className="px-4 py-3">
+        <select
+          className={cellInput}
+          value={row.entity}
+          onChange={(e) => onChange({ entity: e.target.value })}
+        >
+          {entities.map((e) => (
+            <option key={e} value={e}>
+              {e}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td className="px-4 py-3">
+        <input
+          className={cellInput}
+          placeholder="Client / description"
+          value={row.clientDescription}
+          onChange={(e) => onChange({ clientDescription: e.target.value })}
+        />
+      </td>
+
+      <td className="px-4 py-3">
+        <select
+          className={cellInput}
+          value={row.type}
+          onChange={(e) =>
+            onChange({ type: e.target.value as SecurityType })
+          }
+        >
+          {types.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </td>
+
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1">
+          <span className="text-[11px] text-slate-500">৳</span>
+          <input
+            type="number"
+            min={0}
+            className={`${cellInput} font-mono`}
+            value={row.amount || ""}
+            onChange={(e) =>
+              onChange({ amount: Number(e.target.value) || 0 })
+            }
+            placeholder="0"
+          />
+        </div>
+      </td>
+
+      <td className="px-4 py-3">
+        <input
+          type="date"
+          className={cellInput}
+          defaultValue={toDateInputValue(row.dueDate)}
+          onChange={(e) => {
+            const v = e.target.value;
+            const formatted = v
+              ? new Date(v).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })
+              : "";
+            onChange({ dueDate: formatted });
+          }}
+        />
+      </td>
+
+      <td className="px-4 py-3">
+        <select
+          className={cellInput}
+          value={row.docsStatus}
+          onChange={(e) =>
+            onChange({
+              docsStatus: e.target.value as "Attached" | "Missing",
+            })
+          }
+        >
+          <option value="Attached">Attached</option>
+          <option value="Missing">Missing</option>
+        </select>
+      </td>
+
+      <td className="px-4 py-3 text-right">
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={onSave}
+            className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-[10px] font-semibold text-white hover:bg-emerald-700"
+            title="Save changes"
+          >
+            <Check className="h-3 w-3" />
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="inline-flex h-7 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+            title="Cancel"
+          >
+            <X className="h-3 w-3" />
             Cancel
           </button>
         </div>

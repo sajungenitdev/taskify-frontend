@@ -17,9 +17,9 @@ export interface TenderDetailData {
   tenderer: string;
   title: string;
   advertisementFile?: string;
-  advertisementUrl?: string;              // ← NEW
+  advertisementUrl?: string;
   advertisementUploadedBy?: string;
-  advertisementUploadedAt?: string;       // ← NEW
+  advertisementUploadedAt?: string;
   tenderLink?: string;
   recordedBy: string;
   tenderType: "eGP" | "RFQ" | "Hardcopy Ref." | string;
@@ -41,8 +41,8 @@ interface Props {
   onOpenChecklist?: () => void;
   onUploadAttachment?: (file: File) => Promise<void>;
   onDeleteAttachment?: (attachmentId: string) => Promise<void>;
-  onUploadAdvertisement?: (file: File) => Promise<void>;   // ← NEW
-  onDeleteAdvertisement?: () => Promise<void>;             // ← NEW
+  onUploadAdvertisement?: (file: File) => Promise<void>;
+  onDeleteAdvertisement?: () => Promise<void>;
   showApprovalButtons?: boolean;
 }
 
@@ -75,8 +75,8 @@ export function TenderDetailReview({
   onOpenChecklist,
   onUploadAttachment,
   onDeleteAttachment,
-  onUploadAdvertisement,      // ← NEW
-  onDeleteAdvertisement,      // ← NEW
+  onUploadAdvertisement,
+  onDeleteAdvertisement,
   showApprovalButtons = true,
 }: Props) {
   const hasAd = Boolean(data.advertisementFile);
@@ -88,7 +88,7 @@ export function TenderDetailReview({
   const [saving, setSaving] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
 
-  // ----- Advertisement state (NEW) -----
+  // ----- Advertisement state -----
   const [pendingAd, setPendingAd] = useState<File | null>(null);
   const [uploadingAd, setUploadingAd] = useState(false);
   const [adInputKey, setAdInputKey] = useState(0);
@@ -124,7 +124,7 @@ export function TenderDetailReview({
     }
   };
 
-  // ----- Advertisement handlers (NEW) -----
+  // ----- Advertisement handlers -----
   const handleAdUpload = async () => {
     if (!pendingAd || !onUploadAdvertisement) return;
     setUploadingAd(true);
@@ -179,9 +179,9 @@ export function TenderDetailReview({
       </div>
 
       {/* ---------- Body ---------- */}
-      <div className="grid grid-cols-1 gap-8 p-5 lg:grid-cols-2">
-        {/* Left column */}
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 items-stretch gap-8 p-5 lg:grid-cols-2">
+        {/* ---------- Left column ---------- */}
+        <div className="flex h-full flex-col gap-4">
           <div>
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Tender Advertisement
@@ -212,8 +212,9 @@ export function TenderDetailReview({
                     </a>
                   )}
                   <label
-                    className={`cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${uploadingAd ? "pointer-events-none opacity-60" : ""
-                      }`}
+                    className={`cursor-pointer rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${
+                      uploadingAd ? "pointer-events-none opacity-60" : ""
+                    }`}
                   >
                     {uploadingAd ? "Uploading…" : "Replace"}
                     <input
@@ -246,7 +247,9 @@ export function TenderDetailReview({
                   <FileText className="h-4 w-4" />
                   <div>
                     <p className="text-xs font-medium text-slate-600">
-                      {pendingAd ? pendingAd.name : "No advertisement image uploaded"}
+                      {pendingAd
+                        ? pendingAd.name
+                        : "No advertisement image uploaded"}
                     </p>
                     <p className="text-[10px] text-slate-400">
                       {pendingAd
@@ -258,8 +261,9 @@ export function TenderDetailReview({
 
                 <div className="flex items-center gap-2">
                   <label
-                    className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${uploadingAd ? "pointer-events-none opacity-60" : ""
-                      }`}
+                    className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${
+                      uploadingAd ? "pointer-events-none opacity-60" : ""
+                    }`}
                   >
                     <Upload className="h-3 w-3" />
                     Choose
@@ -340,7 +344,8 @@ export function TenderDetailReview({
             </Field>
           )}
 
-          <div className="pt-2">
+          {/* Note — pinned to the bottom of the left column */}
+          <div className="mt-auto pt-2">
             <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Note
             </p>
@@ -353,8 +358,8 @@ export function TenderDetailReview({
           </div>
         </div>
 
-        {/* Right column — File Attachments */}
-        <div className="space-y-4">
+        {/* ---------- Right column — File Attachments ---------- */}
+        <div className="flex h-full flex-col gap-4">
           <div>
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               File Attachments
@@ -411,8 +416,9 @@ export function TenderDetailReview({
 
             <div className="mt-3 flex items-center gap-2">
               <label
-                className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${saving ? "pointer-events-none opacity-60" : ""
-                  }`}
+                className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${
+                  saving ? "pointer-events-none opacity-60" : ""
+                }`}
               >
                 <Upload className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                 <span className="truncate text-slate-500">
@@ -448,7 +454,8 @@ export function TenderDetailReview({
             </p>
           </div>
 
-          <div>
+          {/* Eligibility — pinned to the bottom of the right column */}
+          <div className="mt-auto">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Eligibility Criteria / Important Records
             </p>

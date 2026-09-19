@@ -42,6 +42,14 @@ export default function TenderSecurityPage() {
         docs: "all",
     });
 
+    /* ---------- Edit tracking ----------
+     * We keep a client-side map of { id → patch } for rows currently being
+     * edited. On Save, we PATCH the row and refetch. On Cancel, we drop the
+     * patch and the row snaps back to its server values.
+     */
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editPatch, setEditPatch] = useState<Partial<SecurityRowUI>>({});
+
     const { rows, loading, refetch } = useSecurity({
         entity: filters.entity === "all" ? undefined : filters.entity,
         type: filters.type === "all" ? undefined : filters.type,
@@ -52,18 +60,21 @@ export default function TenderSecurityPage() {
     const { stats, loading: statsLoading, refetch: refetchStats } =
         useSecurityStats();
 
-    /* ---------- Filtered rows (server does most of the work; keep this for
-         the draft row which lives only on the client) ---------- */
-    const uiRows: SecurityRowUI[] = useMemo(
-        () => rows.map(toSecurityUIRow),
-        [rows],
-    );
+    /* ---------- Server rows + edit overlay ---------- */
+    const uiRows: SecurityRowUI[] = useMemo(() => {
+        const base = rows.map(toSecurityUIRow);
+        if (!editingId) return base;
+        return base.map((r) =>
+            r.id === editingId ? { ...r, ...editPatch, isEditing: true } : r,
+        );
+    }, [rows, editingId, editPatch]);
 
     /* ---------- Add new draft row ---------- */
+    const [draft, setDraft] = useState<SecurityRowUI | null>(null);
+
     const addRecord = () => {
         if (uiRows.some((r) => r.isDraft)) return;
-        // We keep drafts in a separate client-only state; simplest approach:
-        // append a draft to the visible list.
+        if (editingId) return; // don't allow two edits at once
         setDraft({
             id: `draft-${crypto.randomUUID()}`,
             entity: ENTITIES[0],
@@ -76,8 +87,6 @@ export default function TenderSecurityPage() {
             isDraft: true,
         });
     };
-
-    const [draft, setDraft] = useState<SecurityRowUI | null>(null);
 
     /* ---------- Save draft → POST ---------- */
     const saveRow = async (r: SecurityRowUI) => {
@@ -92,7 +101,6 @@ export default function TenderSecurityPage() {
                 type: r.type,
                 amount: r.amount,
                 docsStatus: r.docsStatus,
-                // dueDate comes as display string — convert back to ISO
                 ...(r.dueDate ? { dueDate: new Date(r.dueDate).toISOString() } : {}),
             });
             toast.success("Security record saved");
@@ -103,12 +111,70 @@ export default function TenderSecurityPage() {
         }
     };
 
-    /* ---------- Update a live row ---------- */
+    /* ---------- Update a row (draft or edit) ---------- */
     const updateRow = (id: string, patch: Partial<SecurityRowUI>) => {
         if (draft && draft.id === id) {
             setDraft({ ...draft, ...patch });
+            return;
         }
-        // Server rows are read-only on this page for now
+        if (editingId === id) {
+            setEditPatch((prev) => ({ ...prev, ...patch }));
+        }
+    };
+
+    /* ---------- Enter edit mode ---------- */
+    const startEdit = (id: string) => {
+        if (draft) return; // don't allow edit while a draft exists
+        setEditingId(id);
+        setEditPatch({});
+    };
+
+    /* ---------- Save edit → PATCH ---------- */
+    const saveEdit = async (id: string) => {
+        if (!editPatch || Object.keys(editPatch).length === 0) {
+            // Nothing changed — just exit edit mode
+            setEditingId(null);
+            setEditPatch({});
+            return;
+        }
+
+        /* Guard: description must remain non-empty */
+        const merged = { ...editPatch };
+        if (
+            typeof merged.clientDescription === "string" &&
+            !merged.clientDescription.trim()
+        ) {
+            toast.error("Description is required");
+            return;
+        }
+
+        /* Convert display date back to ISO if it changed */
+        const payload: Record<string, unknown> = { ...merged };
+        if (typeof merged.dueDate === "string") {
+            payload.dueDate = merged.dueDate
+                ? new Date(merged.dueDate).toISOString()
+                : null;
+        }
+
+        const loadingId = toast.loading("Saving changes...");
+        try {
+            await securityApi.update(id, payload);
+            toast.success("Security record updated", { id: loadingId });
+            setEditingId(null);
+            setEditPatch({});
+            await Promise.all([refetch(), refetchStats()]);
+        } catch (e) {
+            toast.error(
+                (e as Error).message || "Failed to save changes",
+                { id: loadingId },
+            );
+        }
+    };
+
+    /* ---------- Cancel edit ---------- */
+    const cancelEdit = () => {
+        setEditingId(null);
+        setEditPatch({});
     };
 
     /* ---------- Delete (also used for "Cancel" on the draft) ---------- */
@@ -164,26 +230,40 @@ export default function TenderSecurityPage() {
                         rows={draft ? [...uiRows, draft] : uiRows}
                         entities={ENTITIES}
                         types={TYPES}
-                        onUpdate={(id, patch) => { updateRow(id, patch); }}
-                        onCreate={(d) => { if (d.id) void saveRow(d as SecurityRowUI); }}
-                        onDelete={(id) => { void deleteRow(id); }}
+                        onUpdate={(id, patch) => {
+                            updateRow(id, patch);
+                        }}
+                        onCreate={(d) => {
+                            if (d.id) void saveRow(d as SecurityRowUI);
+                        }}
+                        onDelete={(id) => {
+                            void deleteRow(id);
+                        }}
                         onNotify={(id) => {
                             const row = uiRows.find((r) => r.id === id);
                             if (row) setNotifyEntity(row.entity);
                         }}
+                        /* ----- NEW: edit-mode handlers ----- */
+                        onEdit={(id) => startEdit(id)}
+                        onSaveEdit={(id) => {
+                            void saveEdit(id);
+                        }}
+                        onCancelEdit={() => cancelEdit()}
                     />
                 )}
 
                 <SecurityFooter rows={uiRows} />
             </div>
+
             <SecurityNotifyModal
                 open={!!notifyEntity}
                 onOpenChange={(o) => !o && setNotifyEntity(null)}
                 entity={notifyEntity ?? ""}
                 onSend={async (emails) => {
-                    // Replace with your real API call
                     console.log("Send to:", emails);
-                    toast.success(`Notification sent to ${emails.length} recipient(s)`);
+                    toast.success(
+                        `Notification sent to ${emails.length} recipient(s)`,
+                    );
                 }}
             />
         </main>
