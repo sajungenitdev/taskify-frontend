@@ -10,7 +10,6 @@ import {
   ChevronDown,
   Menu,
   Search,
-  HelpCircle,
   CheckCircle,
   AlertCircle,
   Clock,
@@ -72,20 +71,14 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { user, logout } = useAuth();
 
   // ============================================================
-  // STATE - Initialize with lazy initializers to avoid useEffect warnings
+  // STATE
   // ============================================================
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sidebarCollapsed");
-      return saved === "true";
-    }
-    return false;
-  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -111,8 +104,15 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   // EFFECTS
   // ============================================================
 
+  // Hydrate initial collapse state after mount
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebarCollapsed");
+    if (saved !== null) {
+      setSidebarCollapsed(saved === "true");
+    }
+  }, []);
 
-  // Live time update
+  // Live time ticker
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -120,7 +120,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Listen for sidebar collapse changes from other components
+  // Listen for sidebar collapse changes from Sidebar component
   useEffect(() => {
     const handleSidebarToggle = (event: Event) => {
       const customEvent = event as CustomEvent;
@@ -138,7 +138,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     return () => window.removeEventListener("sidebarToggle", handleSidebarToggle);
   }, []);
 
-  // Trigger bell animation when new notifications arrive
+  // Bell buzzing animation on incoming unread notifications
   useEffect(() => {
     if (unreadCount > prevUnreadCountRef.current) {
       setIsBellBuzzing(true);
@@ -149,8 +149,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     prevUnreadCountRef.current = unreadCount;
   }, [unreadCount]);
 
-  // Helper function to get image URL using photoVersion
-  // Helper function to get image URL - uses user._id as cache buster
+  // Profile picture URL formatter
   const getImageUrl = useCallback(
     (imagePath: string | undefined): string | null => {
       if (!imagePath) return null;
@@ -162,11 +161,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
       const baseUrl = apiUrl.replace("/api/v1", "");
       const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
-      // Use user ID as cache buster
       const cacheBuster = user?._id || Date.now();
       return `${baseUrl}${path}?v=${cacheBuster}`;
     },
-    [user?._id],
+    [user?._id]
   );
 
   // Fetch notifications
@@ -192,11 +190,11 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             actionUrl: notif.actionUrl,
             createdAt: notif.createdAt,
             updatedAt: notif.updatedAt,
-          }),
+          })
         );
         setNotifications(formattedNotifications);
         setUnreadCount(
-          formattedNotifications.filter((n: Notification) => !n.isRead).length,
+          formattedNotifications.filter((n: Notification) => !n.isRead).length
         );
       }
     } catch (error: any) {
@@ -206,7 +204,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     }
   }, [user]);
 
-  // Polling for notifications - only fetch once with ref
+  // Polling notifications
   useEffect(() => {
     if (!isNotificationsInitialized.current) {
       isNotificationsInitialized.current = true;
@@ -220,7 +218,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     try {
       await api.patch(`/notifications/${id}/read`);
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)),
+        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
       );
       setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
@@ -238,7 +236,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     } catch (error: any) {
       console.error("Error marking all as read:", error);
       toast.error(
-        error.response?.data?.message || "Failed to mark all as read",
+        error.response?.data?.message || "Failed to mark all as read"
       );
     } finally {
       setMarkingAll(false);
@@ -258,7 +256,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
     } catch (error: any) {
       console.error("Error deleting notification:", error);
       toast.error(
-        error.response?.data?.message || "Failed to delete notification",
+        error.response?.data?.message || "Failed to delete notification"
       );
     }
   };
@@ -418,7 +416,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   const profileImageUrl = getImageUrl(user?.profilePhoto);
 
-  // Format time for display
   const formattedTime = currentTime.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -438,7 +435,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
       setShowCopySuccess(true);
       setTimeout(() => setShowCopySuccess(false), 2000);
       toast.success("Copied to clipboard");
-    } catch (err) {
+    } catch {
       toast.error("Failed to copy");
     }
   };
@@ -447,45 +444,51 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-50 transition-all duration-500 ease-out ${sidebarCollapsed ? "left-20" : "left-80"
-        }`}
-      style={{ backgroundColor: "#122645" }}
+      className={`
+        fixed top-0 right-0 z-40
+        h-16
+        transition-[left] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] will-change-[left]
+        left-0
+        ${sidebarCollapsed ? "lg:left-[72px]" : "lg:left-64"}
+      `}
+      style={{ backgroundColor: "#0b1b2d" }}
     >
-      {/* Animated gradient border */}
-      <div className="absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-indigo-400/50 to-purple-400/50" />
+      {/* Bottom border line */}
+      <div className="absolute inset-x-0 bottom-0 h-px bg-white/[0.08]" />
 
-      {/* Subtle glow effects */}
+      {/* Subtle ambient lighting */}
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="px-4 lg:px-6 py-2.5 flex items-center justify-between relative">
-        {/* Left Section - Mobile Menu & Page Title */}
+      <div className="h-full px-4 lg:px-6 flex items-center justify-between relative">
+        {/* Left: Mobile Toggle & Page Title */}
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onMenuClick}
-            className="lg:hidden text-white/60 hover:text-white transition-all duration-300 p-2 rounded-lg hover:bg-white/10 backdrop-blur-sm"
+            aria-label="Open navigation menu"
+            className="lg:hidden text-white/60 hover:text-white transition-colors p-2 rounded-lg hover:bg-white/10"
           >
             <Menu size={20} />
           </button>
 
           <div className="hidden lg:flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-white/10 backdrop-blur-sm flex items-center justify-center border border-white/10">
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/10 text-indigo-300">
               {getPageIcon()}
             </div>
             <div>
-              <h1 className="text-base font-semibold text-white tracking-tight">
+              <h1 className="text-sm font-semibold text-white tracking-tight">
                 {getPageTitle()}
               </h1>
               <div className="flex items-center gap-2">
-                <span className="text-[9px] text-white/40 font-medium tracking-wider uppercase">
+                <span className="text-[10px] text-white/40 font-medium tracking-wider uppercase">
                   {formattedDate}
                 </span>
                 <span className="w-1 h-1 rounded-full bg-white/20" />
-                <span className="text-[9px] text-white/30 font-medium">
+                <span className="text-[10px] text-white/40 font-medium">
                   {user?.role?.replace(/_/g, " ").toUpperCase()}
                 </span>
                 <span className="w-1 h-1 rounded-full bg-white/20" />
-                <span className="text-[9px] text-white/30 font-mono">
+                <span className="text-[10px] text-white/40 font-mono">
                   {formattedTime}
                 </span>
               </div>
@@ -493,45 +496,8 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </div>
         </div>
 
-        {/* Center - Search Bar */}
+        {/* Center: Search Results Dropdown */}
         <div className="hidden md:block flex-1 max-w-md mx-4 lg:mx-8">
-          {/* <div className="relative group">
-            <div className="absolute inset-0 rounded-xl bg-white/5 blur-xl group-focus-within:bg-indigo-500/10 transition-all duration-500" />
-            <div className="relative flex items-center bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl transition-all duration-300 group-focus-within:border-indigo-400/50 group-focus-within:bg-white/10 group-focus-within:shadow-lg group-focus-within:shadow-indigo-500/5">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 group-focus-within:text-indigo-400 transition-colors duration-300" />
-              <input
-                type="text"
-                disabled
-                placeholder="Search tasks, projects, users..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() =>
-                  searchQuery.length >= 2 && setShowSearchResults(true)
-                }
-                className="w-full pl-10 pr-4 py-2 text-sm bg-transparent border-none rounded-xl focus:outline-none text-white/90 placeholder:text-white/30 transition-all duration-300"
-              />
-              {searching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 animate-spin" />
-              )}
-              {!searching && searchQuery && (
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setSearchResults([]);
-                    setShowSearchResults(false);
-                  }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              )}
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] text-white/20 bg-white/5 px-1.5 py-0.5 rounded-md border border-white/10 hidden lg:inline-block font-mono">
-                ⌘K
-              </kbd>
-            </div>
-          </div> */}
-
-          {/* Search Results Dropdown */}
           <AnimatePresence>
             {showSearchResults &&
               (searchResults.length > 0 || searchQuery.length >= 2) && (
@@ -548,9 +514,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                         <div className="w-12 h-12 rounded-full bg-white/5 mx-auto mb-3 flex items-center justify-center">
                           <Search className="w-6 h-6 text-white/20" />
                         </div>
-                        <p className="text-sm text-white/60">
-                          No results found for
-                        </p>
+                        <p className="text-sm text-white/60">No results found for</p>
                         <p className="text-sm text-white font-medium">
                           "{searchQuery}"
                         </p>
@@ -612,20 +576,23 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           </AnimatePresence>
         </div>
 
-        {/* Right Section - Actions */}
-        <div className="flex items-center gap-1">
+        {/* Right: Actions */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="md:hidden text-white/60 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-all duration-300"
+            aria-label="Toggle search"
+            className="md:hidden text-white/60 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"
           >
             <Search size={18} />
           </button>
 
           <Link
-            href="/tasks/my" title="My Task"
-            className="px-3.5 py-2 bg-white  hover:bg-indigo-600 hover:text-white rounded-md transition flex items-center gap-1.5 text-xs font-semibold text-slate-700 shadow-xs"
+            href="/tasks/my"
+            title="My Tasks"
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center gap-1.5 text-xs font-semibold shadow-sm"
           >
-            <ListTodo size={15} /> Task
+            <ListTodo size={15} />
+            <span className="hidden sm:inline">Tasks</span>
           </Link>
 
           {/* Notifications Dropdown */}
@@ -636,29 +603,37 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 setShowProfileDropdown(false);
                 setIsBellBuzzing(false);
               }}
-              className="relative text-white/60 hover:text-white transition-all duration-300 p-2 rounded-lg hover:bg-white/10"
+              aria-label="Open notifications"
+              className="relative text-white/60 hover:text-white transition-colors p-2 rounded-xl hover:bg-white/10 group"
             >
-              <div className="relative">
+              <div className="relative flex items-center justify-center w-5 h-5">
                 <Bell
                   size={18}
-                  className={`transition-all duration-300 ${isBellBuzzing
-                    ? "text-amber-400 animate-bell-buzz"
-                    : unreadCount > 0
-                      ? "text-indigo-400"
-                      : ""
+                  className={`transition-colors duration-200 ${isBellBuzzing
+                      ? "text-amber-400 animate-bell-ring"
+                      : unreadCount > 0
+                        ? "text-indigo-300 group-hover:text-indigo-200"
+                        : "text-white/60 group-hover:text-white"
                     }`}
                 />
+
+                {/* Ripple ring effect when ringing */}
                 {isBellBuzzing && (
-                  <>
-                    <span className="absolute inset-0 rounded-full animate-ping-ring border-2 border-amber-400/40" />
-                    <span className="absolute inset-0 rounded-full animate-ping-ring-delayed border-2 border-amber-400/20" />
-                  </>
+                  <span className="absolute inset-0 rounded-full border border-amber-400/60 animate-ping pointer-events-none" />
                 )}
               </div>
+
+              {/* Floating Badge (Pill) */}
               {unreadCount > 0 && (
                 <span
-                  className={`absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-linear-to-r from-rose-500 to-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center px-1 shadow-lg shadow-rose-500/30 transition-all duration-300 ${isBellBuzzing ? "animate-bounce" : ""
-                    }`}
+                  className={`
+          absolute -top-0.5 -right-0.5 min-w-[17px] h-4 px-1
+          bg-gradient-to-r from-rose-500 to-red-500 rounded-full
+          text-white text-[9px] font-bold tracking-tight
+          flex items-center justify-center shadow-md shadow-rose-500/30
+          border border-[#0b1b2d]
+          ${isBellBuzzing ? "animate-badge-bounce" : ""}
+        `}
                 >
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
@@ -679,6 +654,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     transition={{ duration: 0.2 }}
                     className="absolute right-0 mt-2 w-80 sm:w-96 bg-[#0f1f3a] backdrop-blur-xl rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden"
                   >
+                    {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
                       <div>
                         <h3 className="text-sm font-semibold text-white">
@@ -699,6 +675,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       )}
                     </div>
 
+                    {/* List */}
                     <div className="max-h-96 overflow-y-auto custom-scrollbar">
                       {loading ? (
                         <div className="p-8 text-center">
@@ -712,11 +689,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                           <div className="w-12 h-12 rounded-full bg-white/5 mx-auto mb-3 flex items-center justify-center">
                             <Bell className="w-6 h-6 text-white/20" />
                           </div>
-                          <p className="text-sm text-white/60">
-                            No notifications
-                          </p>
+                          <p className="text-sm text-white/60">No notifications</p>
                           <p className="text-xs text-white/30 mt-1">
-                            When you get notifications, they'll appear here
+                            When you get notifications, they will appear here
                           </p>
                         </div>
                       ) : (
@@ -726,22 +701,20 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.05 }}
-                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all ${!notification.isRead ? "bg-indigo-500/5" : ""
+                            className={`p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-colors ${!notification.isRead ? "bg-indigo-500/5" : ""
                               }`}
-                            onClick={() =>
-                              handleNotificationClick(notification)
-                            }
+                            onClick={() => handleNotificationClick(notification)}
                           >
                             <div className="flex items-start gap-3">
                               <div
                                 className={`p-1.5 rounded-lg border ${getNotificationColor(
                                   notification.category,
-                                  notification.type,
+                                  notification.type
                                 )}`}
                               >
                                 {getNotificationIcon(
                                   notification.category,
-                                  notification.type,
+                                  notification.type
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -782,6 +755,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       )}
                     </div>
 
+                    {/* Footer */}
                     {notifications.length > 0 && (
                       <div className="p-3 border-t border-white/10 bg-white/5">
                         <Link
@@ -806,10 +780,11 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 setShowProfileDropdown(!showProfileDropdown);
                 setShowNotifications(false);
               }}
-              className="flex items-center gap-2 text-white/80 hover:text-white transition-all duration-300 p-1 rounded-lg hover:bg-white/10"
+              aria-label="User profile menu"
+              className="flex items-center gap-2 text-white/80 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
             >
-              <div className="relative group/avatar">
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-linear-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0 ring-2 ring-white/10 hover:ring-indigo-400/30 transition-all duration-300">
+              <div className="relative">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0 ring-2 ring-white/10">
                   {profileImageUrl && !imageError ? (
                     <img
                       src={profileImageUrl}
@@ -823,15 +798,16 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       }}
                     />
                   ) : (
-                    <span className="text-white text-sm font-bold">
+                    <span className="text-white text-xs font-bold">
                       {user?.fullName?.charAt(0) ||
                         user?.email?.charAt(0) ||
                         "U"}
                     </span>
                   )}
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#122645] animate-pulse" />
+                <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#0b1b2d]" />
               </div>
+
               <div className="hidden lg:block text-left">
                 <p className="text-xs font-medium text-white/90 max-w-[120px] truncate">
                   {user?.fullName?.split(" ")[0] || "User"}
@@ -840,9 +816,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   {user?.role?.replace(/_/g, " ") || "Employee"}
                 </p>
               </div>
+
               <ChevronDown
                 size={14}
-                className={`hidden lg:block text-white/40 transition-transform duration-300 ${showProfileDropdown ? "rotate-180" : ""
+                className={`hidden lg:block text-white/40 transition-transform duration-200 ${showProfileDropdown ? "rotate-180" : ""
                   }`}
               />
             </button>
@@ -861,11 +838,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                     transition={{ duration: 0.2 }}
                     className="absolute right-0 mt-2 w-72 bg-[#0f1f3a] backdrop-blur-xl rounded-xl shadow-2xl border border-white/10 z-50 overflow-hidden"
                   >
-                    {/* Profile Header */}
-                    <div className="p-4 border-b border-white/10 bg-linear-to-r from-indigo-500/10 to-purple-500/10">
+                    <div className="p-4 border-b border-white/10 bg-gradient-to-r from-indigo-500/10 to-purple-500/10">
                       <div className="flex items-center gap-3">
                         <div className="relative">
-                          <div className="w-12 h-12 rounded-full overflow-hidden bg-linear-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0 ring-2 ring-white/20">
+                          <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/20">
                             {profileImageUrl && !imageError ? (
                               <img
                                 src={profileImageUrl}
@@ -886,7 +862,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                               </span>
                             )}
                           </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0f1f3a] animate-pulse" />
+                          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0f1f3a]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-white truncate">
@@ -918,11 +894,10 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       </div>
                     </div>
 
-                    {/* Profile Menu Items */}
                     <div className="py-2">
                       <Link
                         href="/profile"
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all duration-300 group"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors group"
                         onClick={() => setShowProfileDropdown(false)}
                       >
                         <div className="w-7 h-7 rounded-lg bg-white/5 group-hover:bg-indigo-500/20 flex items-center justify-center transition-colors">
@@ -940,7 +915,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
                       <Link
                         href="/notifications"
-                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all duration-300 group"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors group"
                         onClick={() => setShowProfileDropdown(false)}
                       >
                         <div className="w-7 h-7 rounded-lg bg-white/5 group-hover:bg-indigo-500/20 flex items-center justify-center transition-colors">
@@ -960,13 +935,15 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                           className="text-white/10 group-hover:text-white/20"
                         />
                       </Link>
+
                       <div className="h-px bg-white/5 my-1" />
+
                       <button
                         onClick={() => {
                           setShowProfileDropdown(false);
                           logout();
                         }}
-                        className="w-full cursor-pointer flex items-center gap-3 px-4 py-2.5 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all duration-300 group"
+                        className="w-full cursor-pointer flex items-center gap-3 px-4 py-2 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors group"
                       >
                         <div className="w-7 h-7 rounded-lg bg-rose-500/10 group-hover:bg-rose-500/20 flex items-center justify-center transition-colors">
                           <LogOut
@@ -978,7 +955,6 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                       </button>
                     </div>
 
-                    {/* Footer */}
                     <div className="p-3 border-t border-white/5 bg-white/5">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -993,11 +969,9 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                             v2.0.0
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[9px] text-white/20">
-                            {formattedTime}
-                          </span>
-                        </div>
+                        <span className="text-[9px] text-white/20">
+                          {formattedTime}
+                        </span>
                       </div>
                     </div>
                   </motion.div>
@@ -1008,15 +982,15 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </div>
       </div>
 
-      {/* Mobile Search Bar */}
+      {/* Mobile Search Overlay */}
       <AnimatePresence>
         {showSearch && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.3 }}
-            className="md:hidden border-t border-white/10 bg-[#0f1f3a]"
+            transition={{ duration: 0.2 }}
+            className="md:hidden border-t border-white/10 bg-[#0b1b2d]"
           >
             <div className="p-3">
               <div className="relative">
@@ -1026,7 +1000,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                   placeholder="Search tasks, projects, users..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 text-sm bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-500/20 text-white/90 placeholder:text-white/30 transition-all duration-300"
+                  className="w-full pl-10 pr-4 py-2 text-sm bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg focus:outline-none focus:border-indigo-400/50 focus:ring-2 focus:ring-indigo-500/20 text-white/90 placeholder:text-white/30 transition-colors"
                   autoFocus
                 />
               </div>

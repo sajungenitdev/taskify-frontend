@@ -1,7 +1,7 @@
 // app/(dashboard)/layout.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Layout/Sidebar";
@@ -22,29 +22,29 @@ export default function DashboardLayout({
   const [isNavigating, setIsNavigating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // State for notifications modal
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Set mounted state to prevent hydration issues
   useEffect(() => {
     setIsMounted(true);
+    const savedState = localStorage.getItem("sidebarCollapsed");
+    if (savedState !== null) {
+      setIsCollapsed(savedState === "true");
+    }
   }, []);
 
-  // Handle navigation loading state
   useEffect(() => {
     setIsNavigating(true);
     const timer = setTimeout(() => {
       setIsNavigating(false);
     }, 300);
-
     return () => clearTimeout(timer);
   }, [pathname]);
 
-  // Listen for sidebar toggle events
   useEffect(() => {
-    const handleSidebarToggle = (event: CustomEvent) => {
-      if (event.detail?.collapsed !== undefined) {
-        setIsCollapsed(event.detail.collapsed);
+    const handleSidebarToggle = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail?.collapsed !== undefined) {
+        setIsCollapsed(customEvent.detail.collapsed);
       } else {
         const savedState = localStorage.getItem("sidebarCollapsed");
         if (savedState !== null) {
@@ -53,64 +53,42 @@ export default function DashboardLayout({
       }
     };
 
-    window.addEventListener(
-      "sidebarToggle",
-      handleSidebarToggle as EventListener,
-    );
-
-    const savedState = localStorage.getItem("sidebarCollapsed");
-    if (savedState !== null) {
-      setIsCollapsed(savedState === "true");
-    }
-
-    return () =>
-      window.removeEventListener(
-        "sidebarToggle",
-        handleSidebarToggle as EventListener,
-      );
+    window.addEventListener("sidebarToggle", handleSidebarToggle);
+    return () => window.removeEventListener("sidebarToggle", handleSidebarToggle);
   }, []);
 
-  // Handle authentication and show notifications modal
   useEffect(() => {
     if (!isLoading && isAuthenticated && user) {
-      // Check if this is first login
       const hasLoggedInBefore = localStorage.getItem("hasLoggedInBefore");
       const notificationsShown = localStorage.getItem("notificationsPageShown");
 
       if (!hasLoggedInBefore) {
-        // First time login - show notifications
         setShowNotifications(true);
         localStorage.setItem("hasLoggedInBefore", "true");
       } else if (!notificationsShown) {
-        // Not first login but notifications not shown yet - show notifications
         setShowNotifications(true);
       } else {
-        // Check if notifications were skipped but we want to show again
         const notificationsEnabled = localStorage.getItem("notificationsEnabled");
         if (!notificationsEnabled) {
-          // Show notifications banner again (like cookie consent)
           setShowNotifications(true);
         }
       }
     }
   }, [isLoading, isAuthenticated, user]);
 
-  // Handle authentication redirect
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
 
-  // Memoized collapse class
-  const mainMarginClass = isCollapsed ? "lg:ml-20" : "lg:ml-80";
+  /* ---------- Margin aligns with 72px (rail) or 256px (expanded) ---------- */
+  const mainMarginClass = isCollapsed ? "lg:ml-[72px]" : "lg:ml-64";
 
-  // Don't render anything during initial load
   if (!isMounted) {
     return null;
   }
 
-  // Show loading state
   if (isLoading || isNavigating) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-white">
@@ -130,39 +108,41 @@ export default function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
+      {/* Sidebar Component */}
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
         onCollapseChange={(collapsed) => setIsCollapsed(collapsed)}
       />
 
-      {/* Main content area */}
+      {/* Main Content Area */}
       <div
-        className={`flex-1 transition-all duration-300 ease-in-out ${mainMarginClass}`}
+        className={`
+          flex-1 flex flex-col min-w-0
+          transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]
+          will-change-[margin]
+          ${mainMarginClass}
+        `}
       >
         <Header onMenuClick={() => setIsMobileSidebarOpen(true)} />
 
-        {/* Main content */}
-        <main className="pt-15 bg-gray-50 min-h-screen">
-          <div className="px-0 md:px-0 lg:px-0 py-0 w-full mx-auto">
+        <main className="pt-16 bg-gray-50 min-h-screen flex-1">
+          <div className="w-full mx-auto">
             {children}
           </div>
         </main>
       </div>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile Drawer Overlay */}
       {isMobileSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 lg:hidden"
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs z-30 lg:hidden animate-fade-in"
           onClick={() => setIsMobileSidebarOpen(false)}
         />
       )}
 
-      {/* Assistant Wizard - Self-contained floating assistant */}
       <AssistantWizard />
 
-      {/* Enable Notifications Page - Shows as bottom banner */}
       <EnableNotificationsPage
         isOpen={showNotifications}
         onClose={() => {

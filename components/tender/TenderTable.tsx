@@ -1,7 +1,7 @@
 // components/tender/TenderTable.tsx
 "use client";
 
-import { ExternalLink, Eye, FileText, Pencil, Trash2 } from "lucide-react";
+import { ClipboardIcon, ExternalLink, Eye, FileText, Pencil, Trash2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 /* ============================================================
@@ -122,7 +122,7 @@ export function TenderTable({
                             className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                             title="View"
                           >
-                            <Eye className="h-3.5 w-3.5" />
+                            <ClipboardIcon className="h-3.5 w-3.5" />
                           </button>
                         )}
 

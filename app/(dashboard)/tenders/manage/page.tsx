@@ -4,7 +4,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
-import { FileEdit } from "lucide-react";
+import { FileEdit, X } from "lucide-react";
 import { TenderHeader } from "@/components/tender/TenderHeader";
 import { TenderStats } from "@/components/tender/TenderStats";
 import { TenderTabs, type TenderTab } from "@/components/tender/TenderTabs";
@@ -197,6 +197,13 @@ function TenderManageContent() {
   const [checklistTender, setChecklistTender] = useState<Tender | null>(
     null,
   );
+
+  /* ---------- Lost-reason prompt (replaces window.prompt) ---------- */
+  const [lostPrompt, setLostPrompt] = useState<{
+    tender: Tender;
+    reason: string;
+  } | null>(null);
+
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -215,6 +222,16 @@ function TenderManageContent() {
       setSelectedId(null);
     }
   }, [searchParams]);
+
+  /* Esc closes the lost-reason modal */
+  useEffect(() => {
+    if (!lostPrompt) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLostPrompt(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lostPrompt]);
 
   const currentRows = groups[tab] ?? [];
   const selected =
@@ -264,21 +281,24 @@ function TenderManageContent() {
     }
   };
 
-  const handleMarkLost = async (tender: Tender) => {
-    const reason = window.prompt(
-      "Why was this tender lost? (optional — click OK to confirm)",
-      "",
-    );
-    if (reason === null) return;
+  /* ---------- Mark as Lost — opens custom modal ---------- */
+  const handleMarkLost = (tender: Tender) => {
+    setLostPrompt({ tender, reason: "" });
+  };
 
+  /* ---------- Confirm inside the modal ---------- */
+  const confirmMarkLost = async () => {
+    if (!lostPrompt) return;
+    const { tender, reason } = lostPrompt;
     try {
       await tenderApi.changeStage(
         tender._id,
         "lost",
         "Lost to competitor",
-        reason || "Not specified",
+        reason.trim() || "Not specified",
       );
       toast.success(`${tender.tenderer} marked as LOST`);
+      setLostPrompt(null);
       await refetch();
       setTab("lost");
       setSelectedId(null);
@@ -576,7 +596,6 @@ function TenderManageContent() {
                   onRowClick={setSelectedId}
                   onDelete={handleDelete}
                   onView={handleViewWon}
-                  // onEdit={handleEdit}
                 />
                 {selected && (
                   <TenderDetailSubmitted
@@ -653,6 +672,72 @@ function TenderManageContent() {
           </>
         )}
       </div>
+
+      {/* ================= Lost Reason Modal ================= */}
+      {lostPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setLostPrompt(null)}
+          />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-3">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Why was "{lostPrompt.tender.tenderer}" lost?
+                </h3>
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  Optional. Click Mark as Lost to confirm.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLostPrompt(null)}
+                className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4">
+              <textarea
+                autoFocus
+                rows={3}
+                value={lostPrompt.reason}
+                onChange={(e) =>
+                  setLostPrompt({
+                    ...lostPrompt,
+                    reason: e.target.value,
+                  })
+                }
+                placeholder="e.g. Lost to competitor on price"
+                className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setLostPrompt(null)}
+                className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmMarkLost}
+                className="inline-flex h-8 items-center rounded-lg bg-[#a97400] px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-[#8f6100]"
+              >
+                Mark as Lost
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AddTenderModal
         open={addOpen}
