@@ -604,7 +604,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 setIsBellBuzzing(false);
               }}
               aria-label="Open notifications"
-              className="relative text-white/60 hover:text-white transition-colors p-2 rounded-xl hover:bg-white/10 group"
+              className="relative cursor-pointer text-white/60 hover:text-white transition-colors p-2 rounded-xl hover:bg-white/10 group"
             >
               <div className="relative flex items-center justify-center w-5 h-5">
                 <Bell
@@ -781,7 +781,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
                 setShowNotifications(false);
               }}
               aria-label="User profile menu"
-              className="flex items-center gap-2 text-white/80 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
+              className="flex items-center cursor-pointer gap-2 text-white/80 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
             >
               <div className="relative">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-r from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0 ring-2 ring-white/10">
@@ -915,7 +915,7 @@ export default function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
                       <Link
                         href="/notifications"
-                        className="flex items-center gap-3 px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors group"
+                        className="flex items-center cursor-pointer gap-3 px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors group"
                         onClick={() => setShowProfileDropdown(false)}
                       >
                         <div className="w-7 h-7 rounded-lg bg-white/5 group-hover:bg-indigo-500/20 flex items-center justify-center transition-colors">

@@ -66,7 +66,7 @@ export default function Sidebar({
   /* ---------- Refresh badges ---------- */
   useEffect(() => {
     if (user) {
-      refreshBadges().catch(() => {});
+      refreshBadges().catch(() => { });
     }
   }, [user, refreshBadges]);
 
@@ -231,7 +231,7 @@ export default function Sidebar({
               type="button"
               onClick={toggleCollapse}
               aria-label="Collapse sidebar"
-              className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.09] text-gray-400 hover:text-white border border-white/10 transition-colors"
+              className="shrink-0 w-7 h-7 cursor-pointer rounded-lg flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.09] text-gray-400 hover:text-white border border-white/10 transition-colors"
             >
               <ChevronLeft size={14} />
             </button>
@@ -242,9 +242,8 @@ export default function Sidebar({
       {/* ======================== Navigation ======================== */}
       <nav
         ref={navRef}
-        className={`flex-1 overflow-y-auto py-3 space-y-1 custom-scrollbar z-10 ${
-          isCollapsed ? "px-2" : "px-3"
-        }`}
+        className={`flex-1 overflow-y-auto py-3 space-y-1 custom-scrollbar z-10 ${isCollapsed ? "px-2" : "px-3"
+          }`}
       >
         {/* Personal Items */}
         {personalItems.length > 0 && (
@@ -263,19 +262,17 @@ export default function Sidebar({
                   className={`
                     group relative flex items-center h-10 rounded-xl transition-all duration-200 font-medium text-sm
                     ${isCollapsed ? "justify-center px-0 w-full" : "px-2.5"}
-                    ${
-                      active
-                        ? "bg-indigo-600/20 text-indigo-200 ring-1 ring-indigo-500/40 shadow-sm"
-                        : "text-gray-300 hover:text-white hover:bg-white/[0.06]"
+                    ${active
+                      ? "bg-indigo-600/20 text-indigo-200 ring-1 ring-indigo-500/40 shadow-sm"
+                      : "text-gray-300 hover:text-white hover:bg-white/[0.06]"
                     }
                   `}
                 >
                   <div className="shrink-0 flex items-center justify-center w-6 h-6">
                     <Icon
                       size={18}
-                      className={`transition-colors duration-200 ${
-                        active ? "text-indigo-400" : "text-gray-400 group-hover:text-white"
-                      }`}
+                      className={`transition-colors duration-200 ${active ? "text-indigo-400" : "text-gray-400 group-hover:text-white"
+                        }`}
                     />
                   </div>
 
@@ -294,11 +291,10 @@ export default function Sidebar({
                         )}
                         {showBadge && (
                           <span
-                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
-                              badgeInfo.isDynamic
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${badgeInfo.isDynamic
                                 ? "bg-rose-500/20 text-rose-300"
                                 : item.badgeColor || "bg-indigo-500/20 text-indigo-300"
-                            }`}
+                              }`}
                           >
                             {badgeInfo.text}
                           </span>
@@ -383,23 +379,21 @@ export default function Sidebar({
                             isCollapsed && setHoveredTooltip(null)
                           }
                           className={`
-                            group w-full relative flex items-center h-10 rounded-xl transition-all duration-200 font-medium text-sm
+                            group w-full relative cursor-pointer flex items-center h-10 rounded-xl transition-all duration-200 font-medium text-sm
                             ${isCollapsed ? "justify-center px-0" : "px-2.5"}
-                            ${
-                              isParent || isExpanded
-                                ? "bg-white/[0.08] text-white"
-                                : "text-gray-300 hover:text-white hover:bg-white/[0.05]"
+                            ${isParent || isExpanded
+                              ? "bg-white/[0.08] text-white"
+                              : "text-gray-300 hover:text-white hover:bg-white/[0.05]"
                             }
                           `}
                         >
                           <div className="shrink-0 flex items-center justify-center w-6 h-6">
                             <Icon
                               size={18}
-                              className={`transition-colors duration-200 ${
-                                isParent || isExpanded
+                              className={`transition-colors duration-200 ${isParent || isExpanded
                                   ? "text-indigo-400"
                                   : "text-gray-400 group-hover:text-white"
-                              }`}
+                                }`}
                             />
                           </div>
 
@@ -414,9 +408,8 @@ export default function Sidebar({
                                 )}
                                 <ChevronDown
                                   size={14}
-                                  className={`text-gray-400 transition-transform duration-200 ${
-                                    isExpanded ? "rotate-180 text-white" : ""
-                                  }`}
+                                  className={`text-gray-400 transition-transform duration-200 ${isExpanded ? "rotate-180 text-white" : ""
+                                    }`}
                                 />
                               </div>
                             </div>
@@ -432,11 +425,10 @@ export default function Sidebar({
                         {/* Accordion Sub-list */}
                         {!isCollapsed && (
                           <div
-                            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${
-                              isExpanded
+                            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-in-out ${isExpanded
                                 ? "grid-rows-[1fr] opacity-100"
                                 : "grid-rows-[0fr] opacity-0"
-                            }`}
+                              }`}
                           >
                             <ul className="overflow-hidden ml-5 pl-3 border-l border-white/10 space-y-0.5 my-1">
                               {subItems.map((sub) => {
@@ -452,10 +444,9 @@ export default function Sidebar({
                                       onClick={onClose}
                                       className={`
                                         flex items-center gap-2.5 h-8 px-2 rounded-lg text-xs font-medium transition-colors duration-150
-                                        ${
-                                          subActive
-                                            ? "bg-indigo-500/20 text-indigo-200 font-semibold"
-                                            : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
+                                        ${subActive
+                                          ? "bg-indigo-500/20 text-indigo-200 font-semibold"
+                                          : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
                                         }
                                       `}
                                     >
@@ -490,21 +481,19 @@ export default function Sidebar({
                       className={`
                         group relative flex items-center h-10 rounded-xl transition-all duration-200 font-medium text-sm
                         ${isCollapsed ? "justify-center px-0 w-full" : "px-2.5"}
-                        ${
-                          isItemActive
-                            ? "bg-indigo-600/20 text-indigo-200 ring-1 ring-indigo-500/40 shadow-sm"
-                            : "text-gray-300 hover:text-white hover:bg-white/[0.05]"
+                        ${isItemActive
+                          ? "bg-indigo-600/20 text-indigo-200 ring-1 ring-indigo-500/40 shadow-sm"
+                          : "text-gray-300 hover:text-white hover:bg-white/[0.05]"
                         }
                       `}
                     >
                       <div className="shrink-0 flex items-center justify-center w-6 h-6">
                         <Icon
                           size={18}
-                          className={`transition-colors duration-200 ${
-                            isItemActive
+                          className={`transition-colors duration-200 ${isItemActive
                               ? "text-indigo-400"
                               : "text-gray-400 group-hover:text-white"
-                          }`}
+                            }`}
                         />
                       </div>
 
@@ -567,7 +556,7 @@ export default function Sidebar({
           onMouseEnter={() => isCollapsed && setHoveredTooltip("Sign Out")}
           onMouseLeave={() => isCollapsed && setHoveredTooltip(null)}
           className={`
-            group relative w-full flex items-center h-10 rounded-xl text-gray-300 hover:text-rose-300 hover:bg-rose-500/10 transition-colors duration-200
+            group relative w-full flex cursor-pointer items-center h-10 rounded-xl text-gray-300 hover:text-rose-300 hover:bg-rose-500/10 transition-colors duration-200
             ${isCollapsed ? "justify-center px-0" : "px-2.5"}
           `}
         >
@@ -586,7 +575,7 @@ export default function Sidebar({
           )}
 
           {isCollapsed && hoveredTooltip === "Sign Out" && (
-            <div className="fixed left-[78px] z-50 px-2.5 py-1.5 bg-[#152538] text-rose-300 text-xs font-medium rounded-lg shadow-xl border border-white/10 whitespace-nowrap">
+            <div className="fixed left-[78px] cursor-pointer z-50 px-2.5 py-1.5 bg-[#152538] text-rose-300 text-xs font-medium rounded-lg shadow-xl border border-white/10 whitespace-nowrap">
               Sign Out
             </div>
           )}
