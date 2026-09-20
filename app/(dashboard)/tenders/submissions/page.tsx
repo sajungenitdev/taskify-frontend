@@ -19,7 +19,7 @@ import {
 import { tenderApi } from "@/lib/api/tender.api";
 import { confirmToast } from "@/lib/confirmToast";
 import { BidderList } from "@/components/tender/BidderList";
-import { AddBidderModal } from "@/components/tender/AddBidderModal";
+import { AddBidderModal, BidderRow } from "@/components/tender/AddBidderModal";
 
 export default function TenderSubmissionPage() {
     const router = useRouter();

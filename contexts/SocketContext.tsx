@@ -341,7 +341,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // CLEANUP
         // ============================================================
         return () => {
-            console.log("🧹 [SOCKET] Cleaning up...");
 
             // Remove global handlers
             socketInstance.off("message:new", handleNewMessage);
