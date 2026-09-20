@@ -143,7 +143,6 @@ export default function AllDepartmentsPage() {
 
       setDepartments(processedDepts);
     } catch (error) {
-      console.error("Error synchronizing department datasets:", error);
       toast.error("Failed to load departments data");
       setDepartments(getMockDepartments());
     } finally {

@@ -1,7 +1,7 @@
 // components/tender/documents/DocCard.tsx
 "use client";
 
-import { FileText, Trophy, Trash2 } from "lucide-react";
+import { FileText, Trophy, Trash2, RotateCw } from "lucide-react";
 import { StatusPill } from "./StatusPill";
 import type { CompanyDocUI } from "@/lib/api/mappers";
 
@@ -12,7 +12,7 @@ interface Props {
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
   onAction?: (doc: CompanyDocUI) => void;
-  onDelete?: (doc: CompanyDocUI) => void;   // ← NEW
+  onDelete?: (doc: CompanyDocUI) => void;
 }
 
 function fileSizeLabel(bytes?: number) {
@@ -27,9 +27,10 @@ export function DocCard({
   selected,
   onToggleSelect,
   onAction,
-  onDelete,                                 // ← NEW
+  onDelete,
 }: Props) {
   const isExpiring = doc.status === "Expiring Soon";
+  const isExpired = doc.status === "Expired";
   const isExperience = doc.category === "experience";
 
   /* ---------- Experience / Profile card variant ---------- */
@@ -109,7 +110,10 @@ export function DocCard({
         <div className="mt-4 flex items-center justify-between">
           <button
             type="button"
-            onClick={() => onAction?.(doc)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction?.(doc);
+            }}
             className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:underline"
           >
             View Certificate →
@@ -123,11 +127,13 @@ export function DocCard({
   return (
     <article
       className={`relative flex flex-col rounded-xl border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${
-        isExpiring
-          ? "border-orange-300 ring-1 ring-orange-100"
-          : selected
-            ? "border-slate-900"
-            : "border-slate-200/80 hover:border-slate-300"
+        isExpired
+          ? "border-rose-300 ring-1 ring-rose-100"
+          : isExpiring
+            ? "border-orange-300 ring-1 ring-orange-100"
+            : selected
+              ? "border-slate-900"
+              : "border-slate-200/80 hover:border-slate-300"
       }`}
     >
       <div className="flex items-start justify-between">
@@ -186,18 +192,30 @@ export function DocCard({
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-4 flex items-center justify-between gap-2">
         <StatusPill status={doc.status} />
         {doc.action && (
           <button
             type="button"
-            onClick={() => onAction?.(doc)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAction?.(doc);
+            }}
             className={
-              doc.action === "Replace"
-                ? "inline-flex h-7 items-center rounded-md bg-[#a97400] px-3 text-[10px] font-semibold text-white hover:bg-[#8f6100]"
-                : "text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:underline"
+              /* Renew + Expired → filled amber */
+              doc.action === "Renew" && isExpired
+                ? "inline-flex h-7 items-center gap-1 rounded-md bg-amber-600 px-3 text-[10px] font-semibold text-white shadow-sm hover:bg-amber-700"
+                /* Renew + Expiring Soon → outlined amber */
+                : doc.action === "Renew"
+                  ? "inline-flex h-7 items-center gap-1 rounded-md border border-amber-300 bg-white px-3 text-[10px] font-semibold text-amber-700 hover:bg-amber-50"
+                  /* Replace → filled dark-amber */
+                  : doc.action === "Replace"
+                    ? "inline-flex h-7 items-center gap-1 rounded-md bg-[#a97400] px-3 text-[10px] font-semibold text-white hover:bg-[#8f6100]"
+                    /* View → plain text link */
+                    : "text-[11px] font-semibold text-slate-700 hover:text-slate-900 hover:underline"
             }
           >
+            {doc.action === "Renew" && <RotateCw className="h-3 w-3" />}
             {doc.action}
           </button>
         )}

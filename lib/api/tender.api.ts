@@ -198,20 +198,56 @@ export interface SubmissionChecklistItem {
   isCustom?: boolean;
 }
 
+/* ---------- New sub-shapes ---------- */
+export interface SubmissionBidSummary {
+  ourBidValue: number;
+  tenderSecurity: number;
+  performanceSecurity: number;
+  performanceSecurityPercent: number;
+  currency: string;
+}
+
+export interface SubmissionParticipant {
+  bidder: string;
+  value: number;
+  isUs?: boolean;
+}
+
+export interface SubmissionDocument {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  mimeType: string;
+}
+
 export interface SubmissionDetail {
   id: string;
   tenderer: string;
   title: string;
   deadlineDays: number;
   readiness: number;
+
+  /* ✅ Bid summary */
+  bidSummary?: SubmissionBidSummary;
+
+  /* ✅ Other participants */
+  otherParticipants?: SubmissionParticipant[];
+
+  /* ✅ Documents submitted */
+  documentsSubmitted?: SubmissionDocument[];
+
   docTasks: {
     id: string;
     title: string;
     owner: string;
     fileName: string;
+    fileUrl?: string;   // ← bonus: this was returned already
     status: "Pending" | "In Progress" | "Done";
   }[];
+
   checklist: SubmissionChecklistItem[];
+
   info: {
     advertisementFile?: string;
     advertisementUrl?: string;
@@ -257,8 +293,10 @@ export interface CompanyDocument {
   title: string;
   reference?: string;
   validity?: string;
+  validUntil?: string;                       // ← NEW (ISO date)
+  issuedOn?: string;                         // ← NEW (ISO date)
   status: CompanyDocStatus;
-  action?: "View" | "Replace";
+  action?: "View" | "Replace" | "Renew";     // ← "Renew" added
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
@@ -580,6 +618,28 @@ export const securityApi = {
       method: "DELETE",
       headers: authHeaders(),
     }).then(handle<ApiResponse<null>>),
+
+  /* ---------- NEW: Notify Finance ---------- */
+  notify: (
+    id: string,
+    payload: { emails: string[]; note?: string },
+  ) =>
+    fetch(`${TENDER_BASE}/security/${id}/notify`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    })
+      .then(
+        handle<
+          ApiResponse<{
+            messageId: string;
+            recipients: string[];
+            accepted: string[];
+            rejected: string[];
+          }>
+        >,
+      )
+      .then((r) => r.data),
 };
 
 /* ============================================================
@@ -603,7 +663,7 @@ export const companyDocApi = {
       .then(handle<ApiResponse<Record<CompanyDocCategory, number>>>)
       .then((r) => r.data),
 
-  create: (payload: Partial<CompanyDocument>) =>
+  create: (payload: Partial<CompanyDocument> & { validityDate?: string }) =>
     fetch(`${TENDER_BASE}/docs`, {
       method: "POST",
       headers: authHeaders(),
@@ -657,4 +717,15 @@ export const companyDocApi = {
     }
     return json.data;
   },
+  renewDoc: (id: string, payload: {
+    validityDate: string;      // ISO string, required
+    issuedOn?: string;         // ISO string, optional
+  }) =>
+    fetch(`${TENDER_BASE}/docs/${id}/renew`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(payload),
+    })
+      .then(handle<ApiResponse<CompanyDocument>>)
+      .then((r) => r.data),
 };

@@ -238,7 +238,6 @@ export default function RegisterPage() {
 
       if (response.data.success) {
         const fetchedPlans = response.data.data || [];
-        console.log("📋 Fetched plans:", fetchedPlans);
         setPlans(fetchedPlans);
 
         // Only auto-select a plan if we haven't already done so
@@ -263,7 +262,6 @@ export default function RegisterPage() {
         setFetchError("Failed to load pricing plans");
       }
     } catch (error: any) {
-      console.error("Error fetching plans:", error);
       setFetchError(error.response?.data?.message || "Failed to load pricing plans");
       toast.error("Failed to load pricing plans");
     } finally {
@@ -388,8 +386,6 @@ export default function RegisterPage() {
         teamName: userType === "team" ? formData.companyName?.trim() || "Team" : undefined,
       };
 
-      console.log("📝 Registration payload:", payload);
-      console.log("🔑 Email being sent:", payload.email);
 
       // Check if email is valid
       if (!payload.email || !payload.email.includes('@')) {
@@ -412,7 +408,6 @@ export default function RegisterPage() {
             router.push("/dashboard");
           }, 1500);
         } catch (loginError) {
-          console.warn("Auto-login failed:", loginError);
           setTimeout(() => {
             router.push("/login?registered=true");
           }, 2000);
@@ -420,20 +415,6 @@ export default function RegisterPage() {
       }
       // app/(auth)/register/page.tsx - Add this in handleSubmit catch block
     } catch (error: any) {
-      console.error("❌ Registration error:", error);
-
-      // 🔍 Log the FULL error response
-      console.log("🔍 Full error details:", {
-        response: error.response,
-        data: error.response?.data,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          data: error.config?.data ? JSON.parse(error.config.data) : null,
-        }
-      });
 
       // Get the actual error message from the server
       let errorMessage = "Registration failed. Please try again.";

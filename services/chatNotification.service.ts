@@ -6,7 +6,6 @@ class ChatNotificationService {
      */
     static async requestPermission(): Promise<boolean> {
         if (!('Notification' in window)) {
-            console.log('This browser does not support desktop notifications');
             return false;
         }
 
@@ -34,12 +33,10 @@ class ChatNotificationService {
         messageId?: string
     ): Notification | null {
         if (!('Notification' in window)) {
-            console.log('Notifications not supported');
             return null;
         }
 
         if (Notification.permission !== 'granted') {
-            console.log('Notification permission not granted');
             return null;
         }
 
@@ -80,7 +77,6 @@ class ChatNotificationService {
 
             return notification;
         } catch (error) {
-            console.error('Error sending notification:', error);
             return null;
         }
     }

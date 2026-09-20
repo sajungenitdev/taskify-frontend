@@ -247,7 +247,6 @@ export default function KPIDashboardPage() {
       });
 
     } catch (error: any) {
-      console.error("Error fetching data:", error);
       toast.error(error.response?.data?.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
@@ -372,7 +371,6 @@ export default function KPIDashboardPage() {
       toast.success("PDF exported successfully!");
 
     } catch (error) {
-      console.error("Error exporting PDF:", error);
       toast.error("Failed to export PDF");
     }
   };

@@ -158,7 +158,6 @@ export default function HierarchyPage() {
         setDeptAId(processedDepts[0]._id);
       }
     } catch (error) {
-      console.error("Error fetching department hierarchy:", error);
       toast.error("Failed to load department tree analysis");
     } finally {
       setLoading(false);

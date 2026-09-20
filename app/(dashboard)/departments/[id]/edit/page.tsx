@@ -164,10 +164,8 @@ export default function EditDepartmentPage() {
           setUsers(usersRes.data.data || []);
         }
       } catch (userError) {
-        console.error("Error fetching users:", userError);
       }
     } catch (err: any) {
-      console.error("Error fetching data:", err);
       setError(err.message || "Failed to load department data");
       toast.error(err.message || "Failed to load department data");
     } finally {
@@ -213,7 +211,6 @@ export default function EditDepartmentPage() {
         throw new Error(response.data.message || "Failed to update department");
       }
     } catch (err: any) {
-      console.error("Error updating department:", err);
       toast.error(
         err.response?.data?.message ||
           err.message ||

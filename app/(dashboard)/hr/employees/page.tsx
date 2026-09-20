@@ -161,7 +161,6 @@ export default function EmployeesPage() {
         toast.error("Using sample employee data");
       }
     } catch (error: any) {
-      console.error("Error fetching employees:", error);
 
       // Check if it's a 404 or connection error
       if (error.response?.status === 404) {
@@ -204,7 +203,6 @@ export default function EmployeesPage() {
         setDepartments(getFallbackDepartments());
       }
     } catch (error: any) {
-      console.error("Error fetching departments:", error);
       setDepartments(getFallbackDepartments());
     }
   };
@@ -319,7 +317,6 @@ export default function EmployeesPage() {
         fetchEmployees();
       }
     } catch (error: any) {
-      console.error("Error creating employee:", error);
       toast.error(error.response?.data?.message || "Failed to create employee");
     }
   };
@@ -341,7 +338,6 @@ export default function EmployeesPage() {
         fetchEmployees();
       }
     } catch (error: any) {
-      console.error("Error updating employee:", error);
       toast.error(error.response?.data?.message || "Failed to update employee");
     }
   };
@@ -357,7 +353,6 @@ export default function EmployeesPage() {
         fetchEmployees();
       }
     } catch (error: any) {
-      console.error("Error deleting employee:", error);
       toast.error(error.response?.data?.message || "Failed to delete employee");
     }
   };

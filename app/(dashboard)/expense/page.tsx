@@ -261,11 +261,6 @@ export default function ExpensesPage() {
             }
         } catch (error) {
             const err = error as AxiosError<{ message?: string }>;
-            console.error("Expenses fetch error:", {
-                status: err.response?.status,
-                url: err.config?.url,
-                data: err.response?.data,
-            });
             toast.error(err.response?.data?.message || "Failed to load expenses");
         } finally {
             setLoadingExpenses(false);

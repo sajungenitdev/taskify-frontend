@@ -405,14 +405,6 @@ export function calculateKPIFromTasks(
   ).length;
   const rejectedTasks = tasks.filter((t) => t.status === "rejected").length;
 
-  console.log(`=== KPI Calculation for ${userData.fullName} ===`);
-  console.log(`Month: ${selectedMonth} ${selectedYear}`);
-  console.log(`Total tasks in month: ${totalTasks}`);
-  console.log(`Completed: ${completedTasks}`);
-  console.log(`In Progress: ${inProgressTasks}`);
-  console.log(`Submitted: ${submittedTasks}`);
-  console.log(`Overdue: ${overdueTasks}`);
-  console.log(`Rejected: ${rejectedTasks}`);
 
   if (totalTasks === 0) {
     return {
@@ -468,14 +460,6 @@ export function calculateKPIFromTasks(
   // 6. ATTENDANCE (10%)
   const attendance = Math.min(100, Math.round(50 + engagementRatio * 50));
 
-  console.log(`Component scores:`, {
-    taskCompletion,
-    qualityScore,
-    efficiency,
-    collaboration,
-    innovation,
-    attendance
-  });
 
   // TOTAL SCORE
   const rawTotalScore = Math.round(
@@ -492,7 +476,6 @@ export function calculateKPIFromTasks(
     totalScore = 20;
   }
 
-  console.log(`Raw total: ${rawTotalScore}, Final total: ${totalScore}`);
 
   const performanceLevel = totalScore >= 85 ? "excellent"
     : totalScore >= 70 ? "good"

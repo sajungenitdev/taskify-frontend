@@ -22,7 +22,6 @@ export function useAI() {
       }
       return null;
     } catch (error) {
-      console.error('AI description error:', error);
       toast.error('Failed to generate description');
       return null;
     } finally {
@@ -40,7 +39,6 @@ export function useAI() {
       }
       return null;
     } catch (error) {
-      console.error('AI priority error:', error);
       toast.error('Failed to suggest priority');
       return null;
     } finally {
@@ -58,7 +56,6 @@ export function useAI() {
       }
       return null;
     } catch (error) {
-      console.error('AI duration error:', error);
       toast.error('Failed to estimate duration');
       return null;
     } finally {
@@ -76,7 +73,6 @@ export function useAI() {
       }
       return [];
     } catch (error) {
-      console.error('AI subtasks error:', error);
       toast.error('Failed to generate subtasks');
       return [];
     } finally {
@@ -94,7 +90,6 @@ export function useAI() {
       }
       return null;
     } catch (error) {
-      console.error('AI recommendations error:', error);
       return null;
     } finally {
       setLoading(false);
@@ -111,7 +106,6 @@ export function useAI() {
       }
       return "I'm having trouble processing your request.";
     } catch (error) {
-      console.error('AI chat error:', error);
       return "Sorry, I'm having trouble connecting. Please try again.";
     } finally {
       setLoading(false);

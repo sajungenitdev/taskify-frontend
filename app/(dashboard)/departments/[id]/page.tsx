@@ -175,12 +175,10 @@ export default function DepartmentDetailPage() {
           }
         }
       } catch (usersError) {
-        console.error("Error fetching users:", usersError);
         // Don't fail the whole page if users fetch fails
         toast.error("Could not load department members");
       }
     } catch (err: any) {
-      console.error("Error fetching department data:", err);
       setError(err.message || "Failed to fetch department data");
       toast.error(err.message || "Failed to load department");
     } finally {

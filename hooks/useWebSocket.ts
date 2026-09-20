@@ -57,7 +57,6 @@ export function useWebSocket() {
       const ws = new WebSocket(`${wsUrl}?token=${token}`);
 
       ws.onopen = () => {
-        // console.log("WebSocket connected");
         setIsConnected(true);
         reconnectAttempts.current = 0;
       };
@@ -82,7 +81,6 @@ export function useWebSocket() {
       };
 
       ws.onclose = () => {
-        // console.log("WebSocket disconnected");
         setIsConnected(false);
 
         // Attempt to reconnect

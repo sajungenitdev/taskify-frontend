@@ -68,7 +68,8 @@ export interface CompanyDocUI {
     reference?: string;
     validity?: string;
     status: CompanyDocument["status"];
-    action?: "View" | "Replace";
+    /** Derived from status: expired/expiring → "Renew", else whatever the API says */
+    action?: "View" | "Replace" | "Renew";
     fileUrl?: string;
     fileName?: string;
     fileSize?: number;
@@ -76,9 +77,21 @@ export interface CompanyDocUI {
     docType?: string;
     subtitle?: string;
     chips?: string[];
+    /** ISO date string for the raw expiry date (used by the renew editor) */
+    validUntil?: string;
+    issuedOn?: string;
 }
 
 export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
+    /* Derive the action based on status. If expired or expiring soon,
+     * force "Renew" — regardless of what's stored in the DB. */
+    const derivedAction: "View" | "Replace" | "Renew" =
+        d.status === "Expired" || d.status === "Expiring Soon"
+            ? "Renew"
+            : d.action === "Replace"
+                ? "Replace"
+                : "View";
+
     return {
         id: d._id,
         category: d.category,
@@ -86,7 +99,7 @@ export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
         reference: d.reference || undefined,
         validity: d.validity || undefined,
         status: d.status,
-        action: d.action || "View",
+        action: derivedAction,
         fileUrl: d.fileUrl || undefined,
         fileName: d.fileName || undefined,
         fileSize: d.fileSize ?? 0,
@@ -94,5 +107,7 @@ export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
         docType: d.docType || undefined,
         subtitle: d.subtitle || undefined,
         chips: Array.isArray(d.chips) ? d.chips : [],
+        validUntil: d.validUntil || undefined,
+        issuedOn: d.issuedOn || undefined,
     };
 }

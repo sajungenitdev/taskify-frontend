@@ -213,8 +213,6 @@ export default function EmployeeKPIDetailPage() {
 
             const monthIndex = MONTHS.indexOf(selectedMonth) + 1;
 
-            console.log(`=== Fetching detail data for ${selectedMonth} ${selectedYear} ===`);
-
             // 1. Fetch user details
             let userData: UserData | null = null;
 
@@ -237,7 +235,6 @@ export default function EmployeeKPIDetailPage() {
                         userData = userResponse.data.data;
                     }
                 } catch (err: any) {
-                    console.error("Error fetching user:", err);
                     if (err.response?.status === 403) {
                         try {
                             const meResponse = await api.get('/auth/me');
@@ -265,7 +262,6 @@ export default function EmployeeKPIDetailPage() {
                     }
                 });
                 allTasks = tasksResponse.data?.data || [];
-                console.log(`Fetched ${allTasks.length} total tasks for user`);
             } catch (err) {
                 console.error("Error fetching tasks:", err);
             }
@@ -284,8 +280,6 @@ export default function EmployeeKPIDetailPage() {
                     return taskDate >= startDate && taskDate <= endDate;
                 });
 
-                console.log(`Filtered ${monthTasks.length} tasks for ${selectedMonth} ${selectedYear}`);
-                console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
                 console.log(`Task status breakdown:`, {
                     completed: monthTasks.filter(t => t.status === "completed").length,
                     inProgress: monthTasks.filter(t => t.status === "in_progress").length,

@@ -44,7 +44,6 @@ export const useTaskActions = (fetchTasks: () => Promise<void>) => {
                 return true;
             }
         } catch (error: any) {
-            console.error("Error marking task complete:", error);
             toast.error(error.response?.data?.message || "Failed to mark task as complete");
         } finally {
             if (isMounted.current) setIsCompleting(null);
@@ -73,7 +72,6 @@ export const useTaskActions = (fetchTasks: () => Promise<void>) => {
                 return true;
             }
         } catch (error: any) {
-            console.error("Error submitting task:", error);
             toast.error(error.response?.data?.message || "Failed to submit task");
         } finally {
             setIsSubmitting(null);
@@ -97,7 +95,6 @@ export const useTaskActions = (fetchTasks: () => Promise<void>) => {
                 return true;
             }
         } catch (error: any) {
-            console.error("Error sending for rework:", error);
             toast.error(error.response?.data?.message || "Failed to send for rework");
         } finally {
             setIsReworking(null);

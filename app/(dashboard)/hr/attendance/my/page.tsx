@@ -219,7 +219,6 @@ export default function MyAttendancePage() {
         toast.error(response.data.message || "Failed to load attendance data");
       }
     } catch (error: any) {
-      console.error("Error fetching attendance:", error);
       toast.error(
         error.response?.data?.message || "Failed to load attendance data",
       );

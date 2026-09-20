@@ -124,7 +124,6 @@ function loadPersistedState(): TimerState {
       isRunning = true;
 
       if (elapsed > MAX_STALE_SECONDS) {
-        console.warn("⚠️ Stale running timer discarded");
         return { ...EMPTY_STATE, userId };
       }
     }
@@ -260,8 +259,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         ...prev,
         lastSyncedMinutes: totalMinutes,
       }));
-
-      console.log(`⏱️ Synced +${delta}m → task ${taskId} = ${updatedMinutes}m`);
     } catch (err) {
       console.error("❌ Sync failed:", err);
     }
@@ -322,7 +319,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     (taskId: string, initialSeconds: number = 0) => {
       const userId = getCurrentUserId();
       if (!userId) {
-        console.error("❌ No user; cannot start timer");
         return;
       }
 
@@ -349,8 +345,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       startTickLoop(taskId);
       startSyncLoop(taskId);
-
-      console.log("▶️ Timer started for task", taskId);
     },
     [clearSync, clearTick, startSyncLoop, startTickLoop]
   );
@@ -381,7 +375,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     clearTick();
     clearSync();
 
-    console.log("⏸️ Paused at", frozen, "s");
   }, [clearSync, clearTick]);
 
   // ============================================================
@@ -391,11 +384,9 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     const state = timerStateRef.current;
 
     if (!state.taskId) {
-      console.warn("No active task to resume");
       return;
     }
     if (state.isRunning) {
-      console.warn("Already running");
       return;
     }
     if (isStoppedRef.current) {
@@ -418,7 +409,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     startTickLoop(state.taskId);
     startSyncLoop(state.taskId);
 
-    console.log("▶️ Resumed from", state.pausedElapsed, "s");
   }, [startSyncLoop, startTickLoop]);
 
   // ============================================================
@@ -448,8 +438,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       const totalElapsedSeconds = state.pausedElapsed + runningFor;
       const displayTime = formatTimeShort(totalElapsedSeconds);
 
-      console.log(`⏹️ Stopping: ${totalElapsedSeconds}s (${displayTime})`);
-
       try {
         const userId = getCurrentUserId();
         if (userId) localStorage.removeItem(getTimerKey(userId));
@@ -469,7 +457,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
               description: `Session: ${displayTime}`,
               duration: totalElapsedSeconds, // 👈 SECONDS
             });
-            console.log("✅ TimerEntry created:", totalElapsedSeconds, "s");
           } catch (entryErr: any) {
             console.warn(
               "⚠️ TimerEntry POST failed:",
@@ -485,10 +472,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
               timeRes.data?.data?.combinedSeconds ??
               timeRes.data?.data?.totalSeconds ??
               null;
-            console.log(
-              "📊 Server total (seconds):",
-              totalSecondsFromServer
-            );
           } catch (timeErr: any) {
             console.warn(
               "⚠️ /tasks/:id/time GET failed:",
@@ -513,11 +496,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
           });
 
           savedMinutes = minutesToSave;
-          console.log(
-            `✅ Task ${taskId} actualMinutes = ${minutesToSave} (from ${totalSecondsFromServer}s)`
-          );
         } catch (err) {
-          console.error("❌ Failed to save timer:", err);
           savedMinutes =
             Math.round((totalElapsedSeconds / 60) * 100) / 100;
         }
@@ -568,7 +547,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     setTimerState(resetState);
     isStoppedRef.current = false;
     isStoppingRef.current = false;
-    console.log("🔄 Timer reset");
   }, [clearSync, clearTick]);
 
   // ============================================================
@@ -612,7 +590,6 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
     const state = timerStateRef.current;
     if (state.taskId && state.isRunning && state.startedAt) {
-      console.log("🔁 Rehydrated running timer for task", state.taskId);
       const runningFor = Math.max(
         0,
         Math.floor((Date.now() - state.startedAt) / 1000)

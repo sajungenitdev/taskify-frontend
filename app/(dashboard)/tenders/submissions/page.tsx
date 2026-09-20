@@ -18,12 +18,15 @@ import {
 } from "@/lib/api/tender.mapper";
 import { tenderApi } from "@/lib/api/tender.api";
 import { confirmToast } from "@/lib/confirmToast";
+import { BidderList } from "@/components/tender/BidderList";
+import { AddBidderModal } from "@/components/tender/AddBidderModal";
 
 export default function TenderSubmissionPage() {
     const router = useRouter();
     const { rows, loading: rowsLoading, refetch: refetchRows } = useSubmissions();
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [bidderModalOpen, setBidderModalOpen] = useState(false);
 
     /* Auto-select the first row once data arrives */
     useEffect(() => {
@@ -60,6 +63,38 @@ export default function TenderSubmissionPage() {
                         { id: loadingId },
                     );
                 }
+            },
+        });
+    };
+
+    /* ---------- Bidders ---------- */
+    const handleSaveBidders = async (bidders: BidderRow[]) => {
+        if (!detail) return;
+        const loadingId = toast.loading("Saving bidders...");
+        try {
+            await tenderApi.update(detail.id, {
+                otherParticipants: bidders,
+            });
+            toast.success("Bidders saved", { id: loadingId });
+            await refetchDetail();
+        } catch (e) {
+            toast.error(
+                (e as Error).message || "Failed to save bidders",
+                { id: loadingId },
+            );
+        }
+    };
+
+    const handleDeleteAllBidders = () => {
+        if (!detail) return;
+        confirmToast({
+            title: `Clear all bidders?`,
+            description:
+                "This will remove every recorded bidder for this tender.",
+            confirmLabel: "Clear",
+            variant: "danger",
+            onConfirm: async () => {
+                await handleSaveBidders([]);
             },
         });
     };
@@ -143,6 +178,14 @@ export default function TenderSubmissionPage() {
                             onTaskMutated={() => refetchDetail()}
                         />
 
+                        {/* ---------- Other Participants (Bidders) ---------- */}
+                        <BidderList
+                            bidders={detail.otherParticipants ?? []}
+                            onAdd={() => setBidderModalOpen(true)}
+                            onEdit={() => setBidderModalOpen(true)}
+                            onDelete={handleDeleteAllBidders}
+                        />
+
                         {/* ---------- Submit Button ---------- */}
                         <div className="flex justify-end">
                             <button
@@ -167,6 +210,16 @@ export default function TenderSubmissionPage() {
                     </>
                 )}
             </div>
+
+            {/* ---------- Add / Edit Bidders Modal ---------- */}
+            {detail && (
+                <AddBidderModal
+                    open={bidderModalOpen}
+                    onOpenChange={setBidderModalOpen}
+                    initial={detail.otherParticipants ?? []}
+                    onSave={handleSaveBidders}
+                />
+            )}
         </main>
     );
 }

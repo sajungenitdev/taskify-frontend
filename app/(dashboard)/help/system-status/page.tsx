@@ -388,7 +388,6 @@ const fetchSystemStatus = useCallback(async () => {
         
         setSystemStatus(MOCK_STATUS);
     } catch (error: any) {
-        console.error("Error fetching system status:", error);
         setSystemStatus(MOCK_STATUS);
     } finally {
         setLoading(false);

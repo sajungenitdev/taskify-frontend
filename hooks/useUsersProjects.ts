@@ -80,7 +80,6 @@ export const useUsersProjects = (user: any, tasks: any[]) => {
 
             if (isMounted.current) setDepartmentUsers([]);
         } catch (error) {
-            console.error("❌ Error fetching department users:", error);
             if (isMounted.current) setDepartmentUsers([]);
         }
     }, [userDepartmentId, tasks]);

@@ -100,7 +100,6 @@ export default function BudgetPage() {
 
       setDepartments(processedDepts);
     } catch (error) {
-      console.error("Error syncing budget dataset:", error);
       toast.error("Failed to load department budgets");
     } finally {
       setLoading(false);

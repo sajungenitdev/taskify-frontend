@@ -291,7 +291,6 @@ export default function SupportTicketsPage() {
                 }));
             }
         } catch (error: any) {
-            console.error("Error fetching tickets:", error);
             toast.error(error.message || "Failed to load support tickets");
         } finally {
             setLoading(false);
@@ -385,7 +384,6 @@ export default function SupportTicketsPage() {
                 fetchTickets();
             }
         } catch (error: any) {
-            console.error("Error creating ticket:", error);
             toast.error(error.message || "Failed to create ticket");
         } finally {
             setIsSubmitting(false);
@@ -421,7 +419,6 @@ export default function SupportTicketsPage() {
                 fetchTickets();
             }
         } catch (error: any) {
-            console.error("Error sending reply:", error);
             toast.error(error.message || "Failed to send reply");
         } finally {
             setIsSubmitting(false);

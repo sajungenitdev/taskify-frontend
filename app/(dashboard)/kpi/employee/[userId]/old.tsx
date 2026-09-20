@@ -463,13 +463,10 @@ export default function EmployeeKPIDetailPage() {
                 if (userResponse.data.success) {
                     userData = userResponse.data.data;
                     setUserDetails(userData);
-                    console.log('✅ User data fetched successfully');
                 }
             } catch (error: any) {
-                console.warn('⚠️ Could not fetch user details:', error.response?.status);
 
                 if (error.response?.status === 403) {
-                    console.log('🔍 Access denied, trying /me endpoint...');
                     try {
                         const meResponse = await api.get('/auth/me');
                         if (meResponse.data.success) {
@@ -530,7 +527,6 @@ export default function EmployeeKPIDetailPage() {
                     allUsers = usersResponse.data.data || [];
                 }
             } catch (error) {
-                console.warn('⚠️ Could not fetch all users, using minimal data');
                 if (userData) allUsers = [userData];
             }
 
@@ -597,7 +593,6 @@ export default function EmployeeKPIDetailPage() {
                 };
             } else if (userData) {
                 employeeData = calculateKPIForUser(userData, userTasks, allUsers);
-                console.log('📊 Calculated KPI from tasks:', employeeData.totalScore);
             }
 
             if (employeeData) {
@@ -652,7 +647,6 @@ export default function EmployeeKPIDetailPage() {
                     setTrendData(trendResponse.data.data || []);
                 }
             } catch (error) {
-                console.error('❌ Error fetching trend data:', error);
                 setTrendData(generateFallbackTrendData());
             } finally {
                 setTrendLoading(false);
@@ -712,7 +706,6 @@ export default function EmployeeKPIDetailPage() {
                 setTaskLoading(false);
             }
         } catch (error: any) {
-            console.error('❌ Error loading data:', error);
             setError(error?.response?.data?.message || 'Failed to load data');
             setDataLoaded(false);
             toast.error('Failed to load KPI data');
@@ -827,7 +820,6 @@ export default function EmployeeKPIDetailPage() {
             doc.save(`KPI_Report_${employee.userId.fullName}_${selectedMonth}_${selectedYear}.pdf`);
             toast.success("PDF exported successfully", { id: "pdf-export" });
         } catch (error) {
-            console.error("Error exporting PDF:", error);
             toast.error("Failed to export PDF", { id: "pdf-export" });
         } finally {
             setExporting(false);

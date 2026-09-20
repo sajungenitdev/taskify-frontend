@@ -403,7 +403,6 @@ export default function MyLeavesPage() {
         setLeaveBalances(calculateBalances(requests));
       }
     } catch (error: any) {
-      console.error("Error fetching leave data:", error);
       toast.error(error.response?.data?.message || "Failed to load leave data");
       setLeaveRequests([]);
       setLeaveBalances(calculateBalances([]));
@@ -421,11 +420,6 @@ export default function MyLeavesPage() {
         setUsers(response.data.data || []);
       }
     } catch (error: any) {
-      // Silent fail - users are not critical for leave functionality
-      console.debug(
-        "Could not fetch users list:",
-        error?.response?.status || error?.message,
-      );
       setUsers([]);
     } finally {
       setLoadingUsers(false);
@@ -613,7 +607,6 @@ export default function MyLeavesPage() {
         fetchLeaveData();
       }
     } catch (error: any) {
-      console.error("Error creating leave:", error);
       toast.error(
         error.response?.data?.message || "Failed to submit leave request",
       );
@@ -634,7 +627,6 @@ export default function MyLeavesPage() {
         fetchLeaveData();
       }
     } catch (error: any) {
-      console.error("Error deleting leave:", error);
       toast.error(error.response?.data?.message || "Failed to delete leave");
     }
   };

@@ -293,7 +293,6 @@ export default function AttendancePage() {
         toast.error(response.data.message || "Failed to load attendance data");
       }
     } catch (error: any) {
-      console.error("Error fetching attendance:", error);
 
       // Handle 403 Forbidden
       if (error.response?.status === 403) {
@@ -398,7 +397,6 @@ export default function AttendancePage() {
         await fetchAttendanceData();
       }
     } catch (error: any) {
-      console.error("Error starting timer:", error);
       toast.error(error.response?.data?.message || "Failed to start timer");
     }
   };
@@ -411,7 +409,6 @@ export default function AttendancePage() {
         await fetchTimerStatus();
       }
     } catch (error: any) {
-      console.error("Error pausing timer:", error);
       toast.error(error.response?.data?.message || "Failed to pause timer");
     }
   };
@@ -424,7 +421,6 @@ export default function AttendancePage() {
         await fetchTimerStatus();
       }
     } catch (error: any) {
-      console.error("Error resuming timer:", error);
       toast.error(error.response?.data?.message || "Failed to resume timer");
     }
   };
@@ -442,7 +438,6 @@ export default function AttendancePage() {
         setTimerElapsed(0);
       }
     } catch (error: any) {
-      console.error("Error checking out:", error);
       toast.error(error.response?.data?.message || "Failed to check out");
     }
   };

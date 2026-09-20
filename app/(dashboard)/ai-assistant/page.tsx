@@ -141,7 +141,6 @@ export default function AIAssistantPage() {
         }
       }
     } catch (error) {
-      console.error("Error fetching chats:", error);
     }
   }, []);
 
@@ -294,7 +293,6 @@ export default function AIAssistantPage() {
 
       await fetchChats();
     } catch (error: any) {
-      console.error("AI Error:", error);
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last.role === "assistant") {

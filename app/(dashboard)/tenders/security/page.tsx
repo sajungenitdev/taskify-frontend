@@ -34,7 +34,13 @@ const TYPES: SecurityType[] = [
 ];
 
 export default function TenderSecurityPage() {
-  const [notifyEntity, setNotifyEntity] = useState<string | null>(null);
+  /* ---------- Notify modal state ---------- */
+  const [notifyRow, setNotifyRow] = useState<{
+    id: string;
+    entity: string;
+  } | null>(null);
+  const [notifyingId, setNotifyingId] = useState<string | null>(null);
+
   const [filters, setFilters] = useState<FilterState>({
     entity: "all",
     type: "all",
@@ -48,7 +54,6 @@ export default function TenderSecurityPage() {
   /* ---------- Per-action loading flags ---------- */
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [notifyingId, setNotifyingId] = useState<string | null>(null);
 
   const { rows, loading, refetch } = useSecurity({
     entity: filters.entity === "all" ? undefined : filters.entity,
@@ -94,7 +99,6 @@ export default function TenderSecurityPage() {
       toast.error("Description is required");
       return;
     }
-    /* Block if this row is already saving */
     if (savingId === r.id) return;
 
     setSavingId(r.id);
@@ -140,14 +144,12 @@ export default function TenderSecurityPage() {
   const saveEdit = async (id: string) => {
     if (savingId === id) return;
 
-    /* Nothing changed → exit */
     if (!editPatch || Object.keys(editPatch).length === 0) {
       setEditingId(null);
       setEditPatch({});
       return;
     }
 
-    /* Description guard */
     const merged = { ...editPatch };
     if (
       typeof merged.clientDescription === "string" &&
@@ -157,7 +159,6 @@ export default function TenderSecurityPage() {
       return;
     }
 
-    /* Convert date */
     const payload: Record<string, unknown> = { ...merged };
     if (typeof merged.dueDate === "string") {
       payload.dueDate = merged.dueDate
@@ -190,7 +191,6 @@ export default function TenderSecurityPage() {
   const deleteRow = async (id: string) => {
     if (deletingId === id) return;
 
-    /* Draft cancel is synchronous */
     if (draft && draft.id === id) {
       if (savingId === id) return;
       setDraft(null);
@@ -215,11 +215,11 @@ export default function TenderSecurityPage() {
     const row = uiRows.find((r) => r.id === id);
     if (!row) return;
     setNotifyingId(id);
-    setNotifyEntity(row.entity);
+    setNotifyRow({ id: row.id, entity: row.entity });
   };
 
   const closeNotify = () => {
-    setNotifyEntity(null);
+    setNotifyRow(null);
     setNotifyingId(null);
   };
 
@@ -285,22 +285,31 @@ export default function TenderSecurityPage() {
       </div>
 
       <SecurityNotifyModal
-        open={!!notifyEntity}
+        open={!!notifyRow}
         onOpenChange={(o) => {
           if (!o) closeNotify();
         }}
-        entity={notifyEntity ?? ""}
-        onSend={async (emails) => {
+        entity={notifyRow?.entity ?? ""}
+        onSend={async (emails, note) => {
+          if (!notifyRow) return;
+
+          const loadingId = toast.loading("Sending notification...");
           try {
-            // Replace with your real API call
-            console.log("Send to:", emails);
+            const result = await securityApi.notify(notifyRow.id, {
+              emails,
+              note,
+            });
             toast.success(
-              `Notification sent to ${emails.length} recipient(s)`,
+              `Sent to ${result.accepted?.length ?? emails.length} recipient(s)`,
+              { id: loadingId },
             );
             closeNotify();
           } catch (e) {
-            toast.error((e as Error).message || "Failed to send");
-            throw e;
+            toast.error(
+              (e as Error).message || "Failed to send notification",
+              { id: loadingId },
+            );
+            throw e; // keep modal open on error
           }
         }}
       />

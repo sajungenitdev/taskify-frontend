@@ -64,7 +64,6 @@ export const useTaskData = (filter: string, departmentId: string | null, isDepar
                                 isStarred: false,
                             };
                         } catch (error) {
-                            console.error(`Error fetching counts for task ${task._id}:`, error);
                             return {
                                 ...task,
                                 comments: 0,
@@ -80,7 +79,6 @@ export const useTaskData = (filter: string, departmentId: string | null, isDepar
                 }
             }
         } catch (error: any) {
-            console.error("Error fetching tasks:", error);
             if (isMounted.current) {
                 toast.error(error.response?.data?.message || "Failed to fetch tasks");
             }

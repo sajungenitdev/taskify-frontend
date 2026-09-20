@@ -140,7 +140,6 @@ export default function AllDepartmentsPage() {
         if (usersResponse.data.success) {
           users = usersResponse.data.data || [];
           setAllUsers(users);
-          console.log("Fetched users:", users.length); // Debug log
         } else {
           console.error("Failed to fetch users:", usersResponse.data);
         }
@@ -168,8 +167,6 @@ export default function AllDepartmentsPage() {
             return userDeptId === deptId;
           });
 
-          // Log for debugging
-          console.log(`Department ${dept.name} (${deptId}) has ${members.length} members`);
 
           return {
             ...dept,
@@ -179,12 +176,9 @@ export default function AllDepartmentsPage() {
             assets: dept.assets || { total: 0, value: 0 },
           };
         });
-
-        console.log("Departments with members:", departmentsWithMembers.length);
         setDepartments(departmentsWithMembers);
       }
     } catch (error) {
-      console.error("Error fetching data:", error);
       toast.error("Failed to fetch data");
       // Set empty arrays to prevent undefined errors
       setDepartments([]);

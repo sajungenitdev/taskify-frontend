@@ -207,7 +207,6 @@ export default function DashboardPage() {
         ],
       });
     } catch (error) {
-      console.error("Dashboard fetch error:", error);
     } finally {
       setLoading(false);
     }

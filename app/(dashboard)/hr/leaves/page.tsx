@@ -308,7 +308,6 @@ export default function LeaveManagementPage() {
         badgeService.setBadge("pendingLeaves", pendingCount);
       }
     } catch (error: any) {
-      console.error("Error fetching leave data:", error);
       if (!silent) {
         toast.error(
           error.response?.data?.message || "Failed to load leave data",
@@ -330,10 +329,6 @@ export default function LeaveManagementPage() {
         setUsers([]);
       }
     } catch (error: any) {
-      console.debug(
-        "Could not fetch substitutes:",
-        error?.response?.status || error?.message,
-      );
       setUsers([]);
     }
   };
@@ -363,7 +358,6 @@ export default function LeaveManagementPage() {
         badgeService.decrementBadge("pendingLeaves");
       }
     } catch (error: any) {
-      console.error("Error updating leave status:", error);
       toast.error(
         error.response?.data?.message || "Failed to update leave status",
       );
@@ -389,7 +383,6 @@ export default function LeaveManagementPage() {
       await fetchLeaveData();
       badgeService.decrementBadge("pendingLeaves", selectedLeaves.length);
     } catch (error: any) {
-      console.error("Error bulk updating leaves:", error);
       toast.error(error.response?.data?.message || "Failed to update leaves");
     }
   };
@@ -410,7 +403,6 @@ export default function LeaveManagementPage() {
         }
       }
     } catch (error: any) {
-      console.error("Error deleting leave:", error);
       toast.error(error.response?.data?.message || "Failed to delete leave");
     }
   };

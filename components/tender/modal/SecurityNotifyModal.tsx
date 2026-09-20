@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2 } from "lucide-react";
 
 /* ============================================================
  * Entity → pre-filled finance emails
@@ -18,7 +18,8 @@ interface Props {
     open: boolean;
     onOpenChange: (o: boolean) => void;
     entity: string;
-    onSend?: (emails: string[]) => Promise<void> | void;
+    /** Called with the emails + optional note — must return a promise */
+    onSend?: (emails: string[], note?: string) => Promise<void> | void;
 }
 
 export function SecurityNotifyModal({
@@ -29,6 +30,7 @@ export function SecurityNotifyModal({
 }: Props) {
     const [emails, setEmails] = useState<string[]>([]);
     const [input, setInput] = useState("");
+    const [note, setNote] = useState("");
     const [sending, setSending] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +39,9 @@ export function SecurityNotifyModal({
         if (!open) return;
         setEmails(EMAILS_BY_ENTITY[entity] ?? []);
         setInput("");
+        setNote("");
+        setSending(false);
+
         const onKey = (e: KeyboardEvent) =>
             e.key === "Escape" && onOpenChange(false);
         window.addEventListener("keydown", onKey);
@@ -77,11 +82,13 @@ export function SecurityNotifyModal({
     };
 
     const handleSend = async () => {
-        if (emails.length === 0) return;
+        if (emails.length === 0 || sending) return;
         setSending(true);
         try {
-            await onSend?.(emails);
+            await onSend?.(emails, note.trim() || undefined);
             onOpenChange(false);
+        } catch {
+            /* Error already handled by parent — keep modal open */
         } finally {
             setSending(false);
         }
@@ -92,7 +99,7 @@ export function SecurityNotifyModal({
             {/* Backdrop */}
             <div
                 className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px]"
-                onClick={() => onOpenChange(false)}
+                onClick={() => !sending && onOpenChange(false)}
             />
 
             {/* Modal */}
@@ -101,7 +108,8 @@ export function SecurityNotifyModal({
                 <button
                     type="button"
                     onClick={() => onOpenChange(false)}
-                    className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                    disabled={sending}
+                    className="absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50"
                     aria-label="Close"
                 >
                     <X className="h-3.5 w-3.5" />
@@ -129,7 +137,8 @@ export function SecurityNotifyModal({
                                 <button
                                     type="button"
                                     onClick={() => removeEmail(e)}
-                                    className="flex h-4 w-4 items-center justify-center rounded-full text-[#8a6a2b]/70 transition hover:bg-[#8a6a2b]/10 hover:text-[#8a6a2b]"
+                                    disabled={sending}
+                                    className="flex h-4 w-4 items-center justify-center rounded-full text-[#8a6a2b]/70 transition hover:bg-[#8a6a2b]/10 hover:text-[#8a6a2b] disabled:opacity-50"
                                     aria-label={`Remove ${e}`}
                                 >
                                     <X className="h-3 w-3" />
@@ -147,12 +156,13 @@ export function SecurityNotifyModal({
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={onKeyDown}
                             placeholder="Add another email address..."
-                            className="h-10 flex-1 rounded-md border border-slate-200 bg-white px-3 text-[13px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+                            disabled={sending}
+                            className="h-10 flex-1 rounded-md border border-slate-200 bg-white px-3 text-[13px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         />
                         <button
                             type="button"
                             onClick={addEmail}
-                            disabled={!input.trim()}
+                            disabled={!input.trim() || sending}
                             className="inline-flex h-10 items-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-[12px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <Plus className="h-3.5 w-3.5" />
@@ -160,13 +170,29 @@ export function SecurityNotifyModal({
                         </button>
                     </div>
 
+                    {/* Optional note */}
+                    <div className="mt-4">
+                        <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Optional note to Finance
+                        </label>
+                        <textarea
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            disabled={sending}
+                            rows={3}
+                            placeholder="e.g. Please arrange the pay order by Thursday."
+                            className="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                    </div>
+
                     {/* Send */}
                     <button
                         type="button"
                         onClick={handleSend}
                         disabled={sending || emails.length === 0}
-                        className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-[#b8860b] px-5 text-[12px] font-bold text-white shadow-sm transition hover:bg-[#a17409] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#b8860b] px-5 text-[12px] font-bold text-white shadow-sm transition hover:bg-[#a17409] disabled:cursor-not-allowed disabled:opacity-60"
                     >
+                        {sending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {sending ? "Sending…" : "Send Notification"}
                     </button>
                 </div>

@@ -133,7 +133,6 @@ export default function AllDepartmentsPage() {
         setDepartments(processedDepts);
       }
     } catch (error) {
-      console.error("Error fetching departments or users data:", error);
       toast.error("Failed to sync structural datasets");
       setDepartments([]);
     } finally {

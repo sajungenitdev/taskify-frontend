@@ -17,9 +17,6 @@ export function useTaskTime(taskId: string) {
             setPersistedSeconds(Number(data.totalSeconds) || 0);
             setRunningSeconds(Number(data.runningSeconds) || 0);
 
-            console.log(
-                `⏱️ Task ${taskId} persisted=${data.totalSeconds}s running=${data.runningSeconds}s`
-            );
         } catch (err: any) {
             if (err.response?.status !== 404) {
                 console.error("Error fetching task time:", err);

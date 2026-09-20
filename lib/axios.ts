@@ -122,7 +122,6 @@ api.interceptors.request.use(
     return config;
   },
   (error: AxiosError): Promise<AxiosError> => {
-    console.error("❌ Request Interceptor Error:", error);
     return Promise.reject(error);
   },
 );
@@ -172,9 +171,7 @@ api.interceptors.response.use(
       if (isRetryableError(error) && retryCount < MAX_RETRIES && error.config) {
         retryCount++;
         const delay = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
-        console.log(
-          `🔄 [${requestId}] Retry ${retryCount}/${MAX_RETRIES} for ${error.config.url} (delay: ${delay}ms)`,
-        );
+
         await new Promise((resolve) => setTimeout(resolve, delay));
         return api.request(error.config);
       }
@@ -212,20 +209,11 @@ api.interceptors.response.use(
       });
     }
 
-    console.error(`❌ [${requestId}] API Error:`, {
-      status,
-      data: data,
-      url: error.config?.url,
-      method: error.config?.method,
-    });
-
     switch (status) {
       case 400:
-        console.error("❌ Bad Request:", data?.message || "Invalid request");
         break;
 
       case 401: {
-        console.error("❌ Unauthorized - Token expired or invalid");
 
         const originalRequest = error.config as any;
         if (
@@ -289,27 +277,21 @@ api.interceptors.response.use(
       }
 
       case 403:
-        console.error("❌ Forbidden:", data?.message);
         break;
 
       case 404:
-        console.error("❌ Not Found:", data?.message);
         break;
 
       case 409:
-        console.error("❌ Conflict:", data?.message);
         break;
 
       case 422:
-        console.error("❌ Validation Error:", data?.errors || data?.message);
         break;
 
       case 429:
-        console.error("❌ Too Many Requests - Rate limited");
         break;
 
       case 500:
-        console.error("❌ Internal Server Error:", data?.message);
         break;
 
       default:

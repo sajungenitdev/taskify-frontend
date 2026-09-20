@@ -410,7 +410,6 @@ export default function LeaveHistoryPage() {
         setDepartments(Array.from(deptSet));
       }
     } catch (error: any) {
-      console.error("Error fetching leave data:", error);
       toast.error(
         error.response?.data?.message || "Failed to load employee leave data",
       );

@@ -143,14 +143,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // SOCKET INITIALIZATION
     // ============================================================
     useEffect(() => {
-        console.log("🔄 [SOCKET] Initializing...", {
-            hasToken: !!token,
-            hasUser: !!user,
-            tokenLength: token?.length || 0
-        });
+        // console.log("🔄 [SOCKET] Initializing...", {
+        //     hasToken: !!token,
+        //     hasUser: !!user,
+        //     tokenLength: token?.length || 0
+        // });
 
         if (!token || !user) {
-            console.log("⚠️ [SOCKET] No token or user, disconnecting");
             if (socketRef.current) {
                 socketRef.current.disconnect();
                 socketRef.current = null;
@@ -162,16 +161,13 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
         // Clean up existing socket
         if (socketRef.current) {
-            console.log("🔄 [SOCKET] Cleaning up existing socket");
             socketRef.current.disconnect();
             socketRef.current = null;
         }
 
         const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "https://taskify-server-5gat.onrender.com";
 
-        console.log(`🔌 [SOCKET] Connecting to: ${SOCKET_URL}`);
-        console.log(`🔑 [SOCKET] Token exists: ${!!token}`);
-        console.log(`🔑 [SOCKET] Token length: ${token?.length || 0}`);
+        
 
         const socketInstance = io(SOCKET_URL, {
             auth: { token },
@@ -193,21 +189,14 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // ============================================================
 
         socketInstance.on("connect", () => {
-            console.log("✅ [SOCKET] Connected successfully!");
-            console.log("📡 [SOCKET] ID:", socketInstance.id);
-            console.log("📡 [SOCKET] Transport:", socketInstance.io.engine.transport.name);
             setIsConnected(true);
         });
 
         socketInstance.on("disconnect", (reason) => {
-            console.log(`❌ [SOCKET] Disconnected: ${reason}`);
             setIsConnected(false);
         });
 
         socketInstance.on("connect_error", (error) => {
-            console.error("❌ [SOCKET] Connection error:", error);
-            console.error("❌ [SOCKET] URL:", SOCKET_URL);
-            console.error("❌ [SOCKET] Message:", error.message);
 
             if (error.message?.includes("Authentication") || error.message?.includes("token")) {
                 console.error("❌ [SOCKET] Authentication failed! Check your token.");
@@ -218,7 +207,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         });
 
         socketInstance.on("reconnect", (attempt) => {
-            console.log(`🔄 [SOCKET] Reconnected after ${attempt} attempts`);
             setIsConnected(true);
         });
 
@@ -231,12 +219,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         // ============================================================
 
         const handleNewMessage = (data: any) => {
-            console.log("📩 [SOCKET] 🔔 GLOBAL: message:new received!", {
-                channelId: data.channelId,
-                content: data.message?.content,
-                sender: data.message?.senderId?.fullName,
-                callbacksCount: messageCallbacks.current.size
-            });
+            // console.log("📩 [SOCKET] 🔔 GLOBAL: message:new received!", {
+            //     channelId: data.channelId,
+            //     content: data.message?.content,
+            //     sender: data.message?.senderId?.fullName,
+            //     callbacksCount: messageCallbacks.current.size
+            // });
 
             messageCallbacks.current.forEach((callback) => {
                 try {
@@ -248,7 +236,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleTypingStart = (data: any) => {
-            console.log("⌨️ [SOCKET] 🔔 GLOBAL: typing:start received:", data);
             typingCallbacks.current.forEach((callback) => {
                 try {
                     callback({ ...data, type: "start" });
@@ -259,7 +246,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleTypingStop = (data: any) => {
-            console.log("⌨️ [SOCKET] 🔔 GLOBAL: typing:stop received:", data);
+
             typingCallbacks.current.forEach((callback) => {
                 try {
                     callback({ ...data, type: "stop" });
@@ -270,7 +257,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleReaction = (data: any) => {
-            console.log("😊 [SOCKET] 🔔 GLOBAL: message:reaction received:", data);
+
             reactionCallbacks.current.forEach((callback) => {
                 try {
                     callback(data);
@@ -281,7 +268,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleMessageDeleted = (data: any) => {
-            console.log("🗑️ [SOCKET] 🔔 GLOBAL: message:deleted received:", data);
             messageDeletedCallbacks.current.forEach((callback) => {
                 try {
                     callback(data);
@@ -292,7 +278,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleMessageUpdated = (data: any) => {
-            console.log("✏️ [SOCKET] 🔔 GLOBAL: message:updated received:", data);
             messageUpdatedCallbacks.current.forEach((callback) => {
                 try {
                     callback(data);
@@ -303,7 +288,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleUserOnline = (data: any) => {
-            console.log("🟢 [SOCKET] 🔔 GLOBAL: user:online received:", data);
             userOnlineCallbacks.current.forEach((callback) => {
                 try {
                     callback(data);
@@ -314,7 +298,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
         };
 
         const handleUserOffline = (data: any) => {
-            console.log("🔴 [SOCKET] 🔔 GLOBAL: user:offline received:", data);
             userOfflineCallbacks.current.forEach((callback) => {
                 try {
                     callback(data);
@@ -326,8 +309,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
         // ✅ NEW: Handle pinned:updated events
         const handlePinnedUpdated = (data: any) => {
-            console.log("📌 [SOCKET] 🔔 GLOBAL: pinned:updated received!", data);
-            console.log("📌 [SOCKET] Callbacks count:", pinnedUpdatedCallbacks.current.size);
 
             pinnedUpdatedCallbacks.current.forEach((callback) => {
                 try {
@@ -398,7 +379,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const joinChannel = useCallback((channelId: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`📡 [SOCKET] Joining channel: ${channelId}`);
             socketRef.current.emit("channel:join", { channelId });
         } else {
             console.warn(`⚠️ [SOCKET] Cannot join channel ${channelId} - Socket not connected`);
@@ -407,56 +387,48 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const leaveChannel = useCallback((channelId: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`📡 [SOCKET] Leaving channel: ${channelId}`);
             socketRef.current.emit("channel:leave", { channelId });
         }
     }, [isConnected]);
 
     const markAsRead = useCallback((channelId: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`📡 [SOCKET] Marking as read: ${channelId}`);
             socketRef.current.emit("channel:read", { channelId });
         }
     }, [isConnected]);
 
     const sendMessage = useCallback((channelId: string, data: any) => {
         if (socketRef.current && isConnected) {
-            console.log(`📤 [SOCKET] Sending message to channel ${channelId}:`, data);
             socketRef.current.emit("message:send", { channelId, ...data });
         }
     }, [isConnected]);
 
     const editMessage = useCallback((messageId: string, content: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`✏️ [SOCKET] Editing message: ${messageId}`);
             socketRef.current.emit("message:edit", { messageId, content });
         }
     }, [isConnected]);
 
     const deleteMessage = useCallback((messageId: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`🗑️ [SOCKET] Deleting message: ${messageId}`);
             socketRef.current.emit("message:delete", { messageId });
         }
     }, [isConnected]);
 
     const addReaction = useCallback((messageId: string, emoji: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`😊 [SOCKET] Adding reaction ${emoji} to message: ${messageId}`);
             socketRef.current.emit("message:reaction", { messageId, emoji });
         }
     }, [isConnected]);
 
     const startTyping = useCallback((channelId: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`⌨️ [SOCKET] Start typing in: ${channelId}`);
             socketRef.current.emit("typing:start", { channelId });
         }
     }, [isConnected]);
 
     const stopTyping = useCallback((channelId: string) => {
         if (socketRef.current && isConnected) {
-            console.log(`⌨️ [SOCKET] Stop typing in: ${channelId}`);
             socketRef.current.emit("typing:stop", { channelId });
         }
     }, [isConnected]);
@@ -466,80 +438,66 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     // ============================================================
 
     const onMessage = useCallback((callback: (data: { channelId: string; message: Message }) => void) => {
-        console.log("📩 [SOCKET] Registering message:new listener, total:", messageCallbacks.current.size + 1);
         messageCallbacks.current.add(callback);
         return () => {
-            console.log("📩 [SOCKET] Unregistering message:new listener");
+
             messageCallbacks.current.delete(callback);
         };
     }, []);
 
     const onTyping = useCallback((callback: (data: { channelId: string; userId: string; userName: string; type?: string }) => void) => {
-        console.log("⌨️ [SOCKET] Registering typing listener");
+
         typingCallbacks.current.add(callback);
         return () => {
-            console.log("⌨️ [SOCKET] Unregistering typing listener");
             typingCallbacks.current.delete(callback);
         };
     }, []);
 
     const onReaction = useCallback((callback: (data: { channelId: string; messageId: string; reactions: any[] }) => void) => {
-        console.log("😊 [SOCKET] Registering reaction listener");
         reactionCallbacks.current.add(callback);
         return () => {
-            console.log("😊 [SOCKET] Unregistering reaction listener");
             reactionCallbacks.current.delete(callback);
         };
     }, []);
 
     const onMessageDeleted = useCallback((callback: (data: { channelId: string; messageId: string }) => void) => {
-        console.log("🗑️ [SOCKET] Registering delete listener");
         messageDeletedCallbacks.current.add(callback);
         return () => {
-            console.log("🗑️ [SOCKET] Unregistering delete listener");
             messageDeletedCallbacks.current.delete(callback);
         };
     }, []);
 
     const onMessageUpdated = useCallback((callback: (data: { channelId: string; message: Message }) => void) => {
-        console.log("✏️ [SOCKET] Registering update listener");
         messageUpdatedCallbacks.current.add(callback);
         return () => {
-            console.log("✏️ [SOCKET] Unregistering update listener");
             messageUpdatedCallbacks.current.delete(callback);
         };
     }, []);
 
     const onUserOnline = useCallback((callback: (data: { userId: string }) => void) => {
-        console.log("🟢 [SOCKET] Registering user online listener");
         userOnlineCallbacks.current.add(callback);
         return () => {
-            console.log("🟢 [SOCKET] Unregistering user online listener");
             userOnlineCallbacks.current.delete(callback);
         };
     }, []);
 
     const onUserOffline = useCallback((callback: (data: { userId: string }) => void) => {
-        console.log("🔴 [SOCKET] Registering user offline listener");
         userOfflineCallbacks.current.add(callback);
         return () => {
-            console.log("🔴 [SOCKET] Unregistering user offline listener");
             userOfflineCallbacks.current.delete(callback);
         };
     }, []);
 
     // ✅ NEW: Pinned updated listener
     const onPinnedUpdated = useCallback((callback: (data: { channelId: string; messageId: string; isPinned: boolean }) => void) => {
-        console.log("📌 [SOCKET] Registering pinned:updated listener, total:", pinnedUpdatedCallbacks.current.size + 1);
+
         pinnedUpdatedCallbacks.current.add(callback);
         return () => {
-            console.log("📌 [SOCKET] Unregistering pinned:updated listener");
             pinnedUpdatedCallbacks.current.delete(callback);
         };
     }, []);
 
     const removeAllListeners = useCallback(() => {
-        console.log("🧹 [SOCKET] Removing all listeners");
         messageCallbacks.current.clear();
         typingCallbacks.current.clear();
         reactionCallbacks.current.clear();
