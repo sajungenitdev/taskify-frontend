@@ -184,8 +184,8 @@ export default function TenderSupportInboxPage() {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`h-8 rounded-md px-3 text-[11px] font-semibold transition ${filter === f
-                                    ? "bg-[#a97400] text-white shadow-sm"
-                                    : "text-slate-600 hover:bg-slate-50"
+                                ? "bg-[#a97400] text-white shadow-sm"
+                                : "text-slate-600 hover:bg-slate-50"
                                 }`}
                         >
                             {f === "all" ? "All" : "Unread"}
@@ -300,8 +300,8 @@ export default function TenderSupportInboxPage() {
                                                     )}
                                                     <span
                                                         className={`text-[10px] font-semibold ${lastFromMgmt
-                                                                ? "text-amber-700"
-                                                                : "text-slate-500"
+                                                            ? "text-amber-700"
+                                                            : "text-slate-500"
                                                             }`}
                                                     >
                                                         {lastFromMgmt ? "Support" : last.senderName}
