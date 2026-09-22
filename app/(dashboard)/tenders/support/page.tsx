@@ -10,6 +10,11 @@ import {
     User as UserIcon,
     RefreshCw,
     Inbox,
+    Paperclip,
+    Clock,
+    Tag,
+    ChevronRight,
+    Bell,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSocket } from "@/contexts/SocketContext";
@@ -25,6 +30,9 @@ const MGMT_ROLES = [
     "project_manager",
 ];
 
+/* ============================================================
+ * Helpers
+ * ============================================================ */
 function timeAgo(iso: string) {
     const d = new Date(iso);
     const diff = Date.now() - d.getTime();
@@ -38,6 +46,37 @@ function timeAgo(iso: string) {
     return d.toLocaleDateString();
 }
 
+/* Shorten a message preview for the table */
+function previewText(msg: InboxRow["lastMessage"]) {
+    const body = (msg.body || "").trim();
+    if (body) return body.length > 90 ? body.slice(0, 90) + "…" : body;
+    const first = msg.attachments?.[0];
+    if (!first) return "(no content)";
+    if (first.kind === "image") return "📷 Image";
+    if (first.kind === "audio") return "🎤 Voice message";
+    if (first.kind === "video") return "🎬 Video";
+    return `📎 ${first.name || "Attachment"}`;
+}
+
+function attachmentCount(msg: InboxRow["lastMessage"]) {
+    return msg.attachments?.length ?? 0;
+}
+
+/* ============================================================
+ * Module-level cache
+ * ============================================================ */
+let INBOX_CACHE: { data: InboxRow[]; ts: number } | null = null;
+let INBOX_IN_FLIGHT: Promise<InboxRow[]> | null = null;
+const STALE_MS = 15_000;
+
+function invalidateInbox() {
+    INBOX_CACHE = null;
+    INBOX_IN_FLIGHT = null;
+}
+
+/* ============================================================
+ * Page
+ * ============================================================ */
 export default function TenderSupportInboxPage() {
     const { user } = useAuth();
     const socketCtx = useSocket();
@@ -48,8 +87,8 @@ export default function TenderSupportInboxPage() {
         [user?.role],
     );
 
-    const [rows, setRows] = useState<InboxRow[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [rows, setRows] = useState<InboxRow[]>(INBOX_CACHE?.data ?? []);
+    const [loading, setLoading] = useState(!INBOX_CACHE);
     const [refreshing, setRefreshing] = useState(false);
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -58,6 +97,14 @@ export default function TenderSupportInboxPage() {
     const [activeTenderTitle, setActiveTenderTitle] = useState<string>("");
 
     const refetchTimer = useRef<NodeJS.Timeout | null>(null);
+    const mounted = useRef(true);
+
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
 
     /* Ask for notification permission once */
     useEffect(() => {
@@ -68,33 +115,91 @@ export default function TenderSupportInboxPage() {
         );
     }, []);
 
-    /* ---------------- fetch inbox ---------------- */
-    const fetchInbox = useCallback(async (silent = false) => {
+    /* ---------------- fetch inbox (cache-aware) ---------------- */
+    const fetchInbox = useCallback(async (silent = false, force = false) => {
         if (!silent) setRefreshing(true);
         try {
-            const data = await tenderChatApi.inbox();
-            setRows(data);
+            /* Cache hit — return immediately without a network call */
+            if (
+                !force &&
+                INBOX_CACHE &&
+                Date.now() - INBOX_CACHE.ts < STALE_MS
+            ) {
+                if (mounted.current) setRows(INBOX_CACHE.data);
+                return;
+            }
+
+            /* In-flight dedup */
+            if (!force && INBOX_IN_FLIGHT) {
+                const data = await INBOX_IN_FLIGHT;
+                if (mounted.current) setRows(data);
+                return;
+            }
+
+            const p = tenderChatApi.inbox();
+            if (!force) INBOX_IN_FLIGHT = p;
+            const data = await p;
+            INBOX_CACHE = { data, ts: Date.now() };
+            INBOX_IN_FLIGHT = null;
+
+            if (mounted.current) setRows(data);
         } catch {
             /* silent */
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            INBOX_IN_FLIGHT = null;
+            if (mounted.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     }, []);
 
     useEffect(() => {
-        fetchInbox();
+        fetchInbox(false, false);
     }, [fetchInbox]);
 
     /* ---------------- REAL-TIME + NOTIFICATIONS ---------------- */
     useTenderChatSocket(socket, "inbox", (incoming) => {
-        /* Debounced refetch */
-        if (refetchTimer.current) clearTimeout(refetchTimer.current);
-        refetchTimer.current = setTimeout(() => fetchInbox(true), 400);
-
-        /* Desktop notification for the opposite side */
         const myRole = isMgmt ? "management" : "user";
-        if (incoming.senderRole !== myRole) {
+        const fromOtherSide = incoming.senderRole !== myRole;
+
+        /* Merge the new message into the matching row instantly.
+           No refetch — the local state is the source of truth. */
+        setRows((prev) => {
+            const idx = prev.findIndex((r) => r.tenderId === incoming.tenderId);
+            if (idx === -1) {
+                /* New tender row we haven't seen — refetch after a debounce */
+                if (refetchTimer.current) clearTimeout(refetchTimer.current);
+                refetchTimer.current = setTimeout(
+                    () => fetchInbox(true, true),
+                    400,
+                );
+                return prev;
+            }
+
+            const updated = [...prev];
+            const [row] = updated.splice(idx, 1);
+            updated.unshift({
+                ...row,
+                lastMessage: {
+                    _id: incoming._id,
+                    senderRole: incoming.senderRole,
+                    senderName: incoming.senderName,
+                    body: incoming.body,
+                    attachments: incoming.attachments || [],
+                    createdAt: incoming.createdAt,
+                },
+                total: row.total + 1,
+                unread: fromOtherSide ? row.unread + 1 : row.unread,
+            });
+            return updated;
+        });
+
+        /* Bust the cache so the next visit refetches */
+        invalidateInbox();
+
+        /* Desktop notification for messages from the other side */
+        if (fromOtherSide) {
             import("@/services/chatNotification.service").then(
                 ({ default: CNS }) => {
                     CNS.notifyTenderIfAway({
@@ -133,6 +238,9 @@ export default function TenderSupportInboxPage() {
         setActiveTenderTitle(`${r.tenderer} — ${r.title}`);
     };
 
+    /* ============================================================
+     * Render
+     * ============================================================ */
     return (
         <div className="mx-auto max-w-6xl px-4 py-6">
             {/* Header */}
@@ -155,7 +263,7 @@ export default function TenderSupportInboxPage() {
                 </div>
 
                 <button
-                    onClick={() => fetchInbox()}
+                    onClick={() => fetchInbox(false, true)}
                     disabled={refreshing}
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
                 >
@@ -184,8 +292,8 @@ export default function TenderSupportInboxPage() {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`h-8 rounded-md px-3 text-[11px] font-semibold transition ${filter === f
-                                ? "bg-[#a97400] text-white shadow-sm"
-                                : "text-slate-600 hover:bg-slate-50"
+                                    ? "bg-[#a97400] text-white shadow-sm"
+                                    : "text-slate-600 hover:bg-slate-50"
                                 }`}
                         >
                             {f === "all" ? "All" : "Unread"}
@@ -197,7 +305,7 @@ export default function TenderSupportInboxPage() {
             {/* Table */}
             <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] border-collapse">
+                    <table className="w-full min-w-[820px] border-collapse">
                         <thead>
                             <tr className="border-b border-slate-100 bg-slate-50/70 text-left">
                                 <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -249,37 +357,61 @@ export default function TenderSupportInboxPage() {
                                 visible.map((r) => {
                                     const last = r.lastMessage;
                                     const lastFromMgmt = last.senderRole === "management";
-                                    const preview =
-                                        last.body?.trim() ||
-                                        (last.attachments?.[0]?.kind === "image"
-                                            ? "📷 Image"
-                                            : "📎 Attachment");
+                                    const preview = previewText(last);
+                                    const files = attachmentCount(last);
+                                    const hasUnread = r.unread > 0;
 
                                     return (
                                         <tr
                                             key={r.tenderId}
-                                            className="border-b border-slate-50 hover:bg-amber-50/30"
+                                            className={`border-b border-slate-50 transition hover:bg-amber-50/30 ${hasUnread ? "bg-amber-50/40" : ""
+                                                }`}
                                         >
+                                            {/* Tender */}
                                             <td className="px-4 py-3 align-top">
-                                                <p className="text-[12px] font-semibold text-slate-800">
-                                                    {r.tenderer}
-                                                </p>
-                                                <p className="mt-0.5 text-[11px] text-slate-500">
-                                                    {r.title}
-                                                </p>
-                                                <span className="mt-1 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
-                                                    {r.stage}
-                                                </span>
+                                                <div className="flex items-start gap-2">
+                                                    {hasUnread && (
+                                                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                                                    )}
+                                                    <div className="min-w-0">
+                                                        <p
+                                                            className={`truncate text-[12px] ${hasUnread
+                                                                    ? "font-bold text-slate-900"
+                                                                    : "font-semibold text-slate-800"
+                                                                }`}
+                                                        >
+                                                            {r.tenderer}
+                                                        </p>
+                                                        <p className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
+                                                            {r.title}
+                                                        </p>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                            <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                                                                <Tag className="h-2.5 w-2.5" />
+                                                                {r.stage}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </td>
 
+                                            {/* Owner */}
                                             <td className="px-4 py-3 align-top">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                                                        <span className="text-[10px] font-bold">
-                                                            {r.owner?.fullName?.charAt(0)?.toUpperCase() ||
-                                                                "?"}
-                                                        </span>
-                                                    </div>
+                                                    {r.owner?.profilePhoto ? (
+                                                        <img
+                                                            src={r.owner.profilePhoto}
+                                                            alt={r.owner.fullName || ""}
+                                                            className="h-7 w-7 shrink-0 rounded-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+                                                            <span className="text-[10px] font-bold">
+                                                                {r.owner?.fullName?.charAt(0)?.toUpperCase() ||
+                                                                    "?"}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                     <div className="min-w-0">
                                                         <p className="truncate text-[11px] font-medium text-slate-800">
                                                             {r.owner?.fullName || "—"}
@@ -291,7 +423,8 @@ export default function TenderSupportInboxPage() {
                                                 </div>
                                             </td>
 
-                                            <td className="max-w-[280px] px-4 py-3 align-top">
+                                            {/* Last Message */}
+                                            <td className="max-w-[320px] px-4 py-3 align-top">
                                                 <div className="flex items-center gap-1.5">
                                                     {lastFromMgmt ? (
                                                         <ShieldCheck className="h-3 w-3 text-amber-600" />
@@ -300,8 +433,8 @@ export default function TenderSupportInboxPage() {
                                                     )}
                                                     <span
                                                         className={`text-[10px] font-semibold ${lastFromMgmt
-                                                            ? "text-amber-700"
-                                                            : "text-slate-500"
+                                                                ? "text-amber-700"
+                                                                : "text-slate-500"
                                                             }`}
                                                     >
                                                         {lastFromMgmt ? "Support" : last.senderName}
@@ -310,29 +443,51 @@ export default function TenderSupportInboxPage() {
                                                         · {timeAgo(last.createdAt)}
                                                     </span>
                                                 </div>
-                                                <p className="mt-0.5 line-clamp-2 truncate text-[11px] text-slate-600">
+                                                <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-slate-600">
                                                     {preview}
                                                 </p>
-                                            </td>
-
-                                            <td className="px-4 py-3 align-top">
-                                                <p className="text-[11px] text-slate-500">
-                                                    {r.total} message{r.total === 1 ? "" : "s"}
-                                                </p>
-                                                {r.unread > 0 && (
-                                                    <span className="mt-1 inline-block rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">
-                                                        {r.unread} unread
-                                                    </span>
+                                                {files > 0 && (
+                                                    <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                                                        <Paperclip className="h-2.5 w-2.5" />
+                                                        {files} attachment{files === 1 ? "" : "s"}
+                                                    </p>
                                                 )}
                                             </td>
 
+                                            {/* Activity */}
+                                            <td className="px-4 py-3 align-top">
+                                                <div className="space-y-1.5">
+                                                    <p className="inline-flex items-center gap-1 text-[11px] text-slate-500">
+                                                        <MessageSquare className="h-3 w-3" />
+                                                        {r.total} message{r.total === 1 ? "" : "s"}
+                                                    </p>
+                                                    {hasUnread && (
+                                                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                                                            <Bell className="h-2.5 w-2.5" />
+                                                            {r.unread} new
+                                                        </span>
+                                                    )}
+                                                    {!hasUnread && (
+                                                        <p className="inline-flex items-center gap-1 text-[10px] text-slate-400">
+                                                            <Clock className="h-2.5 w-2.5" />
+                                                            {timeAgo(last.createdAt)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            {/* Action */}
                                             <td className="px-4 py-3 text-right align-top">
                                                 <button
                                                     onClick={() => openChat(r)}
-                                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#a97400] px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-[#8f6100]"
+                                                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold shadow-sm transition ${hasUnread
+                                                            ? "bg-[#a97400] text-white hover:bg-[#8f6100]"
+                                                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                                        }`}
                                                 >
                                                     <MessageSquare className="h-3.5 w-3.5" />
-                                                    Talk
+                                                    {hasUnread ? "Reply" : "Talk"}
+                                                    <ChevronRight className="h-3 w-3" />
                                                 </button>
                                             </td>
                                         </tr>
@@ -353,11 +508,13 @@ export default function TenderSupportInboxPage() {
                         if (!o) {
                             setActiveTenderId(null);
                             setActiveTenderTitle("");
+                            /* Clear unread locally — no refetch needed */
                             setRows((prev) =>
                                 prev.map((r) =>
                                     r.tenderId === activeTenderId ? { ...r, unread: 0 } : r,
                                 ),
                             );
+                            invalidateInbox();
                         }
                     }}
                 />

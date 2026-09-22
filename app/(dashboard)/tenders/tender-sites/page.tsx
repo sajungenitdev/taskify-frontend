@@ -1,7 +1,7 @@
 // app/(dashboard)/tenders/tender-sites/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Loader2,
@@ -93,6 +93,13 @@ const EMPTY_DRAFT: DraftSite = {
 };
 
 /* ============================================================
+ * Module-level cache — survives page unmount within the same session
+ * ============================================================ */
+let SITES_CACHE: { data: SiteSource[]; ts: number } | null = null;
+let IN_FLIGHT: Promise<SiteSource[]> | null = null;
+const STALE_MS = 30_000;
+
+/* ============================================================
  * Helpers
  * ============================================================ */
 function authHeaders(): HeadersInit {
@@ -123,12 +130,40 @@ function formatDateTime(iso: string | null | undefined) {
   }
 }
 
+async function fetchSites(force = false): Promise<SiteSource[]> {
+  if (!force && SITES_CACHE && Date.now() - SITES_CACHE.ts < STALE_MS) {
+    return SITES_CACHE.data;
+  }
+  if (!force && IN_FLIGHT) return IN_FLIGHT;
+
+  IN_FLIGHT = (async () => {
+    const r = await fetch(`${API_BASE}/tenders/sites`, {
+      headers: authHeaders(),
+    });
+    const json = await r.json();
+    if (!json.success) throw new Error(json.message || "Failed to load");
+    const rows = json.data ?? [];
+    SITES_CACHE = { data: rows, ts: Date.now() };
+    IN_FLIGHT = null;
+    return rows;
+  })();
+
+  return IN_FLIGHT;
+}
+
+function invalidateSitesCache() {
+  SITES_CACHE = null;
+  IN_FLIGHT = null;
+}
+
 /* ============================================================
  * Main page
  * ============================================================ */
 export default function TenderSitesPage() {
-  const [sites, setSites] = useState<SiteSource[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [sites, setSites] = useState<SiteSource[]>(
+    SITES_CACHE?.data ?? [],
+  );
+  const [loading, setLoading] = useState(!SITES_CACHE);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
@@ -140,24 +175,32 @@ export default function TenderSitesPage() {
   const [previewing, setPreviewing] = useState(false);
   const [modalSaving, setModalSaving] = useState(false);
 
-  /* ---------- Load sites ---------- */
-  const loadSites = async () => {
+  /* Prevent setting state on unmounted component */
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  /* ---------- Load sites (cache-aware) ---------- */
+  const loadSites = useCallback(async (force = false) => {
+    if (!SITES_CACHE) setLoading(true);
     try {
-      const r = await fetch(`${API_BASE}/tenders/sites`, {
-        headers: authHeaders(),
-      });
-      const json = await r.json();
-      if (json.success) setSites(json.data ?? []);
+      const rows = await fetchSites(force);
+      if (mounted.current) setSites(rows);
     } catch (err) {
       console.error(err);
+      if (mounted.current) toast.error("Failed to load sites");
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadSites();
-  }, []);
+  }, [loadSites]);
 
   /* ---------- Open modal ---------- */
   const openNew = () => {
@@ -192,7 +235,6 @@ export default function TenderSitesPage() {
     setPreviewing(true);
     setPreview(null);
 
-    /* Puppeteer mode is slower — let the user know */
     const loadingId = toast.loading(
       draft.renderMode === "puppeteer"
         ? "Launching browser + parsing (this may take 10-20s)..."
@@ -228,7 +270,7 @@ export default function TenderSitesPage() {
     }
   };
 
-  /* ---------- Save draft ---------- */
+  /* ---------- Save (optimistic for edits, refetch for creates) ---------- */
   const handleSaveDraft = async () => {
     if (!draft.name.trim() || !draft.url.trim() || !draft.listSelector.trim()) {
       toast.error("Name, URL, and List Selector are required");
@@ -236,14 +278,16 @@ export default function TenderSitesPage() {
     }
 
     setModalSaving(true);
+    const isEdit = !!draft._id;
     const loadingId = toast.loading(
-      draft._id ? "Updating site..." : "Creating site...",
+      isEdit ? "Updating site..." : "Creating site...",
     );
+
     try {
-      const url = draft._id
+      const url = isEdit
         ? `${API_BASE}/tenders/sites/${draft._id}`
         : `${API_BASE}/tenders/sites`;
-      const method = draft._id ? "PUT" : "POST";
+      const method = isEdit ? "PUT" : "POST";
 
       const r = await fetch(url, {
         method,
@@ -253,11 +297,28 @@ export default function TenderSitesPage() {
       const json = await r.json();
       if (!json.success) throw new Error(json.message || "Save failed");
 
-      toast.success(draft._id ? "Site updated" : "Site added", {
+      toast.success(isEdit ? "Site updated" : "Site added", {
         id: loadingId,
       });
+
+      /* Clear cache so the next read is fresh, and patch local state
+         immediately rather than refetching the whole list. */
+      invalidateSitesCache();
+
+      if (isEdit && json.data) {
+        setSites((prev) =>
+          prev.map((s) =>
+            s._id === draft._id ? { ...s, ...json.data } : s,
+          ),
+        );
+      } else if (!isEdit && json.data) {
+        setSites((prev) => [json.data as SiteSource, ...prev]);
+      }
+
       setModalOpen(false);
-      await loadSites();
+
+      /* Kick off a background refresh — never blocks the UI */
+      loadSites(true);
     } catch (e) {
       toast.error((e as Error).message || "Save failed", { id: loadingId });
     } finally {
@@ -265,7 +326,7 @@ export default function TenderSitesPage() {
     }
   };
 
-  /* ---------- Delete ---------- */
+  /* ---------- Delete (optimistic) ---------- */
   const handleDelete = async (site: SiteSource) => {
     if (
       !window.confirm(
@@ -275,8 +336,11 @@ export default function TenderSitesPage() {
       return;
     }
 
+    /* Remove from UI instantly, keep a copy for rollback */
+    const snapshot = sites;
+    setSites((prev) => prev.filter((s) => s._id !== site._id));
     setDeletingId(site._id);
-    const loadingId = toast.loading("Deleting site...");
+
     try {
       const r = await fetch(`${API_BASE}/tenders/sites/${site._id}`, {
         method: "DELETE",
@@ -284,18 +348,28 @@ export default function TenderSitesPage() {
       });
       const json = await r.json();
       if (!json.success) throw new Error(json.message || "Delete failed");
-      toast.success("Site deleted", { id: loadingId });
-      await loadSites();
+
+      invalidateSitesCache();
+      toast.success("Site deleted");
     } catch (e) {
-      toast.error((e as Error).message || "Delete failed", { id: loadingId });
+      /* Rollback */
+      setSites(snapshot);
+      toast.error((e as Error).message || "Delete failed");
     } finally {
       setDeletingId(null);
     }
   };
 
-  /* ---------- Toggle active ---------- */
+  /* ---------- Toggle active (optimistic) ---------- */
   const toggleActive = async (site: SiteSource) => {
+    const snapshot = sites;
+    setSites((prev) =>
+      prev.map((s) =>
+        s._id === site._id ? { ...s, active: !s.active } : s,
+      ),
+    );
     setSavingId(site._id);
+
     try {
       const r = await fetch(`${API_BASE}/tenders/sites/${site._id}`, {
         method: "PUT",
@@ -304,8 +378,9 @@ export default function TenderSitesPage() {
       });
       const json = await r.json();
       if (!json.success) throw new Error(json.message || "Update failed");
-      await loadSites();
+      invalidateSitesCache();
     } catch (e) {
+      setSites(snapshot);
       toast.error((e as Error).message || "Update failed");
     } finally {
       setSavingId(null);
@@ -316,8 +391,7 @@ export default function TenderSitesPage() {
   const handleTest = async (site: SiteSource) => {
     setTesting(site._id);
     const loadingId = toast.loading(
-      `Testing ${site.name}${
-        site.renderMode === "puppeteer" ? " (may take 15s)" : ""
+      `Testing ${site.name}${site.renderMode === "puppeteer" ? " (may take 15s)" : ""
       }...`,
     );
     try {
@@ -382,28 +456,19 @@ export default function TenderSitesPage() {
             How to add a site
           </h3>
           <ol className="mt-2 list-inside list-decimal space-y-1 text-[12px] leading-relaxed text-sky-800">
-            <li>
-              Open the target site in Chrome and find the tender listing page.
-            </li>
-            <li>
-              Right-click a tender row → <b>Inspect</b> to see the HTML
-              structure.
-            </li>
-            <li>
-              Note the CSS selectors: the row, the title link, and the date.
-            </li>
+            <li>Open the target site in Chrome and find the tender listing page.</li>
+            <li>Right-click a tender row → <b>Inspect</b> to see the HTML structure.</li>
+            <li>Note the CSS selectors: the row, the title link, and the date.</li>
             <li>
               Pick a <b>render mode</b>: <b>Cheerio</b> for static pages,{" "}
               <b>Puppeteer</b> for pages that load rows via JavaScript.
             </li>
-            <li>
-              Fill the form, click <b>Preview</b> to verify, then <b>Save</b>.
-            </li>
+            <li>Fill the form, click <b>Preview</b> to verify, then <b>Save</b>.</li>
           </ol>
         </section>
 
         {/* Sites list */}
-        {loading ? (
+        {loading && sites.length === 0 ? (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
@@ -467,9 +532,11 @@ export default function TenderSitesPage() {
 }
 
 /* ============================================================
- * Site Card
+ * Site Card — memoized so listing stays snappy at scale
  * ============================================================ */
-function SiteCard({
+import { memo } from "react";
+
+const SiteCard = memo(function SiteCard({
   site,
   onEdit,
   onDelete,
@@ -492,12 +559,10 @@ function SiteCard({
 
   return (
     <article
-      className={`rounded-xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${
-        site.active ? "border-slate-200/80" : "border-slate-200 bg-slate-50/40"
-      }`}
+      className={`rounded-xl border bg-white p-5 shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition ${site.active ? "border-slate-200/80" : "border-slate-200 bg-slate-50/40"
+        }`}
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        {/* Left: name + url + stats */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Globe className="h-4 w-4 shrink-0 text-[#a97400]" />
@@ -505,13 +570,11 @@ function SiteCard({
               {site.name}
             </h3>
 
-            {/* Render mode pill */}
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-                site.renderMode === "puppeteer"
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${site.renderMode === "puppeteer"
                   ? "bg-purple-100 text-purple-700"
                   : "bg-blue-100 text-blue-700"
-              }`}
+                }`}
             >
               {site.renderMode === "puppeteer" ? (
                 <Cpu className="h-3 w-3" />
@@ -550,7 +613,6 @@ function SiteCard({
             <ExternalLink className="h-3 w-3 shrink-0" />
           </a>
 
-          {/* Selector summary */}
           <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-4">
             <SelectorField label="List" value={site.listSelector} />
             <SelectorField label="Title" value={site.titleSelector} />
@@ -558,7 +620,6 @@ function SiteCard({
             <SelectorField label="Date" value={site.dateSelector} />
           </div>
 
-          {/* Last crawl stats */}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
             <span className="inline-flex items-center gap-1">
               <Clock className="h-3 w-3" />
@@ -573,17 +634,15 @@ function SiteCard({
           )}
         </div>
 
-        {/* Right: actions */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={onToggleActive}
             disabled={saving}
-            className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold transition disabled:opacity-50 ${
-              site.active
+            className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-semibold transition disabled:opacity-50 ${site.active
                 ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                 : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-            }`}
+              }`}
           >
             <Power className="h-3 w-3" />
             {site.active ? "Active" : "Inactive"}
@@ -629,7 +688,7 @@ function SiteCard({
       </div>
     </article>
   );
-}
+});
 
 function SelectorField({ label, value }: { label: string; value: string }) {
   return (
@@ -645,7 +704,7 @@ function SelectorField({ label, value }: { label: string; value: string }) {
 }
 
 /* ============================================================
- * Add / Edit Modal
+ * Add / Edit Modal (unchanged)
  * ============================================================ */
 function SiteModal({
   draft,
@@ -676,7 +735,6 @@ function SiteModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 pt-[5vh] backdrop-blur-sm">
       <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-slate-900">
@@ -697,9 +755,7 @@ function SiteModal({
           </button>
         </div>
 
-        {/* Body */}
         <div className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5">
-          {/* Name + Status */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={labelCls}>Site Name *</label>
@@ -719,11 +775,10 @@ function SiteModal({
                 type="button"
                 onClick={() => patch({ active: !draft.active })}
                 disabled={saving}
-                className={`inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border text-[12px] font-semibold transition ${
-                  draft.active
+                className={`inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border text-[12px] font-semibold transition ${draft.active
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                     : "border-slate-200 bg-white text-slate-500"
-                }`}
+                  }`}
               >
                 <Power className="h-3.5 w-3.5" />
                 {draft.active ? "Active" : "Inactive"}
@@ -731,7 +786,6 @@ function SiteModal({
             </div>
           </div>
 
-          {/* URL */}
           <div>
             <label className={labelCls}>Tender Listing URL *</label>
             <input
@@ -744,7 +798,6 @@ function SiteModal({
             />
           </div>
 
-          {/* Render Mode */}
           <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
             <label className={labelCls}>Render Mode</label>
             <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -752,23 +805,19 @@ function SiteModal({
                 type="button"
                 onClick={() => patch({ renderMode: "cheerio" })}
                 disabled={saving}
-                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition ${
-                  draft.renderMode === "cheerio"
+                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition ${draft.renderMode === "cheerio"
                     ? "border-blue-300 bg-blue-50"
                     : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <Zap
-                  className={`mt-0.5 h-4 w-4 shrink-0 ${
-                    draft.renderMode === "cheerio"
+                  className={`mt-0.5 h-4 w-4 shrink-0 ${draft.renderMode === "cheerio"
                       ? "text-blue-600"
                       : "text-slate-400"
-                  }`}
+                    }`}
                 />
                 <div className="min-w-0">
-                  <p className="text-[12px] font-bold text-slate-800">
-                    Cheerio
-                  </p>
+                  <p className="text-[12px] font-bold text-slate-800">Cheerio</p>
                   <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
                     Fast. Fetches HTML only. Use for static sites.
                   </p>
@@ -779,33 +828,27 @@ function SiteModal({
                 type="button"
                 onClick={() => patch({ renderMode: "puppeteer" })}
                 disabled={saving}
-                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition ${
-                  draft.renderMode === "puppeteer"
+                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition ${draft.renderMode === "puppeteer"
                     ? "border-purple-300 bg-purple-50"
                     : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
+                  }`}
               >
                 <Cpu
-                  className={`mt-0.5 h-4 w-4 shrink-0 ${
-                    draft.renderMode === "puppeteer"
+                  className={`mt-0.5 h-4 w-4 shrink-0 ${draft.renderMode === "puppeteer"
                       ? "text-purple-600"
                       : "text-slate-400"
-                  }`}
+                    }`}
                 />
                 <div className="min-w-0">
-                  <p className="text-[12px] font-bold text-slate-800">
-                    Puppeteer
-                  </p>
+                  <p className="text-[12px] font-bold text-slate-800">Puppeteer</p>
                   <p className="mt-0.5 text-[10px] leading-snug text-slate-500">
-                    Slow but powerful. Runs a real browser. Use for JS-rendered
-                    sites.
+                    Slow but powerful. Runs a real browser. Use for JS-rendered sites.
                   </p>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Selectors */}
           <div className="rounded-lg border border-slate-200 bg-slate-50/40 p-4">
             <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               CSS Selectors
@@ -870,7 +913,6 @@ function SiteModal({
             </div>
           </div>
 
-          {/* Preview button */}
           <div className="flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <p className="text-[11px] text-slate-500">
               Test the selectors before saving — the crawler won't touch
@@ -895,13 +937,11 @@ function SiteModal({
             </button>
           </div>
 
-          {/* Preview results */}
           {preview && (
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Preview — {preview.count} item
-                  {preview.count === 1 ? "" : "s"} found
+                  Preview — {preview.count} item{preview.count === 1 ? "" : "s"} found
                 </p>
                 {preview.ok ? (
                   <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -945,7 +985,6 @@ function SiteModal({
           )}
         </div>
 
-        {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
           <button
             type="button"
