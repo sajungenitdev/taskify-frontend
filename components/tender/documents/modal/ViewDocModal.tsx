@@ -302,7 +302,7 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
             Open in New Tab
           </button>
 
-          <button
+          {/* <button
             type="button"
             disabled={!url}
             onClick={() => {
@@ -318,7 +318,7 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
           >
             <Download className="h-3.5 w-3.5" />
             Download
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
