@@ -93,6 +93,7 @@ import {
   CreditCard,
   Shield,
   BarChart3Icon,
+  Globe,
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
@@ -831,11 +832,11 @@ export const SUB_ITEMS = {
     ],
     { description: "Company documents and templates" },
   ),
-  tenderSettings: createSubNavItem(
-    "tender-settings",
-    "Tender Settings",
-    "/tenders/settings",
-    FileText,
+  tenderSites: createSubNavItem(
+    "tender-sites",
+    "Tender Sites",
+    "/tenders/tender-sites",
+    Globe,          // ← was FileText
     "Tender Management",
     [
       ROLES.SUPER_ADMIN,
@@ -846,13 +847,30 @@ export const SUB_ITEMS = {
       ROLES.LINE_MANAGER,
       ROLES.EMPLOYEE,
     ],
-    { description: "Tender Settings Releted" },
+    { description: "Crawler targets and source sites" },
+  ),
+  tenderSettings: createSubNavItem(
+    "tender-settings",
+    "Tender Settings",
+    "/tenders/settings",
+    Settings2,      // ← was FileText
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Crawl schedule and matching criteria" },
   ),
   tenderSupport: createSubNavItem(
     "tender-support",
     "Tender Support",
     "/tenders/support",
-    FileText,
+    LifeBuoy,       // ← was FileText
     "Tender Management",
     [
       ROLES.SUPER_ADMIN,
@@ -863,7 +881,7 @@ export const SUB_ITEMS = {
       ROLES.LINE_MANAGER,
       ROLES.EMPLOYEE,
     ],
-    { description: "Tender Settings Releted" },
+    { description: "Live chat with the support team" },
   ),
 
 
