@@ -1,24 +1,24 @@
+// components/tender/TenderOverviewRecent.tsx
 "use client";
 
-import { FileText, Trophy, XCircle, Upload, MessageCircle } from "lucide-react";
+import {
+  FileText,
+  Trophy,
+  XCircle,
+  Upload,
+  MessageCircle,
+  MessageSquare,
+  RefreshCw,
+} from "lucide-react";
+import type { TenderActivity } from "@/lib/api/tender.api";
 
-export type ActivityKind =
-  | "submitted"
-  | "won"
-  | "lost"
-  | "uploaded"
-  | "discussed";
-
-export interface TenderActivity {
-  id: string;
-  kind: ActivityKind;
-  tenderer: string;
-  message: string;
-  timeAgo: string;
-}
-
+/* Icon + tint per activity kind.
+ * Includes the two newer kinds from the combined /overview endpoint:
+ *   • chat         — a tender support chat message
+ *   • stage_change — a stage transition logged on a tender
+ */
 const ICON_BY_KIND: Record<
-  ActivityKind,
+  TenderActivity["kind"],
   { Icon: React.ComponentType<{ className?: string }>; bg: string }
 > = {
   submitted: { Icon: Upload, bg: "bg-indigo-50 text-indigo-600" },
@@ -26,6 +26,8 @@ const ICON_BY_KIND: Record<
   lost: { Icon: XCircle, bg: "bg-rose-50 text-rose-600" },
   uploaded: { Icon: FileText, bg: "bg-slate-100 text-slate-600" },
   discussed: { Icon: MessageCircle, bg: "bg-amber-50 text-amber-600" },
+  chat: { Icon: MessageSquare, bg: "bg-sky-50 text-sky-600" },
+  stage_change: { Icon: RefreshCw, bg: "bg-violet-50 text-violet-600" },
 };
 
 interface Props {
@@ -48,8 +50,14 @@ export function TenderOverviewRecent({ items }: Props) {
             No recent activity.
           </li>
         )}
+
         {items.map((a) => {
-          const { Icon, bg } = ICON_BY_KIND[a.kind];
+          /* Fall back gracefully if a kind ever arrives that we don't map */
+          const meta =
+            ICON_BY_KIND[a.kind] ??
+            { Icon: FileText, bg: "bg-slate-100 text-slate-600" };
+          const { Icon, bg } = meta;
+
           return (
             <li
               key={a.id}
