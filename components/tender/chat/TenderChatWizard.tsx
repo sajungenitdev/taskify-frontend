@@ -52,9 +52,8 @@ const MGMT_ROLES = [
 ];
 
 /**
- * Two messages are "the same" if sender + body + timestamp are
- * within 2 seconds. Swallows the socket echo of your own message
- * before its POST response replaces the optimistic bubble.
+ * Content-level dedupe — swallows the socket echo of a message
+ * that the client just sent optimistically.
  */
 function looksLikeDuplicate(a: ChatMessage, b: ChatMessage) {
     if (a._id === b._id) return true;
@@ -64,6 +63,60 @@ function looksLikeDuplicate(a: ChatMessage, b: ChatMessage) {
     const tb = new Date(b.createdAt).getTime();
     if (isNaN(ta) || isNaN(tb)) return false;
     return Math.abs(ta - tb) < 2000;
+}
+
+/* ============================================================
+ * Module-level cache — every wizard mount within 15s uses
+ * cached data and skips the initial network round trip.
+ * ============================================================ */
+const STALE_MS = 15_000;
+const MSG_CACHE = new Map<string, { data: ChatMessage[]; ts: number }>();
+const UNREAD_CACHE = new Map<string, { data: number; ts: number }>();
+const MSG_IN_FLIGHT = new Map<string, Promise<ChatMessage[]>>();
+const UNREAD_IN_FLIGHT = new Map<string, Promise<number>>();
+
+function cachedMessages(id: string) {
+    const hit = MSG_CACHE.get(id);
+    if (hit && Date.now() - hit.ts < STALE_MS) return hit.data;
+    return null;
+}
+
+function cachedUnread(id: string) {
+    const hit = UNREAD_CACHE.get(id);
+    if (hit && Date.now() - hit.ts < STALE_MS) return hit.data;
+    return null;
+}
+
+async function fetchMessagesOnce(id: string, force = false) {
+    if (!force) {
+        const c = cachedMessages(id);
+        if (c) return c;
+        const p = MSG_IN_FLIGHT.get(id);
+        if (p) return p;
+    }
+    const p = tenderChatApi.list(id).then((rows) => {
+        MSG_CACHE.set(id, { data: rows, ts: Date.now() });
+        MSG_IN_FLIGHT.delete(id);
+        return rows;
+    });
+    MSG_IN_FLIGHT.set(id, p);
+    return p;
+}
+
+async function fetchUnreadOnce(id: string, force = false) {
+    if (!force) {
+        const c = cachedUnread(id);
+        if (c !== null) return c;
+        const p = UNREAD_IN_FLIGHT.get(id);
+        if (p) return p;
+    }
+    const p = tenderChatApi.unread(id).then((n) => {
+        UNREAD_CACHE.set(id, { data: n, ts: Date.now() });
+        UNREAD_IN_FLIGHT.delete(id);
+        return n;
+    });
+    UNREAD_IN_FLIGHT.set(id, p);
+    return p;
 }
 
 export default function TenderChatWizard({
@@ -88,13 +141,19 @@ export default function TenderChatWizard({
     );
 
     const [minimized, setMinimized] = useState(false);
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [unread, setUnread] = useState(0);
+    const [messages, setMessages] = useState<ChatMessage[]>(
+        () => cachedMessages(tenderId) ?? [],
+    );
+    const [unread, setUnread] = useState<number>(
+        () => cachedUnread(tenderId) ?? 0,
+    );
     const [input, setInput] = useState("");
     const [pending, setPending] = useState<ChatAttachment[]>([]);
     const [sending, setSending] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(
+        () => cachedMessages(tenderId) === null,
+    );
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -109,49 +168,53 @@ export default function TenderChatWizard({
         [user?.role],
     );
 
-    /* ---------------- initial fetch ---------------- */
-    const fetchMessages = useCallback(async () => {
-        try {
-            setLoading(true);
-            const list = await tenderChatApi.list(tenderId);
-            setMessages(list);
-        } catch {
-            /* silent */
-        } finally {
+    /* ---------------- initial fetch (parallel, cache-aware) ---------------- */
+    const refresh = useCallback(
+        async (force = false) => {
+            if (!tenderId) return;
+            const hasCache = !!cachedMessages(tenderId);
+            if (!hasCache) setLoading(true);
+
+            /* Fire both requests in parallel — not sequentially */
+            const [msgsResult, unreadResult] = await Promise.allSettled([
+                fetchMessagesOnce(tenderId, force),
+                fetchUnreadOnce(tenderId, force),
+            ]);
+
+            if (msgsResult.status === "fulfilled") {
+                setMessages(msgsResult.value);
+            }
+            if (unreadResult.status === "fulfilled") {
+                setUnread(unreadResult.value);
+            }
+
             setLoading(false);
-        }
-    }, [tenderId]);
+        },
+        [tenderId],
+    );
 
-    const fetchUnread = useCallback(async () => {
-        try {
-            const n = await tenderChatApi.unread(tenderId);
-            setUnread(n);
-        } catch {
-            /* ignore */
-        }
-    }, [tenderId]);
-
+    /* Refresh when the tender changes OR when the wizard opens */
     useEffect(() => {
         if (!tenderId) return;
-        fetchUnread();
-        if (open) fetchMessages();
-    }, [tenderId, open, fetchMessages, fetchUnread]);
+        refresh(false);
+    }, [tenderId, open, refresh]);
 
     /* ---------------- REAL-TIME + NOTIFICATIONS ---------------- */
     useTenderChatSocket(socket, tenderId, (incoming) => {
-        /* Which side is this message from? */
         const myRole = isMgmt ? "management" : "user";
         const fromOtherSide = incoming.senderRole !== myRole;
 
         setMessages((prev) => {
             if (prev.some((m) => m._id === incoming._id)) return prev;
             if (prev.some((m) => looksLikeDuplicate(m, incoming))) return prev;
-            return [...prev, incoming];
+            const next = [...prev, incoming];
+            /* Keep the module cache warm so reopening is instant */
+            MSG_CACHE.set(tenderId, { data: next, ts: Date.now() });
+            return next;
         });
 
         if (open) setUnread(0);
 
-        /* Desktop notification for messages from the other side */
         if (fromOtherSide) {
             import("@/services/chatNotification.service").then(
                 ({ default: CNS }) => {
@@ -174,12 +237,11 @@ export default function TenderChatWizard({
             if (detail?.tenderId === tenderId) {
                 setOpen(true);
                 setMinimized(false);
-                setTimeout(() => fetchUnread(), 200);
             }
         };
         window.addEventListener("tender-chat:focus", onFocus);
         return () => window.removeEventListener("tender-chat:focus", onFocus);
-    }, [tenderId, setOpen, fetchUnread]);
+    }, [tenderId, setOpen]);
 
     /* ---------------- Tab title unread badge ---------------- */
     useEffect(() => {
@@ -240,7 +302,7 @@ export default function TenderChatWizard({
         }
     };
 
-    /* ---------------- send (optimistic + guarded) ---------------- */
+    /* ---------------- send ---------------- */
     const handleSend = async () => {
         const text = input.trim();
         if (!text && pending.length === 0) return;
@@ -276,10 +338,11 @@ export default function TenderChatWizard({
             });
 
             setMessages((prev) => {
-                if (prev.some((m) => m._id === msg._id)) {
-                    return prev.filter((m) => m._id !== tempId);
-                }
-                return prev.map((m) => (m._id === tempId ? msg : m));
+                const next = prev.some((m) => m._id === msg._id)
+                    ? prev.filter((m) => m._id !== tempId)
+                    : prev.map((m) => (m._id === tempId ? msg : m));
+                MSG_CACHE.set(tenderId, { data: next, ts: Date.now() });
+                return next;
             });
         } catch (e) {
             toast.error((e as Error).message || "Send failed");
@@ -305,7 +368,9 @@ export default function TenderChatWizard({
     /* ---------------- close ---------------- */
     const close = () => {
         setOpen(false);
-        setTimeout(() => fetchUnread(), 200);
+        /* Invalidate on close so the next open pulls fresh data */
+        MSG_CACHE.delete(tenderId);
+        UNREAD_CACHE.delete(tenderId);
     };
 
     /* ============================================================
@@ -372,7 +437,7 @@ export default function TenderChatWizard({
                         ref={scrollRef}
                         className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-3"
                     >
-                        {loading && (
+                        {loading && messages.length === 0 && (
                             <div className="flex justify-center py-6">
                                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                             </div>

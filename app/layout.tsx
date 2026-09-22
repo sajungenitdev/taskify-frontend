@@ -8,6 +8,7 @@ import HydrationFix from "./hydration-fix";
 import { TimerProvider } from "@/contexts/TimerContext";
 import { SocketProvider } from "@/contexts/SocketContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import BackendWarmup from "@/components/BackendWarmup";   // ← ADD
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
         <HydrationFix />
+        <BackendWarmup />
         <AuthProvider>
           <SocketProvider>
             <NotificationProvider>
