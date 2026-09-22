@@ -59,6 +59,15 @@ export default function TenderSupportInboxPage() {
 
     const refetchTimer = useRef<NodeJS.Timeout | null>(null);
 
+    /* Ask for notification permission once */
+    useEffect(() => {
+        import("@/services/chatNotification.service").then(
+            ({ default: CNS }) => {
+                CNS.requestPermission();
+            },
+        );
+    }, []);
+
     /* ---------------- fetch inbox ---------------- */
     const fetchInbox = useCallback(async (silent = false) => {
         if (!silent) setRefreshing(true);
@@ -77,44 +86,27 @@ export default function TenderSupportInboxPage() {
         fetchInbox();
     }, [fetchInbox]);
 
-    /* ---------------- REAL-TIME — client-side merge ---------------- */
+    /* ---------------- REAL-TIME + NOTIFICATIONS ---------------- */
     useTenderChatSocket(socket, "inbox", (incoming) => {
-        setRows((prev) => {
-            const idx = prev.findIndex((r) => r.tenderId === incoming.tenderId);
+        /* Debounced refetch */
+        if (refetchTimer.current) clearTimeout(refetchTimer.current);
+        refetchTimer.current = setTimeout(() => fetchInbox(true), 400);
 
-            const preview = {
-                _id: incoming._id,
-                senderRole: incoming.senderRole,
-                senderName: incoming.senderName,
-                body: incoming.body,
-                attachments: incoming.attachments || [],
-                createdAt: incoming.createdAt,
-            };
-
-            if (idx === -1) {
-                // Tender not in list yet — do one fetch to pick it up
-                if (refetchTimer.current) clearTimeout(refetchTimer.current);
-                refetchTimer.current = setTimeout(() => fetchInbox(true), 300);
-                return prev;
-            }
-
-            // Bump to top with new last message
-            const updated = [...prev];
-            const [row] = updated.splice(idx, 1);
-
-            // Unread bump only if message is from the OTHER side
-            const fromOtherSide = isMgmt
-                ? incoming.senderRole === "user"
-                : incoming.senderRole === "management";
-
-            updated.unshift({
-                ...row,
-                lastMessage: preview,
-                total: row.total + 1,
-                unread: fromOtherSide ? row.unread + 1 : row.unread,
-            });
-            return updated;
-        });
+        /* Desktop notification for the opposite side */
+        const myRole = isMgmt ? "management" : "user";
+        if (incoming.senderRole !== myRole) {
+            import("@/services/chatNotification.service").then(
+                ({ default: CNS }) => {
+                    CNS.notifyTenderIfAway({
+                        senderName: incoming.senderName || "User",
+                        messageContent: incoming.body || "",
+                        tenderTitle: incoming.senderName,
+                        tenderId: incoming.tenderId,
+                        messageId: incoming._id,
+                    });
+                },
+            );
+        }
     });
 
     /* ---------------- filter ---------------- */
@@ -141,9 +133,6 @@ export default function TenderSupportInboxPage() {
         setActiveTenderTitle(`${r.tenderer} — ${r.title}`);
     };
 
-    /* ============================================================
-     * Render
-     * ============================================================ */
     return (
         <div className="mx-auto max-w-6xl px-4 py-6">
             {/* Header */}
@@ -364,7 +353,6 @@ export default function TenderSupportInboxPage() {
                         if (!o) {
                             setActiveTenderId(null);
                             setActiveTenderTitle("");
-                            // Zero out unread for that row so badge disappears immediately
                             setRows((prev) =>
                                 prev.map((r) =>
                                     r.tenderId === activeTenderId ? { ...r, unread: 0 } : r,

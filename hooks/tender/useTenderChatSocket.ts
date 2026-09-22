@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
  * @param socket    The socket instance from your SocketProvider / useSocket() hook.
  *                  Pass `socket?.socket ?? socket` if your provider wraps it.
  * @param key       A tenderId string, or the literal "inbox" for the global channel.
- * @param onMessage Called for every `tender:chat:new` event.
+ * @param onMessage Called for every `tender:chat:new` event with the message payload.
  */
 export function useTenderChatSocket(
     socket: any | null | undefined,
@@ -18,13 +18,14 @@ export function useTenderChatSocket(
 ) {
     const handlerRef = useRef(onMessage);
 
-    // Update the ref inside an effect — never during render
+    /* Keep the latest callback in a ref so the socket listener never goes stale */
     useEffect(() => {
         handlerRef.current = onMessage;
     }, [onMessage]);
 
     useEffect(() => {
         if (!socket || !key) return;
+
         if (typeof socket.on !== "function") {
             console.warn(
                 "[useTenderChatSocket] Provided value is not a socket instance:",
@@ -40,12 +41,20 @@ export function useTenderChatSocket(
             : "tender:chat:leave";
         const joinPayload = isInbox ? undefined : key;
 
+        /* Join the room — retries automatically if the socket reconnects */
         const join = () => socket.emit(joinEvent, joinPayload);
 
         if (socket.connected) join();
         socket.on("connect", join);
 
-        const listener = (msg: any) => handlerRef.current(msg);
+        /* Forward every `tender:chat:new` event to the current callback */
+        const listener = (msg: any) => {
+            try {
+                handlerRef.current(msg);
+            } catch (err) {
+                console.error("[useTenderChatSocket] handler threw:", err);
+            }
+        };
         socket.on("tender:chat:new", listener);
 
         return () => {

@@ -53,8 +53,8 @@ const MGMT_ROLES = [
 
 /**
  * Two messages are "the same" if sender + body + timestamp are
- * within 2 seconds. Used to swallow the socket echo of your own
- * message before its POST response replaces the optimistic bubble.
+ * within 2 seconds. Swallows the socket echo of your own message
+ * before its POST response replaces the optimistic bubble.
  */
 function looksLikeDuplicate(a: ChatMessage, b: ChatMessage) {
     if (a._id === b._id) return true;
@@ -99,12 +99,6 @@ export default function TenderChatWizard({
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
 
-    /* Refs so socket callbacks always see the latest values */
-    const messagesRef = useRef<ChatMessage[]>(messages);
-    useEffect(() => {
-        messagesRef.current = messages;
-    }, [messages]);
-
     const sendingRef = useRef(false);
     useEffect(() => {
         sendingRef.current = sending;
@@ -143,21 +137,61 @@ export default function TenderChatWizard({
         if (open) fetchMessages();
     }, [tenderId, open, fetchMessages, fetchUnread]);
 
-    /* ---------------- REAL-TIME via shared socket ---------------- */
+    /* ---------------- REAL-TIME + NOTIFICATIONS ---------------- */
     useTenderChatSocket(socket, tenderId, (incoming) => {
+        /* Which side is this message from? */
+        const myRole = isMgmt ? "management" : "user";
+        const fromOtherSide = incoming.senderRole !== myRole;
+
         setMessages((prev) => {
-            /* 1. Exact id match — the canonical dedupe path */
             if (prev.some((m) => m._id === incoming._id)) return prev;
-
-            /* 2. Content-level dedupe — swallows the socket echo of a
-                  message the client just sent optimistically. */
             if (prev.some((m) => looksLikeDuplicate(m, incoming))) return prev;
-
-            /* 3. Anything else is genuinely new */
             return [...prev, incoming];
         });
+
         if (open) setUnread(0);
+
+        /* Desktop notification for messages from the other side */
+        if (fromOtherSide) {
+            import("@/services/chatNotification.service").then(
+                ({ default: CNS }) => {
+                    CNS.notifyTenderIfAway({
+                        senderName: incoming.senderName || "Support",
+                        messageContent: incoming.body || "",
+                        tenderTitle: tenderTitle || "Tender",
+                        tenderId,
+                        messageId: incoming._id,
+                    });
+                },
+            );
+        }
     });
+
+    /* ---------------- Notification click → open wizard ---------------- */
+    useEffect(() => {
+        const onFocus = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.tenderId === tenderId) {
+                setOpen(true);
+                setMinimized(false);
+                setTimeout(() => fetchUnread(), 200);
+            }
+        };
+        window.addEventListener("tender-chat:focus", onFocus);
+        return () => window.removeEventListener("tender-chat:focus", onFocus);
+    }, [tenderId, setOpen, fetchUnread]);
+
+    /* ---------------- Tab title unread badge ---------------- */
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        const original = document.title;
+        if (unread > 0 && !open) {
+            document.title = `(${unread > 9 ? "9+" : unread}) ${original}`;
+        }
+        return () => {
+            document.title = original;
+        };
+    }, [unread, open]);
 
     /* ---------------- auto-scroll ---------------- */
     useEffect(() => {
@@ -206,13 +240,11 @@ export default function TenderChatWizard({
         }
     };
 
-    /* ---------------- send (guarded optimistic) ---------------- */
+    /* ---------------- send (optimistic + guarded) ---------------- */
     const handleSend = async () => {
         const text = input.trim();
         if (!text && pending.length === 0) return;
 
-        /* Hard guard via ref — setState is async so `sending` alone
-           doesn't prevent two Enter keys in the same tick */
         if (sendingRef.current) return;
         sendingRef.current = true;
         setSending(true);
@@ -243,10 +275,7 @@ export default function TenderChatWizard({
                 attachments: sentPending,
             });
 
-            /* Replace the optimistic bubble — dedupe against a socket
-               echo that already arrived with the same body. */
             setMessages((prev) => {
-                /* If the real message already arrived via socket, drop the temp */
                 if (prev.some((m) => m._id === msg._id)) {
                     return prev.filter((m) => m._id !== tempId);
                 }
