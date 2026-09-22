@@ -51,6 +51,21 @@ const MGMT_ROLES = [
     "project_manager",
 ];
 
+/**
+ * Two messages are "the same" if sender + body + timestamp are
+ * within 2 seconds. Used to swallow the socket echo of your own
+ * message before its POST response replaces the optimistic bubble.
+ */
+function looksLikeDuplicate(a: ChatMessage, b: ChatMessage) {
+    if (a._id === b._id) return true;
+    if (a.sender !== b.sender) return false;
+    if ((a.body || "").trim() !== (b.body || "").trim()) return false;
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    if (isNaN(ta) || isNaN(tb)) return false;
+    return Math.abs(ta - tb) < 2000;
+}
+
 export default function TenderChatWizard({
     tenderId,
     tenderTitle,
@@ -58,8 +73,6 @@ export default function TenderChatWizard({
     onOpenChange,
 }: Props) {
     const { user } = useAuth();
-
-    // useSocket() may return { socket, ... } or the raw socket — handle both
     const socketCtx = useSocket();
     const socket = (socketCtx as any)?.socket ?? socketCtx;
 
@@ -85,6 +98,17 @@ export default function TenderChatWizard({
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
+
+    /* Refs so socket callbacks always see the latest values */
+    const messagesRef = useRef<ChatMessage[]>(messages);
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    const sendingRef = useRef(false);
+    useEffect(() => {
+        sendingRef.current = sending;
+    }, [sending]);
 
     const isMgmt = useMemo(
         () => MGMT_ROLES.includes(user?.role || ""),
@@ -122,7 +146,14 @@ export default function TenderChatWizard({
     /* ---------------- REAL-TIME via shared socket ---------------- */
     useTenderChatSocket(socket, tenderId, (incoming) => {
         setMessages((prev) => {
+            /* 1. Exact id match — the canonical dedupe path */
             if (prev.some((m) => m._id === incoming._id)) return prev;
+
+            /* 2. Content-level dedupe — swallows the socket echo of a
+                  message the client just sent optimistically. */
+            if (prev.some((m) => looksLikeDuplicate(m, incoming))) return prev;
+
+            /* 3. Anything else is genuinely new */
             return [...prev, incoming];
         });
         if (open) setUnread(0);
@@ -175,15 +206,18 @@ export default function TenderChatWizard({
         }
     };
 
-    /* ---------------- send (optimistic) ---------------- */
+    /* ---------------- send (guarded optimistic) ---------------- */
     const handleSend = async () => {
         const text = input.trim();
         if (!text && pending.length === 0) return;
-        if (sending) return;
 
+        /* Hard guard via ref — setState is async so `sending` alone
+           doesn't prevent two Enter keys in the same tick */
+        if (sendingRef.current) return;
+        sendingRef.current = true;
         setSending(true);
 
-        const tempId = `temp-${Date.now()}`;
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const optimistic: ChatMessage = {
             _id: tempId,
             tenderId,
@@ -208,13 +242,23 @@ export default function TenderChatWizard({
                 body: text,
                 attachments: sentPending,
             });
-            setMessages((prev) => prev.map((m) => (m._id === tempId ? msg : m)));
+
+            /* Replace the optimistic bubble — dedupe against a socket
+               echo that already arrived with the same body. */
+            setMessages((prev) => {
+                /* If the real message already arrived via socket, drop the temp */
+                if (prev.some((m) => m._id === msg._id)) {
+                    return prev.filter((m) => m._id !== tempId);
+                }
+                return prev.map((m) => (m._id === tempId ? msg : m));
+            });
         } catch (e) {
             toast.error((e as Error).message || "Send failed");
             setMessages((prev) => prev.filter((m) => m._id !== tempId));
             setInput(text);
             setPending(sentPending);
         } finally {
+            sendingRef.current = false;
             setSending(false);
         }
     };
