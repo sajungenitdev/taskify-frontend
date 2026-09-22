@@ -80,6 +80,7 @@ export interface CompanyDocUI {
     /** ISO date string for the raw expiry date (used by the renew editor) */
     validUntil?: string;
     issuedOn?: string;
+    createdAt?: string; 
 }
 
 export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
@@ -109,5 +110,6 @@ export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
         chips: Array.isArray(d.chips) ? d.chips : [],
         validUntil: d.validUntil || undefined,
         issuedOn: d.issuedOn || undefined,
+        createdAt: d.createdAt || undefined, 
     };
 }

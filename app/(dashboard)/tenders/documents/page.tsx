@@ -299,6 +299,7 @@ export default function CompanyDocsPage() {
             onToggleSelect={toggleSelect}
             onAction={handleAction}
             onDelete={handleDelete}
+            category={tab}
           />
         ) : (
           <DocsGrid
