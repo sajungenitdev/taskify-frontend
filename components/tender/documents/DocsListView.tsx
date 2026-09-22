@@ -4,6 +4,16 @@
 import { Eye, RotateCw, Trash2, FileText, ExternalLink } from "lucide-react";
 import type { CompanyDocUI } from "@/lib/api/mappers";
 
+/* ---------- Convert "/uploads/..." → "http://localhost:5000/uploads/..." ---------- */
+function fullFileUrl(url?: string) {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const base =
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
+  const origin = base.replace(/\/api\/v1\/?$/, "");
+  return `${origin}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
 interface Props {
   docs: CompanyDocUI[];
   selectedIds: Set<string>;
@@ -82,6 +92,7 @@ export function DocsListView({
               const badge =
                 STATUS_STYLES[status] ??
                 "bg-slate-50 text-slate-700 border-slate-200";
+              const fileHref = fullFileUrl(d.fileUrl);
 
               return (
                 <tr
@@ -146,9 +157,9 @@ export function DocsListView({
 
                   <td className="px-3 py-2.5 text-right align-middle">
                     <div className="inline-flex items-center gap-1">
-                      {d.fileUrl && (
+                      {fileHref && (
                         <a
-                          href={d.fileUrl}
+                          href={fileHref}
                           target="_blank"
                           rel="noreferrer"
                           className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
