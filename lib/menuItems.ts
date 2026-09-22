@@ -831,10 +831,27 @@ export const SUB_ITEMS = {
     ],
     { description: "Company documents and templates" },
   ),
-  tenderWon: createSubNavItem(
+  tenderSettings: createSubNavItem(
     "tender-settings",
     "Tender Settings",
     "/tenders/settings",
+    FileText,
+    "Tender Management",
+    [
+      ROLES.SUPER_ADMIN,
+      ROLES.ADMIN,
+      ROLES.HR_MANAGER,
+      ROLES.DEPT_MANAGER,
+      ROLES.PROJECT_MANAGER,
+      ROLES.LINE_MANAGER,
+      ROLES.EMPLOYEE,
+    ],
+    { description: "Tender Settings Releted" },
+  ),
+  tenderSupport: createSubNavItem(
+    "tender-support",
+    "Tender Support",
+    "/tenders/support",
     FileText,
     "Tender Management",
     [

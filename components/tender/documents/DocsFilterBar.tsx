@@ -1,23 +1,36 @@
+// components/tender/documents/DocsFilterBar.tsx
 "use client";
 
-import { List } from "lucide-react";
+import { List, LayoutGrid } from "lucide-react";
 
 export interface ExperienceFilters {
-  sector: string;    // "all" | "Power & Energy" | "Financial" | "Government"
+  sector: string;    // "all" | sector name
   duration: string;  // "all" | "1+ Yr" | "3+ Yrs" | "5+ Yrs"
   volume: string;    // "all" | "৳3L+" | "৳5L+" | "৳10L+"
 }
+
+export type DocsViewMode = "grid" | "list";
 
 interface Props {
   value: ExperienceFilters;
   onChange: (next: ExperienceFilters) => void;
   sectors: string[];
+  view: DocsViewMode;
+  onViewChange: (v: DocsViewMode) => void;
 }
 
 const selectCls =
   "h-9 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-sm focus:border-slate-900 focus:outline-none";
 
-export function DocsFilterBar({ value, onChange, sectors }: Props) {
+export function DocsFilterBar({
+  value,
+  onChange,
+  sectors,
+  view,
+  onViewChange,
+}: Props) {
+  const isList = view === "list";
+
   return (
     <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       <div className="flex flex-wrap items-center gap-2">
@@ -58,10 +71,24 @@ export function DocsFilterBar({ value, onChange, sectors }: Props) {
 
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+          onClick={() => onViewChange(isList ? "grid" : "list")}
+          className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm transition ${isList
+              ? "border-[#a97400] bg-[#a97400] text-white hover:bg-[#8f6100]"
+              : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          title={isList ? "Switch to grid view" : "Switch to list view"}
         >
-          <List className="h-3.5 w-3.5" />
-          List View
+          {isList ? (
+            <>
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Grid View
+            </>
+          ) : (
+            <>
+              <List className="h-3.5 w-3.5" />
+              List View
+            </>
+          )}
         </button>
       </div>
 

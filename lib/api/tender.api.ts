@@ -4,7 +4,9 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
 const TENDER_BASE = `${API_BASE}/tenders`;
 
-/* ---------- Auth header ---------- */
+/* ============================================================
+ * AUTH HEADER
+ * ============================================================ */
 function authHeaders(): HeadersInit {
   if (typeof window === "undefined") {
     return { "Content-Type": "application/json" };
@@ -21,7 +23,9 @@ function authHeaders(): HeadersInit {
   };
 }
 
-/* ---------- Response envelope ---------- */
+/* ============================================================
+ * RESPONSE ENVELOPE
+ * ============================================================ */
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -50,6 +54,54 @@ function qs(params?: Record<string, unknown>) {
   });
   const s = sp.toString();
   return s ? `?${s}` : "";
+}
+
+/* ============================================================
+ * GET CACHE + IN-FLIGHT DEDUP
+ *
+ * - Same URL called twice within 5s → second call gets the cached
+ *   response (zero network).
+ * - Same URL called twice in the same tick → second call awaits the
+ *   first request's promise.
+ * - Any mutation clears the whole cache.
+ * ============================================================ */
+const GET_TTL_MS = 5_000;
+const GET_CACHE = new Map<string, { envelope: any; ts: number }>();
+const IN_FLIGHT = new Map<string, Promise<any>>();
+
+function clearGetCache() {
+  GET_CACHE.clear();
+  IN_FLIGHT.clear();
+}
+
+async function cachedGet<T>(url: string): Promise<T> {
+  // 1. Fresh cache hit
+  const hit = GET_CACHE.get(url);
+  if (hit && Date.now() - hit.ts < GET_TTL_MS) {
+    return hit.envelope as T;
+  }
+
+  // 2. Same request already in flight
+  const inFlight = IN_FLIGHT.get(url);
+  if (inFlight) return inFlight as Promise<T>;
+
+  // 3. Fire the request
+  const p = (async () => {
+    const res = await fetch(url, { headers: authHeaders() });
+    const envelope = await handle<any>(res);
+    GET_CACHE.set(url, { envelope, ts: Date.now() });
+    IN_FLIGHT.delete(url);
+    return envelope;
+  })();
+
+  IN_FLIGHT.set(url, p);
+
+  try {
+    return (await p) as T;
+  } catch (e) {
+    IN_FLIGHT.delete(url);
+    throw e;
+  }
 }
 
 /* ============================================================
@@ -113,7 +165,7 @@ export interface Tender {
   _id: string;
   tenderer: string;
   title: string;
-  draft?: boolean;                          // ← NEW
+  draft?: boolean;
   stage: TenderStage;
   tenderType: TenderType;
   description?: string;
@@ -127,9 +179,9 @@ export interface Tender {
   bidValue?: number;
   currency?: Currency;
   tenderSecurityAmount?: number;
-  tenderSecurityValidity?: string;              // ← NEW
+  tenderSecurityValidity?: string;
   performanceSecurityAmount?: number;
-  performanceSecurityValidity?: string;         // ← NEW
+  performanceSecurityValidity?: string;
   securityMode?: string;
   submitted?: boolean;
   mode?: string;
@@ -177,7 +229,6 @@ export interface SubmissionRow {
   readiness: number;
 }
 
-/* ---------- Submission Detail (matches new backend shape) ---------- */
 export interface SubmissionAttachment {
   _id: string;
   name: string;
@@ -189,16 +240,12 @@ export interface SubmissionAttachment {
 export interface SubmissionChecklistItem {
   id: string;
   label: string;
-  /** Pill display text — e.g. "N/A", "In progress", "6 days remaining" */
   value?: string;
-  /** Pill color */
   tone?: "neutral" | "progress" | "warn";
-  /* Legacy fields — used by the manage page's stored checklist */
   checked?: boolean;
   isCustom?: boolean;
 }
 
-/* ---------- New sub-shapes ---------- */
 export interface SubmissionBidSummary {
   ourBidValue: number;
   tenderSecurity: number;
@@ -227,27 +274,18 @@ export interface SubmissionDetail {
   title: string;
   deadlineDays: number;
   readiness: number;
-
-  /* ✅ Bid summary */
   bidSummary?: SubmissionBidSummary;
-
-  /* ✅ Other participants */
   otherParticipants?: SubmissionParticipant[];
-
-  /* ✅ Documents submitted */
   documentsSubmitted?: SubmissionDocument[];
-
   docTasks: {
     id: string;
     title: string;
     owner: string;
     fileName: string;
-    fileUrl?: string;   // ← bonus: this was returned already
+    fileUrl?: string;
     status: "Pending" | "In Progress" | "Done";
   }[];
-
   checklist: SubmissionChecklistItem[];
-
   info: {
     advertisementFile?: string;
     advertisementUrl?: string;
@@ -293,10 +331,10 @@ export interface CompanyDocument {
   title: string;
   reference?: string;
   validity?: string;
-  validUntil?: string;                       // ← NEW (ISO date)
-  issuedOn?: string;                         // ← NEW (ISO date)
+  validUntil?: string;
+  issuedOn?: string;
   status: CompanyDocStatus;
-  action?: "View" | "Replace" | "Renew";     // ← "Renew" added
+  action?: "View" | "Replace" | "Renew";
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
@@ -326,6 +364,10 @@ export interface OverviewPipelineStage {
 export interface TenderOverviewData {
   stats: OverviewStat[];
   pipeline: OverviewPipelineStage[];
+  stages?: Record<string, number>;
+  upcoming?: UpcomingTender[];
+  performance?: PerformanceResponse;
+  recentActivity?: TenderActivity[];
 }
 
 export interface UpcomingTender {
@@ -344,7 +386,14 @@ export interface MonthPerformance {
 
 export interface TenderActivity {
   id: string;
-  kind: "submitted" | "won" | "lost" | "uploaded" | "discussed";
+  kind:
+  | "submitted"
+  | "won"
+  | "lost"
+  | "uploaded"
+  | "discussed"
+  | "chat"
+  | "stage_change";
   tenderer: string;
   message: string;
   timeAgo: string;
@@ -356,30 +405,27 @@ export interface PerformanceResponse {
 }
 
 /* ============================================================
- * OVERVIEW
+ * OVERVIEW — one combined endpoint
  * ============================================================ */
 export const overviewApi = {
   get: () =>
-    fetch(`${TENDER_BASE}/overview`, { headers: authHeaders() })
-      .then(handle<ApiResponse<TenderOverviewData>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`),
 
+  /* Backwards-compat thin wrappers (now hit the same combined endpoint) */
   upcoming: () =>
-    fetch(`${TENDER_BASE}/overview/upcoming`, { headers: authHeaders() })
-      .then(handle<ApiResponse<UpcomingTender[]>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
+      (r) => r.data.upcoming ?? [],
+    ),
 
   performance: () =>
-    fetch(`${TENDER_BASE}/overview/performance`, { headers: authHeaders() })
-      .then(handle<ApiResponse<PerformanceResponse>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
+      (r) => r.data.performance ?? { data: [], winRate: 0 },
+    ),
 
-  recentActivity: (limit = 10) =>
-    fetch(`${TENDER_BASE}/overview/recent-activity?limit=${limit}`, {
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<TenderActivity[]>>)
-      .then((r) => r.data),
+  recentActivity: (_limit = 10) =>
+    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
+      (r) => r.data.recentActivity ?? [],
+    ),
 };
 
 /* ============================================================
@@ -393,15 +439,12 @@ export const tenderApi = {
     includeDrafts?: boolean;
     page?: number;
     limit?: number;
-  }) =>
-    fetch(`${TENDER_BASE}${qs(params)}`, { headers: authHeaders() }).then(
-      handle<ApiResponse<Tender[]>>,
-    ),
+  }) => cachedGet<ApiResponse<Tender[]>>(`${TENDER_BASE}${qs(params)}`),
 
   get: (id: string) =>
-    fetch(`${TENDER_BASE}/${id}`, { headers: authHeaders() })
-      .then(handle<ApiResponse<Tender & { docTasks: TenderDocTask[] }>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<Tender & { docTasks: TenderDocTask[] }>>(
+      `${TENDER_BASE}/${id}`,
+    ).then((r) => r.data),
 
   create: (payload: Partial<Tender>) =>
     fetch(`${TENDER_BASE}`, {
@@ -410,7 +453,10 @@ export const tenderApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<Tender>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   update: (id: string, payload: Partial<Tender>) =>
     fetch(`${TENDER_BASE}/${id}`, {
@@ -419,7 +465,10 @@ export const tenderApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<Tender>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   changeStage: (
     id: string,
@@ -433,7 +482,10 @@ export const tenderApi = {
       body: JSON.stringify({ stage, note, lossReason }),
     })
       .then(handle<ApiResponse<Tender>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   updateChecklist: (id: string, items: unknown[]) =>
     fetch(`${TENDER_BASE}/${id}/checklist`, {
@@ -442,13 +494,21 @@ export const tenderApi = {
       body: JSON.stringify({ items }),
     })
       .then(handle<ApiResponse<unknown[]>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   remove: (id: string) =>
     fetch(`${TENDER_BASE}/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
-    }).then(handle<ApiResponse<null>>),
+    })
+      .then(handle<ApiResponse<null>>)
+      .then((r) => {
+        clearGetCache();
+        return r;
+      }),
 
   /* ---------- Attachments ---------- */
   uploadAttachment: async (id: string, file: File) => {
@@ -473,6 +533,7 @@ export const tenderApi = {
     if (!res.ok || json.success === false) {
       throw new Error(json.message || `Upload failed with ${res.status}`);
     }
+    clearGetCache();
     return json.data as TenderAttachment;
   },
 
@@ -482,7 +543,10 @@ export const tenderApi = {
       headers: authHeaders(),
     })
       .then(handle<ApiResponse<null>>)
-      .then(() => true),
+      .then(() => {
+        clearGetCache();
+        return true;
+      }),
 
   /* ---------- Advertisement ---------- */
   uploadAdvertisement: async (id: string, file: File) => {
@@ -507,6 +571,7 @@ export const tenderApi = {
     if (!res.ok || json.success === false) {
       throw new Error(json.message || `Upload failed with ${res.status}`);
     }
+    clearGetCache();
     return json.data as AdvertisementInfo;
   },
 
@@ -516,7 +581,10 @@ export const tenderApi = {
       headers: authHeaders(),
     })
       .then(handle<ApiResponse<null>>)
-      .then(() => true),
+      .then(() => {
+        clearGetCache();
+        return true;
+      }),
 };
 
 /* ============================================================
@@ -538,7 +606,10 @@ export const docTaskApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<TenderDocTask>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   update: (
     tenderId: string,
@@ -551,13 +622,21 @@ export const docTaskApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<TenderDocTask>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   remove: (tenderId: string, taskId: string) =>
     fetch(`${TENDER_BASE}/${tenderId}/doc-tasks/${taskId}`, {
       method: "DELETE",
       headers: authHeaders(),
-    }).then(handle<ApiResponse<null>>),
+    })
+      .then(handle<ApiResponse<null>>)
+      .then((r) => {
+        clearGetCache();
+        return r;
+      }),
 };
 
 /* ============================================================
@@ -565,14 +644,14 @@ export const docTaskApi = {
  * ============================================================ */
 export const submissionApi = {
   list: () =>
-    fetch(`${TENDER_BASE}/submissions/list`, { headers: authHeaders() })
-      .then(handle<ApiResponse<SubmissionRow[]>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<SubmissionRow[]>>(
+      `${TENDER_BASE}/submissions/list`,
+    ).then((r) => r.data),
 
   get: (id: string) =>
-    fetch(`${TENDER_BASE}/submissions/${id}`, { headers: authHeaders() })
-      .then(handle<ApiResponse<SubmissionDetail>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<SubmissionDetail>>(
+      `${TENDER_BASE}/submissions/${id}`,
+    ).then((r) => r.data),
 };
 
 /* ============================================================
@@ -586,14 +665,14 @@ export const securityApi = {
     page?: number;
     limit?: number;
   }) =>
-    fetch(`${TENDER_BASE}/security/list${qs(params)}`, {
-      headers: authHeaders(),
-    }).then(handle<ApiResponse<TenderSecurity[]>>),
+    cachedGet<ApiResponse<TenderSecurity[]>>(
+      `${TENDER_BASE}/security/list${qs(params)}`,
+    ),
 
   stats: () =>
-    fetch(`${TENDER_BASE}/security/stats`, { headers: authHeaders() })
-      .then(handle<ApiResponse<TenderSecurityStats>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<TenderSecurityStats>>(
+      `${TENDER_BASE}/security/stats`,
+    ).then((r) => r.data),
 
   create: (payload: Partial<TenderSecurity>) =>
     fetch(`${TENDER_BASE}/security`, {
@@ -602,7 +681,10 @@ export const securityApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<TenderSecurity>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   update: (id: string, payload: Partial<TenderSecurity>) =>
     fetch(`${TENDER_BASE}/security/${id}`, {
@@ -611,19 +693,23 @@ export const securityApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<TenderSecurity>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   remove: (id: string) =>
     fetch(`${TENDER_BASE}/security/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
-    }).then(handle<ApiResponse<null>>),
+    })
+      .then(handle<ApiResponse<null>>)
+      .then((r) => {
+        clearGetCache();
+        return r;
+      }),
 
-  /* ---------- NEW: Notify Finance ---------- */
-  notify: (
-    id: string,
-    payload: { emails: string[]; note?: string },
-  ) =>
+  notify: (id: string, payload: { emails: string[]; note?: string }) =>
     fetch(`${TENDER_BASE}/security/${id}/notify`, {
       method: "POST",
       headers: authHeaders(),
@@ -646,22 +732,36 @@ export const securityApi = {
  * COMPANY DOCS
  * ============================================================ */
 export const companyDocApi = {
+  /* ---------- COMBINED: list + counts in one request ---------- */
+  bundle: (params?: {
+    category?: string;
+    sector?: string;
+    duration?: string;
+    volume?: string;
+  }) =>
+    cachedGet<
+      ApiResponse<{
+        list: CompanyDocument[];
+        counts: Record<CompanyDocCategory, number>;
+      }>
+    >(`${TENDER_BASE}/docs/bundle${qs(params)}`).then((r) => r.data),
+
+  /* ---------- Legacy: list only ---------- */
   list: (params?: {
     category?: string;
     sector?: string;
     duration?: string;
     volume?: string;
   }) =>
-    fetch(`${TENDER_BASE}/docs/list${qs(params)}`, {
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<CompanyDocument[]>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<CompanyDocument[]>>(
+      `${TENDER_BASE}/docs/list${qs(params)}`,
+    ).then((r) => r.data),
 
+  /* ---------- Legacy: counts only ---------- */
   counts: () =>
-    fetch(`${TENDER_BASE}/docs/counts`, { headers: authHeaders() })
-      .then(handle<ApiResponse<Record<CompanyDocCategory, number>>>)
-      .then((r) => r.data),
+    cachedGet<ApiResponse<Record<CompanyDocCategory, number>>>(
+      `${TENDER_BASE}/docs/counts`,
+    ).then((r) => r.data),
 
   create: (payload: Partial<CompanyDocument> & { validityDate?: string }) =>
     fetch(`${TENDER_BASE}/docs`, {
@@ -670,7 +770,10 @@ export const companyDocApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<CompanyDocument>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   update: (id: string, payload: Partial<CompanyDocument>) =>
     fetch(`${TENDER_BASE}/docs/${id}`, {
@@ -679,13 +782,21 @@ export const companyDocApi = {
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<CompanyDocument>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
 
   remove: (id: string) =>
     fetch(`${TENDER_BASE}/docs/${id}`, {
       method: "DELETE",
       headers: authHeaders(),
-    }).then(handle<ApiResponse<null>>),
+    })
+      .then(handle<ApiResponse<null>>)
+      .then((r) => {
+        clearGetCache();
+        return r;
+      }),
 
   importToTender: (payload: {
     targetTenderId: string;
@@ -695,7 +806,12 @@ export const companyDocApi = {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify(payload),
-    }).then(handle<ApiResponse<null>>),
+    })
+      .then(handle<ApiResponse<null>>)
+      .then((r) => {
+        clearGetCache();
+        return r;
+      }),
 
   uploadDocFile: async (id: string, file: File) => {
     const form = new FormData();
@@ -715,17 +831,29 @@ export const companyDocApi = {
     if (!res.ok || json.success === false) {
       throw new Error(json.message || `Upload failed with ${res.status}`);
     }
+    clearGetCache();
     return json.data;
   },
-  renewDoc: (id: string, payload: {
-    validityDate: string;      // ISO string, required
-    issuedOn?: string;         // ISO string, optional
-  }) =>
+
+  renewDoc: (
+    id: string,
+    payload: { validityDate: string; issuedOn?: string },
+  ) =>
     fetch(`${TENDER_BASE}/docs/${id}/renew`, {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify(payload),
     })
       .then(handle<ApiResponse<CompanyDocument>>)
-      .then((r) => r.data),
+      .then((r) => {
+        clearGetCache();
+        return r.data;
+      }),
+};
+
+/* ============================================================
+ * EXPORTS for manual cache control (optional)
+ * ============================================================ */
+export const tenderCache = {
+  clear: clearGetCache,
 };

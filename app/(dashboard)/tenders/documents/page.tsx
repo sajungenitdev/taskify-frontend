@@ -10,30 +10,66 @@ import {
   type DocsTab,
 } from "@/components/tender/documents/DocsTabs";
 import { DocsGrid } from "@/components/tender/documents/DocsGrid";
+import { DocsListView } from "@/components/tender/documents/DocsListView";
 import {
   DocsFilterBar,
   type ExperienceFilters,
+  type DocsViewMode,
 } from "@/components/tender/documents/DocsFilterBar";
 import {
   ImportBar,
   type ImportTarget,
 } from "@/components/tender/documents/ImportBar";
 import {
-  useCompanyDocs,
-  useCompanyDocCounts,
-} from "@/hooks/tender/useCompanyDocs";
-import {
   companyDocApi,
-  CompanyDocCategory,
+  type CompanyDocCategory,
   tenderApi,
 } from "@/lib/api/tender.api";
 import { toCompanyDocUI, type CompanyDocUI } from "@/lib/api/mappers";
 import { AddDocModal } from "@/components/tender/documents/modal/AddDocModal";
 import { ViewDocModal } from "@/components/tender/documents/modal/ViewDocModal";
 import { confirmToast } from "@/lib/confirmToast";
+import { useCompanyDocBundle } from "@/hooks/tender/useCompanyDocBundle";
 
 /* ---------- Config ---------- */
 const SECTORS = ["Power & Energy", "Financial", "Government"];
+
+/* ---------- Import-target cache (module-level, 60s TTL) ---------- */
+let TARGET_CACHE: { data: ImportTarget[]; ts: number } | null = null;
+let TARGET_IN_FLIGHT: Promise<ImportTarget[]> | null = null;
+const TARGET_TTL_MS = 60_000;
+
+async function loadImportTargets(): Promise<ImportTarget[]> {
+  if (TARGET_CACHE && Date.now() - TARGET_CACHE.ts < TARGET_TTL_MS) {
+    return TARGET_CACHE.data;
+  }
+  if (TARGET_IN_FLIGHT) return TARGET_IN_FLIGHT;
+
+  TARGET_IN_FLIGHT = (async () => {
+    /* One call — both drafts + non-drafts, capped at 200 */
+    const res = await tenderApi.list({ includeDrafts: true, limit: 200 });
+
+    const list: ImportTarget[] = res.data
+      .filter((t) => !t.draft)
+      .map((t) => {
+        const group: ImportTarget["group"] =
+          t.stage === "potential"
+            ? "Potential"
+            : "Submission";
+        return {
+          id: t._id,
+          label: `${t.tenderer} — ${t.title}`,
+          group,
+        };
+      });
+
+    TARGET_CACHE = { data: list, ts: Date.now() };
+    TARGET_IN_FLIGHT = null;
+    return list;
+  })();
+
+  return TARGET_IN_FLIGHT;
+}
 
 export default function CompanyDocsPage() {
   const [tab, setTab] = useState<DocsTab>("legal");
@@ -41,6 +77,7 @@ export default function CompanyDocsPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<CompanyDocUI | null>(null);
   const [renewDoc, setRenewDoc] = useState<CompanyDocUI | null>(null);
+  const [viewMode, setViewMode] = useState<DocsViewMode>("grid");
 
   const [filters, setFilters] = useState<ExperienceFilters>({
     sector: "all",
@@ -48,59 +85,37 @@ export default function CompanyDocsPage() {
     volume: "all",
   });
 
-  const { rows, loading, refetch } = useCompanyDocs({
+  /* ONE call returns list + counts */
+  const { rows, counts, loading, refetch } = useCompanyDocBundle({
     category: tab,
     sector: tab === "experience" ? filters.sector : undefined,
     duration: tab === "experience" ? filters.duration : undefined,
     volume: tab === "experience" ? filters.volume : undefined,
   });
 
-  const { counts, refetch: refetchCounts } = useCompanyDocCounts();
-
   const docs: CompanyDocUI[] = useMemo(
     () => rows.map(toCompanyDocUI),
     [rows],
   );
 
-  /* 🔍 LOG 1 — what the list returned from the backend */
-  useEffect(() => {
-    console.log("🔍 [LOG 1] Raw backend rows:", rows);
-    console.log("🔍 [LOG 1b] Mapped UI docs:", docs);
-  }, [rows, docs]);
-
-  /* ---------- Import dropdown targets ---------- */
-  const [targets, setTargets] = useState<ImportTarget[]>([]);
+  /* ---------- Import targets ---------- */
+  const [targets, setTargets] = useState<ImportTarget[]>(
+    TARGET_CACHE?.data ?? [],
+  );
   const [importTargetId, setImportTargetId] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      tenderApi.list({ stage: "potential", limit: 50 }),
-      tenderApi.list({ stage: "active", limit: 50 }),
-      tenderApi.list({ stage: "submitted", limit: 50 }),
-    ])
-      .then(([p, a, s]) => {
-        const list: ImportTarget[] = [
-          ...p.data.map((t) => ({
-            id: t._id,
-            label: `Potential — ${t.tenderer}`,
-            group: "Potential" as const,
-          })),
-          ...a.data.map((t) => ({
-            id: t._id,
-            label: `Submission — ${t.tenderer}`,
-            group: "Submission" as const,
-          })),
-          ...s.data.map((t) => ({
-            id: t._id,
-            label: `Submission — ${t.tenderer}`,
-            group: "Submission" as const,
-          })),
-        ];
-        setTargets(list);
+    let cancelled = false;
+    loadImportTargets()
+      .then((list) => {
+        if (!cancelled) setTargets(list);
       })
       .catch(() => {
         /* silent */
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* ---------- Selection ---------- */
@@ -146,26 +161,13 @@ export default function CompanyDocsPage() {
     category?: CompanyDocCategory;
     docType?: string;
   }) => {
-    /* 🔍 LOG 2 — what the modal sent to this handler */
-    console.log("🔍 [LOG 2] handleCreate called with payload:", payload);
-    console.log("🔍 [LOG 2b] renewDoc is:", renewDoc);
-
     try {
       if (renewDoc) {
-        /* -------- RENEW -------- */
-        console.log("🔍 [LOG 3] RENEW branch — calling renewDoc API");
-
-        const renewPayload = {
+        /* RENEW */
+        await companyDocApi.renewDoc(renewDoc.id, {
           validityDate: payload.validityDate!,
           issuedOn: payload.issuedOn,
-        };
-        console.log("🔍 [LOG 3b] Renew payload being sent:", renewPayload);
-
-        const renewResult = await companyDocApi.renewDoc(
-          renewDoc.id,
-          renewPayload,
-        );
-        console.log("🔍 [LOG 3c] Renew API response:", renewResult);
+        });
 
         if (payload.file) {
           const loadingId = toast.loading(`Uploading ${payload.file.name}...`);
@@ -173,41 +175,27 @@ export default function CompanyDocsPage() {
             await companyDocApi.uploadDocFile(renewDoc.id, payload.file);
             toast.success("Certificate renewed", { id: loadingId });
           } catch (e) {
-            toast.error(
-              (e as Error).message || "File upload failed",
-              { id: loadingId },
-            );
+            toast.error((e as Error).message || "File upload failed", {
+              id: loadingId,
+            });
           }
         } else {
           toast.success("Certificate renewed");
         }
-
         setRenewDoc(null);
       } else {
-        /* -------- CREATE -------- */
-        console.log("🔍 [LOG 4] CREATE branch — calling create API");
-
-        const createPayload = {
+        /* CREATE */
+        const created = await companyDocApi.create({
           category: payload.category ?? tab,
           title: payload.title,
           reference: payload.reference,
           validity: payload.validity,
-          validityDate: payload.validityDate,   // ✅ CORRECT KEY
+          validityDate: payload.validityDate,
           issuedOn: payload.issuedOn,
           subtitle: payload.subtitle,
           chips: payload.chips,
           docType: payload.docType,
-        };
-        console.log("🔍 [LOG 4b] Create payload being sent:", createPayload);
-
-        const created = await companyDocApi.create(createPayload);
-        console.log("🔍 [LOG 4c] Create API response:", created);
-        console.log(
-          "🔍 [LOG 4d] Response status/action/validUntil:",
-          created.status,
-          created.action,
-          created.validUntil,
-        );
+        });
 
         if (payload.file) {
           const loadingId = toast.loading(`Uploading ${payload.file.name}...`);
@@ -215,10 +203,9 @@ export default function CompanyDocsPage() {
             await companyDocApi.uploadDocFile(created._id, payload.file);
             toast.success("Document saved", { id: loadingId });
           } catch (e) {
-            toast.error(
-              (e as Error).message || "File upload failed",
-              { id: loadingId },
-            );
+            toast.error((e as Error).message || "File upload failed", {
+              id: loadingId,
+            });
           }
         } else {
           toast.success("Document saved");
@@ -226,12 +213,8 @@ export default function CompanyDocsPage() {
       }
 
       setAddOpen(false);
-
-      console.log("🔍 [LOG 5] Refetching list...");
-      await Promise.all([refetch(), refetchCounts()]);
-      console.log("🔍 [LOG 5b] Refetch complete");
+      await refetch();
     } catch (e) {
-      console.error("🔍 [LOG ERROR] handleCreate failed:", e);
       toast.error((e as Error).message || "Save failed");
     }
   };
@@ -249,15 +232,24 @@ export default function CompanyDocsPage() {
         try {
           await companyDocApi.remove(doc.id);
           toast.success("Document deleted", { id: loadingId });
-          await Promise.all([refetch(), refetchCounts()]);
+          await refetch();
         } catch (e) {
-          toast.error(
-            (e as Error).message || "Delete failed",
-            { id: loadingId },
-          );
+          toast.error((e as Error).message || "Delete failed", {
+            id: loadingId,
+          });
         }
       },
     });
+  };
+
+  /* ---------- Action (View / Renew) ---------- */
+  const handleAction = (doc: CompanyDocUI) => {
+    if (doc.action === "Renew" || doc.action === "Replace") {
+      setRenewDoc(doc);
+      setAddOpen(true);
+    } else {
+      setViewDoc(doc);
+    }
   };
 
   return (
@@ -286,6 +278,8 @@ export default function CompanyDocsPage() {
             value={filters}
             onChange={setFilters}
             sectors={SECTORS}
+            view={viewMode}
+            onViewChange={setViewMode}
           />
         )}
 
@@ -298,29 +292,20 @@ export default function CompanyDocsPage() {
               />
             ))}
           </div>
+        ) : viewMode === "list" ? (
+          <DocsListView
+            docs={docs}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onAction={handleAction}
+            onDelete={handleDelete}
+          />
         ) : (
           <DocsGrid
             docs={docs}
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
-            onAction={(doc) => {
-              /* 🔍 LOG — what happens when Renew is clicked */
-              console.log("🔍 [LOG ACTION] onAction clicked:", {
-                title: doc.title,
-                action: doc.action,
-                status: doc.status,
-                validUntil: doc.validUntil,
-              });
-
-              if (doc.action === "Renew" || doc.action === "Replace") {
-                console.log("🔍 [LOG ACTION] Opening renew modal");
-                setRenewDoc(doc);
-                setAddOpen(true);
-              } else {
-                console.log("🔍 [LOG ACTION] Opening view modal");
-                setViewDoc(doc);
-              }
-            }}
+            onAction={handleAction}
             onDelete={handleDelete}
           />
         )}
