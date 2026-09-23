@@ -1144,8 +1144,8 @@ export default function GanttChartPage() {
                     >
                         <div style={{ width: `${260 + totalTimelineWidth}px`, position: "relative" }}>
                             {/* Sticky Header */}
-                            <div className="top-0 flex h-[44px] bg-slate-50 border-b border-slate-200">
-                                <div className="left-0 w-[260px] shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                            <div className="sticky top-0 z-40 flex h-[44px] bg-slate-50 border-b border-slate-200">
+                                <div className="sticky left-0 z-30 w-[260px] shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
                                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Task</span>
                                     <span className="text-[11px] text-slate-400 font-normal">{ganttData.tasks.length} items</span>
                                 </div>
@@ -1167,7 +1167,7 @@ export default function GanttChartPage() {
                             {/* Schedule Rows */}
                             <div className="relative">
                                 {/* SVG Dependency Connectors */}
-                                <div className="absolute top-0 left-[260px] right-0 bottom-0 pointer-events-none z-10">
+                                <div className="absolute top-0 left-[260px] right-0 bottom-0 pointer-events-none z-0">
                                     <DependencyOverlay
                                         edges={dependencyEdges}
                                         tasks={ganttData.tasks}
@@ -1188,7 +1188,7 @@ export default function GanttChartPage() {
                                         >
                                             {/* Pinned Left Sidebar Cell */}
                                             <div
-                                                className="sticky left-0  w-[260px] shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                                                className="sticky left-0 z-30 w-[260px] shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                                                 onClick={() => handleTaskClick(task)}
                                             >
                                                 <div className="flex items-center gap-1.5 overflow-hidden">
@@ -1233,7 +1233,7 @@ export default function GanttChartPage() {
 
                                             {/* Timeline Track */}
                                             <div
-                                                className="relative h-[44px] shrink-0"
+                                                className="relative z-[1] h-[44px] shrink-0"
                                                 style={{
                                                     width: `${totalTimelineWidth}px`,
                                                     backgroundImage: "linear-gradient(to right, #f1f5f9 1px, transparent 1px)",
