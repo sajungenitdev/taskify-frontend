@@ -1310,95 +1310,110 @@ export default function GanttChartPage() {
             {/* Task Details Modal */}
             <AnimatePresence>
                 {showTaskDetails && selectedTask && (
-                    <div
-                        className="fixed inset-0 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs"
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
                         onClick={() => setShowTaskDetails(false)}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-md"
                     >
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.96 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.96 }}
-                            className="w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden"
+                            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
                             onClick={(e) => e.stopPropagation()}
+                            className="w-full max-w-lg bg-white rounded-2xl border border-slate-100/80 shadow-2xl shadow-slate-900/10 overflow-hidden max-h-[90vh] flex flex-col"
                         >
-                            <div className="p-5 border-b border-slate-100 flex items-start justify-between">
-                                <div className="space-y-1">
+                            {/* Header */}
+                            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                                <div className="space-y-1 min-w-0 pr-3">
                                     <div className="flex items-center gap-2">
-                                        <div
-                                            className="w-2 h-2 rounded-full"
-                                            style={{ backgroundColor: selectedTask.color }}
+                                        <span
+                                            className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-white shadow-xs"
+                                            style={{ backgroundColor: selectedTask.color || "#6366f1" }}
                                         />
-                                        <h3 className="text-base font-bold text-slate-900">{selectedTask.title}</h3>
+                                        <h3 className="text-base font-semibold text-slate-900 tracking-tight truncate">
+                                            {selectedTask.title}
+                                        </h3>
                                     </div>
-                                    <p className="text-xs text-slate-400">Project: {selectedTask.projectId?.name || "General"}</p>
+                                    <p className="text-xs text-slate-500 font-medium">
+                                        Project: {selectedTask.projectId?.name || "General"}
+                                    </p>
                                 </div>
                                 <button
+                                    type="button"
                                     onClick={() => setShowTaskDetails(false)}
-                                    className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                    className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shrink-0"
                                 >
-                                    <X size={16} />
+                                    <X size={18} />
                                 </button>
                             </div>
 
-                            <div className="p-5 space-y-4 text-xs">
+                            {/* Content Body */}
+                            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
                                 {selectedTask.description && (
-                                    <p className="p-3 bg-slate-50 text-slate-700 rounded-xl border border-slate-100">
+                                    <div className="p-3.5 bg-slate-50/70 text-slate-700 rounded-xl border border-slate-200/60 leading-relaxed">
                                         {selectedTask.description}
-                                    </p>
+                                    </div>
                                 )}
 
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400">Status</span>
-                                        <p className="font-semibold text-slate-800 mt-0.5">{getStatusLabel(selectedTask.status)}</p>
+                                    <div className="p-3 bg-slate-50/70 border border-slate-100 rounded-xl">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</span>
+                                        <p className="font-semibold text-slate-800 mt-1">{getStatusLabel(selectedTask.status)}</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400">Priority</span>
-                                        <p className="font-semibold text-slate-800 mt-0.5">{getPriorityLabel(selectedTask.priority)}</p>
+                                    <div className="p-3 bg-slate-50/70 border border-slate-100 rounded-xl">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Priority</span>
+                                        <p className="font-semibold text-slate-800 mt-1">{getPriorityLabel(selectedTask.priority)}</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400">Start Date</span>
-                                        <p className="font-semibold text-slate-800 mt-0.5">{formatDate(selectedTask.start)}</p>
+                                    <div className="p-3 bg-slate-50/70 border border-slate-100 rounded-xl">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Start Date</span>
+                                        <p className="font-semibold text-slate-800 mt-1">{formatDate(selectedTask.start)}</p>
                                     </div>
-                                    <div className="p-3 bg-slate-50 rounded-xl">
-                                        <span className="text-[10px] uppercase font-bold text-slate-400">Deadline</span>
-                                        <p className="font-semibold text-slate-800 mt-0.5">{formatDate(selectedTask.end)}</p>
+                                    <div className="p-3 bg-slate-50/70 border border-slate-100 rounded-xl">
+                                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Deadline</span>
+                                        <p className="font-semibold text-slate-800 mt-1">{formatDate(selectedTask.end)}</p>
                                     </div>
                                 </div>
 
                                 {selectedTask.assignedTo && (
-                                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
-                                        <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                                    <div className="flex items-center gap-3 p-3 bg-slate-50/70 border border-slate-100 rounded-xl">
+                                        <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm shadow-indigo-600/20">
                                             {getInitials(selectedTask.assignedTo.fullName)}
                                         </div>
-                                        <div>
-                                            <p className="font-semibold text-slate-800">{selectedTask.assignedTo.fullName}</p>
-                                            <p className="text-[11px] text-slate-400">{selectedTask.assignedTo.email}</p>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold text-slate-800 truncate">{selectedTask.assignedTo.fullName}</p>
+                                            <p className="text-[11px] text-slate-400 truncate">{selectedTask.assignedTo.email}</p>
                                         </div>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            {/* Footer Actions */}
+                            <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50/70 border-t border-slate-100 shrink-0">
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setSelectedTaskId(selectedTask._id);
                                         setShowDependencyEditor(true);
                                         setShowTaskDetails(false);
                                     }}
-                                    className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5"
+                                    className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200/70 text-indigo-700 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                                 >
-                                    <Link2 size={13} /> Manage Dependencies
+                                    <Link2 size={13} />
+                                    Manage Dependencies
                                 </button>
                                 <button
+                                    type="button"
                                     onClick={() => setShowTaskDetails(false)}
-                                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-semibold transition"
+                                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
                                 >
                                     Close
                                 </button>
                             </div>
                         </motion.div>
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
         </div>
