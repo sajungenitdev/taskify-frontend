@@ -800,7 +800,7 @@ export default function GanttChartPage() {
 
     if (authLoading || loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px] w-full">
+            <div className="flex items-center justify-center min-h-100 w-full">
                 <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
                     <p className="text-slate-500 text-sm font-medium">Loading schedule...</p>
@@ -811,7 +811,7 @@ export default function GanttChartPage() {
 
     if (error) {
         return (
-            <div className="w-full flex items-center justify-center p-4 min-h-[300px]">
+            <div className="w-full flex items-center justify-center p-4 min-h-75">
                 <div className="text-center max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
                     <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
                     <h3 className="text-lg font-bold text-slate-800 mb-1">Failed to Load Schedule</h3>
@@ -914,7 +914,7 @@ export default function GanttChartPage() {
                             <UserCheck className="w-4 h-4 text-indigo-600" />
                             <span>Employee:</span>
                         </div>
-                        <div className="flex-1 min-w-[220px]">
+                        <div className="flex-1 min-w-55">
                             <select
                                 value={filterEmployee}
                                 onChange={(e) => {
@@ -1010,7 +1010,7 @@ export default function GanttChartPage() {
                         <select
                             value={filterProject}
                             onChange={(e) => handleFilterChange(setFilterProject, e.target.value)}
-                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none max-w-[140px] truncate"
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 outline-none max-w-35 truncate"
                         >
                             <option value="all">All Projects</option>
                             {projects.map((p) => (
@@ -1144,8 +1144,8 @@ export default function GanttChartPage() {
                     >
                         <div style={{ width: `${260 + totalTimelineWidth}px`, position: "relative" }}>
                             {/* Sticky Header */}
-                            <div className="sticky top-0 z-40 flex h-[44px] bg-slate-50 border-b border-slate-200">
-                                <div className="sticky left-0 z-30 w-[260px] shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                            <div className="sticky top-0 z-40 flex h-11 bg-slate-50 border-b border-slate-200">
+                                <div className="sticky left-0 z-30 w-65 shrink-0 bg-slate-50 px-3.5 border-r border-slate-200 flex items-center justify-between shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
                                     <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Task</span>
                                     <span className="text-[11px] text-slate-400 font-normal">{ganttData.tasks.length} items</span>
                                 </div>
@@ -1167,7 +1167,7 @@ export default function GanttChartPage() {
                             {/* Schedule Rows */}
                             <div className="relative">
                                 {/* SVG Dependency Connectors */}
-                                <div className="absolute top-0 left-[260px] right-0 bottom-0 pointer-events-none z-0">
+                                <div className="absolute top-0 left-65 right-0 bottom-0 pointer-events-none z-0">
                                     <DependencyOverlay
                                         edges={dependencyEdges}
                                         tasks={ganttData.tasks}
@@ -1183,12 +1183,12 @@ export default function GanttChartPage() {
                                     return (
                                         <div
                                             key={task._id}
-                                            className={`flex h-[44px] border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${task.isMilestone ? "bg-purple-50/20" : isSubTask ? "bg-blue-50/10" : ""
+                                            className={`flex h-11 border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${task.isMilestone ? "bg-purple-50/20" : isSubTask ? "bg-blue-50/10" : ""
                                                 }`}
                                         >
                                             {/* Pinned Left Sidebar Cell */}
                                             <div
-                                                className="sticky left-0 z-30 w-[260px] shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
+                                                className="sticky left-0 z-30 w-65 shrink-0 px-3 bg-white border-r border-slate-200 flex flex-col justify-center cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]"
                                                 onClick={() => handleTaskClick(task)}
                                             >
                                                 <div className="flex items-center gap-1.5 overflow-hidden">
@@ -1233,7 +1233,7 @@ export default function GanttChartPage() {
 
                                             {/* Timeline Track */}
                                             <div
-                                                className="relative z-[1] h-[44px] shrink-0"
+                                                className="relative z-1 h-11 shrink-0"
                                                 style={{
                                                     width: `${totalTimelineWidth}px`,
                                                     backgroundImage: "linear-gradient(to right, #f1f5f9 1px, transparent 1px)",
