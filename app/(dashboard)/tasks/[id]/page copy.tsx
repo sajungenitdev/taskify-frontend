@@ -1361,7 +1361,9 @@ export default function TaskDetailPage() {
       <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
         <div className="flex items-center gap-2 mb-3">
           <CalendarClock className="w-4 h-4 text-blue-600" />
-          <p className="text-sm font-medium text-blue-800">Extension Requests ({extensionRequests.length})</p>
+          <p className="text-sm font-medium text-blue-800">
+            Extension Requests ({extensionRequests.length})
+          </p>
         </div>
         <div className="space-y-3">
           {extensionRequests.map((req) => (
@@ -1371,10 +1373,10 @@ export default function TaskDetailPage() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${req.status === "approved"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : req.status === "rejected"
-                          ? "bg-rose-100 text-rose-700"
-                          : "bg-amber-100 text-amber-700 animate-pulse"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : req.status === "rejected"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-amber-100 text-amber-700 animate-pulse"
                         }`}
                     >
                       {req.status.toUpperCase()}
@@ -1387,11 +1389,22 @@ export default function TaskDetailPage() {
                     New Deadline: {formatDate(req.requestedDate)}
                   </p>
                   <p className="text-sm text-gray-600 mt-1 bg-gray-50 p-2 rounded-lg">
-                    <span className="text-gray-400 text-xs font-medium">Reason:</span> {req.reason}
+                    <span className="text-gray-400 text-xs font-medium">Reason:</span>{" "}
+                    {req.reason}
                   </p>
-                  {req.approvedBy && (
+
+                  {/* ✅ FIXED: Check both approvedBy existence AND fullName */}
+                  {req.status === "approved" && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Approved by: {req.approvedBy.fullName}
+                      Approved by:{" "}
+                      {req.approvedBy?.fullName?.trim() || "System"}
+                    </p>
+                  )}
+
+                  {/* ✅ Optional: Show rejected by */}
+                  {req.status === "rejected" && req.approvedBy?.fullName && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Reviewed by: {req.approvedBy.fullName}
                     </p>
                   )}
                 </div>
