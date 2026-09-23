@@ -329,6 +329,7 @@ export interface CompanyDocument {
   _id: string;
   category: CompanyDocCategory;
   title: string;
+  description?: string;      // ← profile description / general notes
   reference?: string;
   validity?: string;
   validUntil?: string;
@@ -339,7 +340,7 @@ export interface CompanyDocument {
   fileName?: string;
   fileSize?: number;
   fileMime?: string;
-  docType?: string;
+  docType?: string;           // ← certificate type: "Partner Certificate" etc.
   subtitle?: string;
   chips?: string[];
   createdAt: string;
@@ -411,7 +412,6 @@ export const overviewApi = {
   get: () =>
     cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`),
 
-  /* Backwards-compat thin wrappers (now hit the same combined endpoint) */
   upcoming: () =>
     cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
       (r) => r.data.upcoming ?? [],
@@ -510,7 +510,6 @@ export const tenderApi = {
         return r;
       }),
 
-  /* ---------- Attachments ---------- */
   uploadAttachment: async (id: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -548,7 +547,6 @@ export const tenderApi = {
         return true;
       }),
 
-  /* ---------- Advertisement ---------- */
   uploadAdvertisement: async (id: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -763,7 +761,14 @@ export const companyDocApi = {
       `${TENDER_BASE}/docs/counts`,
     ).then((r) => r.data),
 
-  create: (payload: Partial<CompanyDocument> & { validityDate?: string }) =>
+  /* ---------- Create — accepts description AND docType ---------- */
+  create: (
+    payload: Partial<CompanyDocument> & {
+      validityDate?: string;
+      description?: string;      // ← explicit (also in CompanyDocument)
+      docType?: string;          // ← explicit (also in CompanyDocument)
+    },
+  ) =>
     fetch(`${TENDER_BASE}/docs`, {
       method: "POST",
       headers: authHeaders(),
@@ -775,7 +780,15 @@ export const companyDocApi = {
         return r.data;
       }),
 
-  update: (id: string, payload: Partial<CompanyDocument>) =>
+  /* ---------- Update — accepts description AND docType ---------- */
+  update: (
+    id: string,
+    payload: Partial<CompanyDocument> & {
+      validityDate?: string;
+      description?: string;
+      docType?: string;
+    },
+  ) =>
     fetch(`${TENDER_BASE}/docs/${id}`, {
       method: "PATCH",
       headers: authHeaders(),

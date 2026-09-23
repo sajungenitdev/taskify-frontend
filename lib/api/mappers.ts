@@ -65,6 +65,7 @@ export interface CompanyDocUI {
     id: string;
     category: CompanyDocument["category"];
     title: string;
+    description?: string;
     reference?: string;
     validity?: string;
     status: CompanyDocument["status"];
@@ -80,11 +81,45 @@ export interface CompanyDocUI {
     /** ISO date string for the raw expiry date (used by the renew editor) */
     validUntil?: string;
     issuedOn?: string;
-    createdAt?: string; 
+    createdAt?: string;
+}
+
+/* ---------- Category-aware docType fallback ---------- */
+const DEFAULT_DOC_TYPE_BY_CATEGORY: Record<string, string> = {
+    certificates: "Partner Certificate",
+    legal: "Certificate",
+    profiles: "Company Profile",
+    experience: "Experience Certificate",
+};
+
+function resolveDocType(
+    category: CompanyDocument["category"],
+    docType?: string,
+): string | undefined {
+    /* Explicit value wins */
+    if (docType && docType.trim()) return docType.trim();
+    /* Fall back to a sensible default for the category */
+    return DEFAULT_DOC_TYPE_BY_CATEGORY[category];
+}
+
+/* ---------- Description with subtitle fallback ---------- */
+function resolveDescription(
+    category: CompanyDocument["category"],
+    description?: string,
+    subtitle?: string,
+): string | undefined {
+    const desc = (description || "").trim();
+    const sub = (subtitle || "").trim();
+
+    /* Prefer description. For profiles, fall back to subtitle so legacy
+     * rows (created before the description field existed) still render. */
+    if (desc) return desc;
+    if (category === "profiles" && sub) return sub;
+    return undefined;
 }
 
 export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
-    /* Derive the action based on status. If expired or expiring soon,
+    /* Derive action based on status. If expired or expiring soon,
      * force "Renew" — regardless of what's stored in the DB. */
     const derivedAction: "View" | "Replace" | "Renew" =
         d.status === "Expired" || d.status === "Expiring Soon"
@@ -97,6 +132,7 @@ export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
         id: d._id,
         category: d.category,
         title: d.title,
+        description: resolveDescription(d.category, d.description, d.subtitle),
         reference: d.reference || undefined,
         validity: d.validity || undefined,
         status: d.status,
@@ -105,11 +141,11 @@ export function toCompanyDocUI(d: CompanyDocument): CompanyDocUI {
         fileName: d.fileName || undefined,
         fileSize: d.fileSize ?? 0,
         fileMime: d.fileMime || undefined,
-        docType: d.docType || undefined,
+        docType: resolveDocType(d.category, d.docType),
         subtitle: d.subtitle || undefined,
         chips: Array.isArray(d.chips) ? d.chips : [],
         validUntil: d.validUntil || undefined,
         issuedOn: d.issuedOn || undefined,
-        createdAt: d.createdAt || undefined, 
+        createdAt: d.createdAt || undefined,
     };
 }

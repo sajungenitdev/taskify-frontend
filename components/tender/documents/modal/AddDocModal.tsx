@@ -12,6 +12,7 @@ interface Props {
   category: CompanyDocCategory;
   onSubmit: (payload: {
     title: string;
+    description?: string;
     reference?: string;
     validity?: string;
     validityDate?: string;
@@ -33,6 +34,12 @@ const SECTORS = [
   "Telecom",
   "Education",
   "Healthcare",
+];
+
+const CERTIFICATE_TYPES = [
+  "Partner Certificate",
+  "Reseller Authorization",
+  "Distributor Agreement",
 ];
 
 const inputCls =
@@ -112,11 +119,14 @@ export function AddDocModal({
   const [subtitle, setSubtitle] = useState("");
   const [duration, setDuration] = useState("");
   const [volume, setVolume] = useState("");
+  const [docType, setDocType] = useState(CERTIFICATE_TYPES[0]);
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isExperience = category === "experience" && !isRenew;
+  const isProfile = category === "profiles" && !isRenew;
+  const isCertificates = category === "certificates" && !isRenew;
 
   /* Reset / seed on open */
   useEffect(() => {
@@ -135,6 +145,7 @@ export function AddDocModal({
       setSubtitle(renewDoc.subtitle ?? "");
       setDuration("");
       setVolume("");
+      setDocType(renewDoc.docType || CERTIFICATE_TYPES[0]);
     } else {
       setTitle("");
       setReference("");
@@ -145,6 +156,7 @@ export function AddDocModal({
       setSubtitle("");
       setDuration("");
       setVolume("");
+      setDocType(CERTIFICATE_TYPES[0]);
     }
   }, [open, renewDoc]);
 
@@ -183,14 +195,19 @@ export function AddDocModal({
 
       await onSubmit({
         title: title.trim(),
+        description: isProfile ? subtitle.trim() || undefined : undefined,
         reference: reference.trim() || undefined,
         validity: validity.trim() || undefined,
         validityDate: validityDate || undefined,
         issuedOn: issuedOn || undefined,
-        subtitle: isExperience ? subtitle.trim() || undefined : undefined,
+        subtitle:
+          isExperience || isProfile
+            ? subtitle.trim() || undefined
+            : undefined,
         chips,
         category,
         file: file ?? undefined,
+        docType: isCertificates ? docType : undefined,
       });
     } finally {
       setSaving(false);
@@ -313,6 +330,46 @@ export function AddDocModal({
                   autoFocus
                 />
               </div>
+
+              {/* Certificate Type — only for Partnership Certificates */}
+              {isCertificates && (
+                <div>
+                  <label className={labelCls}>Certificate Type *</label>
+                  <select
+                    className={inputCls}
+                    value={docType}
+                    onChange={(e) => setDocType(e.target.value)}
+                  >
+                    {CERTIFICATE_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Shown as the certificate type in the library and tender
+                    imports.
+                  </p>
+                </div>
+              )}
+
+              {/* Description — only for Company Profiles */}
+              {isProfile && (
+                <div>
+                  <label className={labelCls}>Description</label>
+                  <textarea
+                    rows={4}
+                    className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs leading-relaxed text-slate-900 placeholder:text-slate-400 focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                    placeholder="Brief description of your company, services, and capabilities…"
+                    value={subtitle}
+                    onChange={(e) => setSubtitle(e.target.value)}
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Shown on the profile card and in the tender document
+                    library.
+                  </p>
+                </div>
+              )}
 
               {/* Reference + Valid Until */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

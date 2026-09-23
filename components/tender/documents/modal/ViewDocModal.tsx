@@ -14,6 +14,8 @@ import {
   Clock,
   Banknote,
   FileType,
+  Award,
+  AlignLeft,
 } from "lucide-react";
 import { StatusPill } from "../StatusPill";
 import type { CompanyDocUI } from "@/lib/api/mappers";
@@ -24,14 +26,16 @@ interface Props {
   doc: CompanyDocUI | null;
 }
 
-/* ---------- Convert "/uploads/..." → "http://localhost:5000/uploads/..." ---------- */
+/* ---------- Convert "/uploads/..." → full URL ----------
+ * Keeps relative URLs relative so Next.js's `/uploads` rewrite
+ * proxies them same-origin. This is REQUIRED for `<a download>`
+ * to actually save a file — cross-origin anchors ignore `download`.
+ */
 function fullFileUrl(url?: string) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  const base =
-    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
-  const origin = base.replace(/\/api\/v1\/?$/, "");
-  return `${origin}${url.startsWith("/") ? url : `/${url}`}`;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  return url.startsWith("/") ? url : `/${url}`;
 }
 
 function fileSizeLabel(bytes: number) {
@@ -78,6 +82,8 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
   }, [open, onOpenChange]);
 
   const isExperience = doc?.category === "experience";
+  const isProfile = doc?.category === "profiles";
+  const isCertificate = doc?.category === "certificates";
 
   const meta = useMemo(() => {
     if (!doc) return { sector: "", duration: "", volume: "" };
@@ -94,6 +100,21 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
 
   /* Non-experience chips are the free-form tags from AddDocModal */
   const genericChips = !isExperience && doc.chips ? doc.chips : [];
+
+  /* Profile description — prefer `description`, fall back to `subtitle` */
+  const profileDescription = isProfile
+    ? (doc.description || doc.subtitle || "").trim()
+    : "";
+
+  const handleDownload = () => {
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = doc.fileName || doc.title || "document";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   return (
     <div
@@ -117,11 +138,22 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
               <h2 className="truncate text-base font-bold text-slate-900">
                 {doc.title}
               </h2>
+
+              {/* Experience: show product/work description */}
               {isExperience && doc.subtitle && (
                 <p className="mt-0.5 truncate text-[12px] text-slate-600">
                   {doc.subtitle}
                 </p>
               )}
+
+              {/* Certificate: show the certificate type inline */}
+              {isCertificate && doc.docType && (
+                <p className="mt-0.5 inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700">
+                  <Award className="h-3 w-3" />
+                  {doc.docType}
+                </p>
+              )}
+
               <p className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
                 {doc.fileName ? (
                   <>
@@ -182,6 +214,21 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
             </div>
           )}
 
+          {/* -------- Profile description (only for profiles) -------- */}
+          {isProfile && profileDescription && (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <AlignLeft className="h-3 w-3" />
+                Company Description
+              </p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-slate-700">
+                  {profileDescription}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* -------- Details grid -------- */}
           <div>
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -210,8 +257,53 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
                   tone="emerald"
                 />
               </div>
+            ) : isCertificate ? (
+              /* ---------- CERTIFICATE — Certificate Type first ---------- */
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <DetailCard
+                  icon={<Award className="h-3.5 w-3.5" />}
+                  label="Certificate Type"
+                  value={doc.docType || ""}
+                  tone="amber"
+                />
+                <DetailCard
+                  icon={<Hash className="h-3.5 w-3.5" />}
+                  label="Reference / ID"
+                  value={doc.reference || ""}
+                  tone="slate"
+                  mono
+                />
+                <DetailCard
+                  icon={<Calendar className="h-3.5 w-3.5" />}
+                  label="Issued On"
+                  value={fmtDate(doc.issuedOn)}
+                  tone="slate"
+                />
+                <DetailCard
+                  icon={<Calendar className="h-3.5 w-3.5" />}
+                  label="Valid Until"
+                  value={fmtDate(doc.validUntil)}
+                  tone="slate"
+                />
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Status
+                  </p>
+                  <div className="mt-1.5">
+                    <StatusPill status={doc.status} />
+                  </div>
+                </div>
+                {doc.validity && (
+                  <DetailCard
+                    icon={<FileType className="h-3.5 w-3.5" />}
+                    label="Validity Note"
+                    value={doc.validity}
+                    tone="slate"
+                  />
+                )}
+              </div>
             ) : (
-              /* ---------- GENERIC DOCS ---------- */
+              /* ---------- GENERIC DOCS (legal, profiles) ---------- */
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <DetailCard
                   icon={<Tag className="h-3.5 w-3.5" />}
@@ -302,23 +394,15 @@ export function ViewDocModal({ open, onOpenChange, doc }: Props) {
             Open in New Tab
           </button>
 
-          {/* <button
+          <button
             type="button"
             disabled={!url}
-            onClick={() => {
-              if (!url) return;
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = doc.fileName || doc.title;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            }}
+            onClick={handleDownload}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#a97400] px-4 text-[11px] font-semibold text-white shadow-sm hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" />
             Download
-          </button> */}
+          </button>
         </div>
       </div>
     </div>
@@ -352,7 +436,9 @@ function DetailCard({
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
       <div className="flex items-center gap-1.5 text-slate-500">
-        <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${TONE_BG[tone]}`}>
+        <span
+          className={`flex h-5 w-5 items-center justify-center rounded-md border ${TONE_BG[tone]}`}
+        >
           {icon}
         </span>
         <p className="text-[10px] font-bold uppercase tracking-wider">

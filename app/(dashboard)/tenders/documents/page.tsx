@@ -151,6 +151,7 @@ export default function CompanyDocsPage() {
   /* ---------- Create OR Renew ---------- */
   const handleCreate = async (payload: {
     title: string;
+    description?: string;
     reference?: string;
     validity?: string;
     validityDate?: string;
@@ -188,6 +189,7 @@ export default function CompanyDocsPage() {
         const created = await companyDocApi.create({
           category: payload.category ?? tab,
           title: payload.title,
+          description: payload.description,
           reference: payload.reference,
           validity: payload.validity,
           validityDate: payload.validityDate,
