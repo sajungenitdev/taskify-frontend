@@ -835,6 +835,7 @@ import {
 import type { Tender } from "@/lib/api/tender.api";
 import { tenderApi } from "@/lib/api/tender.api";
 import { confirmToast } from "@/lib/confirmToast";
+import SiteDirectory from "@/components/tender/site-directory/SiteDirectory";
 
 /* ---------- Column schemas ---------- */
 const COLUMNS_POTENTIAL = [
@@ -1466,6 +1467,7 @@ function TenderManageContent() {
                 )}
               </>
             )}
+            {tab === "site-directory" && <SiteDirectory />}
           </>
         )}
       </div>

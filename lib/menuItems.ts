@@ -832,23 +832,23 @@ export const SUB_ITEMS = {
     ],
     { description: "Company documents and templates" },
   ),
-  tenderSites: createSubNavItem(
-    "tender-sites",
-    "Tender Sites",
-    "/tenders/tender-sites",
-    Globe,          // ← was FileText
-    "Tender Management",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    { description: "Crawler targets and source sites" },
-  ),
+  // tenderSites: createSubNavItem(
+  //   "tender-sites",
+  //   "Tender Sites",
+  //   "/tenders/tender-sites",
+  //   Globe,          // ← was FileText
+  //   "Tender Management",
+  //   [
+  //     ROLES.SUPER_ADMIN,
+  //     ROLES.ADMIN,
+  //     ROLES.HR_MANAGER,
+  //     ROLES.DEPT_MANAGER,
+  //     ROLES.PROJECT_MANAGER,
+  //     ROLES.LINE_MANAGER,
+  //     ROLES.EMPLOYEE,
+  //   ],
+  //   { description: "Crawler targets and source sites" },
+  // ),
   tenderSettings: createSubNavItem(
     "tender-settings",
     "Tender Settings",
@@ -866,23 +866,23 @@ export const SUB_ITEMS = {
     ],
     { description: "Crawl schedule and matching criteria" },
   ),
-  tenderSupport: createSubNavItem(
-    "tender-support",
-    "Tender Support",
-    "/tenders/support",
-    LifeBuoy,       // ← was FileText
-    "Tender Management",
-    [
-      ROLES.SUPER_ADMIN,
-      ROLES.ADMIN,
-      ROLES.HR_MANAGER,
-      ROLES.DEPT_MANAGER,
-      ROLES.PROJECT_MANAGER,
-      ROLES.LINE_MANAGER,
-      ROLES.EMPLOYEE,
-    ],
-    { description: "Live chat with the support team" },
-  ),
+  // tenderSupport: createSubNavItem(
+  //   "tender-support",
+  //   "Tender Support",
+  //   "/tenders/support",
+  //   LifeBuoy,       // ← was FileText
+  //   "Tender Management",
+  //   [
+  //     ROLES.SUPER_ADMIN,
+  //     ROLES.ADMIN,
+  //     ROLES.HR_MANAGER,
+  //     ROLES.DEPT_MANAGER,
+  //     ROLES.PROJECT_MANAGER,
+  //     ROLES.LINE_MANAGER,
+  //     ROLES.EMPLOYEE,
+  //   ],
+  //   { description: "Live chat with the support team" },
+  // ),
 
 
   // CRM Sub-items

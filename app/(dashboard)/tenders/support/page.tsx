@@ -95,6 +95,7 @@ export default function TenderSupportInboxPage() {
 
     const [activeTenderId, setActiveTenderId] = useState<string | null>(null);
     const [activeTenderTitle, setActiveTenderTitle] = useState<string>("");
+    const [wizardOpen, setWizardOpen] = useState(false);   // ✅ NEW
 
     const refetchTimer = useRef<NodeJS.Timeout | null>(null);
     const mounted = useRef(true);
@@ -236,6 +237,7 @@ export default function TenderSupportInboxPage() {
     const openChat = (r: InboxRow) => {
         setActiveTenderId(r.tenderId);
         setActiveTenderTitle(`${r.tenderer} — ${r.title}`);
+        setWizardOpen(true);   // ✅ Open the chat immediately
     };
 
     /* ============================================================
@@ -292,8 +294,8 @@ export default function TenderSupportInboxPage() {
                             key={f}
                             onClick={() => setFilter(f)}
                             className={`h-8 rounded-md px-3 text-[11px] font-semibold transition ${filter === f
-                                    ? "bg-[#a97400] text-white shadow-sm"
-                                    : "text-slate-600 hover:bg-slate-50"
+                                ? "bg-[#a97400] text-white shadow-sm"
+                                : "text-slate-600 hover:bg-slate-50"
                                 }`}
                         >
                             {f === "all" ? "All" : "Unread"}
@@ -376,8 +378,8 @@ export default function TenderSupportInboxPage() {
                                                     <div className="min-w-0">
                                                         <p
                                                             className={`truncate text-[12px] ${hasUnread
-                                                                    ? "font-bold text-slate-900"
-                                                                    : "font-semibold text-slate-800"
+                                                                ? "font-bold text-slate-900"
+                                                                : "font-semibold text-slate-800"
                                                                 }`}
                                                         >
                                                             {r.tenderer}
@@ -433,8 +435,8 @@ export default function TenderSupportInboxPage() {
                                                     )}
                                                     <span
                                                         className={`text-[10px] font-semibold ${lastFromMgmt
-                                                                ? "text-amber-700"
-                                                                : "text-slate-500"
+                                                            ? "text-amber-700"
+                                                            : "text-slate-500"
                                                             }`}
                                                     >
                                                         {lastFromMgmt ? "Support" : last.senderName}
@@ -481,8 +483,8 @@ export default function TenderSupportInboxPage() {
                                                 <button
                                                     onClick={() => openChat(r)}
                                                     className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold shadow-sm transition ${hasUnread
-                                                            ? "bg-[#a97400] text-white hover:bg-[#8f6100]"
-                                                            : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                                        ? "bg-[#a97400] text-white hover:bg-[#8f6100]"
+                                                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                                                         }`}
                                                 >
                                                     <MessageSquare className="h-3.5 w-3.5" />
@@ -498,17 +500,16 @@ export default function TenderSupportInboxPage() {
                 </div>
             </div>
 
-            {/* Controlled wizard */}
+            {/* Controlled wizard — stays mounted and shrinks to bottom bubble */}
             {activeTenderId && (
                 <TenderChatWizard
                     tenderId={activeTenderId}
                     tenderTitle={activeTenderTitle}
-                    open={true}
-                    onOpenChange={(o) => {
-                        if (!o) {
-                            setActiveTenderId(null);
-                            setActiveTenderTitle("");
-                            /* Clear unread locally — no refetch needed */
+                    open={wizardOpen}
+                    onOpenChange={(isOpen) => {
+                        setWizardOpen(isOpen);
+                        if (!isOpen) {
+                            // Clear unread indicator in inbox table
                             setRows((prev) =>
                                 prev.map((r) =>
                                     r.tenderId === activeTenderId ? { ...r, unread: 0 } : r,
@@ -516,6 +517,11 @@ export default function TenderSupportInboxPage() {
                             );
                             invalidateInbox();
                         }
+                    }}
+                    onDismiss={() => {
+                        // Only unmount when the user clicks the small 'X' on the bubble itself
+                        setActiveTenderId(null);
+                        setWizardOpen(false);
                     }}
                 />
             )}
