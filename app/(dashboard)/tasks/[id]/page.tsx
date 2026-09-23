@@ -32,6 +32,7 @@ import { RejectionReasonModal } from "@/components/modals/RejectionReasonModal";
 import { ReviewModal } from "@/components/modals/ReviewModal";
 import { DeleteConfirmModal } from "@/components/modals/DeleteConfirmModal";
 import { useTaskDetail } from "@/hooks/useTaskDetail";
+import { confirmToast } from "@/lib/confirmToast";
 
 
 export default function TaskDetailPage() {
@@ -317,16 +318,30 @@ export default function TaskDetailPage() {
                       extensionRequests={extensionRequests}
                       canApprove={canApprove}
                       onShowRejection={() => setShowRejectionModal(true)}
-                      onApproveExtension={async (extId, date) => {
-                        if (!confirm("Approve this extension?")) return;
-                        try {
-                          await api.post(`/tasks/${id}/approve-extension/${extId}`, { newDeadline: date });
-                          toast.success("Extension approved");
-                          await refetch();
-                          await refetchExtensions();
-                        } catch (err: any) {
-                          toast.error(err.response?.data?.message || "Failed");
-                        }
+                      onApproveExtension={(extId, date) => {
+                        confirmToast({
+                          title: "Approve this extension?",
+                          description:
+                            "The task deadline will be updated to the new date. This action can't be undone.",
+                          confirmLabel: "Approve",
+                          variant: "default",
+                          onConfirm: async () => {
+                            const loadingId = toast.loading("Approving extension...");
+                            try {
+                              await api.post(`/tasks/${id}/approve-extension/${extId}`, {
+                                newDeadline: date,
+                              });
+                              toast.success("Extension approved", { id: loadingId });
+                              await refetch();
+                              await refetchExtensions();
+                            } catch (err: any) {
+                              toast.error(
+                                err.response?.data?.message || "Failed to approve extension",
+                                { id: loadingId },
+                              );
+                            }
+                          },
+                        });
                       }}
                     />
 

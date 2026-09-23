@@ -771,213 +771,318 @@ export default function AllUsersPage() {
       {/* Create User Modal */}
       <AnimatePresence>
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowCreateModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm"
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white rounded-2xl border border-slate-100/80 shadow-2xl shadow-slate-900/10 overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">Add New User</h2>
-                  <p className="text-xs text-slate-500 font-medium">Create a new organizational user account</p>
+                  <h2 className="text-base font-semibold text-slate-900 tracking-tight">Add New User</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Create a new organizational user account</p>
                 </div>
-                <button onClick={() => setShowCreateModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl transition cursor-pointer">
-                  <X size={20} />
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateUser} className="p-6 space-y-4 overflow-y-auto flex-1">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={createFormData.fullName}
-                    onChange={(e) => setCreateFormData({ ...createFormData, fullName: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 focus:bg-white outline-none transition"
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Corporate Email *</label>
-                  <input
-                    type="email"
-                    required
-                    value={createFormData.email}
-                    onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 focus:bg-white outline-none transition"
-                    placeholder="john@company.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Password *</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={createFormData.password}
-                    onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 focus:bg-white outline-none transition"
-                    placeholder="Min 8 characters"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Employee ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={createFormData.employeeId}
-                    onChange={(e) => setCreateFormData({ ...createFormData, employeeId: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 focus:bg-white outline-none transition"
-                    placeholder="EMP-001"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Initial Role</label>
-                  <select
-                    value={createFormData.role}
-                    onChange={(e) => setCreateFormData({ ...createFormData, role: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Division Department</label>
-                  <select
-                    value={createFormData.departmentId}
-                    onChange={(e) => setCreateFormData({ ...createFormData, departmentId: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    <option value="">Unassigned</option>
-                    {departments.map((d) => (
-                      <option key={d._id} value={d._id}>{d.name}</option>
-                    ))}
-                  </select>
+              {/* Form Body */}
+              <form onSubmit={handleCreateUser} className="flex flex-col flex-1 overflow-hidden">
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Full Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={createFormData.fullName}
+                        onChange={(e) =>
+                          setCreateFormData({ ...createFormData, fullName: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="John Doe"
+                      />
+                    </div>
+
+                    {/* Corporate Email */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Corporate Email <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={createFormData.email}
+                        onChange={(e) =>
+                          setCreateFormData({ ...createFormData, email: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="john@company.com"
+                      />
+                    </div>
+
+                    {/* Password */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Password <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={8}
+                        value={createFormData.password}
+                        onChange={(e) =>
+                          setCreateFormData({ ...createFormData, password: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="Min 8 characters"
+                      />
+                    </div>
+
+                    {/* Employee ID */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Employee ID <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={createFormData.employeeId}
+                        onChange={(e) =>
+                          setCreateFormData({ ...createFormData, employeeId: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="EMP-001"
+                      />
+                    </div>
+
+                    {/* Initial Role */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Initial Role
+                      </label>
+                      <select
+                        value={createFormData.role}
+                        onChange={(e) =>
+                          setCreateFormData({ ...createFormData, role: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition cursor-pointer"
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Division Department */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Division Department
+                      </label>
+                      <select
+                        value={createFormData.departmentId}
+                        onChange={(e) =>
+                          setCreateFormData({ ...createFormData, departmentId: e.target.value })
+                        }
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition cursor-pointer"
+                      >
+                        <option value="">Unassigned</option>
+                        {departments.map((d) => (
+                          <option key={d._id} value={d._id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    type="submit"
-                    disabled={creating}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
-                  >
-                    {creating && <Loader2 size={16} className="animate-spin" />} Create Account
-                  </button>
+                {/* Footer Actions */}
+                <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50/70 border-t border-slate-100 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition text-sm cursor-pointer"
+                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creating && <Loader2 size={14} className="animate-spin" />}
+                    Create Account
                   </button>
                 </div>
               </form>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
       {/* Edit User Modal */}
       <AnimatePresence>
         {showEditModal && editingUser && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowEditModal(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm"
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg bg-white rounded-3xl border border-slate-100 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              initial={{ opacity: 0, scale: 0.96, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg bg-white rounded-2xl border border-slate-100/80 shadow-2xl shadow-slate-900/10 overflow-hidden max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">Edit User Account</h2>
-                  <p className="text-xs text-slate-500 font-medium">Modify account profile and credentials</p>
+                  <h2 className="text-base font-semibold text-slate-900 tracking-tight">Edit User Account</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Modify account profile and credentials</p>
                 </div>
-                <button onClick={() => setShowEditModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl transition cursor-pointer">
-                  <X size={20} />
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  <X size={18} />
                 </button>
               </div>
 
-              <form onSubmit={handleUpdateUser} className="p-6 space-y-4 overflow-y-auto flex-1">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Full Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.fullName}
-                    onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Email Address *</label>
-                  <input
-                    type="email"
-                    required
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Employee ID *</label>
-                  <input
-                    type="text"
-                    required
-                    value={editFormData.employeeId}
-                    onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm focus:border-indigo-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Primary Role</label>
-                  <select
-                    value={editFormData.role}
-                    onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Department</label>
-                  <select
-                    value={editFormData.departmentId}
-                    onChange={(e) => setEditFormData({ ...editFormData, departmentId: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm font-semibold outline-none cursor-pointer"
-                  >
-                    <option value="">Unassigned</option>
-                    {departments.map((d) => (
-                      <option key={d._id} value={d._id}>{d.name}</option>
-                    ))}
-                  </select>
+              {/* Form Body */}
+              <form onSubmit={handleUpdateUser} className="flex flex-col flex-1 overflow-hidden">
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Full Name */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Full Name <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.fullName}
+                        onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="John Doe"
+                      />
+                    </div>
+
+                    {/* Email Address */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Email Address <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={editFormData.email}
+                        onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="john@company.com"
+                      />
+                    </div>
+
+                    {/* Employee ID */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Employee ID <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editFormData.employeeId}
+                        onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition"
+                        placeholder="EMP-001"
+                      />
+                    </div>
+
+                    {/* Primary Role */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Primary Role
+                      </label>
+                      <select
+                        value={editFormData.role}
+                        onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition cursor-pointer"
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Department */}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                        Department
+                      </label>
+                      <select
+                        value={editFormData.departmentId}
+                        onChange={(e) => setEditFormData({ ...editFormData, departmentId: e.target.value })}
+                        className="w-full px-3.5 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition cursor-pointer"
+                      >
+                        <option value="">Unassigned</option>
+                        {departments.map((d) => (
+                          <option key={d._id} value={d._id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-slate-100">
-                  <button
-                    type="submit"
-                    disabled={editing}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40"
-                  >
-                    {editing && <Loader2 size={16} className="animate-spin" />} Save Changes
-                  </button>
+                {/* Footer Actions */}
+                <div className="flex items-center justify-end gap-2.5 px-6 py-4 bg-slate-50/70 border-t border-slate-100 shrink-0">
                   <button
                     type="button"
                     onClick={() => setShowEditModal(false)}
-                    className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold py-3 rounded-xl transition text-sm cursor-pointer"
+                    className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editing}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg shadow-sm shadow-indigo-500/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {editing && <Loader2 size={14} className="animate-spin" />}
+                    Save Changes
                   </button>
                 </div>
               </form>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

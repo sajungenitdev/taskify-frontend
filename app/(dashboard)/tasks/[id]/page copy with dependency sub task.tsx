@@ -2721,13 +2721,13 @@ export default function TaskDetailPage() {
                 <div className="flex gap-3">
                   <button
                     onClick={handleDelete}
-                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
+                    className="flex-1 px-4 cursor-pointer py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
                   >
                     Delete
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                    className="flex-1 px-4 py-2.5 cursor-pointer bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
                   >
                     Cancel
                   </button>

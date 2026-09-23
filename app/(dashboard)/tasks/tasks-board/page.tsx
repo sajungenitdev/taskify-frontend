@@ -71,6 +71,7 @@ export default function TasksBoardPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
@@ -110,7 +111,7 @@ export default function TasksBoardPage() {
   const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
   const [isReworking, setIsReworking] = useState<string | null>(null);
 
-  // ============ FILTERED TASKS (Moved BEFORE useCallback that use it) ============
+  // ============ FILTERED TASKS ============
   const filteredTasks = useMemo(() => {
     return tasks
       .filter((task) => {
@@ -227,7 +228,6 @@ export default function TasksBoardPage() {
         // Fall through
       }
 
-      // Fallback: extract from tasks
       if (tasks && tasks.length > 0) {
         const userMap = new Map();
         tasks.forEach(task => {
@@ -554,27 +554,51 @@ export default function TasksBoardPage() {
     }
   }, [editingTask, editFormData, fetchTasks]);
 
+  /* ---------- Single-task delete with visible loader ---------- */
   const handleDeleteTask = useCallback(async (taskId: string) => {
     if (!taskId) {
       toast.error("No task selected");
       return;
     }
+    if (deletingTaskId) return;
+
+    setDeletingTaskId(taskId);
+
+    const loadingId = toast.loading("Deleting task...");
+    const startedAt = Date.now();
+    const MIN_LOADER_MS = 600;
 
     try {
       const response = await api.delete(`/tasks/${taskId}`);
+
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADER_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADER_MS - elapsed));
+      }
+
       if (response.data.success) {
-        toast.success("Task deleted successfully");
+        toast.success("Task deleted successfully", { id: loadingId });
         setShowDeleteConfirm(null);
-        // Refresh tasks
         await fetchTasks();
       } else {
-        toast.error(response.data.message || "Failed to delete task");
+        toast.error(response.data.message || "Failed to delete task", {
+          id: loadingId,
+        });
       }
     } catch (error: any) {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADER_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADER_MS - elapsed));
+      }
       console.error("Delete task error:", error);
-      toast.error(error.response?.data?.message || "Failed to delete task");
+      toast.error(
+        error.response?.data?.message || "Failed to delete task",
+        { id: loadingId },
+      );
+    } finally {
+      setDeletingTaskId(null);
     }
-  }, [fetchTasks]);
+  }, [deletingTaskId, fetchTasks]);
 
   const toggleStar = useCallback((taskId: string) => {
     setTasks((prev) =>
@@ -618,27 +642,54 @@ export default function TasksBoardPage() {
     }
   }, [selectedTasks, filteredTasks]);
 
+  /* ---------- Bulk delete with visible loader ---------- */
   const handleBulkDelete = useCallback(async () => {
     if (selectedTasks.size === 0) {
       toast.error("No tasks selected");
       return;
     }
+    if (isBulkDeleting) return;
+
     setIsBulkDeleting(true);
+
+    const count = selectedTasks.size;
+    const loadingId = toast.loading(
+      `Deleting ${count} task${count === 1 ? "" : "s"}...`,
+    );
+    const startedAt = Date.now();
+    const MIN_LOADER_MS = 800;
+
     try {
       const deletePromises = Array.from(selectedTasks).map((taskId) =>
-        api.delete(`/tasks/${taskId}`)
+        api.delete(`/tasks/${taskId}`),
       );
       await Promise.all(deletePromises);
-      toast.success(`Successfully deleted ${selectedTasks.size} tasks`);
+
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADER_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADER_MS - elapsed));
+      }
+
+      toast.success(
+        `Successfully deleted ${count} task${count === 1 ? "" : "s"}`,
+        { id: loadingId },
+      );
       setSelectedTasks(new Set());
       setIsBulkDeleteModalOpen(false);
-      fetchTasks();
+      await fetchTasks();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Failed to delete tasks");
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADER_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADER_MS - elapsed));
+      }
+      toast.error(
+        error.response?.data?.message || "Failed to delete tasks",
+        { id: loadingId },
+      );
     } finally {
       setIsBulkDeleting(false);
     }
-  }, [selectedTasks, fetchTasks]);
+  }, [selectedTasks, isBulkDeleting, fetchTasks]);
 
   const handleExport = useCallback(() => {
     const headers = ["Title", "Priority", "Status", "Assignee", "Deadline", "Created At"];
@@ -846,7 +897,7 @@ export default function TasksBoardPage() {
           </div>
         </motion.div>
 
-        {/* Stats Cards - Inline Implementation */}
+        {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
           {[
             { label: "Total", key: "total", icon: CheckSquare, color: "text-gray-700", bgColor: "bg-gray-50" },
@@ -1229,7 +1280,7 @@ export default function TasksBoardPage() {
             setShowExtensionModal(false);
             setSelectedTaskForExtension(null);
           }}
-          task={selectedTaskForExtension as any} 
+          task={selectedTaskForExtension as any}
           onSubmitted={() => {
             fetchTasks();
             fetchMyExtensionRequests();
@@ -1276,8 +1327,14 @@ export default function TasksBoardPage() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-6">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={() => !deletingTaskId && setShowDeleteConfirm(null)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="text-center">
               <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Trash2 className="w-8 h-8 text-rose-500" />
@@ -1288,19 +1345,23 @@ export default function TasksBoardPage() {
               </p>
               <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() => {
                     if (showDeleteConfirm) {
                       handleDeleteTask(showDeleteConfirm);
                     }
                   }}
-                  className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition flex items-center justify-center gap-2"
+                  disabled={!!deletingTaskId}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 cursor-pointer bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Trash2 size={16} />
-                  Delete
+                  {deletingTaskId && <Loader2 size={16} className="animate-spin" />}
+                  {deletingTaskId ? "Deleting..." : "Delete"}
                 </button>
                 <button
-                  onClick={() => setShowDeleteConfirm(null)}
-                  className="flex-1 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg transition"
+                  type="button"
+                  onClick={() => !deletingTaskId && setShowDeleteConfirm(null)}
+                  disabled={!!deletingTaskId}
+                  className="flex-1 px-4 py-2.5 cursor-pointer bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Cancel
                 </button>

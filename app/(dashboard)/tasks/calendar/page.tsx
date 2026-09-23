@@ -1,3 +1,4 @@
+// app/(dashboard)/tasks/my-calendar/page.tsx
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -10,34 +11,23 @@ import {
   CheckCircle,
   AlertCircle,
   Circle,
-  Flag,
   Sparkles,
-  User,
-  Mail,
-  Briefcase,
-  Filter,
-  X,
-  Loader2,
   Home,
   ChevronRight as ChevronRightIcon,
   LayoutGrid,
   List,
   CalendarDays,
   Star,
-  Bell,
   MessageSquare,
   Paperclip,
-  Eye,
   Play,
   Send,
-  ThumbsUp,
-  ThumbsDown,
   RefreshCw,
   ArrowRight,
-  TrendingUp,
-  Award,
   Zap,
   CheckSquare,
+  X,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/axios";
@@ -45,6 +35,9 @@ import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
+/* ============================================================
+ * TYPES
+ * ============================================================ */
 interface Task {
   _id: string;
   title: string;
@@ -73,6 +66,24 @@ interface Task {
 
 type ViewMode = "month" | "week" | "day";
 
+/* ============================================================
+ * LOCAL DATE HELPERS — avoid all `toISOString()` UTC shifts
+ * ============================================================ */
+function dateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Normalize any Date to local midnight (0:00:00.000) */
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/* ============================================================
+ * CONFIG
+ * ============================================================ */
 const statusColors = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
   in_progress: "bg-sky-100 text-sky-700 border-sky-200",
@@ -105,14 +116,22 @@ const priorityLabels = {
   low: "🟢 Low",
 };
 
+/* ============================================================
+ * PAGE
+ * ============================================================ */
 export default function MyCalendarPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const [currentDate, setCurrentDate] = useState<Date>(() => startOfDay(new Date()));
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() =>
+    startOfDay(new Date()),
+  );
+
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -128,29 +147,43 @@ export default function MyCalendarPage() {
     submitted: 0,
   });
 
+  /* ---------- Auth guard ---------- */
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
 
+  /* ---------- Initial fetch ---------- */
   useEffect(() => {
     if (isAuthenticated && user) {
       fetchMyTasks();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
+  /* ============================================================
+   * FETCH
+   * ============================================================ */
   const fetchMyTasks = async () => {
     try {
       setLoading(true);
       const response = await api.get("/tasks/my-tasks");
+
       if (response.data.success) {
-        const tasksWithMeta = (response.data.data || []).map((task: Task) => ({
-          ...task,
-          comments: Math.floor(Math.random() * 10),
-          attachments: Math.floor(Math.random() * 5),
-          isStarred: false,
-        }));
+        const tasksWithMeta: Task[] = (response.data.data || []).map(
+          (task: any) => ({
+            ...task,
+            /* Use the real values — no random numbers */
+            comments: task.comments ?? 0,
+            attachments:
+              task.attachments ??
+              (Array.isArray(task.evidenceUrls)
+                ? task.evidenceUrls.length
+                : 0),
+            isStarred: task.isStarred ?? false,
+          }),
+        );
         setTasks(tasksWithMeta);
         calculateStats(tasksWithMeta);
       } else {
@@ -159,14 +192,12 @@ export default function MyCalendarPage() {
       }
     } catch (error: any) {
       console.error("Error fetching tasks:", error);
-      // Try fallback to all tasks
       try {
         const fallbackResponse = await api.get("/tasks");
         if (fallbackResponse.data.success) {
-          const allTasks = fallbackResponse.data.data || [];
-          // Filter tasks assigned to current user
+          const allTasks: Task[] = fallbackResponse.data.data || [];
           const myTasks = allTasks.filter(
-            (task: Task) => task.assignedTo?._id === user?._id,
+            (task) => task.assignedTo?._id === user?._id,
           );
           setTasks(myTasks);
           calculateStats(myTasks);
@@ -196,6 +227,9 @@ export default function MyCalendarPage() {
     });
   };
 
+  /* ============================================================
+   * UPDATE STATUS
+   * ============================================================ */
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     setUpdating(true);
     try {
@@ -222,6 +256,9 @@ export default function MyCalendarPage() {
     }
   };
 
+  /* ============================================================
+   * HELPERS
+   * ============================================================ */
   const getInitials = (name: string) => {
     if (!name) return "?";
     return name
@@ -232,34 +269,30 @@ export default function MyCalendarPage() {
       .slice(0, 2);
   };
 
-  const getPriorityConfig = (priority: string) => {
-    return {
-      color:
-        priorityColors[priority as keyof typeof priorityColors] ||
-        priorityColors.normal,
-      label:
-        priorityLabels[priority as keyof typeof priorityLabels] || priority,
-    };
-  };
+  const getPriorityConfig = (priority: string) => ({
+    color:
+      priorityColors[priority as keyof typeof priorityColors] ||
+      priorityColors.normal,
+    label:
+      priorityLabels[priority as keyof typeof priorityLabels] || priority,
+  });
 
-  const getStatusConfig = (status: string) => {
-    return {
-      color:
-        statusColors[status as keyof typeof statusColors] ||
-        statusColors.pending,
-      label: statusLabels[status as keyof typeof statusLabels] || status,
-      icon:
-        status === "pending"
-          ? Circle
-          : status === "in_progress"
-            ? Clock
-            : status === "submitted"
-              ? AlertCircle
-              : status === "completed"
-                ? CheckCircle
-                : AlertCircle,
-    };
-  };
+  const getStatusConfig = (status: string) => ({
+    color:
+      statusColors[status as keyof typeof statusColors] ||
+      statusColors.pending,
+    label: statusLabels[status as keyof typeof statusLabels] || status,
+    icon:
+      status === "pending"
+        ? Circle
+        : status === "in_progress"
+          ? Clock
+          : status === "submitted"
+            ? AlertCircle
+            : status === "completed"
+              ? CheckCircle
+              : AlertCircle,
+  });
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -293,25 +326,37 @@ export default function MyCalendarPage() {
     return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
   };
 
-  // Get tasks for a specific date
+  /* ============================================================
+   * TASKS-BY-DATE — timezone-safe
+   * ============================================================ */
   const getTasksForDate = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const key = dateKey(date);
     return tasks.filter((task) => {
       if (!task.deadline) return false;
-      const taskDate = new Date(task.deadline).toISOString().split("T")[0];
-      return taskDate === dateStr;
+      return dateKey(new Date(task.deadline)) === key;
     });
   };
 
-  // Check if a date has tasks
-  const hasTasksOnDate = (date: Date) => {
-    return getTasksForDate(date).length > 0;
+  const hasTasksOnDate = (date: Date) => getTasksForDate(date).length > 0;
+
+  const isToday = (date: Date) => dateKey(date) === dateKey(new Date());
+
+  const isSelected = (date: Date) => {
+    if (!selectedDate) return false;
+    return dateKey(date) === dateKey(selectedDate);
   };
 
-  // Get filtered tasks for selected date
+  /* ============================================================
+   * FILTERED TASKS FOR SELECTED DATE
+   * ============================================================ */
+  const selectedDateKey = selectedDate ? dateKey(selectedDate) : null;
+
   const selectedDateTasks = useMemo(() => {
-    if (!selectedDate) return [];
-    let filtered = getTasksForDate(selectedDate);
+    if (!selectedDateKey) return [];
+    let filtered = tasks.filter((task) => {
+      if (!task.deadline) return false;
+      return dateKey(new Date(task.deadline)) === selectedDateKey;
+    });
     if (filterStatus !== "all") {
       filtered = filtered.filter((task) => task.status === filterStatus);
     }
@@ -321,34 +366,54 @@ export default function MyCalendarPage() {
       );
     }
     return filtered;
-  }, [selectedDate, tasks, filterStatus, filterPriority]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDateKey, tasks, filterStatus, filterPriority]);
 
-  // Calendar navigation
+  /* ============================================================
+   * NEXT UPCOMING TASK
+   * ============================================================ */
+  const nextTask = useMemo(() => {
+    const now = new Date();
+    const upcoming = tasks
+      .filter((t) => t.status !== "completed" && t.status !== "rejected")
+      .filter((t) => t.deadline && new Date(t.deadline) >= now)
+      .sort(
+        (a, b) =>
+          new Date(a.deadline).getTime() - new Date(b.deadline).getTime(),
+      );
+    return upcoming[0] ?? null;
+  }, [tasks]);
+
+  /* ============================================================
+   * NAVIGATION
+   * ============================================================ */
   const navigateMonth = (direction: number) => {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + direction);
-    setCurrentDate(newDate);
+    setCurrentDate(startOfDay(newDate));
   };
 
   const navigateWeek = (direction: number) => {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + direction * 7);
-    setCurrentDate(newDate);
+    setCurrentDate(startOfDay(newDate));
   };
 
   const navigateDay = (direction: number) => {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + direction);
-    setCurrentDate(newDate);
+    setCurrentDate(startOfDay(newDate));
   };
 
   const goToToday = () => {
-    const today = new Date();
+    const today = startOfDay(new Date());
     setCurrentDate(today);
     setSelectedDate(today);
   };
 
-  // Generate calendar days for month view
+  /* ============================================================
+   * CALENDAR GRID
+   * ============================================================ */
   const getMonthDays = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -357,41 +422,45 @@ export default function MyCalendarPage() {
     const daysInMonth = lastDay.getDate();
     const startDayOfWeek = firstDay.getDay();
 
-    const days = [];
+    const days: { date: Date; isCurrentMonth: boolean }[] = [];
     const prevMonthLastDay = new Date(year, month, 0).getDate();
     for (let i = startDayOfWeek - 1; i >= 0; i--) {
-      const date = new Date(year, month - 1, prevMonthLastDay - i);
-      days.push({ date, isCurrentMonth: false });
+      days.push({
+        date: new Date(year, month - 1, prevMonthLastDay - i),
+        isCurrentMonth: false,
+      });
     }
 
     for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(year, month, i);
-      days.push({ date, isCurrentMonth: true });
+      days.push({
+        date: new Date(year, month, i),
+        isCurrentMonth: true,
+      });
     }
 
     const remainingDays = 42 - days.length;
     for (let i = 1; i <= remainingDays; i++) {
-      const date = new Date(year, month + 1, i);
-      days.push({ date, isCurrentMonth: false });
+      days.push({
+        date: new Date(year, month + 1, i),
+        isCurrentMonth: false,
+      });
     }
 
     return days;
   };
 
-  // Generate week days
   const getWeekDays = () => {
     const startOfWeek = new Date(currentDate);
     startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-    const days = [];
+    const days: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
-      days.push(date);
+      days.push(startOfDay(date));
     }
     return days;
   };
 
-  // Get week number
   const getWeekNumber = (date: Date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -408,36 +477,27 @@ export default function MyCalendarPage() {
     );
   };
 
-  const isToday = (date: Date) => {
-    const today = new Date();
-    return (
-      date.toISOString().split("T")[0] === today.toISOString().split("T")[0]
-    );
-  };
-
-  const isSelected = (date: Date) => {
-    if (!selectedDate) return false;
-    return (
-      date.toISOString().split("T")[0] ===
-      selectedDate.toISOString().split("T")[0]
-    );
-  };
-
+  /* ============================================================
+   * LOADING / AUTH
+   * ============================================================ */
   if (isLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
-          <p className="text-gray-500 text-sm">Loading your calendar...</p>
+          <p className="text-gray-500 text-sm">
+            {isLoading ? "Checking your session..." : "Loading your calendar..."}
+          </p>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
+  if (!isAuthenticated) return null;
 
+  /* ============================================================
+   * RENDER
+   * ============================================================ */
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-50 via-white to-gray-50/80">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -480,7 +540,7 @@ export default function MyCalendarPage() {
                 My Calendar
               </h1>
               <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
-                {stats.total} tasks
+                {stats.total} {stats.total === 1 ? "task" : "tasks"}
               </span>
             </div>
             <p className="text-gray-500 text-sm flex items-center gap-2">
@@ -497,44 +557,35 @@ export default function MyCalendarPage() {
               Today
             </button>
             <div className="flex bg-white rounded-lg p-0.5 border border-gray-200 shadow-sm">
-              <button
-                onClick={() => setViewMode("month")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                  viewMode === "month"
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <LayoutGrid size={14} />
-                Month
-              </button>
-              <button
-                onClick={() => setViewMode("week")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                  viewMode === "week"
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <List size={14} />
-                Week
-              </button>
-              <button
-                onClick={() => setViewMode("day")}
-                className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
-                  viewMode === "day"
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <CalendarDays size={14} />
-                Day
-              </button>
+              {(["month", "week", "day"] as const).map((mode) => {
+                const Icon =
+                  mode === "month"
+                    ? LayoutGrid
+                    : mode === "week"
+                      ? List
+                      : CalendarDays;
+                const label =
+                  mode === "month" ? "Month" : mode === "week" ? "Week" : "Day";
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className={`px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all ${
+                      viewMode === mode
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    <Icon size={14} />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </motion.div>
 
-        {/* Stats Cards */}
+        {/* Stats */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -546,8 +597,8 @@ export default function MyCalendarPage() {
               label: "Total",
               value: stats.total,
               icon: CheckSquare,
-              color: "text-gray-700",
-              bg: "bg-gray-50",
+              color: "text-indigo-600",
+              bg: "bg-indigo-50",
             },
             {
               label: "Pending",
@@ -611,6 +662,42 @@ export default function MyCalendarPage() {
           ))}
         </motion.div>
 
+        {/* Next up callout — only when the workload is small */}
+        {nextTask && stats.total <= 3 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 flex items-center justify-between gap-4"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 shrink-0 rounded-xl bg-indigo-600 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">
+                  Next up
+                </p>
+                <p className="text-sm font-semibold text-slate-900 truncate">
+                  {nextTask.title}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Due {formatDate(nextTask.deadline)} · {formatTime(nextTask.deadline)}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedTask(nextTask);
+                setShowTaskDetail(true);
+              }}
+              className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition"
+            >
+              Open Task
+            </button>
+          </motion.div>
+        )}
+
         {/* Calendar Controls */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -665,21 +752,6 @@ export default function MyCalendarPage() {
               >
                 <ChevronRight className="w-5 h-5 text-gray-600" />
               </button>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`p-2 rounded-lg transition-colors ${
-                  showFilters ||
-                  filterStatus !== "all" ||
-                  filterPriority !== "all"
-                    ? "bg-indigo-100 text-indigo-600"
-                    : "hover:bg-gray-100 text-gray-600"
-                }`}
-              >
-                <Filter className="w-5 h-5" />
-              </button> */}
             </div>
           </div>
 
@@ -739,97 +811,110 @@ export default function MyCalendarPage() {
           transition={{ delay: 0.3 }}
           className="bg-white rounded-2xl shadow-sm border border-gray-100/80 overflow-hidden"
         >
+          {/* -------------------- MONTH VIEW -------------------- */}
           {viewMode === "month" && (
             <div className="p-4">
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
-                  (day) => (
-                    <div
-                      key={day}
-                      className="text-center text-xs font-medium text-gray-500 py-2"
-                    >
-                      {day}
-                    </div>
-                  ),
-                )}
-              </div>
+              {stats.total === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <CalendarIcon className="w-10 h-10 text-indigo-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    No tasks scheduled this month
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    When tasks are assigned to you, they'll appear here.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                      (day) => (
+                        <div
+                          key={day}
+                          className="text-center text-xs font-medium text-gray-500 py-2"
+                        >
+                          {day}
+                        </div>
+                      ),
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-7 gap-1">
-                {getMonthDays().map(({ date, isCurrentMonth }, index) => {
-                  const dayTasks = getTasksForDate(date);
-                  const hasTasks = dayTasks.length > 0;
-                  const isTodayDate = isToday(date);
-                  const isSelectedDate = isSelected(date);
+                  <div className="grid grid-cols-7 gap-1">
+                    {getMonthDays().map(({ date, isCurrentMonth }, index) => {
+                      const dayTasks = getTasksForDate(date);
+                      const hasTasks = dayTasks.length > 0;
+                      const isTodayDate = isToday(date);
+                      const isSelectedDate = isSelected(date);
 
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => {
-                        setSelectedDate(date);
-                        if (dayTasks.length > 0) {
-                          // Scroll to tasks section
-                        }
-                      }}
-                      className={`
-                        min-h-[80px] p-2 rounded-xl cursor-pointer transition-all
-                        ${isCurrentMonth ? "hover:bg-gray-50" : "opacity-40"}
-                        ${isTodayDate ? "ring-2 ring-indigo-500 ring-offset-2" : ""}
-                        ${isSelectedDate ? "bg-indigo-50" : ""}
-                        ${hasTasks ? "hover:shadow-sm" : ""}
-                      `}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span
+                      return (
+                        <div
+                          key={index}
+                          onClick={() => setSelectedDate(startOfDay(date))}
                           className={`
-                            text-sm font-medium
-                            ${isTodayDate ? "text-indigo-600" : "text-gray-700"}
-                            ${!isCurrentMonth ? "text-gray-400" : ""}
+                            min-h-[80px] p-2 rounded-xl cursor-pointer transition-all
+                            ${isCurrentMonth ? "hover:bg-gray-50" : "opacity-40"}
+                            ${isTodayDate ? "ring-2 ring-indigo-500 ring-offset-2" : ""}
+                            ${isSelectedDate ? "bg-indigo-50" : ""}
+                            ${hasTasks ? "hover:shadow-sm" : ""}
                           `}
                         >
-                          {date.getDate()}
-                        </span>
-                        {hasTasks && (
-                          <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">
-                            {dayTasks.length}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 space-y-1">
-                        {dayTasks.slice(0, 3).map((task) => {
-                          const statusConfig = getStatusConfig(task.status);
-                          const StatusIcon = statusConfig.icon;
-                          return (
-                            <div
-                              key={task._id}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedTask(task);
-                                setShowTaskDetail(true);
-                              }}
+                          <div className="flex items-center justify-between">
+                            <span
                               className={`
-                                text-xs px-1.5 py-0.5 rounded truncate cursor-pointer flex items-center gap-0.5
-                                ${statusConfig.color}
-                                hover:opacity-80 transition-opacity
+                                text-sm font-medium
+                                ${isTodayDate ? "text-indigo-600" : "text-gray-700"}
+                                ${!isCurrentMonth ? "text-gray-400" : ""}
                               `}
                             >
-                              <StatusIcon className="w-2.5 h-2.5 shrink-0" />
-                              <span className="truncate">{task.title}</span>
-                            </div>
-                          );
-                        })}
-                        {dayTasks.length > 3 && (
-                          <div className="text-xs text-gray-400 pl-1.5">
-                            +{dayTasks.length - 3} more
+                              {date.getDate()}
+                            </span>
+                            {hasTasks && (
+                              <span className="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">
+                                {dayTasks.length}
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          <div className="mt-1 space-y-1">
+                            {dayTasks.slice(0, 3).map((task) => {
+                              const statusConfig = getStatusConfig(task.status);
+                              const StatusIcon = statusConfig.icon;
+                              return (
+                                <div
+                                  key={task._id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTask(task);
+                                    setShowTaskDetail(true);
+                                  }}
+                                  className={`
+                                    text-xs px-1.5 py-0.5 rounded truncate cursor-pointer flex items-center gap-0.5
+                                    ${statusConfig.color}
+                                    hover:opacity-80 transition-opacity
+                                  `}
+                                >
+                                  <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                                  <span className="truncate">{task.title}</span>
+                                </div>
+                              );
+                            })}
+                            {dayTasks.length > 3 && (
+                              <div className="text-xs text-gray-400 pl-1.5">
+                                +{dayTasks.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
+          {/* -------------------- WEEK VIEW -------------------- */}
           {viewMode === "week" && (
             <div className="p-4">
               <div className="grid grid-cols-7 gap-2">
@@ -841,9 +926,9 @@ export default function MyCalendarPage() {
                   return (
                     <div key={index} className="min-h-[200px]">
                       <div
-                        onClick={() => setSelectedDate(date)}
+                        onClick={() => setSelectedDate(startOfDay(date))}
                         className={`
-                          text-center py-2 rounded-xl cursor-pointer transition-all
+                          text-center py-2 min-h-[80px] rounded-xl cursor-pointer transition-all
                           ${isTodayDate ? "bg-indigo-50" : "hover:bg-gray-50"}
                           ${isSelectedDate ? "bg-indigo-100" : ""}
                         `}
@@ -862,7 +947,8 @@ export default function MyCalendarPage() {
                           {date.getDate()}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {dayTasks.length} tasks
+                          {dayTasks.length}{" "}
+                          {dayTasks.length === 1 ? "task" : "tasks"}
                         </div>
                       </div>
                       <div className="mt-2 space-y-1.5 max-h-[300px] overflow-y-auto">
@@ -914,6 +1000,7 @@ export default function MyCalendarPage() {
             </div>
           )}
 
+          {/* -------------------- DAY VIEW -------------------- */}
           {viewMode === "day" && (
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -927,7 +1014,8 @@ export default function MyCalendarPage() {
                     })}
                   </h3>
                   <p className="text-sm text-gray-500">
-                    {selectedDateTasks.length} tasks due
+                    {selectedDateTasks.length}{" "}
+                    {selectedDateTasks.length === 1 ? "task" : "tasks"} due
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -958,9 +1046,6 @@ export default function MyCalendarPage() {
                     const statusConfig = getStatusConfig(task.status);
                     const StatusIcon = statusConfig.icon;
                     const priorityConfig = getPriorityConfig(task.priority);
-                    const isOverdue =
-                      new Date(task.deadline) < new Date() &&
-                      task.status !== "completed";
 
                     return (
                       <motion.div
@@ -1037,7 +1122,7 @@ export default function MyCalendarPage() {
           )}
         </motion.div>
 
-        {/* Task Detail Modal */}
+        {/* -------------------- TASK DETAIL MODAL -------------------- */}
         <AnimatePresence>
           {showTaskDetail && selectedTask && (
             <motion.div
@@ -1155,7 +1240,7 @@ export default function MyCalendarPage() {
                           Project
                         </h3>
                         <div className="flex items-center gap-2">
-                          <Briefcase size={14} className="text-gray-400" />
+                          <CalendarIcon size={14} className="text-gray-400" />
                           <span className="text-gray-800 text-sm font-medium">
                             {selectedTask.projectId.name}
                           </span>
@@ -1185,7 +1270,7 @@ export default function MyCalendarPage() {
                     </div>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Action buttons */}
                   <div className="flex flex-wrap gap-2 pt-3 border-t border-gray-200">
                     {selectedTask.status === "pending" && (
                       <button
@@ -1193,7 +1278,7 @@ export default function MyCalendarPage() {
                           updateTaskStatus(selectedTask._id, "in_progress")
                         }
                         disabled={updating}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm"
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm disabled:opacity-50"
                       >
                         <Play size={14} />
                         Start Task
@@ -1206,7 +1291,7 @@ export default function MyCalendarPage() {
                           updateTaskStatus(selectedTask._id, "submitted")
                         }
                         disabled={updating}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm"
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm disabled:opacity-50"
                       >
                         <Send size={14} />
                         Submit for Review
@@ -1229,7 +1314,7 @@ export default function MyCalendarPage() {
                           updateTaskStatus(selectedTask._id, "pending")
                         }
                         disabled={updating}
-                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm"
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition flex items-center gap-2 shadow-sm disabled:opacity-50"
                       >
                         <RefreshCw size={14} />
                         Send for Rework

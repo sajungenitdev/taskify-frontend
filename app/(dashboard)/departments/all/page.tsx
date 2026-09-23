@@ -414,7 +414,7 @@ export default function AllDepartmentsPage() {
             </div>
           </div>
         ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {currentDepartments.map((dept, index) => {
               const memberCount = dept.members?.length || dept.employeeCount || 0;
               const budgetAmount = dept.budget?.allocated || 0;
@@ -457,15 +457,15 @@ export default function AllDepartmentsPage() {
                     )}
 
                     {/* Metric Badges */}
-                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100">
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                       <div className="bg-slate-50/80 p-2.5 rounded-xl text-center border border-slate-100">
                         <p className="text-slate-800 font-extrabold text-sm">{memberCount}</p>
                         <p className="text-slate-400 text-[10px] font-bold uppercase">Staff</p>
                       </div>
-                      <div className="bg-slate-50/80 p-2.5 rounded-xl text-center border border-slate-100">
+                      {/* <div className="bg-slate-50/80 p-2.5 rounded-xl text-center border border-slate-100">
                         <p className="text-slate-800 font-extrabold text-sm">${budgetAmount.toLocaleString()}</p>
                         <p className="text-slate-400 text-[10px] font-bold uppercase">Budget</p>
-                      </div>
+                      </div> */}
                       <div className="bg-slate-50/80 p-2.5 rounded-xl text-center border border-slate-100">
                         <p className="text-slate-800 font-extrabold text-sm">{assetCount}</p>
                         <p className="text-slate-400 text-[10px] font-bold uppercase">Assets</p>

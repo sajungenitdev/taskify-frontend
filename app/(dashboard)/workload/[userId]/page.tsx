@@ -1130,6 +1130,17 @@ export default function IndividualWorkloadPage() {
                               borderRadius: "8px",
                               padding: "8px 12px",
                             }}
+                            labelStyle={{
+                              color: "#0f172a",
+                              fontWeight: 600,
+                              fontSize: 12,
+                              marginBottom: 4,
+                            }}
+                            itemStyle={{
+                              color: "#334155",
+                              fontSize: 12,
+                            }}
+                            cursor={{ fill: "rgba(99, 102, 241, 0.06)" }}
                           />
                           <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                             {statusChartData.map((entry, index) => (

@@ -232,6 +232,7 @@ export default function TaskDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [submittingForReview, setSubmittingForReview] = useState(false);
@@ -266,6 +267,7 @@ export default function TaskDetailPage() {
   const [showAttachments, setShowAttachments] = useState(true);
   const [showReviews, setShowReviews] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
 
   // Approval/Rejection note state
   const [approvalNote, setApprovalNote] = useState("");
@@ -1017,15 +1019,42 @@ export default function TaskDetailPage() {
   };
 
   const handleDelete = async () => {
+    if (deleting) return;
+    setDeleting(true);
+
+    const loadingId = toast.loading("Deleting task...");
+    const startedAt = Date.now();
+    const MIN_LOADER_MS = 600;
+
     try {
       const response = await api.delete(`/tasks/${id}`);
+
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADER_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADER_MS - elapsed));
+      }
+
       if (response.data.success) {
-        toast.success("Task deleted successfully");
+        toast.success("Task deleted successfully", { id: loadingId });
+        setShowDeleteConfirm(false);
+        await new Promise((r) => setTimeout(r, 150));
         router.push("/tasks/task-board");
+      } else {
+        toast.error("Failed to delete task", { id: loadingId });
       }
     } catch (error: any) {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < MIN_LOADER_MS) {
+        await new Promise((r) => setTimeout(r, MIN_LOADER_MS - elapsed));
+      }
+
       console.error("Error deleting task:", error);
-      toast.error(error.response?.data?.message || "Failed to delete task");
+      toast.error(
+        error.response?.data?.message || "Failed to delete task",
+        { id: loadingId },
+      );
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -2493,31 +2522,45 @@ export default function TaskDetailPage() {
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => !deleting && setShowDeleteConfirm(false)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-md"
             >
               <div className="p-6 text-center">
                 <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Trash2 className="w-8 h-8 text-rose-500" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">Delete Task</h3>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  Delete Task
+                </h3>
                 <p className="text-gray-500 mb-6">
-                  Are you sure you want to delete this task? This action cannot be undone.
+                  Are you sure you want to delete this task? This action cannot be
+                  undone.
                 </p>
+
                 <div className="flex gap-3">
                   <button
+                    type="button"
                     onClick={handleDelete}
-                    className="flex-1 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm"
+                    disabled={deleting}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Delete
+                    {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {deleting ? "Deleting..." : "Delete"}
                   </button>
+
                   <button
+                    type="button"
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition"
+                    disabled={deleting}
+                    className="flex-1 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Cancel
                   </button>
