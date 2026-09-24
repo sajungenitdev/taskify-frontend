@@ -26,7 +26,7 @@ const EMPTY_COUNTS: Record<CompanyDocCategory, number> = {
  * Replaces the old pair of useCompanyDocs + useCompanyDocCounts.
  */
 export function useCompanyDocBundle(params?: {
-    category?: string;
+    category?: CompanyDocCategory;
     sector?: string;
     duration?: string;
     volume?: string;
@@ -46,7 +46,7 @@ export function useCompanyDocBundle(params?: {
             try {
                 const data = await companyDocApi.bundle(params);
                 if (!mounted.current) return;
-                setList(data.list);
+                setList(data.docs);
                 setCounts(data.counts);
             } catch (e) {
                 const msg = (e as Error).message || "Failed to load documents";
