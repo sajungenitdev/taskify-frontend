@@ -182,14 +182,29 @@ export interface SubmissionRow {
    components/tender/submission/DocTaskRow.tsx */
 export type DocTaskStatus = "Done" | "In Progress" | "Pending";
 
+// export interface SubmissionDocTask {
+//   _id: string;
+//   /** Alias for `_id` — set by `sanitizeSubmissionDetail` so the
+//    *  DocTask component (which uses `id`) can consume the shape. */
+//   id: string;
+//   title: string;
+//   owner: string;
+//   status: DocTaskStatus;      /* ← was `status: string` */
+//   /** Always present after `sanitizeSubmissionDetail` (falls back to
+//    *  "No file uploaded yet" when empty). */
+//   fileName: string;
+//   fileUrl?: string;
+// }
+
 export interface SubmissionDocTask {
-  _id: string;
+  /** Server-assigned id. Absent on unsaved drafts. */
+  _id?: string;
   /** Alias for `_id` — set by `sanitizeSubmissionDetail` so the
    *  DocTask component (which uses `id`) can consume the shape. */
   id: string;
   title: string;
   owner: string;
-  status: DocTaskStatus;      /* ← was `status: string` */
+  status: DocTaskStatus;
   /** Always present after `sanitizeSubmissionDetail` (falls back to
    *  "No file uploaded yet" when empty). */
   fileName: string;
