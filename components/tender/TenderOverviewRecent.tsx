@@ -10,7 +10,20 @@ import {
   MessageSquare,
   RefreshCw,
 } from "lucide-react";
-import type { TenderActivity } from "@/lib/api/tender.api";
+type TenderActivity = {
+  id: string | number;
+  kind:
+    | "submitted"
+    | "won"
+    | "lost"
+    | "uploaded"
+    | "discussed"
+    | "chat"
+    | "stage_change";
+  tenderer: string;
+  message: string;
+  timeAgo: string;
+};
 
 /* Icon + tint per activity kind.
  * Includes the two newer kinds from the combined /overview endpoint:

@@ -4,7 +4,9 @@
 import { useEffect, useState } from "react";
 import { Loader2, X, Save, FileCheck2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { tenderApi, type TenderType } from "@/lib/api/tender.api";
+import { tenderApi } from "@/lib/api/tender.api";
+
+type TenderType = "eGP" | "RFQ" | "Hardcopy Ref.";
 
 interface Props {
   open: boolean;
@@ -177,7 +179,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
             <p className="mt-0.5 text-[11px] text-slate-500">
               Only <strong>Tender Name</strong> and <strong>Title</strong>{" "}
               are required. Fill the rest when it becomes available.
-            </p>
+            </p>  
           </div>
           <button
             type="button"
