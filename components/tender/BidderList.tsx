@@ -2,10 +2,10 @@
 "use client";
 
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import type { SubmissionParticipant } from "@/lib/api/tender.api";
+import type { TenderOtherParticipant } from "@/lib/api/tender.api";
 
 interface Props {
-  bidders: SubmissionParticipant[];
+  bidders: TenderOtherParticipant[];
   onAdd: () => void;
   onEdit: () => void;
   onDelete: () => void;
