@@ -1,4 +1,4 @@
-// components/tender/submission/BidderList.tsx
+
 "use client";
 
 import { Pencil, Plus, Trash2 } from "lucide-react";
