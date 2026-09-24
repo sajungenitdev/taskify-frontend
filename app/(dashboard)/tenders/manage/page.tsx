@@ -80,7 +80,7 @@ const COLUMNS_DRAFTS = [
 ];
 
 /* ---------- Helpers ---------- */
-function fmtDate(d?: string) {
+function fmtDate(d?: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -89,7 +89,7 @@ function fmtDate(d?: string) {
   });
 }
 
-function daysLeft(d?: string) {
+function daysLeft(d?: string | null) {
   if (!d) return 0;
   return Math.max(
     0,
