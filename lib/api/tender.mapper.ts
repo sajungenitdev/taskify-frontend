@@ -127,7 +127,12 @@ export function toActiveDetail(t: Tender): ActiveTenderDetail {
         docStatus:
             (t.docStatus as ActiveTenderDetail["docStatus"]) ?? "Pending",
         documentTasks: t.note ?? "—",
-        checklist: t.checklist ?? [],
+        checklist: (t.checklist ?? []).map((c) => ({
+            id: c.id,
+            label: c.label,
+            checked: !!c.checked,
+            isCustom: !!c.isCustom,
+        })),
     };
 }
 
@@ -152,7 +157,12 @@ export function toSubmittedDetail(t: Tender): SubmittedTenderDetail {
             value: budgetLabel(p.value),
             isUs: p.isUs,
         })),
-        checklist: t.checklist ?? [],
+        checklist: (t.checklist ?? []).map((c) => ({
+            id: c.id,
+            label: c.label,
+            checked: !!c.checked,
+            isCustom: !!c.isCustom,
+        })),
     };
 }
 
@@ -167,7 +177,12 @@ export function toLostDetail(t: Tender): LostTenderDetail {
         lowestCompliantValue: t.lowestCompliantValue
             ? budgetLabel(t.lowestCompliantValue)
             : undefined,
-        checklist: t.checklist ?? [],
+        checklist: (t.checklist ?? []).map((c) => ({
+            id: c.id,
+            label: c.label,
+            checked: !!c.checked,
+            isCustom: !!c.isCustom,
+        })),
     };
 }
 

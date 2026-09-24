@@ -236,14 +236,21 @@ export interface SecurityStats {
  * COMPANY DOC TYPES
  * ============================================================ */
 
+export type CompanyDocCategory =
+  | "certificates"
+  | "legal"
+  | "profiles"
+  | "experience";
+
 export interface CompanyDocument {
   _id: string;
-  category: "certificates" | "legal" | "profiles" | "experience";
+  category: CompanyDocCategory;
   title: string;
   description?: string;
   subtitle?: string;
   reference?: string;
   validity?: string;
+  validityDate?: string;             /* ← added */
   status: "Valid" | "Expired" | "Expiring Soon";
   action?: "View" | "Replace" | "Renew";
   fileUrl?: string;
@@ -399,7 +406,7 @@ export const tenderApi = {
 };
 
 /* ============================================================
- * SUBMISSION API — used by useSubmissions hook
+ * SUBMISSION API
  * ============================================================ */
 
 export const submissionApi = {
@@ -419,7 +426,7 @@ export const submissionApi = {
 };
 
 /* ============================================================
- * DOC TASK API — used by SubmissionDetail component
+ * DOC TASK API
  * ============================================================ */
 
 export const docTaskApi = {
@@ -476,7 +483,7 @@ export const docTaskApi = {
 };
 
 /* ============================================================
- * SECURITY API — used by useSecurity hook + useTenderStats
+ * SECURITY API
  * ============================================================ */
 
 export const securityApi = {
@@ -540,17 +547,24 @@ export const securityApi = {
 };
 
 /* ============================================================
- * COMPANY DOCS API — used by useCompanyDocs hook
+ * COMPANY DOCS API — used by /tenders/documents page
  * ============================================================ */
 
 export const companyDocApi = {
+  /* ---------- List ---------- */
   async list(params?: {
-    category?: CompanyDocument["category"];
+    category?: CompanyDocCategory;
     search?: string;
+    sector?: string;
+    duration?: string;
+    volume?: string;
   }): Promise<CompanyDocument[]> {
     const qs = new URLSearchParams();
     if (params?.category) qs.set("category", params.category);
     if (params?.search) qs.set("search", params.search);
+    if (params?.sector) qs.set("sector", params.sector);
+    if (params?.duration) qs.set("duration", params.duration);
+    if (params?.volume) qs.set("volume", params.volume);
 
     const r = await fetch(`${API_BASE}/tenders/docs/list?${qs}`, {
       headers: authHeaders(),
@@ -558,6 +572,7 @@ export const companyDocApi = {
     return handle<CompanyDocument[]>(r);
   },
 
+  /* ---------- Counts ---------- */
   async counts(): Promise<Record<string, number>> {
     const r = await fetch(`${API_BASE}/tenders/docs/counts`, {
       headers: authHeaders(),
@@ -565,17 +580,40 @@ export const companyDocApi = {
     return handle<Record<string, number>>(r);
   },
 
-  async bundle(): Promise<{
-    docs: CompanyDocument[];
-    counts: Record<string, number>;
-  }> {
-    const r = await fetch(`${API_BASE}/tenders/docs/bundle`, {
+  /* ---------- Bundle (list + counts) ---------- */
+  async bundle(params?: {
+    category?: CompanyDocCategory;
+    search?: string;
+    sector?: string;
+    duration?: string;
+    volume?: string;
+  }): Promise<{ docs: CompanyDocument[]; counts: Record<string, number> }> {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.search) qs.set("search", params.search);
+    if (params?.sector) qs.set("sector", params.sector);
+    if (params?.duration) qs.set("duration", params.duration);
+    if (params?.volume) qs.set("volume", params.volume);
+
+    const r = await fetch(`${API_BASE}/tenders/docs/bundle?${qs}`, {
       headers: authHeaders(),
     });
     return handle(r);
   },
 
-  async create(body: Partial<CompanyDocument>): Promise<CompanyDocument> {
+  /* ---------- Create ---------- */
+  async create(body: {
+    category?: CompanyDocCategory;
+    title: string;
+    description?: string;
+    reference?: string;
+    validity?: string;
+    validityDate?: string;
+    issuedOn?: string;
+    subtitle?: string;
+    chips?: string[];
+    docType?: string;
+  }): Promise<CompanyDocument> {
     const r = await fetch(`${API_BASE}/tenders/docs`, {
       method: "POST",
       headers: authHeaders(),
@@ -584,6 +622,7 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
+  /* ---------- Update ---------- */
   async update(
     id: string,
     body: Partial<CompanyDocument>,
@@ -596,6 +635,7 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
+  /* ---------- Delete ---------- */
   async remove(id: string): Promise<void> {
     const r = await fetch(`${API_BASE}/tenders/docs/${id}`, {
       method: "DELETE",
@@ -604,7 +644,8 @@ export const companyDocApi = {
     return handle<void>(r);
   },
 
-  async uploadFile(id: string, file: File): Promise<CompanyDocument> {
+  /* ---------- Upload file (attach to a doc) ---------- */
+  async uploadDocFile(id: string, file: File): Promise<CompanyDocument> {
     const fd = new FormData();
     fd.append("file", file);
     const r = await fetch(`${API_BASE}/tenders/docs/${id}/file`, {
@@ -615,10 +656,11 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
-  async renew(
+  /* ---------- Renew ---------- */
+  async renewDoc(
     id: string,
     body: {
-      validUntil?: string;
+      validityDate: string;
       issuedOn?: string;
       reference?: string;
       note?: string;
@@ -632,14 +674,15 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
-  async importToTender(
-    tenderId: string,
-    docIds: string[],
-  ): Promise<Tender> {
+  /* ---------- Import docs into a tender ---------- */
+  async importToTender(body: {
+    targetTenderId: string;
+    documentIds: string[];
+  }): Promise<Tender> {
     const r = await fetch(`${API_BASE}/tenders/docs/import`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ tenderId, docIds }),
+      body: JSON.stringify(body),
     });
     return handle<Tender>(r);
   },
