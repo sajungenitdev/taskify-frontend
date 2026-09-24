@@ -510,43 +510,49 @@ export function TenderDetailReview({
               </p>
 
               <ul className="space-y-1.5">
-                {attachments.map((f) => (
-                  <li
-                    key={f._id}
-                    className="group flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
-                  >
-                    <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span className="truncate">{f.name}</span>
-                      {f.size > 0 && (
-                        <span className="shrink-0 text-[10px] text-slate-400">
-                          ({fileSizeLabel(f.size)})
-                        </span>
-                      )}
-                    </span>
+                {attachments.map((f, idx) => {
+                  const rowKey = f._id ?? `att-${idx}-${f.name}`;
+                  const hasSize = typeof f.size === "number" && f.size > 0;
+                  return (
+                    <li
+                      key={rowKey}
+                      className="group flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                        <span className="truncate">{f.name}</span>
+                        {hasSize && (
+                          <span className="shrink-0 text-[10px] text-slate-400">
+                            ({fileSizeLabel(f.size!)})
+                          </span>
+                        )}
+                      </span>
 
-                    <div className="flex shrink-0 items-center gap-2">
-                      {f.url && (
-                        <a
-                          href={fullFileUrl(f.url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[10px] font-semibold text-indigo-600 hover:underline"
-                        >
-                          View
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveAttachment(f._id)}
-                        className="rounded-md p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
-                        title="Remove"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                      <div className="flex shrink-0 items-center gap-2">
+                        {f.url && (
+                          <a
+                            href={fullFileUrl(f.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-semibold text-indigo-600 hover:underline"
+                          >
+                            View
+                          </a>
+                        )}
+                        {typeof f._id === "string" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAttachment(f._id!)}
+                            className="rounded-md p-1 text-slate-300 opacity-0 transition group-hover:opacity-100 hover:bg-rose-50 hover:text-rose-600"
+                            title="Remove"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
 
                 {attachments.length === 0 && (
                   <li className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-center text-[11px] text-slate-400">
