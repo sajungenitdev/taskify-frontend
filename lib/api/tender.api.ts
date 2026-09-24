@@ -166,35 +166,29 @@ export interface Tender {
 }
 
 /* ============================================================
- * TENDER OVERVIEW / DASHBOARD TYPES   ✅ NEW
+ * TENDER OVERVIEW / DASHBOARD TYPES
+ * ✅ These match the shapes your UI components expect.
  * ============================================================ */
 
 /**
- * Shape of a single row in the overview "stats" array.
- * Adjust fields based on what your backend actually returns.
+ * Shape expected by `TenderOverviewStats.tsx` — `StatItem`
  */
 export interface TenderOverviewStat {
   label: string;
-  value: number | string;
+  value: string;                    // ✅ string only (matches component)
   change?: number;
   tone?: "neutral" | "positive" | "negative" | "warn";
   icon?: string;
 }
 
 /**
- * Shape of a single pipeline row.
- * Adjust fields based on what your backend actually returns.
+ * Shape expected by `TenderOverviewPipeline.tsx` — `PipelineStage`
  */
 export interface TenderPipelineRow {
-  _id: string;
-  tenderer: string;
-  title: string;
-  stage: TenderStage;
-  value?: number;
-  currency?: string;
-  deadline?: string | null;
-  owner?: any;
-  readiness?: number;
+  id: string;                       // ✅ matches component
+  label: string;                    // ✅ matches component
+  count: number;                    // ✅ matches component
+  color: string;                    // ✅ matches component
 }
 
 /**
@@ -210,35 +204,28 @@ export interface TenderOverviewData {
 }
 
 /**
- * A single upcoming deadline / tender row.
+ * Shape expected by `TenderOverviewUpcoming.tsx` — `UpcomingTender`
  */
 export interface UpcomingTender {
-  _id: string;
+  id: string;
   tenderer: string;
   title: string;
-  stage: TenderStage;
-  /** ISO date string of the submission deadline */
-  lastDateOfSubmission?: string | null;
-  /** Days left until the deadline (computed server-side, optional) */
-  daysLeft?: number;
-  value?: number;
+  deadline?: string;
+  daysLeft: number;
+  priority?: "high" | "medium" | "low";
+  value?: string;        // ✅ string
   currency?: string;
-  owner?: any;
+  stage?: TenderStage;
 }
 
 /**
- * A single month's performance data point.
+ * Shape expected by `TenderOverviewPerformance.tsx` — `MonthPerformance`
  */
 export interface PerformanceDataPoint {
-  /** e.g. "2026-01", "Jan 2026" */
   month: string;
-  /** Number of tenders submitted */
-  submitted?: number;
-  /** Number of tenders won */
-  won?: number;
-  /** Number of tenders lost */
-  lost?: number;
-  /** Total value won */
+  won: number;                      // ✅ required (matches component)
+  lost: number;                     // ✅ required
+  submitted: number;                // ✅ required
   value?: number;
 }
 
@@ -248,7 +235,6 @@ export interface PerformanceDataPoint {
 export interface PerformanceResponse {
   data: PerformanceDataPoint[];
   winRate: number;
-  /** Optional extras if your backend provides them */
   totalSubmitted?: number;
   totalWon?: number;
   totalLost?: number;
@@ -256,23 +242,21 @@ export interface PerformanceResponse {
 }
 
 /**
- * A single recent activity entry.
+ * Shape expected by `TenderOverviewRecent.tsx` — `TenderActivity`
  */
 export interface TenderActivity {
-  _id: string;
-  /** Action type: "created" | "updated" | "stage_changed" | "submitted" | "won" | "lost" | ... */
-  action: string;
-  /** Human-readable description */
-  description?: string;
-  tenderId?: string;
-  tenderTitle?: string;
-  stage?: TenderStage;
-  actor?: {
-    _id?: string;
-    fullName?: string;
-    profilePhoto?: string;
-  };
-  createdAt: string;
+  id: string;
+  kind:
+  | "chat"
+  | "discussed"
+  | "lost"
+  | "stage_change"
+  | "submitted"
+  | "uploaded"
+  | "won";
+  tenderer: string;
+  message: string;
+  timeAgo: string;
 }
 
 /* ============================================================
@@ -337,7 +321,6 @@ export interface SubmissionDetail {
  * SECURITY TYPES
  * ============================================================ */
 
-/** The full names shown in the UI dropdown. */
 export type SecurityType =
   | "Tender Security"
   | "Performance Security"
@@ -404,7 +387,6 @@ export interface CompanyDocument {
  * ============================================================ */
 
 export const tenderApi = {
-  /* ---------- List ---------- */
   async list(params?: {
     stage?: string;
     tenderType?: string;
@@ -433,7 +415,6 @@ export const tenderApi = {
     return handle<Tender>(r);
   },
 
-  /* ---------- Create / Update / Delete ---------- */
   async create(body: Partial<Tender>): Promise<Tender> {
     const r = await fetch(`${API_BASE}/tenders`, {
       method: "POST",
@@ -460,7 +441,6 @@ export const tenderApi = {
     return handle<void>(r);
   },
 
-  /* ---------- Stage ---------- */
   async changeStage(
     id: string,
     stage: TenderStage,
@@ -475,7 +455,6 @@ export const tenderApi = {
     return handle<Tender>(r);
   },
 
-  /* ---------- Checklist ---------- */
   async updateChecklist(
     id: string,
     items: TenderChecklistItem[],
@@ -488,7 +467,6 @@ export const tenderApi = {
     return handle<TenderChecklistItem[]>(r);
   },
 
-  /* ---------- Attachments ---------- */
   async uploadAttachment(id: string, file: File): Promise<TenderAttachment> {
     const fd = new FormData();
     fd.append("file", file);
@@ -511,7 +489,6 @@ export const tenderApi = {
     return handle<void>(r);
   },
 
-  /* ---------- Advertisement ---------- */
   async uploadAdvertisement(
     id: string,
     file: File,
@@ -644,7 +621,6 @@ export const securityApi = {
     const json = await r.json();
     if (!json.success) throw new Error(json.message || "Request failed");
 
-    /* Support both shapes: {data: []} and {data: {rows, total}} */
     const data = Array.isArray(json.data)
       ? json.data
       : json.data?.rows ?? [];
@@ -702,11 +678,10 @@ export const securityApi = {
 };
 
 /* ============================================================
- * COMPANY DOCS API — used by /tenders/documents page
+ * COMPANY DOCS API
  * ============================================================ */
 
 export const companyDocApi = {
-  /* ---------- List ---------- */
   async list(params?: {
     category?: CompanyDocCategory;
     search?: string;
@@ -727,7 +702,6 @@ export const companyDocApi = {
     return handle<CompanyDocument[]>(r);
   },
 
-  /* ---------- Counts ---------- */
   async counts(): Promise<Record<string, number>> {
     const r = await fetch(`${API_BASE}/tenders/docs/counts`, {
       headers: authHeaders(),
@@ -735,7 +709,6 @@ export const companyDocApi = {
     return handle<Record<string, number>>(r);
   },
 
-  /* ---------- Bundle (list + counts) ---------- */
   async bundle(params?: {
     category?: CompanyDocCategory;
     search?: string;
@@ -756,7 +729,6 @@ export const companyDocApi = {
     return handle(r);
   },
 
-  /* ---------- Create ---------- */
   async create(body: {
     category?: CompanyDocCategory;
     title: string;
@@ -777,7 +749,6 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
-  /* ---------- Update ---------- */
   async update(
     id: string,
     body: Partial<CompanyDocument>,
@@ -790,7 +761,6 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
-  /* ---------- Delete ---------- */
   async remove(id: string): Promise<void> {
     const r = await fetch(`${API_BASE}/tenders/docs/${id}`, {
       method: "DELETE",
@@ -799,7 +769,6 @@ export const companyDocApi = {
     return handle<void>(r);
   },
 
-  /* ---------- Upload file (attach to a doc) ---------- */
   async uploadDocFile(id: string, file: File): Promise<CompanyDocument> {
     const fd = new FormData();
     fd.append("file", file);
@@ -811,7 +780,6 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
-  /* ---------- Renew ---------- */
   async renewDoc(
     id: string,
     body: {
@@ -829,7 +797,6 @@ export const companyDocApi = {
     return handle<CompanyDocument>(r);
   },
 
-  /* ---------- Import docs into a tender ---------- */
   async importToTender(body: {
     targetTenderId: string;
     documentIds: string[];
