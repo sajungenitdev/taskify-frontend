@@ -166,6 +166,116 @@ export interface Tender {
 }
 
 /* ============================================================
+ * TENDER OVERVIEW / DASHBOARD TYPES   ✅ NEW
+ * ============================================================ */
+
+/**
+ * Shape of a single row in the overview "stats" array.
+ * Adjust fields based on what your backend actually returns.
+ */
+export interface TenderOverviewStat {
+  label: string;
+  value: number | string;
+  change?: number;
+  tone?: "neutral" | "positive" | "negative" | "warn";
+  icon?: string;
+}
+
+/**
+ * Shape of a single pipeline row.
+ * Adjust fields based on what your backend actually returns.
+ */
+export interface TenderPipelineRow {
+  _id: string;
+  tenderer: string;
+  title: string;
+  stage: TenderStage;
+  value?: number;
+  currency?: string;
+  deadline?: string | null;
+  owner?: any;
+  readiness?: number;
+}
+
+/**
+ * Combined overview payload returned by `GET /tenders/overview`.
+ */
+export interface TenderOverviewData {
+  stats: TenderOverviewStat[];
+  pipeline: TenderPipelineRow[];
+  stages: Record<string, number>;
+  upcoming: UpcomingTender[];
+  performance: PerformanceResponse;
+  recentActivity: TenderActivity[];
+}
+
+/**
+ * A single upcoming deadline / tender row.
+ */
+export interface UpcomingTender {
+  _id: string;
+  tenderer: string;
+  title: string;
+  stage: TenderStage;
+  /** ISO date string of the submission deadline */
+  lastDateOfSubmission?: string | null;
+  /** Days left until the deadline (computed server-side, optional) */
+  daysLeft?: number;
+  value?: number;
+  currency?: string;
+  owner?: any;
+}
+
+/**
+ * A single month's performance data point.
+ */
+export interface PerformanceDataPoint {
+  /** e.g. "2026-01", "Jan 2026" */
+  month: string;
+  /** Number of tenders submitted */
+  submitted?: number;
+  /** Number of tenders won */
+  won?: number;
+  /** Number of tenders lost */
+  lost?: number;
+  /** Total value won */
+  value?: number;
+}
+
+/**
+ * Performance summary response.
+ */
+export interface PerformanceResponse {
+  data: PerformanceDataPoint[];
+  winRate: number;
+  /** Optional extras if your backend provides them */
+  totalSubmitted?: number;
+  totalWon?: number;
+  totalLost?: number;
+  totalValue?: number;
+}
+
+/**
+ * A single recent activity entry.
+ */
+export interface TenderActivity {
+  _id: string;
+  /** Action type: "created" | "updated" | "stage_changed" | "submitted" | "won" | "lost" | ... */
+  action: string;
+  /** Human-readable description */
+  description?: string;
+  tenderId?: string;
+  tenderTitle?: string;
+  stage?: TenderStage;
+  actor?: {
+    _id?: string;
+    fullName?: string;
+    profilePhoto?: string;
+  };
+  createdAt: string;
+}
+
+/* ============================================================
  * SUBMISSION TYPES
  * ============================================================ */
 
@@ -182,20 +292,6 @@ export interface SubmissionRow {
    components/tender/submission/DocTaskRow.tsx */
 export type DocTaskStatus = "Done" | "In Progress" | "Pending";
 
-// export interface SubmissionDocTask {
-//   _id: string;
-//   /** Alias for `_id` — set by `sanitizeSubmissionDetail` so the
-//    *  DocTask component (which uses `id`) can consume the shape. */
-//   id: string;
-//   title: string;
-//   owner: string;
-//   status: DocTaskStatus;      /* ← was `status: string` */
-//   /** Always present after `sanitizeSubmissionDetail` (falls back to
-//    *  "No file uploaded yet" when empty). */
-//   fileName: string;
-//   fileUrl?: string;
-// }
-
 export interface SubmissionDocTask {
   /** Server-assigned id. Absent on unsaved drafts. */
   _id?: string;
@@ -210,6 +306,7 @@ export interface SubmissionDocTask {
   fileName: string;
   fileUrl?: string;
 }
+
 export interface SubmissionDetail {
   id: string;
   tenderer: string;
@@ -219,7 +316,7 @@ export interface SubmissionDetail {
   docTasks: SubmissionDocTask[];
   checklist: TenderChecklistItem[];
   /** Competitors / bidders — same shape as Tender.otherParticipants */
-  otherParticipants?: TenderOtherParticipant[];   /* ← added */
+  otherParticipants?: TenderOtherParticipant[];
   info: {
     advertisementFile?: string;
     advertisementUrl?: string;
@@ -288,7 +385,7 @@ export interface CompanyDocument {
   subtitle?: string;
   reference?: string;
   validity?: string;
-  validityDate?: string;             /* ← added */
+  validityDate?: string;
   status: "Valid" | "Expired" | "Expiring Soon";
   action?: "View" | "Replace" | "Renew";
   fileUrl?: string;
