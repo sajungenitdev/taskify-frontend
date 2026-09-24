@@ -227,22 +227,22 @@ export function sanitizeSubmissionDetail(
 ): SubmissionDetail {
     return {
         ...d,
-        docTasks: (d.docTasks ?? []).map((t) => {
+        docTasks: (d.docTasks ?? []).map((t, index) => {
             /* Narrow the raw API string into one of our union values.
                Anything unexpected falls back to "Pending". */
             const safeStatus: DocTaskStatus =
-                t.status === "Done" ||
-                    t.status === "In Progress" ||
-                    t.status === "Pending"
+                t.status === "Done" || t.status === "In Progress" || t.status === "Pending"
                     ? t.status
                     : "Pending";
 
             return {
-                ...t,
-                id: t._id,
-                owner: t.owner || "—",
-                fileName: t.fileName || "No file uploaded yet",
+                id: String(t.id ?? t._id ?? `temp-${index}`),   // ✅ always a string
+                _id: t._id,
+                title: t.title ?? "",
+                owner: t.owner ?? "",
+                fileName: t.fileName ?? "No file uploaded yet",
                 status: safeStatus,
+                fileUrl: t.fileUrl,
             };
         }),
         checklist: (d.checklist ?? []).map((c) => ({
