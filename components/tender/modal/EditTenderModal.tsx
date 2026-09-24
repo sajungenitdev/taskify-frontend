@@ -7,8 +7,9 @@ import toast from "react-hot-toast";
 import {
   tenderApi,
   type Tender,
-  type TenderType,
 } from "@/lib/api/tender.api";
+
+type TenderType = NonNullable<Tender["tenderType"]>;
 
 interface Props {
   open: boolean;
@@ -47,7 +48,8 @@ interface FormState {
 }
 
 /** ISO → "YYYY-MM-DD" for <input type="date"> */
-function toDateInput(iso?: string): string {
+/** ISO → "YYYY-MM-DD" for <input type="date"> */
+function toDateInput(iso?: string | null): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
