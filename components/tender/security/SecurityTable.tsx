@@ -4,23 +4,13 @@
 import { Check, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { EntityBadge, DocsBadge, BellIcon } from "./SecurityBadges";
 
-export type SecurityType =
-  | "Tender Security"
-  | "Performance Security"
-  | "Bank Guarantee";
+import type { SecurityType } from "@/lib/api/tender.api";
 
-export interface SecurityRow {
-  id: string;
-  entity: string;
-  clientDescription: string;
-  type: SecurityType;
-  amount: number;
-  currency: string;
-  dueDate: string;
-  docsStatus: "Attached" | "Missing";
-  isDraft?: boolean;
-  isEditing?: boolean;
-}
+export type { SecurityType };
+
+import type { SecurityRowUI } from "@/lib/api/mappers";
+
+export type SecurityRow = SecurityRowUI;
 
 interface Props {
   rows: SecurityRow[];
@@ -116,9 +106,8 @@ export function SecurityTable({
               return (
                 <tr
                   key={r.id}
-                  className={`transition-colors ${
-                    rowBusy ? "bg-slate-50/60" : "hover:bg-slate-50/60"
-                  }`}
+                  className={`transition-colors ${rowBusy ? "bg-slate-50/60" : "hover:bg-slate-50/60"
+                    }`}
                 >
                   <td className="px-4 py-3">
                     <EntityBadge entity={r.entity} />
@@ -290,10 +279,10 @@ function DraftRow({
             const v = e.target.value;
             const formatted = v
               ? new Date(v).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })
               : "";
             onChange({ dueDate: formatted });
           }}
@@ -433,10 +422,10 @@ function EditRow({
             const v = e.target.value;
             const formatted = v
               ? new Date(v).toLocaleDateString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                })
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+              })
               : "";
             onChange({ dueDate: formatted });
           }}

@@ -16,6 +16,9 @@ export interface SecurityRowUI {
     dueDate: string;
     docsStatus: "Attached" | "Missing";
     isDraft?: boolean;
+    isEditing?: boolean;      /* ← added */
+    isSaving?: boolean;       /* ← added — page uses this */
+    isDeleting?: boolean;     /* ← added — page uses this */
 }
 
 export function toSecurityUIRow(r: TenderSecurity): SecurityRowUI {

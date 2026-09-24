@@ -215,14 +215,27 @@ export interface SubmissionDetail {
  * SECURITY TYPES
  * ============================================================ */
 
+/** The full names shown in the UI dropdown. */
+export type SecurityType =
+  | "Tender Security"
+  | "Performance Security"
+  | "Bank Guarantee";
+
 export interface TenderSecurity {
   _id: string;
   entity: string;
   clientDescription: string;
-  type: "BG" | "PG" | "Other";
+  type: SecurityType;
   amount: number;
   dueDate?: string;
   docsStatus: "Attached" | "Missing";
+}
+
+export interface TenderSecurityStats {
+  totalPending: number;
+  entitiesAffected: number;
+  receivableOutstanding: number;
+  payableOutstanding: number;
 }
 
 export interface SecurityStats {
@@ -487,21 +500,41 @@ export const docTaskApi = {
  * ============================================================ */
 
 export const securityApi = {
-  async list(params?: { search?: string }): Promise<TenderSecurity[]> {
+  async list(params?: {
+    entity?: string;
+    type?: string;
+    docs?: string;
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{ data: TenderSecurity[]; total?: number }> {
     const qs = new URLSearchParams();
+    if (params?.entity) qs.set("entity", params.entity);
+    if (params?.type) qs.set("type", params.type);
+    if (params?.docs) qs.set("docs", params.docs);
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.limit) qs.set("limit", String(params.limit));
     if (params?.search) qs.set("search", params.search);
 
     const r = await fetch(`${API_BASE}/tenders/security/list?${qs}`, {
       headers: authHeaders(),
     });
-    return handle<TenderSecurity[]>(r);
+    const json = await r.json();
+    if (!json.success) throw new Error(json.message || "Request failed");
+
+    /* Support both shapes: {data: []} and {data: {rows, total}} */
+    const data = Array.isArray(json.data)
+      ? json.data
+      : json.data?.rows ?? [];
+
+    return { data, total: json.data?.total };
   },
 
-  async stats(): Promise<SecurityStats> {
+  async stats(): Promise<TenderSecurityStats> {
     const r = await fetch(`${API_BASE}/tenders/security/stats`, {
       headers: authHeaders(),
     });
-    return handle<SecurityStats>(r);
+    return handle<TenderSecurityStats>(r);
   },
 
   async create(body: Partial<TenderSecurity>): Promise<TenderSecurity> {
@@ -535,14 +568,14 @@ export const securityApi = {
 
   async notify(
     id: string,
-    body?: { message?: string; recipients?: string[] },
-  ): Promise<void> {
+    body: { emails: string[]; note?: string },
+  ): Promise<{ accepted?: string[]; rejected?: string[] }> {
     const r = await fetch(`${API_BASE}/tenders/security/${id}/notify`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify(body ?? {}),
+      body: JSON.stringify(body),
     });
-    return handle<void>(r);
+    return handle<{ accepted?: string[]; rejected?: string[] }>(r);
   },
 };
 
