@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/tender.api";
 
 export function useCompanyDocs(params?: {
-  category?: string;
+  category?: CompanyDocCategory;
   sector?: string;
   duration?: string;
   volume?: string;
