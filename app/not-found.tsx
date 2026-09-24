@@ -554,7 +554,7 @@ const NotFoundPage = () => {
                                 <button
                                     key={index}
                                     onClick={action.action || (() => router.push(action.href!))}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-xl transition-all duration-300 hover:scale-105 hover:-translate-y-1 text-gray-700 dark:text-gray-300 group"
+                                    className="inline-flex cursor-pointer items-center gap-2 px-4 py-2 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-xl transition-all duration-300 hover:scale-105 hover:-translate-y-1 text-gray-700 dark:text-gray-300 group"
                                 >
                                     <action.icon className={`w-4 h-4 text-${action.color}-500 transition-transform group-hover:scale-110`} />
                                     <span className="text-sm font-medium">{action.label}</span>

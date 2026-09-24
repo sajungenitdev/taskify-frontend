@@ -580,7 +580,7 @@ export default function RegisterPage() {
           <p className="text-white/60 text-sm mb-6">{fetchError}</p>
           <button
             onClick={fetchPlans}
-            className="px-6 py-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition font-medium"
+            className="px-6 py-2.5 bg-emerald-500 cursor-pointer text-white rounded-xl hover:bg-emerald-600 transition font-medium"
           >
             Try Again
           </button>
@@ -789,7 +789,7 @@ export default function RegisterPage() {
                     </div>
                     <button
                       onClick={handleNextStep}
-                      className="w-full py-3 bg-linear-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-linear-to-r cursor-pointer from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-medium rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
                     >
                       Continue
                       <ArrowRight className="w-4 h-4" />

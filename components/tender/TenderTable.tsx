@@ -1,7 +1,12 @@
 // components/tender/TenderTable.tsx
 "use client";
 
-import { ClipboardIcon, ExternalLink, Eye, FileText, Pencil, Trash2 } from "lucide-react";
+import {
+  ClipboardIcon,
+  ExternalLink,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 /* ============================================================
@@ -18,7 +23,6 @@ interface Column {
 interface Row {
   id: string;
   cells: Record<string, ReactNode>;
-  /** Optional flag — disables row click and dims the row */
   disabled?: boolean;
 }
 
@@ -28,9 +32,14 @@ interface Props {
   selectedId?: string | null;
   onRowClick?: (id: string) => void;
   moreCount?: number;
+
+  /* Actions — only rendered when `showActions` is true */
   onDelete?: (id: string) => void;
   onView?: (id: string) => void;
-  onEdit?: (id: string) => void;   // ← new
+  onEdit?: (id: string) => void;
+  /** When false, action icons are hidden (e.g. for Lost/Won/Drafts tabs) */
+  showActions?: boolean;
+
   toolbar?: ReactNode;
 }
 
@@ -47,6 +56,7 @@ export function TenderTable({
   onDelete,
   onEdit,
   onView,
+  showActions = false,
   toolbar,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
@@ -55,7 +65,10 @@ export function TenderTable({
   const visibleRows = expanded ? rows : rows.slice(0, collapsedLimit);
   const hiddenCount = moreCount > 0 && !expanded ? moreCount : 0;
 
-  const hasActions = Boolean(onDelete || onView || onEdit);
+  /* Only show the actions column if explicitly enabled AND at least
+     one handler is provided */
+  const hasActions =
+    showActions && Boolean(onDelete || onView || onEdit);
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -70,8 +83,9 @@ export function TenderTable({
               {columns.map((c) => (
                 <th
                   key={c.key}
-                  className={`px-5 py-3 ${c.align === "right" ? "text-right" : ""
-                    }`}
+                  className={`px-5 py-3 ${
+                    c.align === "right" ? "text-right" : ""
+                  }`}
                   style={c.width ? { width: c.width } : undefined}
                 >
                   {c.label}
@@ -79,7 +93,7 @@ export function TenderTable({
               ))}
 
               {hasActions && (
-                <th className="w-[90px] px-5 py-3 text-right">Actions</th>
+                <th className="w-[110px] px-5 py-3 text-right">Actions</th>
               )}
             </tr>
           </thead>
@@ -95,15 +109,18 @@ export function TenderTable({
                     if (disabled) return;
                     onRowClick?.(r.id);
                   }}
-                  className={`transition-colors ${disabled ? "opacity-60" : "cursor-pointer"
-                    } ${selected ? "bg-amber-50/60" : "hover:bg-slate-50/70"
-                    }`}
+                  className={`transition-colors ${
+                    disabled ? "opacity-60" : "cursor-pointer"
+                  } ${
+                    selected ? "bg-amber-50/60" : "hover:bg-slate-50/70"
+                  }`}
                 >
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={`px-5 py-3 align-middle ${c.align === "right" ? "text-right" : ""
-                        }`}
+                      className={`px-5 py-3 align-middle ${
+                        c.align === "right" ? "text-right" : ""
+                      }`}
                     >
                       {r.cells[c.key]}
                     </td>
@@ -190,7 +207,7 @@ export function TenderTable({
 }
 
 /* ============================================================
- * Small building blocks used in cells
+ * Small building blocks
  * ============================================================ */
 
 export function TenderTypeBadge({
@@ -213,11 +230,7 @@ export function TenderTypeBadge({
   );
 }
 
-export function DocsStatusBadge({
-  status,
-}: {
-  status?: string;
-}) {
+export function DocsStatusBadge({ status }: { status?: string }) {
   const map: Record<string, string> = {
     "Docs pending": "border-rose-200 bg-rose-50 text-rose-700",
     "Docs in progress": "border-orange-200 bg-orange-50 text-orange-700",
@@ -241,19 +254,21 @@ export function DocsStatusBadge({
 export function DeadlineCell({ days }: { days: number }) {
   return (
     <span
-      className={`font-mono text-[11px] font-semibold ${days <= 3
-        ? "text-rose-600"
-        : days <= 7
-          ? "text-orange-600"
-          : "text-slate-700"
-        }`}
+      className={`font-mono text-[11px] font-semibold ${
+        days <= 3
+          ? "text-rose-600"
+          : days <= 7
+            ? "text-orange-600"
+            : "text-slate-700"
+      }`}
     >
       {days} days
     </span>
   );
 }
 
-
 export function LinkIconCell() {
-  return <ExternalLink className="ml-auto h-3.5 w-3.5 text-slate-400" />;
+  return (
+    <ExternalLink className="ml-auto h-3.5 w-3.5 text-slate-400" />
+  );
 }

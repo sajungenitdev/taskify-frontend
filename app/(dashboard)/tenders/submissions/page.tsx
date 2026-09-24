@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2 } from "lucide-react";
 import { SubmissionHeader } from "@/components/tender/submission/SubmissionHeader";
 import { SubmissionTable } from "@/components/tender/submission/SubmissionTable";
 import { SubmissionDetail } from "@/components/tender/submission/SubmissionDetail";
@@ -176,6 +175,12 @@ export default function TenderSubmissionPage() {
                                 },
                             }}
                             onTaskMutated={() => refetchDetail()}
+                            /* ✅ Submit button now lives inside the header of SubmissionDetail */
+                            submitAction={{
+                                label: "Submit Tender",
+                                onClick: handleFinalSubmit,
+                                loading: submitting,
+                            }}
                         />
 
                         {/* ---------- Other Participants (Bidders) ---------- */}
@@ -185,28 +190,6 @@ export default function TenderSubmissionPage() {
                             onEdit={() => setBidderModalOpen(true)}
                             onDelete={handleDeleteAllBidders}
                         />
-
-                        {/* ---------- Submit Button ---------- */}
-                        <div className="flex justify-end">
-                            <button
-                                type="button"
-                                onClick={handleFinalSubmit}
-                                disabled={submitting}
-                                className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#a97400] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {submitting ? (
-                                    <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                        Submitting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        Submit Tender
-                                    </>
-                                )}
-                            </button>
-                        </div>
                     </>
                 )}
             </div>

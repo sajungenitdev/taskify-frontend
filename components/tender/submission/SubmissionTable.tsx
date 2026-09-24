@@ -110,7 +110,7 @@ export function SubmissionTable({
                               e.stopPropagation();
                               onDelete(r.id);
                             }}
-                            className="rounded-md p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                            className="rounded-md cursor-pointer p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                             title="Delete"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

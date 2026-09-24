@@ -44,7 +44,7 @@ export function TenderDetailActive({ data, onSubmit }: Props) {
               onClick={onSubmit}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#a97400] px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-[#8f6100]"
             >
-              Mark as Submitted →
+              Go To Submission →
             </button>
           )}
       </div>

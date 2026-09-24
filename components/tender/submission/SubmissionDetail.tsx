@@ -5,8 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
   ExternalLink,
   FileText,
+  Loader2,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -62,6 +64,13 @@ export interface SubmissionDetailData {
 interface Props {
   data: SubmissionDetailData;
   onTaskMutated?: () => void;
+  /** Optional final-submit action — rendered in the header (top-right) */
+  submitAction?: {
+    label: string;
+    onClick: () => void;
+    loading?: boolean;
+    disabled?: boolean;
+  };
 }
 
 const TABS = ["Tender Preparation", "Tender Info"] as const;
@@ -83,7 +92,11 @@ function fileSizeLabel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function SubmissionDetail({ data, onTaskMutated }: Props) {
+export function SubmissionDetail({
+  data,
+  onTaskMutated,
+  submitAction,
+}: Props) {
   const [tab, setTab] = useState<Tab>("Tender Preparation");
   const [showDetails, setShowDetails] = useState(true);
   const [tasks, setTasks] = useState<DocTask[]>(data.docTasks);
@@ -137,12 +150,12 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
       prev.map((t) =>
         t.id === id
           ? {
-              ...t,
-              title: finalTitle,
-              owner: finalOwner,
-              status: safeStatus,
-              isDraft: false,
-            }
+            ...t,
+            title: finalTitle,
+            owner: finalOwner,
+            status: safeStatus,
+            isDraft: false,
+          }
           : t,
       ),
     );
@@ -183,12 +196,12 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             prev.map((t) =>
               t.id === created._id
                 ? {
-                    ...t,
-                    fileName: att.name,
-                    fileUrl: fullFileUrl(att.url),
-                    status: "Done",
-                    pendingFile: null,
-                  }
+                  ...t,
+                  fileName: att.name,
+                  fileUrl: fullFileUrl(att.url),
+                  status: "Done",
+                  pendingFile: null,
+                }
                 : t,
             ),
           );
@@ -258,11 +271,11 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
         prev.map((t) =>
           t.id === taskId
             ? {
-                ...t,
-                fileName: att.name,
-                fileUrl: fullFileUrl(att.url),
-                status: "Done",
-              }
+              ...t,
+              fileName: att.name,
+              fileUrl: fullFileUrl(att.url),
+              status: "Done",
+            }
             : t,
         ),
       );
@@ -373,6 +386,9 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
 
   return (
     <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      {/* ============================================================
+       * HEADER — deadline pill, title, readiness + Submit button
+       * ============================================================ */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-amber-100 px-5 py-4">
         <div className="min-w-0">
           <span className="inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
@@ -388,6 +404,30 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             <ReadinessBar percent={data.readiness} width={140} />
           </div>
         </div>
+
+        {/* ✅ Submit button — right side of the header */}
+        {submitAction && (
+          <div className="flex shrink-0 items-center">
+            <button
+              type="button"
+              onClick={submitAction.onClick}
+              disabled={submitAction.loading || submitAction.disabled}
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg bg-[#a97400] px-5 text-[12px] font-bold text-white shadow-sm transition hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitAction.loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  {submitAction.label}
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -400,11 +440,10 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
-                  active
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
                     ? "text-slate-900"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 {t}
                 {active && (
@@ -466,7 +505,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             </button>
           </div>
 
-          {/* Right column — vertical divider is the border-left */}
           <aside className="border-t border-slate-100 p-5 lg:border-l lg:border-t-0">
             <SubmissionChecklist items={checklist} />
           </aside>
@@ -478,9 +516,7 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
        * ============================================================ */}
       {tab === "Tender Info" && (
         <div className="grid grid-cols-1 items-stretch gap-8 p-5 lg:grid-cols-2">
-          {/* ---------- Left column ---------- */}
           <div className="flex h-full flex-col gap-4">
-            {/* Tender Advertisement */}
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Tender Advertisement
@@ -610,7 +646,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
               />
             )}
 
-            {/* Note — pinned to the bottom of the left column */}
             <div className="mt-auto pt-2">
               <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Note
@@ -624,9 +659,7 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
             </div>
           </div>
 
-          {/* ---------- Right column ---------- */}
           <div className="flex h-full flex-col gap-4">
-            {/* File Attachments */}
             <div>
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 File Attachments ({data.info.attachments.length})
@@ -718,7 +751,6 @@ export function SubmissionDetail({ data, onTaskMutated }: Props) {
               </div>
             </div>
 
-            {/* Eligibility — pinned to the bottom of the right column */}
             <div className="mt-auto">
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Eligibility Criteria / Important Records

@@ -420,7 +420,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-3 cursor-pointer top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 disabled={isSubmitting || isLoading}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -477,7 +477,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading || isSubmitting}
-              className="w-full bg-gradient-to-r from-[#1A60FF] to-[#4A8CFF] hover:from-[#0F4FD4] hover:to-[#3A7CEE] text-white font-semibold py-3.5 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 text-sm transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full bg-gradient-to-r from-[#1A60FF] cursor-pointer to-[#4A8CFF] hover:from-[#0F4FD4] hover:to-[#3A7CEE] text-white font-semibold py-3.5 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 text-sm transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {isLoading || isSubmitting ? (
                 <>

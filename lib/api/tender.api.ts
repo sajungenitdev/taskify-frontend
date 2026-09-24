@@ -1,225 +1,174 @@
 // lib/api/tender.api.ts
 
+/* ============================================================
+ * AUTH HELPERS
+ * ============================================================ */
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api/v1";
-const TENDER_BASE = `${API_BASE}/tenders`;
 
-/* ============================================================
- * AUTH HEADER
- * ============================================================ */
-function authHeaders(): HeadersInit {
-  if (typeof window === "undefined") {
-    return { "Content-Type": "application/json" };
-  }
-  const token =
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return (
     localStorage.getItem("token") ||
     localStorage.getItem("accessToken") ||
-    localStorage.getItem("auth_token") ||
-    sessionStorage.getItem("token") ||
-    sessionStorage.getItem("accessToken");
+    sessionStorage.getItem("token")
+  );
+}
+
+function authHeaders(): HeadersInit {
+  const token = getToken();
   return {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
 
-/* ============================================================
- * RESPONSE ENVELOPE
- * ============================================================ */
-export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
+function authHeadersNoJson(): HeadersInit {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function handle<T>(res: Response): Promise<T> {
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.success === false) {
-    throw new Error(json.message || `Request failed with ${res.status}`);
+async function handle<T>(r: Response): Promise<T> {
+  const json = await r.json();
+  if (!json.success) {
+    throw new Error(json.message || "Request failed");
   }
-  return json;
-}
-
-function qs(params?: Record<string, unknown>) {
-  if (!params) return "";
-  const sp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
-  });
-  const s = sp.toString();
-  return s ? `?${s}` : "";
+  return json.data as T;
 }
 
 /* ============================================================
- * GET CACHE + IN-FLIGHT DEDUP
- *
- * - Same URL called twice within 5s → second call gets the cached
- *   response (zero network).
- * - Same URL called twice in the same tick → second call awaits the
- *   first request's promise.
- * - Any mutation clears the whole cache.
+ * SHARED TYPES
  * ============================================================ */
-const GET_TTL_MS = 5_000;
-const GET_CACHE = new Map<string, { envelope: any; ts: number }>();
-const IN_FLIGHT = new Map<string, Promise<any>>();
 
-function clearGetCache() {
-  GET_CACHE.clear();
-  IN_FLIGHT.clear();
-}
-
-async function cachedGet<T>(url: string): Promise<T> {
-  // 1. Fresh cache hit
-  const hit = GET_CACHE.get(url);
-  if (hit && Date.now() - hit.ts < GET_TTL_MS) {
-    return hit.envelope as T;
-  }
-
-  // 2. Same request already in flight
-  const inFlight = IN_FLIGHT.get(url);
-  if (inFlight) return inFlight as Promise<T>;
-
-  // 3. Fire the request
-  const p = (async () => {
-    const res = await fetch(url, { headers: authHeaders() });
-    const envelope = await handle<any>(res);
-    GET_CACHE.set(url, { envelope, ts: Date.now() });
-    IN_FLIGHT.delete(url);
-    return envelope;
-  })();
-
-  IN_FLIGHT.set(url, p);
-
-  try {
-    return (await p) as T;
-  } catch (e) {
-    IN_FLIGHT.delete(url);
-    throw e;
-  }
-}
-
-/* ============================================================
- * TYPES
- * ============================================================ */
 export type TenderStage =
   | "potential"
   | "active"
   | "submitted"
   | "lost"
   | "won";
-export type TenderType = "eGP" | "RFQ" | "Hardcopy Ref.";
-export type SecurityType =
-  | "Tender Security"
-  | "Performance Security"
-  | "Bank Guarantee";
-export type DocsStatus = "Attached" | "Missing";
-export type CompanyDocCategory =
-  | "legal"
-  | "profiles"
-  | "experience"
-  | "certificates";
-export type CompanyDocStatus = "Valid" | "Expiring Soon" | "Expired";
-export type Currency = "BDT" | "USD" | "SAR" | "AED" | "INR" | "EUR" | "GBP";
 
-/* ---------- Attachments ---------- */
 export interface TenderAttachment {
-  _id: string;
+  _id?: string;
   name: string;
   url: string;
-  size: number;
-  mimeType: string;
-  uploadedAt: string;
+  size?: number;
+  mimeType?: string;
+  uploadedAt?: string;
 }
 
-/* ---------- Advertisement ---------- */
-export interface AdvertisementInfo {
-  advertisementFile: string;
-  advertisementUrl: string;
-  advertisementUploadedBy: string;
-  advertisementUploadedAt: string;
+export interface TenderEligibilityRequirement {
+  id: string;
+  requirement: string;
+  ourRecord: string;
+  match: "Meets" | "Gap" | "Partial" | "";
 }
 
-/* ---------- Competitors ---------- */
-export interface TenderCompetitor {
+export interface TenderChecklistItem {
+  id: string;
+  label: string;
+  checked?: boolean;
+  isCustom?: boolean;
+  value?: string;
+  tone?: "neutral" | "progress" | "warn";
+}
+
+export interface TenderOtherParticipant {
   bidder: string;
   value: number;
   isUs?: boolean;
 }
 
-/* ---------- Checklist ---------- */
-export interface TenderChecklistItem {
-  id: string;
-  label: string;
-  checked: boolean;
-  isCustom?: boolean;
+export interface TenderStageHistoryEntry {
+  from?: string;
+  to?: string;
+  at?: string;
+  by?: string;
+  note?: string;
 }
 
-/* ---------- Tender ---------- */
 export interface Tender {
   _id: string;
+
+  /* Basic */
   tenderer: string;
   title: string;
+  description?: string;
   draft?: boolean;
   stage: TenderStage;
-  tenderType: TenderType;
-  description?: string;
+  tenderType: "eGP" | "RFQ" | "Hardcopy Ref.";
+
+  /* Metadata */
   tenderLink?: string;
   recordedBy?: string;
   responsiblePerson?: string;
-  lastDateOfPurchase?: string;
-  lastDateOfSubmission?: string;
-  submittedAt?: string;
+  mode?: string;
+
+  /* Dates */
+  lastDateOfPurchase?: string | null;
+  lastDateOfSubmission?: string | null;
+  submittedAt?: string | null;
+  lostAt?: string | null;
+
+  /* Value */
   tentativeBudget?: number;
   bidValue?: number;
-  currency?: Currency;
+  currency?: string;
+
+  /* Security */
   tenderSecurityAmount?: number;
-  tenderSecurityValidity?: string;
+  tenderSecurityValidity?: string | null;
   performanceSecurityAmount?: number;
-  performanceSecurityValidity?: string;
+  performanceSecurityValidity?: string | null;
   securityMode?: string;
+
+  /* Submission */
   submitted?: boolean;
-  mode?: string;
   readiness?: number;
   docStatus?: string;
+
+  /* Advertisement */
   advertisementFile?: string;
   advertisementUrl?: string;
   advertisementUploadedBy?: string;
-  advertisementUploadedAt?: string;
+  advertisementUploadedAt?: string | null;
+
+  /* Notes / Eligibility */
   note?: string;
   eligibility?: string;
+  eligibilityRequirements?: TenderEligibilityRequirement[];
+
+  /* Attachments */
   attachments?: TenderAttachment[];
-  otherParticipants?: TenderCompetitor[];
+
+  /* Competitors */
+  otherParticipants?: TenderOtherParticipant[];
+
+  /* Checklist */
   checklist?: TenderChecklistItem[];
+
+  /* Loss */
   lossReason?: string;
   lowestCompliantBidder?: string;
   lowestCompliantValue?: number;
-  lostAt?: string;
-  owner?: { _id: string; fullName: string; email: string } | string;
-  createdAt: string;
-  updatedAt: string;
+
+  /* Ownership */
+  owner?: any;
+  departmentId?: string;
+
+  /* Audit */
+  createdBy?: string;
+  updatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  /* Stage history */
+  stageHistory?: TenderStageHistoryEntry[];
 }
 
-/* ---------- Doc Tasks ---------- */
-export interface TenderDocTask {
-  _id: string;
-  tenderId: string;
-  title: string;
-  owner: string;
-  fileName: string;
-  fileUrl?: string;
-  status: "Pending" | "In Progress" | "Done";
-  order: number;
-  createdAt: string;
-  updatedAt: string;
-}
+/* ============================================================
+ * SUBMISSION TYPES
+ * ============================================================ */
 
-/* ---------- Submissions ---------- */
 export interface SubmissionRow {
   id: string;
   tenderer: string;
@@ -229,43 +178,13 @@ export interface SubmissionRow {
   readiness: number;
 }
 
-export interface SubmissionAttachment {
+export interface SubmissionDocTask {
   _id: string;
-  name: string;
-  url: string;
-  size: number;
-  mimeType: string;
-}
-
-export interface SubmissionChecklistItem {
-  id: string;
-  label: string;
-  value?: string;
-  tone?: "neutral" | "progress" | "warn";
-  checked?: boolean;
-  isCustom?: boolean;
-}
-
-export interface SubmissionBidSummary {
-  ourBidValue: number;
-  tenderSecurity: number;
-  performanceSecurity: number;
-  performanceSecurityPercent: number;
-  currency: string;
-}
-
-export interface SubmissionParticipant {
-  bidder: string;
-  value: number;
-  isUs?: boolean;
-}
-
-export interface SubmissionDocument {
-  id: string;
-  name: string;
-  url: string;
-  size: number;
-  mimeType: string;
+  title: string;
+  owner: string;
+  status: string;
+  fileName?: string;
+  fileUrl?: string;
 }
 
 export interface SubmissionDetail {
@@ -274,599 +193,454 @@ export interface SubmissionDetail {
   title: string;
   deadlineDays: number;
   readiness: number;
-  bidSummary?: SubmissionBidSummary;
-  otherParticipants?: SubmissionParticipant[];
-  documentsSubmitted?: SubmissionDocument[];
-  docTasks: {
-    id: string;
-    title: string;
-    owner: string;
-    fileName: string;
-    fileUrl?: string;
-    status: "Pending" | "In Progress" | "Done";
-  }[];
-  checklist: SubmissionChecklistItem[];
+  docTasks: SubmissionDocTask[];
+  checklist: TenderChecklistItem[];
   info: {
     advertisementFile?: string;
     advertisementUrl?: string;
     advertisementUploadedBy?: string;
-    advertisementUploadedAt?: string;
     tenderLink?: string;
     recordedBy: string;
-    tenderType: TenderType;
+    tenderType: "eGP" | "RFQ" | "Hardcopy Ref.";
     responsiblePerson: string;
     lastDateOfPurchase?: string;
     lastDateOfSubmission?: string;
     note?: string;
-    attachments: SubmissionAttachment[];
+    attachments: TenderAttachment[];
     eligibility?: string;
   };
 }
 
-/* ---------- Security ---------- */
+/* ============================================================
+ * SECURITY TYPES
+ * ============================================================ */
+
 export interface TenderSecurity {
   _id: string;
   entity: string;
   clientDescription: string;
-  type: SecurityType;
+  type: "BG" | "PG" | "Other";
   amount: number;
-  currency: Currency;
   dueDate?: string;
-  docsStatus: DocsStatus;
-  documentUrl?: string;
-  createdAt: string;
+  docsStatus: "Attached" | "Missing";
 }
 
-export interface TenderSecurityStats {
+export interface SecurityStats {
   totalPending: number;
   entitiesAffected: number;
   receivableOutstanding: number;
   payableOutstanding: number;
 }
 
-/* ---------- Company Docs ---------- */
+/* ============================================================
+ * COMPANY DOC TYPES
+ * ============================================================ */
+
 export interface CompanyDocument {
   _id: string;
-  category: CompanyDocCategory;
+  category: "certificates" | "legal" | "profiles" | "experience";
   title: string;
-  description?: string;      // ← profile description / general notes
+  description?: string;
+  subtitle?: string;
   reference?: string;
   validity?: string;
-  validUntil?: string;
-  issuedOn?: string;
-  status: CompanyDocStatus;
+  status: "Valid" | "Expired" | "Expiring Soon";
   action?: "View" | "Replace" | "Renew";
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
   fileMime?: string;
-  docType?: string;           // ← certificate type: "Partner Certificate" etc.
-  subtitle?: string;
+  docType?: string;
   chips?: string[];
-  createdAt: string;
-}
-
-/* ---------- Overview ---------- */
-export interface OverviewStat {
-  label: string;
-  value: string;
-  hint?: string;
-  highlighted?: boolean;
-}
-
-export interface OverviewPipelineStage {
-  id: string;
-  label: string;
-  count: number;
-  color: string;
-  hint?: string;
-}
-
-export interface TenderOverviewData {
-  stats: OverviewStat[];
-  pipeline: OverviewPipelineStage[];
-  stages?: Record<string, number>;
-  upcoming?: UpcomingTender[];
-  performance?: PerformanceResponse;
-  recentActivity?: TenderActivity[];
-}
-
-export interface UpcomingTender {
-  id: string;
-  tenderer: string;
-  title: string;
-  daysLeft: number;
-  value: string;
-}
-
-export interface MonthPerformance {
-  month: string;
-  won: number;
-  lost: number;
-}
-
-export interface TenderActivity {
-  id: string;
-  kind:
-  | "submitted"
-  | "won"
-  | "lost"
-  | "uploaded"
-  | "discussed"
-  | "chat"
-  | "stage_change";
-  tenderer: string;
-  message: string;
-  timeAgo: string;
-}
-
-export interface PerformanceResponse {
-  data: MonthPerformance[];
-  winRate: number;
+  validUntil?: string;
+  issuedOn?: string;
+  createdAt?: string;
 }
 
 /* ============================================================
- * OVERVIEW — one combined endpoint
+ * TENDER API
  * ============================================================ */
-export const overviewApi = {
-  get: () =>
-    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`),
 
-  upcoming: () =>
-    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
-      (r) => r.data.upcoming ?? [],
-    ),
-
-  performance: () =>
-    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
-      (r) => r.data.performance ?? { data: [], winRate: 0 },
-    ),
-
-  recentActivity: (_limit = 10) =>
-    cachedGet<ApiResponse<TenderOverviewData>>(`${TENDER_BASE}/overview`).then(
-      (r) => r.data.recentActivity ?? [],
-    ),
-};
-
-/* ============================================================
- * TENDERS
- * ============================================================ */
 export const tenderApi = {
-  list: (params?: {
+  /* ---------- List ---------- */
+  async list(params?: {
     stage?: string;
     tenderType?: string;
     search?: string;
     includeDrafts?: boolean;
-    page?: number;
     limit?: number;
-  }) => cachedGet<ApiResponse<Tender[]>>(`${TENDER_BASE}${qs(params)}`),
+  }): Promise<{ data: Tender[] }> {
+    const qs = new URLSearchParams();
+    if (params?.includeDrafts) qs.set("includeDrafts", "true");
+    if (params?.limit) qs.set("limit", String(params.limit));
+    if (params?.stage) qs.set("stage", params.stage);
+    if (params?.tenderType) qs.set("tenderType", params.tenderType);
+    if (params?.search) qs.set("search", params.search);
 
-  get: (id: string) =>
-    cachedGet<ApiResponse<Tender & { docTasks: TenderDocTask[] }>>(
-      `${TENDER_BASE}/${id}`,
-    ).then((r) => r.data),
+    const r = await fetch(`${API_BASE}/tenders?${qs.toString()}`, {
+      headers: authHeaders(),
+    });
+    const data = await handle<Tender[]>(r);
+    return { data };
+  },
 
-  create: (payload: Partial<Tender>) =>
-    fetch(`${TENDER_BASE}`, {
+  async get(id: string): Promise<Tender> {
+    const r = await fetch(`${API_BASE}/tenders/${id}`, {
+      headers: authHeaders(),
+    });
+    return handle<Tender>(r);
+  },
+
+  /* ---------- Create / Update / Delete ---------- */
+  async create(body: Partial<Tender>): Promise<Tender> {
+    const r = await fetch(`${API_BASE}/tenders`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<Tender>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
+      body: JSON.stringify(body),
+    });
+    return handle<Tender>(r);
+  },
 
-  update: (id: string, payload: Partial<Tender>) =>
-    fetch(`${TENDER_BASE}/${id}`, {
+  async update(id: string, body: Partial<Tender>): Promise<Tender> {
+    const r = await fetch(`${API_BASE}/tenders/${id}`, {
       method: "PUT",
       headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<Tender>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
+      body: JSON.stringify(body),
+    });
+    return handle<Tender>(r);
+  },
 
-  changeStage: (
+  async remove(id: string): Promise<void> {
+    const r = await fetch(`${API_BASE}/tenders/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    return handle<void>(r);
+  },
+
+  /* ---------- Stage ---------- */
+  async changeStage(
     id: string,
     stage: TenderStage,
     note?: string,
     lossReason?: string,
-  ) =>
-    fetch(`${TENDER_BASE}/${id}/stage`, {
+  ): Promise<Tender> {
+    const r = await fetch(`${API_BASE}/tenders/${id}/stage`, {
       method: "PATCH",
       headers: authHeaders(),
       body: JSON.stringify({ stage, note, lossReason }),
-    })
-      .then(handle<ApiResponse<Tender>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
+    });
+    return handle<Tender>(r);
+  },
 
-  updateChecklist: (id: string, items: unknown[]) =>
-    fetch(`${TENDER_BASE}/${id}/checklist`, {
+  /* ---------- Checklist ---------- */
+  async updateChecklist(
+    id: string,
+    items: TenderChecklistItem[],
+  ): Promise<TenderChecklistItem[]> {
+    const r = await fetch(`${API_BASE}/tenders/${id}/checklist`, {
       method: "PATCH",
       headers: authHeaders(),
       body: JSON.stringify({ items }),
-    })
-      .then(handle<ApiResponse<unknown[]>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  remove: (id: string) =>
-    fetch(`${TENDER_BASE}/${id}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then((r) => {
-        clearGetCache();
-        return r;
-      }),
-
-  uploadAttachment: async (id: string, file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("token") ||
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("auth_token") ||
-        sessionStorage.getItem("token")
-        : null;
-
-    const res = await fetch(`${TENDER_BASE}/${id}/attachments`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
     });
-
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.success === false) {
-      throw new Error(json.message || `Upload failed with ${res.status}`);
-    }
-    clearGetCache();
-    return json.data as TenderAttachment;
+    return handle<TenderChecklistItem[]>(r);
   },
 
-  deleteAttachment: (id: string, attachmentId: string) =>
-    fetch(`${TENDER_BASE}/${id}/attachments/${attachmentId}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then(() => {
-        clearGetCache();
-        return true;
-      }),
-
-  uploadAdvertisement: async (id: string, file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("token") ||
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("auth_token") ||
-        sessionStorage.getItem("token")
-        : null;
-
-    const res = await fetch(`${TENDER_BASE}/${id}/advertisement`, {
+  /* ---------- Attachments ---------- */
+  async uploadAttachment(id: string, file: File): Promise<TenderAttachment> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${API_BASE}/tenders/${id}/attachments`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
+      headers: authHeadersNoJson(),
+      body: fd,
     });
-
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.success === false) {
-      throw new Error(json.message || `Upload failed with ${res.status}`);
-    }
-    clearGetCache();
-    return json.data as AdvertisementInfo;
+    return handle<TenderAttachment>(r);
   },
 
-  deleteAdvertisement: (id: string) =>
-    fetch(`${TENDER_BASE}/${id}/advertisement`, {
+  async deleteAttachment(id: string, attachmentId: string): Promise<void> {
+    const r = await fetch(
+      `${API_BASE}/tenders/${id}/attachments/${attachmentId}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(),
+      },
+    );
+    return handle<void>(r);
+  },
+
+  /* ---------- Advertisement ---------- */
+  async uploadAdvertisement(
+    id: string,
+    file: File,
+  ): Promise<{
+    advertisementFile: string;
+    advertisementUrl: string;
+    advertisementUploadedBy: string;
+    advertisementUploadedAt: string;
+  }> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${API_BASE}/tenders/${id}/advertisement`, {
+      method: "POST",
+      headers: authHeadersNoJson(),
+      body: fd,
+    });
+    return handle(r);
+  },
+
+  async deleteAdvertisement(id: string): Promise<void> {
+    const r = await fetch(`${API_BASE}/tenders/${id}/advertisement`, {
       method: "DELETE",
       headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then(() => {
-        clearGetCache();
-        return true;
-      }),
+    });
+    return handle<void>(r);
+  },
 };
 
 /* ============================================================
- * DOC TASKS
+ * SUBMISSION API — used by useSubmissions hook
  * ============================================================ */
+
+export const submissionApi = {
+  async list(): Promise<SubmissionRow[]> {
+    const r = await fetch(`${API_BASE}/tenders/submissions/list`, {
+      headers: authHeaders(),
+    });
+    return handle<SubmissionRow[]>(r);
+  },
+
+  async get(id: string): Promise<SubmissionDetail> {
+    const r = await fetch(`${API_BASE}/tenders/submissions/${id}`, {
+      headers: authHeaders(),
+    });
+    return handle<SubmissionDetail>(r);
+  },
+};
+
+/* ============================================================
+ * DOC TASK API — used by SubmissionDetail component
+ * ============================================================ */
+
 export const docTaskApi = {
-  add: (
+  async add(
     tenderId: string,
-    payload: {
+    body: {
       title: string;
-      owner?: string;
-      status?: string;
+      owner: string;
+      status: string;
       fileName?: string;
     },
-  ) =>
-    fetch(`${TENDER_BASE}/${tenderId}/doc-tasks`, {
+  ): Promise<{ _id: string }> {
+    const r = await fetch(`${API_BASE}/tenders/${tenderId}/doc-tasks`, {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<TenderDocTask>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  update: (
-    tenderId: string,
-    taskId: string,
-    payload: Partial<TenderDocTask>,
-  ) =>
-    fetch(`${TENDER_BASE}/${tenderId}/doc-tasks/${taskId}`, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<TenderDocTask>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  remove: (tenderId: string, taskId: string) =>
-    fetch(`${TENDER_BASE}/${tenderId}/doc-tasks/${taskId}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then((r) => {
-        clearGetCache();
-        return r;
-      }),
-};
-
-/* ============================================================
- * SUBMISSIONS
- * ============================================================ */
-export const submissionApi = {
-  list: () =>
-    cachedGet<ApiResponse<SubmissionRow[]>>(
-      `${TENDER_BASE}/submissions/list`,
-    ).then((r) => r.data),
-
-  get: (id: string) =>
-    cachedGet<ApiResponse<SubmissionDetail>>(
-      `${TENDER_BASE}/submissions/${id}`,
-    ).then((r) => r.data),
-};
-
-/* ============================================================
- * SECURITY
- * ============================================================ */
-export const securityApi = {
-  list: (params?: {
-    entity?: string;
-    type?: string;
-    docs?: string;
-    page?: number;
-    limit?: number;
-  }) =>
-    cachedGet<ApiResponse<TenderSecurity[]>>(
-      `${TENDER_BASE}/security/list${qs(params)}`,
-    ),
-
-  stats: () =>
-    cachedGet<ApiResponse<TenderSecurityStats>>(
-      `${TENDER_BASE}/security/stats`,
-    ).then((r) => r.data),
-
-  create: (payload: Partial<TenderSecurity>) =>
-    fetch(`${TENDER_BASE}/security`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<TenderSecurity>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  update: (id: string, payload: Partial<TenderSecurity>) =>
-    fetch(`${TENDER_BASE}/security/${id}`, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<TenderSecurity>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  remove: (id: string) =>
-    fetch(`${TENDER_BASE}/security/${id}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then((r) => {
-        clearGetCache();
-        return r;
-      }),
-
-  notify: (id: string, payload: { emails: string[]; note?: string }) =>
-    fetch(`${TENDER_BASE}/security/${id}/notify`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(
-        handle<
-          ApiResponse<{
-            messageId: string;
-            recipients: string[];
-            accepted: string[];
-            rejected: string[];
-          }>
-        >,
-      )
-      .then((r) => r.data),
-};
-
-/* ============================================================
- * COMPANY DOCS
- * ============================================================ */
-export const companyDocApi = {
-  /* ---------- COMBINED: list + counts in one request ---------- */
-  bundle: (params?: {
-    category?: string;
-    sector?: string;
-    duration?: string;
-    volume?: string;
-  }) =>
-    cachedGet<
-      ApiResponse<{
-        list: CompanyDocument[];
-        counts: Record<CompanyDocCategory, number>;
-      }>
-    >(`${TENDER_BASE}/docs/bundle${qs(params)}`).then((r) => r.data),
-
-  /* ---------- Legacy: list only ---------- */
-  list: (params?: {
-    category?: string;
-    sector?: string;
-    duration?: string;
-    volume?: string;
-  }) =>
-    cachedGet<ApiResponse<CompanyDocument[]>>(
-      `${TENDER_BASE}/docs/list${qs(params)}`,
-    ).then((r) => r.data),
-
-  /* ---------- Legacy: counts only ---------- */
-  counts: () =>
-    cachedGet<ApiResponse<Record<CompanyDocCategory, number>>>(
-      `${TENDER_BASE}/docs/counts`,
-    ).then((r) => r.data),
-
-  /* ---------- Create — accepts description AND docType ---------- */
-  create: (
-    payload: Partial<CompanyDocument> & {
-      validityDate?: string;
-      description?: string;      // ← explicit (also in CompanyDocument)
-      docType?: string;          // ← explicit (also in CompanyDocument)
-    },
-  ) =>
-    fetch(`${TENDER_BASE}/docs`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<CompanyDocument>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  /* ---------- Update — accepts description AND docType ---------- */
-  update: (
-    id: string,
-    payload: Partial<CompanyDocument> & {
-      validityDate?: string;
-      description?: string;
-      docType?: string;
-    },
-  ) =>
-    fetch(`${TENDER_BASE}/docs/${id}`, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<CompanyDocument>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
-
-  remove: (id: string) =>
-    fetch(`${TENDER_BASE}/docs/${id}`, {
-      method: "DELETE",
-      headers: authHeaders(),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then((r) => {
-        clearGetCache();
-        return r;
-      }),
-
-  importToTender: (payload: {
-    targetTenderId: string;
-    documentIds: string[];
-  }) =>
-    fetch(`${TENDER_BASE}/docs/import`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<null>>)
-      .then((r) => {
-        clearGetCache();
-        return r;
-      }),
-
-  uploadDocFile: async (id: string, file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    const token =
-      typeof window !== "undefined"
-        ? localStorage.getItem("token") ||
-        localStorage.getItem("accessToken") ||
-        sessionStorage.getItem("token")
-        : null;
-    const res = await fetch(`${TENDER_BASE}/docs/${id}/file`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
+      body: JSON.stringify(body),
     });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.success === false) {
-      throw new Error(json.message || `Upload failed with ${res.status}`);
-    }
-    clearGetCache();
-    return json.data;
+    return handle<{ _id: string }>(r);
   },
 
-  renewDoc: (
-    id: string,
-    payload: { validityDate: string; issuedOn?: string },
-  ) =>
-    fetch(`${TENDER_BASE}/docs/${id}/renew`, {
-      method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify(payload),
-    })
-      .then(handle<ApiResponse<CompanyDocument>>)
-      .then((r) => {
-        clearGetCache();
-        return r.data;
-      }),
+  async update(
+    tenderId: string,
+    taskId: string,
+    body: Partial<{
+      title: string;
+      owner: string;
+      status: string;
+      fileName: string;
+      fileUrl: string;
+      order: number;
+    }>,
+  ): Promise<any> {
+    const r = await fetch(
+      `${API_BASE}/tenders/${tenderId}/doc-tasks/${taskId}`,
+      {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      },
+    );
+    return handle<any>(r);
+  },
+
+  async remove(tenderId: string, taskId: string): Promise<void> {
+    const r = await fetch(
+      `${API_BASE}/tenders/${tenderId}/doc-tasks/${taskId}`,
+      {
+        method: "DELETE",
+        headers: authHeaders(),
+      },
+    );
+    return handle<void>(r);
+  },
 };
 
 /* ============================================================
- * EXPORTS for manual cache control (optional)
+ * SECURITY API — used by useSecurity hook + useTenderStats
  * ============================================================ */
-export const tenderCache = {
-  clear: clearGetCache,
+
+export const securityApi = {
+  async list(params?: { search?: string }): Promise<TenderSecurity[]> {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+
+    const r = await fetch(`${API_BASE}/tenders/security/list?${qs}`, {
+      headers: authHeaders(),
+    });
+    return handle<TenderSecurity[]>(r);
+  },
+
+  async stats(): Promise<SecurityStats> {
+    const r = await fetch(`${API_BASE}/tenders/security/stats`, {
+      headers: authHeaders(),
+    });
+    return handle<SecurityStats>(r);
+  },
+
+  async create(body: Partial<TenderSecurity>): Promise<TenderSecurity> {
+    const r = await fetch(`${API_BASE}/tenders/security`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    return handle<TenderSecurity>(r);
+  },
+
+  async update(
+    id: string,
+    body: Partial<TenderSecurity>,
+  ): Promise<TenderSecurity> {
+    const r = await fetch(`${API_BASE}/tenders/security/${id}`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    return handle<TenderSecurity>(r);
+  },
+
+  async remove(id: string): Promise<void> {
+    const r = await fetch(`${API_BASE}/tenders/security/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    return handle<void>(r);
+  },
+
+  async notify(
+    id: string,
+    body?: { message?: string; recipients?: string[] },
+  ): Promise<void> {
+    const r = await fetch(`${API_BASE}/tenders/security/${id}/notify`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body ?? {}),
+    });
+    return handle<void>(r);
+  },
+};
+
+/* ============================================================
+ * COMPANY DOCS API — used by useCompanyDocs hook
+ * ============================================================ */
+
+export const companyDocApi = {
+  async list(params?: {
+    category?: CompanyDocument["category"];
+    search?: string;
+  }): Promise<CompanyDocument[]> {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.search) qs.set("search", params.search);
+
+    const r = await fetch(`${API_BASE}/tenders/docs/list?${qs}`, {
+      headers: authHeaders(),
+    });
+    return handle<CompanyDocument[]>(r);
+  },
+
+  async counts(): Promise<Record<string, number>> {
+    const r = await fetch(`${API_BASE}/tenders/docs/counts`, {
+      headers: authHeaders(),
+    });
+    return handle<Record<string, number>>(r);
+  },
+
+  async bundle(): Promise<{
+    docs: CompanyDocument[];
+    counts: Record<string, number>;
+  }> {
+    const r = await fetch(`${API_BASE}/tenders/docs/bundle`, {
+      headers: authHeaders(),
+    });
+    return handle(r);
+  },
+
+  async create(body: Partial<CompanyDocument>): Promise<CompanyDocument> {
+    const r = await fetch(`${API_BASE}/tenders/docs`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    return handle<CompanyDocument>(r);
+  },
+
+  async update(
+    id: string,
+    body: Partial<CompanyDocument>,
+  ): Promise<CompanyDocument> {
+    const r = await fetch(`${API_BASE}/tenders/docs/${id}`, {
+      method: "PATCH",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    return handle<CompanyDocument>(r);
+  },
+
+  async remove(id: string): Promise<void> {
+    const r = await fetch(`${API_BASE}/tenders/docs/${id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
+    return handle<void>(r);
+  },
+
+  async uploadFile(id: string, file: File): Promise<CompanyDocument> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${API_BASE}/tenders/docs/${id}/file`, {
+      method: "POST",
+      headers: authHeadersNoJson(),
+      body: fd,
+    });
+    return handle<CompanyDocument>(r);
+  },
+
+  async renew(
+    id: string,
+    body: {
+      validUntil?: string;
+      issuedOn?: string;
+      reference?: string;
+      note?: string;
+    },
+  ): Promise<CompanyDocument> {
+    const r = await fetch(`${API_BASE}/tenders/docs/${id}/renew`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    return handle<CompanyDocument>(r);
+  },
+
+  async importToTender(
+    tenderId: string,
+    docIds: string[],
+  ): Promise<Tender> {
+    const r = await fetch(`${API_BASE}/tenders/docs/import`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ tenderId, docIds }),
+    });
+    return handle<Tender>(r);
+  },
 };

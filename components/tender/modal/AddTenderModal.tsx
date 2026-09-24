@@ -434,7 +434,7 @@ export function AddTenderModal({ open, onOpenChange, onCreated }: Props) {
             </div>
           </Section>
 
-          <Section title="Comments">
+          <Section title="Notes">
             <textarea
               rows={3}
               className={`${inputCls} h-auto resize-none py-2`}

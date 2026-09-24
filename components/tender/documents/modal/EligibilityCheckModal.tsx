@@ -1,9 +1,16 @@
-// components/tender/EligibilityCheckModal.tsx
+// components/tender/documents/modal/EligibilityCheckModal.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, XCircle, MinusCircle, Sparkles, Loader2, X } from "lucide-react";
-import type { Tender } from "@/lib/api/tender.api";
+import { useEffect, useState } from "react";
+import {
+  CheckCircle2,
+  XCircle,
+  MinusCircle,
+  Sparkles,
+  Loader2,
+  X,
+} from "lucide-react";
+import type { Tender, TenderEligibilityRequirement } from "@/lib/api/tender.api";
 
 /* ---------- Types ---------- */
 export type MatchState = "meets" | "gap" | "within" | "info";
@@ -24,123 +31,55 @@ interface Props {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   tender: Tender | null;
-  onApprove?: () => void;
+  onApprove?: (requirements: TenderEligibilityRequirement[]) => void;
   onDecline?: () => void;
 }
 
 /* ============================================================
- * Rule engine — builds check rows from the tender + a small
- * static company profile. Everything is local, no API call.
+ * Rule engine — now sourced from the tender's CHECKLIST.
+ *   • checked   → Meets
+ *   • unchecked → Gap
+ *   • if no checklist exists yet, fall back to a friendly
+ *     "nothing to check yet" state (no fake rules).
  * ============================================================ */
-
-/** Company "known facts" — in a real app these would come from
- *  CompanyDocs / past tender history. Kept here for clarity. */
-const COMPANY_PROFILE = {
-  acronisYears: 7,
-  totalWorkOrders: 6,
-  totalWorkValue: 8100000, // ৳81L
-  partnerCertificate: { status: "Expired", note: "Expired 3 months ago" },
-  tenderSecurityMin: 10000,
-  tenderSecurityMax: 2000000,
-  performanceSecurityPct: 7.5,
-};
-
 function runEligibility(tender: Tender): EligibilityResult {
-  const rows: EligibilityRow[] = [];
+  const checklist = Array.isArray((tender as any)?.checklist)
+    ? ((tender as any).checklist as {
+      id: string;
+      label: string;
+      checked?: boolean;
+    }[])
+    : [];
 
-  /* 1. Experience years — pattern: "X years <Vendor>" or "X years experience" */
-  const yearsMatch = tender.eligibility?.match(/(\d+)\s*years?/i);
-  const requiredYears = yearsMatch ? parseInt(yearsMatch[1], 10) : null;
-  rows.push({
-    requirement: requiredYears
-      ? `Experience — ${requiredYears} years min.`
-      : "Experience — as advertised",
-    ourRecord: `${COMPANY_PROFILE.acronisYears} years`,
-    match:
-      !requiredYears || COMPANY_PROFILE.acronisYears >= requiredYears
-        ? "meets"
-        : "gap",
-  });
-
-  /* 2. Work orders + total volume — pattern: "N work orders, ≥ ৳X" */
-  const workOrderMatch = tender.eligibility?.match(/(\d+)\s*work orders?/i);
-  const volumeMatch = tender.eligibility?.match(/৳\s*([\d,]+)/);
-  const requiredOrders = workOrderMatch ? parseInt(workOrderMatch[1], 10) : null;
-  const requiredVolume = volumeMatch
-    ? parseInt(volumeMatch[1].replace(/,/g, ""), 10)
-    : null;
-  rows.push({
-    requirement: requiredOrders
-      ? `${requiredOrders} work orders, ≥ ৳${requiredVolume?.toLocaleString("en-IN") ?? "—"} total volume`
-      : "Work order history",
-    ourRecord: `${COMPANY_PROFILE.totalWorkOrders} orders, ৳${(
-      COMPANY_PROFILE.totalWorkValue / 100000
-    ).toFixed(1)}L`,
-    match:
-      (!requiredOrders || COMPANY_PROFILE.totalWorkOrders >= requiredOrders) &&
-      (!requiredVolume || COMPANY_PROFILE.totalWorkValue >= requiredVolume)
-        ? "meets"
-        : "gap",
-  });
-
-  /* 3. Partner certificate */
-  if (tender.eligibility?.toLowerCase().includes("partner certificate")) {
-    rows.push({
-      requirement: "Partner Certificate — required",
-      ourRecord: COMPANY_PROFILE.partnerCertificate.note,
-      match:
-        COMPANY_PROFILE.partnerCertificate.status === "Valid"
-          ? "meets"
-          : "gap",
-    });
-  }
-
-  /* 4. Tender Security within admin range */
-  if (tender.tenderSecurityAmount) {
-    const amt = tender.tenderSecurityAmount;
-    const ok =
-      amt >= COMPANY_PROFILE.tenderSecurityMin &&
-      amt <= COMPANY_PROFILE.tenderSecurityMax;
-    rows.push({
-      requirement: `Tender Security within admin range (৳${(
-        COMPANY_PROFILE.tenderSecurityMin / 1000
-      ).toFixed(0)}k–৳${(
-        COMPANY_PROFILE.tenderSecurityMax / 1000000
-      ).toFixed(0)}L)`,
-      ourRecord: `৳${amt.toLocaleString("en-IN")}`,
-      match: ok ? "within" : "gap",
-    });
-  }
-
-  /* 5. Performance Security % within admin range */
-  if (tender.performanceSecurityAmount && tender.bidValue) {
-    const pct = (tender.performanceSecurityAmount / tender.bidValue) * 100;
-    const ok = pct >= 5 && pct <= 10;
-    rows.push({
-      requirement: "Performance Security within admin range (5–10%)",
-      ourRecord: `${pct.toFixed(1)}%`,
-      match: ok ? "within" : "gap",
-    });
-  }
+  const rows: EligibilityRow[] = checklist.map((it) => ({
+    requirement: it.label || "Untitled requirement",
+    ourRecord: it.checked ? "Marked complete" : "Not marked yet",
+    match: it.checked ? "meets" : "gap",
+  }));
 
   /* ---------- Overall verdict ---------- */
   const gaps = rows.filter((r) => r.match === "gap");
   const meets = rows.filter((r) => r.match !== "gap").length;
 
   const overall: EligibilityResult["overall"] =
-    gaps.length === 0
-      ? "Ready"
-      : gaps.length === 1
-        ? "Review Required"
-        : "Not Ready";
+    rows.length === 0
+      ? "Review Required"
+      : gaps.length === 0
+        ? "Ready"
+        : gaps.length === 1
+          ? "Review Required"
+          : "Not Ready";
 
   /* ---------- AI-style note ---------- */
   let note = "";
-  if (gaps.length === 0) {
+  if (rows.length === 0) {
+    note =
+      "No checklist items recorded yet. Open the Submission Checklist to add or tick the requirements, then re-run this check.";
+  } else if (gaps.length === 0) {
     note = `Meets all ${rows.length} criteria. Safe to approve for participation.`;
   } else if (gaps.length === 1) {
     const g = gaps[0];
-    note = `Meets ${meets} of ${rows.length} criteria. The only gap is "${g.requirement}" — typically a hard requirement, not a scoring one. Recommend confirming with the principal before committing.`;
+    note = `Meets ${meets} of ${rows.length} criteria. The only gap is "${g.requirement}" — confirm this with the responsible person before committing.`;
   } else {
     note = `Meets only ${meets} of ${rows.length} criteria. ${gaps.length} gaps found: ${gaps
       .map((g) => g.requirement)
@@ -171,14 +110,15 @@ export function EligibilityCheckModal({
     const t = setTimeout(() => {
       setResult(runEligibility(tender));
       setChecking(false);
-    }, 450); // small delay so it feels like it "checked"
+    }, 300);
     return () => clearTimeout(t);
   }, [open, tender]);
 
   /* Esc close + body scroll lock */
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onOpenChange(false);
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" && onOpenChange(false);
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -189,6 +129,24 @@ export function EligibilityCheckModal({
   }, [open, onOpenChange]);
 
   if (!open || !tender) return null;
+
+  /* Convert local rows → TenderEligibilityRequirement[] for the parent */
+  const buildRequirementsForParent = (): TenderEligibilityRequirement[] => {
+    if (!result) return [];
+    return result.rows.map((row, idx) => {
+      let match: TenderEligibilityRequirement["match"] = "Partial";
+      if (row.match === "meets") match = "Meets";
+      else if (row.match === "within") match = "Meets";
+      else if (row.match === "gap") match = "Gap";
+
+      return {
+        id: `req-${idx}`,
+        requirement: row.requirement,
+        ourRecord: row.ourRecord,
+        match,
+      };
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -209,9 +167,7 @@ export function EligibilityCheckModal({
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {!checking && result && (
-              <StatusPill overall={result.overall} />
-            )}
+            {!checking && result && <StatusPill overall={result.overall} />}
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -229,12 +185,22 @@ export function EligibilityCheckModal({
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <Loader2 className="h-6 w-6 animate-spin text-[#a97400]" />
               <p className="text-xs text-slate-500">
-                Comparing tender requirements against company record…
+                Reading the tender checklist and computing eligibility…
               </p>
             </div>
-          ) : !result ? null : (
+          ) : !result ? null : result.rows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <MinusCircle className="h-6 w-6 text-slate-300" />
+              <p className="text-xs text-slate-500">
+                No checklist items recorded yet.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Open the Submission Checklist on this tender to add items, then
+                run this check again.
+              </p>
+            </div>
+          ) : (
             <>
-              {/* Table */}
               <div className="overflow-hidden rounded-lg border border-slate-200">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50/60 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -262,7 +228,6 @@ export function EligibilityCheckModal({
                 </table>
               </div>
 
-              {/* AI note */}
               <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50/60 p-4">
                 <div className="mb-1.5 flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-[#a97400]" />
@@ -283,10 +248,11 @@ export function EligibilityCheckModal({
           <button
             type="button"
             onClick={() => {
-              onApprove?.();
+              const requirements = buildRequirementsForParent();
+              onApprove?.(requirements);
               onOpenChange(false);
             }}
-            disabled={checking}
+            disabled={checking || (result?.rows.length ?? 0) === 0}
             className="inline-flex h-9 items-center justify-center rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Approve for Participation

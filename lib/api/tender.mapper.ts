@@ -65,16 +65,39 @@ export function normalizeAttachments(
  * TENDER DETAIL MAPPERS
  * ============================================================ */
 
-export function toReviewDetail(t: Tender): TenderDetailData {
+export function toReviewDetail(t: Tender | any): TenderDetailData {
+    const resolvedUrl =
+        t.advertisementUrl || t.advertisement || t.adUrl || "";
+
+    const resolvedFile =
+        t.advertisementFile ||
+        (typeof resolvedUrl === "string" && resolvedUrl.trim()
+            ? resolvedUrl.split("/").pop()?.split("?")[0]
+            : undefined);
+
+    /* === Eligibility → comma + newline separated "Meets only" list === */
+    const requirements = Array.isArray(t.eligibilityRequirements)
+        ? t.eligibilityRequirements
+        : [];
+
+    const meetsOnly = requirements
+        .filter((r: any) => r.match === "Meets")
+        .map((r: any) => r.requirement)
+        .filter(Boolean)
+        .join(",\n");   // ← প্রতিটা item আলাদা লাইনে, শেষে কমা
+
     return {
         id: t._id,
         tenderer: t.tenderer,
         title: t.title,
 
-        advertisementFile: t.advertisementFile,
-        advertisementUrl: t.advertisementUrl ?? "",
-        advertisementUploadedBy: t.advertisementUploadedBy,
-        advertisementUploadedAt: t.advertisementUploadedAt ?? "",
+        advertisementFile: resolvedFile,
+        advertisementUrl: resolvedUrl,
+        advertisementUploadedBy: t.advertisementUploadedBy || t.uploadedBy,
+        advertisementUploadedAt:
+            t.advertisementUploadedAt || t.updatedAt
+                ? fmtDateTime(t.advertisementUploadedAt || t.updatedAt)
+                : "",
 
         tenderLink: t.tenderLink,
         recordedBy: t.recordedBy ?? "—",
@@ -84,7 +107,10 @@ export function toReviewDetail(t: Tender): TenderDetailData {
         lastDateOfSubmission: fmtDateTime(t.lastDateOfSubmission),
         note: t.note,
         attachments: normalizeAttachments(t.attachments),
-        eligibility: t.eligibility,
+
+        /* Show only "Meets" requirements, each on its own line,
+           separated by a comma. Falls back to plain eligibility text. */
+        eligibility: meetsOnly || t.eligibility || "",
     };
 }
 
@@ -119,7 +145,7 @@ export function toSubmittedDetail(t: Tender): SubmittedTenderDetail {
             : undefined,
         documentsSubmitted: normalizeAttachments(t.attachments).map((a) => ({
             name: a.name,
-            url: a.url,        // ← ADD THIS LINE
+            url: a.url,
         })),
         otherParticipants: (t.otherParticipants ?? []).map((p) => ({
             bidder: p.bidder,
