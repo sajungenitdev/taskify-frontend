@@ -20,11 +20,12 @@ import { confirmToast } from "@/lib/confirmToast";
 import toast from "react-hot-toast";
 
 export interface SubmissionAttachment {
-  _id: string;
+  _id?: string;
   name: string;
   url: string;
-  size: number;
-  mimeType: string;
+  size?: number;
+  mimeType?: string;
+  uploadedAt?: string;
 }
 
 export interface SubmissionInfoPayload {
@@ -441,8 +442,8 @@ export function SubmissionDetail({
                 type="button"
                 onClick={() => setTab(t)}
                 className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
-                    ? "text-slate-900"
-                    : "text-slate-500 hover:text-slate-800"
+                  ? "text-slate-900"
+                  : "text-slate-500 hover:text-slate-800"
                   }`}
               >
                 {t}
@@ -681,7 +682,7 @@ export function SubmissionDetail({
                       <span className="flex min-w-0 items-center gap-2 truncate text-[11px] font-medium text-slate-700">
                         <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         <span className="truncate">{f.name}</span>
-                        {f.size > 0 && (
+                        {typeof f.size === "number" && f.size > 0 && (
                           <span className="shrink-0 text-[10px] text-slate-400">
                             ({fileSizeLabel(f.size)})
                           </span>
@@ -698,16 +699,18 @@ export function SubmissionDetail({
                             View
                           </a>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => deleteAttachment(f._id, f.name)}
-                          disabled={deleting}
-                          className="rounded-md p-1 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
-                          title="Delete file"
-                          aria-label="Delete file"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {typeof f._id === "string" && (
+                          <button
+                            type="button"
+                            onClick={() => deleteAttachment(f._id!, f.name)}
+                            disabled={deleting}
+                            className="rounded-md p-1 text-slate-300 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Delete file"
+                            aria-label="Delete file"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </li>
                   );

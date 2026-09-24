@@ -3,16 +3,17 @@
 
 import { FileText, Trash2, Upload, X } from "lucide-react";
 import { useRef } from "react";
+import type {
+  SubmissionDocTask,
+  DocTaskStatus,
+} from "@/lib/api/tender.api";
 
-export type DocStatus = "Done" | "In Progress" | "Pending";
+/** Alias for the canonical status union in tender.api.ts */
+export type DocStatus = DocTaskStatus;
 
-export interface DocTask {
-  id: string;
-  title: string;
-  owner: string;
-  fileName: string;
-  fileUrl?: string;
-  status: DocStatus;
+/** Extends the API shape (SubmissionDocTask) with component-only
+ *  fields — SINGLE canonical DocTask type. */
+export interface DocTask extends SubmissionDocTask {
   isDraft?: boolean;
   /** A file queued for upload — only set in draft state */
   pendingFile?: File | null;

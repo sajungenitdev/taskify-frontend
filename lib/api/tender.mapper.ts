@@ -4,6 +4,7 @@ import type {
     TenderAttachment,
     SubmissionDetail,
     SubmissionRow,
+    DocTaskStatus,
 } from "./tender.api";
 import type { TenderDetailData } from "@/components/tender/TenderDetailReview";
 import type { ActiveTenderDetail } from "@/components/tender/TenderDetailActive";
@@ -226,11 +227,24 @@ export function sanitizeSubmissionDetail(
 ): SubmissionDetail {
     return {
         ...d,
-        docTasks: (d.docTasks ?? []).map((t) => ({
-            ...t,
-            owner: t.owner || "—",
-            fileName: t.fileName || "No file uploaded yet",
-        })),
+        docTasks: (d.docTasks ?? []).map((t) => {
+            /* Narrow the raw API string into one of our union values.
+               Anything unexpected falls back to "Pending". */
+            const safeStatus: DocTaskStatus =
+                t.status === "Done" ||
+                    t.status === "In Progress" ||
+                    t.status === "Pending"
+                    ? t.status
+                    : "Pending";
+
+            return {
+                ...t,
+                id: t._id,
+                owner: t.owner || "—",
+                fileName: t.fileName || "No file uploaded yet",
+                status: safeStatus,
+            };
+        }),
         checklist: (d.checklist ?? []).map((c) => ({
             id: c.id,
             label: c.label,
@@ -243,7 +257,15 @@ export function sanitizeSubmissionDetail(
             ...d.info,
             recordedBy: d.info?.recordedBy || "—",
             responsiblePerson: d.info?.responsiblePerson || "—",
-            attachments: d.info?.attachments ?? [],
+            /* Normalize attachments — ensure _id, size, mimeType are
+               always present so the SubmissionAttachment type matches. */
+            attachments: (d.info?.attachments ?? []).map((a, idx) => ({
+                _id: a._id ?? `att-${idx}-${a.name ?? idx}`,
+                name: a.name ?? "",
+                url: a.url ?? "",
+                size: a.size ?? 0,
+                mimeType: a.mimeType ?? "",
+            })),
         },
     };
 }

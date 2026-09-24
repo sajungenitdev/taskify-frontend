@@ -178,15 +178,23 @@ export interface SubmissionRow {
   readiness: number;
 }
 
+/* Status union — must match `DocStatus` in
+   components/tender/submission/DocTaskRow.tsx */
+export type DocTaskStatus = "Done" | "In Progress" | "Pending";
+
 export interface SubmissionDocTask {
   _id: string;
+  /** Alias for `_id` — set by `sanitizeSubmissionDetail` so the
+   *  DocTask component (which uses `id`) can consume the shape. */
+  id: string;
   title: string;
   owner: string;
-  status: string;
-  fileName?: string;
+  status: DocTaskStatus;      /* ← was `status: string` */
+  /** Always present after `sanitizeSubmissionDetail` (falls back to
+   *  "No file uploaded yet" when empty). */
+  fileName: string;
   fileUrl?: string;
 }
-
 export interface SubmissionDetail {
   id: string;
   tenderer: string;
@@ -195,6 +203,8 @@ export interface SubmissionDetail {
   readiness: number;
   docTasks: SubmissionDocTask[];
   checklist: TenderChecklistItem[];
+  /** Competitors / bidders — same shape as Tender.otherParticipants */
+  otherParticipants?: TenderOtherParticipant[];   /* ← added */
   info: {
     advertisementFile?: string;
     advertisementUrl?: string;

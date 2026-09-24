@@ -166,7 +166,25 @@ export default function TenderSubmissionPage() {
                     <>
                         <SubmissionDetail
                             data={{
-                                ...sanitizeSubmissionDetail(detail),
+                                ...(() => {
+                                    const sanitized =
+                                        sanitizeSubmissionDetail(detail);
+                                    return {
+                                        ...sanitized,
+                                        info: {
+                                            ...sanitized.info,
+                                            attachments:
+                                                sanitized.info.attachments?.map(
+                                                    (attachment, index) => ({
+                                                        ...attachment,
+                                                        _id:
+                                                            attachment._id ??
+                                                            `${detail.id}-attachment-${index}`,
+                                                    }),
+                                                ),
+                                        },
+                                    };
+                                })(),
                                 notifyAction: {
                                     label: "Notify Finance — Banking Docs Pending",
                                     onClick: () => {
