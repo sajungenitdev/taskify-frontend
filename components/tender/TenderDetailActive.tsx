@@ -39,14 +39,14 @@ export function TenderDetailActive({ data, onSubmit }: Props) {
           {data.docStatus}
         </span>
         {onSubmit && (                                  /* ← NEW */
-            <button
-              type="button"
-              onClick={onSubmit}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#a97400] px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-[#8f6100]"
-            >
-              Go To Submission →
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onSubmit}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#a97400] px-3 text-[11px] font-semibold text-white shadow-sm hover:bg-[#8f6100]"
+          >
+            Go To Submission →
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-8 px-5 py-4 lg:grid-cols-2">
@@ -108,7 +108,7 @@ export function TenderDetailActive({ data, onSubmit }: Props) {
                   </span>
                   <span
                     className={`text-[11px] ${item.checked
-                      ? "text-slate-500 line-through"
+                      ? "text-slate-500 "
                       : "text-slate-700"
                       }`}
                   >
