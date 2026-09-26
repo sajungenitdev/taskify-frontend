@@ -1,33 +1,24 @@
 // components/Assistant/AssistantWizard.tsx
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Sparkles,
   X,
-  User,
   CheckCircle,
-  Clock,
-  AlertCircle,
-  Calendar,
   Briefcase,
   TrendingUp,
   Star,
-  Award,
   Zap,
   Loader2,
-  ChevronRight,
-  MessageSquare,
   Bell,
-  Shield,
   Users,
-  Eye,
   RefreshCw,
+  Minus,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import api from "@/lib/axios";
-import toast from "react-hot-toast";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -73,38 +64,33 @@ interface AssistantData {
   }>;
 }
 
-const HIDE_DURATION_MS = 10_000; // 10 seconds
-const HIDE_STORAGE_KEY = "assistantHiddenUntil";
-
 export default function AssistantWizard() {
   const { user } = useAuth();
   const pathname = usePathname();
+  const prefersReducedMotion = useReducedMotion();
+
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<AssistantData | null>(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
 
-  // 👇 Hide state + timer
-  const [isHidden, setIsHidden] = useState(false);
-  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Fetch assistant data
   const fetchAssistantData = useCallback(async () => {
     if (!user) return;
-
     setIsLoading(true);
     try {
-      const tasksResponse = await api.get("/tasks/my-statistics");
-      const notificationsResponse = await api.get("/notifications?limit=5");
-      const profileResponse = await api.get("/auth/me");
+      const [tasksRes, notifRes, profileRes] = await Promise.all([
+        api.get("/tasks/my-statistics"),
+        api.get("/notifications?limit=5"),
+        api.get("/auth/me"),
+      ]);
 
-      const taskStats = tasksResponse.data.data || {};
-      const notifications = notificationsResponse.data.data || [];
-      const profile = profileResponse.data.data || {};
+      const taskStats = tasksRes.data.data || {};
+      const notifications = notifRes.data.data || [];
+      const profile = profileRes.data.data || {};
 
       const totalTasks = taskStats.total || 0;
       const completedTasks = taskStats.byStatus?.completed || 0;
@@ -113,16 +99,16 @@ export default function AssistantWizard() {
       const onTimeRate =
         completionRate > 0 ? Math.min(completionRate + 10, 100) : 0;
 
-      const quickActions = [
+      const quickActions: AssistantData["quickActions"] = [
         {
           label: "My Tasks",
-          icon: <CheckCircle className="w-4 h-4" />,
+          icon: <CheckCircle className="h-4 w-4" />,
           href: "/tasks",
           color: "bg-blue-500",
         },
         {
           label: "Create Task",
-          icon: <Zap className="w-4 h-4" />,
+          icon: <Zap className="h-4 w-4" />,
           href: "/tasks/create",
           color: "bg-purple-500",
         },
@@ -135,16 +121,15 @@ export default function AssistantWizard() {
       ) {
         quickActions.push({
           label: "Users",
-          icon: <Users className="w-4 h-4" />,
+          icon: <Users className="h-4 w-4" />,
           href: "/users",
           color: "bg-indigo-500",
         });
       }
-
       if (user.role === "admin" || user.role === "super_admin") {
         quickActions.push({
           label: "Reports",
-          icon: <TrendingUp className="w-4 h-4" />,
+          icon: <TrendingUp className="h-4 w-4" />,
           href: "/reports",
           color: "bg-emerald-500",
         });
@@ -204,10 +189,7 @@ export default function AssistantWizard() {
           averageRating: 0,
           totalHours: 0,
         },
-        notifications: {
-          unread: 0,
-          latest: [],
-        },
+        notifications: { unread: 0, latest: [] },
         user: {
           fullName: user?.fullName || "User",
           email: user?.email || "",
@@ -218,13 +200,13 @@ export default function AssistantWizard() {
         quickActions: [
           {
             label: "My Tasks",
-            icon: <CheckCircle className="w-4 h-4" />,
+            icon: <CheckCircle className="h-4 w-4" />,
             href: "/tasks",
             color: "bg-blue-500",
           },
           {
             label: "Create Task",
-            icon: <Zap className="w-4 h-4" />,
+            icon: <Zap className="h-4 w-4" />,
             href: "/tasks/create",
             color: "bg-purple-500",
           },
@@ -235,83 +217,24 @@ export default function AssistantWizard() {
     }
   }, [user]);
 
-  // Load data on mount
   useEffect(() => {
-    if (user) {
-      fetchAssistantData();
-    }
+    if (user) fetchAssistantData();
   }, [user, fetchAssistantData]);
 
-  // Refresh data periodically (only when panel is closed)
   useEffect(() => {
     if (!user) return;
-
     const interval = setInterval(() => {
-      if (!isOpen) {
-        fetchAssistantData();
-      }
+      if (!isOpen) fetchAssistantData();
     }, 60000);
-
     return () => clearInterval(interval);
   }, [user, isOpen, fetchAssistantData]);
 
-  // ---------------------------------------------------------------
-  // 👇 Hide / auto-return logic
-  // ---------------------------------------------------------------
-  const handleHide = useCallback(() => {
-    setIsHidden(true);
+  // Both Minimize and Close reliably collapse to the floating bubble
+  const handleCollapse = useCallback(() => {
     setIsOpen(false);
-
-    const until = Date.now() + HIDE_DURATION_MS;
-
-    // Persist across page navigations
-    try {
-      sessionStorage.setItem(HIDE_STORAGE_KEY, String(until));
-    } catch {
-      /* ignore */
-    }
-
-    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    hideTimeoutRef.current = setTimeout(() => {
-      setIsHidden(false);
-      hideTimeoutRef.current = null;
-      try {
-        sessionStorage.removeItem(HIDE_STORAGE_KEY);
-      } catch {
-        /* ignore */
-      }
-    }, HIDE_DURATION_MS);
   }, []);
 
-  // Restore a hide state if the user navigated during the 10s window
-  useEffect(() => {
-    try {
-      const until = Number(sessionStorage.getItem(HIDE_STORAGE_KEY) || 0);
-      const now = Date.now();
-      if (until > now) {
-        setIsHidden(true);
-        hideTimeoutRef.current = setTimeout(() => {
-          setIsHidden(false);
-          hideTimeoutRef.current = null;
-          try {
-            sessionStorage.removeItem(HIDE_STORAGE_KEY);
-          } catch {
-            /* ignore */
-          }
-        }, until - now);
-      } else {
-        sessionStorage.removeItem(HIDE_STORAGE_KEY);
-      }
-    } catch {
-      /* ignore */
-    }
-
-    return () => {
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    };
-  }, []);
-
-  // Click outside to close the panel
+  // Click outside to collapse
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -323,14 +246,22 @@ export default function AssistantWizard() {
         setIsOpen(false);
       }
     };
-
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () =>
+      document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  // Hide on certain pages
+  // Escape to collapse
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen]);
+
+  // Hide only on auth pages
   useEffect(() => {
     const hiddenPaths = [
       "/login",
@@ -341,6 +272,20 @@ export default function AssistantWizard() {
     ];
     setIsVisible(!hiddenPaths.includes(pathname));
   }, [pathname]);
+
+  const spring = useMemo(
+    () =>
+      prefersReducedMotion
+        ? { duration: 0.15 }
+        : { type: "spring" as const, stiffness: 380, damping: 30, mass: 0.9 },
+    [prefersReducedMotion],
+  );
+
+  const unreadCount = data?.notifications.unread ?? 0;
+  const unreadDisplay =
+    unreadCount > 99 ? "99+" : unreadCount > 9 ? "9+" : String(unreadCount);
+  const showBadge = unreadCount > 0;
+  const showPing = showBadge && !prefersReducedMotion;
 
   if (!isVisible || !user) return null;
 
@@ -366,7 +311,6 @@ export default function AssistantWizard() {
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-
     if (diffMins < 1) return "Just now";
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
@@ -374,272 +318,366 @@ export default function AssistantWizard() {
     return date.toLocaleDateString();
   };
 
+  const statusRows = [
+    { label: "Pending", value: data?.tasks.pending || 0, color: "bg-slate-400" },
+    { label: "In Progress", value: data?.tasks.inProgress || 0, color: "bg-blue-500" },
+    { label: "Submitted", value: data?.tasks.submitted || 0, color: "bg-purple-500" },
+    { label: "Completed", value: data?.tasks.completed || 0, color: "bg-emerald-500" },
+    { label: "Overdue", value: data?.tasks.overdue || 0, color: "bg-rose-500" },
+    { label: "Rejected", value: data?.tasks.rejected || 0, color: "bg-red-500" },
+  ];
+
   return (
     <>
-      {/* ============================================================ */}
-      {/* Floating Button                                              */}
-      {/* ============================================================ */}
-      <AnimatePresence>
-        {!isHidden && (
+      <AnimatePresence mode="wait">
+        {/* ============================================================
+         * FLOATING BUTTON (Always rendered when panel is closed)
+         * ============================================================ */}
+        {!isOpen ? (
           <motion.div
             key="assistant-fab"
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 20 }}
-            className="fixed bottom-3 right-5 z-50"
+            initial={{ opacity: 0, scale: 0.6, y: 15 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.6, y: 15 }}
+            transition={spring}
+            className="fixed bottom-20 right-4 z-50 origin-bottom-right"
           >
             <div className="relative">
-              {/* Pulse Animation */}
-              <div className="absolute inset-0 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 opacity-30 animate-ping" />
+              {/* Soft halo */}
+              <span className="pointer-events-none absolute -inset-2 rounded-full bg-indigo-400/25 blur-xl" />
 
-              {/* Main button */}
+              {/* Pulsing ring for unread items */}
+              {showPing && (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0 animate-ping rounded-full bg-indigo-500 opacity-30"
+                />
+              )}
+
               <motion.button
                 ref={buttonRef}
-                onClick={() => setIsOpen(!isOpen)}
+                type="button"
+                onClick={() => {
+                  setIsHovered(false);
+                  setIsOpen(true);
+                }}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                className="relative w-14 h-14 rounded-full bg-linear-to-r from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/30 flex items-center justify-center hover:shadow-xl hover:shadow-indigo-500/40 transition-all duration-300"
-                aria-label="Open assistant"
+                whileHover={prefersReducedMotion ? undefined : { scale: 1.08 }}
+                whileTap={{ scale: 0.94 }}
+                className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border-2 border-white/90 bg-gradient-to-tr from-indigo-500 via-indigo-500 to-purple-600 text-white shadow-[0_10px_30px_-8px_rgba(99,102,241,0.65)] ring-1 ring-black/5 transition-shadow hover:shadow-[0_14px_36px_-8px_rgba(99,102,241,0.8)] focus:outline-none focus-visible:ring-4 focus-visible:ring-indigo-300/60"
+                aria-label={
+                  showBadge
+                    ? `Open assistant (${unreadCount} unread)`
+                    : "Open assistant"
+                }
               >
-                <Sparkles className="w-6 h-6 text-white" />
+                <Sparkles className="h-6 w-6 drop-shadow" />
 
-                {/* Notification Badge */}
-                {data?.notifications.unread && data.notifications.unread > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center border-2 border-white shadow-md">
-                    {data.notifications.unread > 9 ? "9+" : data.notifications.unread}
-                  </span>
+                {/* Glass sheen highlight */}
+                <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-b from-white/30 to-transparent opacity-70" />
+
+                {/* Unread badge */}
+                {showBadge && (
+                  <motion.span
+                    key="assistant-unread-badge"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 520,
+                      damping: 22,
+                    }}
+                    className="pointer-events-none absolute -right-1.5 -top-1.5 z-10 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-rose-500 to-rose-600 px-1 text-[10px] font-bold leading-none text-white shadow-[0_4px_10px_-2px_rgba(244,63,94,0.7)]"
+                  >
+                    {unreadDisplay}
+                  </motion.span>
                 )}
               </motion.button>
 
-              {/* 👇 Close / hide button — top-left of the widget */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleHide();
-                }}
-                className="absolute -top-1 -left-1 w-5 h-5 rounded-full bg-white border border-gray-200 shadow-sm text-gray-500 hover:text-rose-600 hover:border-rose-300 flex items-center justify-center transition z-10"
-                title="Hide for 10 seconds"
-                aria-label="Hide assistant for 10 seconds"
-              >
-                <X size={11} />
-              </button>
-
-              {/* Tooltip on hover */}
+              {/* Hover tooltip */}
               <AnimatePresence>
-                {isHovered && !isOpen && (
+                {isHovered && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute bottom-full right-0 mb-3 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap shadow-xl pointer-events-none"
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                    transition={{ duration: 0.14 }}
+                    className="pointer-events-none absolute bottom-full right-0 mb-3 whitespace-nowrap rounded-xl border border-white/10 bg-slate-900/95 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md"
                   >
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
                       Assistant
+                      {showBadge && (
+                        <span className="ml-1 rounded-full bg-rose-500/20 px-1.5 py-0.5 text-[10px] font-bold text-rose-300">
+                          {unreadCount} new
+                        </span>
+                      )}
                     </span>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ============================================================ */}
-      {/* Assistant Panel                                              */}
-      {/* ============================================================ */}
-      <AnimatePresence>
-        {isOpen && !isHidden && (
+        ) : (
+          /* ============================================================
+           * ASSISTANT PANEL (Expanded state)
+           * ============================================================ */
           <motion.div
             ref={panelRef}
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            key="assistant-panel"
+            initial={{ opacity: 0, scale: 0.88, y: 25 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed bottom-24 right-6 z-50 w-96 max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden"
+            exit={{
+              opacity: 0,
+              scale: 0.88,
+              y: 25,
+              transition: { duration: 0.18, ease: "easeIn" },
+            }}
+            transition={spring}
+            className="fixed bottom-20 right-4 z-50 flex max-h-[80vh] w-[380px] max-w-[calc(100vw-2rem)] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-[0_24px_60px_-20px_rgba(15,23,42,0.45)] ring-1 ring-black/5 backdrop-blur-xl"
           >
             {/* Header */}
-            <div className="bg-linear-to-r from-indigo-500 to-purple-600 px-5 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <Sparkles className="w-4 h-4 text-white" />
+            <div className="relative shrink-0 overflow-hidden bg-gradient-to-r from-indigo-500 via-indigo-500 to-purple-600 px-4 py-3 text-white">
+              <span className="pointer-events-none absolute -top-8 right-0 h-24 w-24 rounded-full bg-white/15 blur-2xl" />
+
+              <div className="relative flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
+                    <Sparkles className="h-4 w-4" />
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-indigo-500 bg-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold leading-tight">
+                      Assistant
+                    </p>
+                    <p className="truncate text-[10px] text-white/75">
+                      Your workspace summary
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-white font-semibold text-sm">Assistant</h3>
-                  <p className="text-white/70 text-[10px]">
-                    Your workspace summary
-                  </p>
+
+                <div className="flex items-center gap-1">
+                  <motion.button
+                    type="button"
+                    onClick={fetchAssistantData}
+                    disabled={isLoading}
+                    whileTap={{ scale: 0.9 }}
+                    className="cursor-pointer rounded-md p-1.5 text-white/85 transition hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    title="Refresh"
+                    aria-label="Refresh"
+                  >
+                    <RefreshCw
+                      size={14}
+                      className={isLoading ? "animate-spin" : ""}
+                    />
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    onClick={handleCollapse}
+                    whileTap={{ scale: 0.9 }}
+                    className="cursor-pointer rounded-md p-1.5 text-white/85 transition hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    title="Minimize"
+                    aria-label="Minimize"
+                  >
+                    <Minus size={14} />
+                  </motion.button>
+
+                  <motion.button
+                    type="button"
+                    onClick={handleCollapse}
+                    whileTap={{ scale: 0.9 }}
+                    className="cursor-pointer rounded-md p-1.5 text-white/85 transition hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    title="Close"
+                    aria-label="Close"
+                  >
+                    <X size={16} />
+                  </motion.button>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={fetchAssistantData}
-                  disabled={isLoading}
-                  className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
-                  title="Refresh"
-                >
-                  <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
-                </button>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition"
-                  title="Close"
-                >
-                  <X size={16} />
-                </button>
               </div>
             </div>
 
             {/* Body */}
-            <div className="p-4 space-y-4 max-h-[calc(80vh-120px)] overflow-y-auto custom-scrollbar">
-              {/* User Greeting */}
-              <div className="flex items-center gap-3 p-3 bg-linear-to-r from-gray-50 to-indigo-50/30 rounded-xl border border-gray-100">
-                <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md shrink-0">
-                  <span className="text-white text-sm font-bold">
+            <div className="custom-scrollbar flex-1 space-y-3.5 overflow-y-auto bg-[radial-gradient(ellipse_at_top,_rgba(224,231,255,0.5),_transparent_60%),linear-gradient(to_bottom,_#f8fafc,_#f1f5f9)] p-3.5">
+              {/* Greeting card */}
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.02 }}
+                className="flex items-center gap-3 rounded-2xl border border-white/60 bg-gradient-to-r from-white to-indigo-50/60 p-3 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08)]"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 shadow-md ring-2 ring-white/80">
+                  <span className="text-sm font-bold text-white">
                     {data?.user.fullName?.charAt(0) || "U"}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-gray-800 font-medium text-sm truncate">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-800">
                     Hello, {data?.user.fullName?.split(" ")[0] || "User"}! 👋
                   </p>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="mt-0.5 flex items-center gap-2">
                     <span
-                      className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${roleBadge.color}`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${roleBadge.color}`}
                     >
                       {roleBadge.label}
                     </span>
-                    <span className="text-[10px] text-gray-400">
+                    <span className="truncate text-[10px] text-slate-400">
                       {data?.user.employeeId}
                     </span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Quick Stats */}
+              {/* Quick stats */}
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                  <p className="text-lg font-bold text-blue-600">
-                    {data?.tasks.total || 0}
-                  </p>
-                  <p className="text-[9px] text-blue-500 font-medium">Total Tasks</p>
-                </div>
-                <div className="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-                  <p className="text-lg font-bold text-emerald-600">
-                    {data?.tasks.completed || 0}
-                  </p>
-                  <p className="text-[9px] text-emerald-500 font-medium">
-                    Completed
-                  </p>
-                </div>
-                <div className="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-                  <p className="text-lg font-bold text-amber-600">
-                    {data?.tasks.pending || 0}
-                  </p>
-                  <p className="text-[9px] text-amber-500 font-medium">Pending</p>
-                </div>
+                {[
+                  { label: "Total", value: data?.tasks.total || 0, tone: "blue" },
+                  {
+                    label: "Completed",
+                    value: data?.tasks.completed || 0,
+                    tone: "emerald",
+                  },
+                  { label: "Pending", value: data?.tasks.pending || 0, tone: "amber" },
+                ].map((s, i) => (
+                  <motion.div
+                    key={s.label}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.04 + i * 0.03 }}
+                    className={`rounded-xl border p-3 text-center shadow-[0_2px_10px_-4px_rgba(15,23,42,0.06)] ${
+                      s.tone === "blue"
+                        ? "border-blue-100 bg-blue-50/70"
+                        : s.tone === "emerald"
+                        ? "border-emerald-100 bg-emerald-50/70"
+                        : "border-amber-100 bg-amber-50/70"
+                    }`}
+                  >
+                    <p
+                      className={`text-lg font-bold leading-none ${
+                        s.tone === "blue"
+                          ? "text-blue-600"
+                          : s.tone === "emerald"
+                          ? "text-emerald-600"
+                          : "text-amber-600"
+                      }`}
+                    >
+                      {s.value}
+                    </p>
+                    <p
+                      className={`mt-1 text-[9px] font-medium ${
+                        s.tone === "blue"
+                          ? "text-blue-500"
+                          : s.tone === "emerald"
+                          ? "text-emerald-500"
+                          : "text-amber-500"
+                      }`}
+                    >
+                      {s.label}
+                    </p>
+                  </motion.div>
+                ))}
               </div>
 
               {/* Performance */}
-              <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <TrendingUp className="w-3 h-3 text-indigo-500" />
+              <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-3 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.06)]">
+                <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  <TrendingUp className="h-3 w-3 text-indigo-500" />
                   Performance
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-gray-500">Completion</span>
-                      <span className="text-xs font-bold text-emerald-600">
-                        {data?.performance.completionRate || 0}%
-                      </span>
+                  {[
+                    {
+                      label: "Completion",
+                      value: data?.performance.completionRate || 0,
+                      bar: "bg-emerald-500",
+                      text: "text-emerald-600",
+                    },
+                    {
+                      label: "On Time",
+                      value: data?.performance.onTimeRate || 0,
+                      bar: "bg-blue-500",
+                      text: "text-blue-600",
+                    },
+                  ].map((p, i) => (
+                    <div key={p.label}>
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500">
+                          {p.label}
+                        </span>
+                        <span className={`text-xs font-bold ${p.text}`}>
+                          {p.value}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(p.value, 100)}%` }}
+                          transition={{
+                            duration: prefersReducedMotion ? 0 : 0.6,
+                            delay: 0.05 + i * 0.05,
+                            ease: "easeOut",
+                          }}
+                          className={`h-full rounded-full ${p.bar}`}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500 rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(
-                            data?.performance.completionRate || 0,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] text-gray-500">On Time</span>
-                      <span className="text-xs font-bold text-blue-600">
-                        {data?.performance.onTimeRate || 0}%
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
-                        style={{
-                          width: `${Math.min(
-                            data?.performance.onTimeRate || 0,
-                            100
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
+                  ))}
                 </div>
-                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
-                  <span className="text-[10px] text-gray-400">Rating</span>
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2.5">
+                  <span className="text-[10px] text-slate-400">Rating</span>
                   <div className="flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    <span className="text-xs font-medium text-gray-700">
+                    <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                    <span className="text-xs font-medium text-slate-700">
                       {data?.performance.averageRating || 0}
                     </span>
-                    <span className="text-[10px] text-gray-400">/ 5</span>
+                    <span className="text-[10px] text-slate-400">/ 5</span>
                   </div>
-                  <span className="text-[10px] text-gray-400">•</span>
-                  <span className="text-[10px] text-gray-400">
+                  <span className="text-[10px] text-slate-400">•</span>
+                  <span className="text-[10px] text-slate-400">
                     {data?.performance.totalHours || 0}h logged
                   </span>
                 </div>
               </div>
 
-              {/* Recent Notifications */}
+              {/* Notifications */}
               {data?.notifications.latest && data.notifications.latest.length > 0 && (
-                <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-2">
-                      <Bell className="w-3 h-3 text-indigo-500" />
+                <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-3 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.06)]">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <Bell className="h-3 w-3 text-indigo-500" />
                       Recent Notifications
                     </h4>
                     {data.notifications.unread > 0 && (
-                      <span className="text-[10px] text-rose-500 font-medium">
+                      <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-500">
                         {data.notifications.unread} unread
                       </span>
                     )}
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {data.notifications.latest.slice(0, 3).map((notif) => (
                       <div
                         key={notif._id}
-                        className={`flex items-start gap-2 p-2 rounded-lg ${!notif.isRead
-                            ? "bg-indigo-50/50 border border-indigo-100"
-                            : "bg-white"
-                          }`}
+                        className={`flex items-start gap-2 rounded-lg p-2 transition ${
+                          !notif.isRead
+                            ? "border border-indigo-100 bg-indigo-50/50"
+                            : "bg-slate-50/60"
+                        }`}
                       >
                         <div
-                          className={`w-1.5 h-1.5 rounded-full mt-1.5 ${!notif.isRead ? "bg-indigo-500" : "bg-gray-300"
-                            }`}
+                          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                            !notif.isRead ? "bg-indigo-500" : "bg-slate-300"
+                          }`}
                         />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-800 truncate">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-slate-800">
                             {notif.title}
                           </p>
-                          <p className="text-[10px] text-gray-500 truncate">
+                          <p className="truncate text-[10px] text-slate-500">
                             {notif.message}
                           </p>
-                          <p className="text-[9px] text-gray-400 mt-0.5">
+                          <p className="mt-0.5 text-[9px] text-slate-400">
                             {formatTime(notif.createdAt)}
                           </p>
                         </div>
@@ -649,7 +687,7 @@ export default function AssistantWizard() {
                   {data.notifications.unread > 0 && (
                     <Link
                       href="/notifications"
-                      className="block text-center text-[10px] text-indigo-500 hover:text-indigo-600 font-medium mt-2"
+                      className="mt-2 block text-center text-[10px] font-medium text-indigo-500 transition hover:text-indigo-600"
                     >
                       View all notifications →
                     </Link>
@@ -659,79 +697,85 @@ export default function AssistantWizard() {
 
               {/* Task Status */}
               <div>
-                <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <Briefcase className="w-3 h-3 text-indigo-500" />
+                <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                  <Briefcase className="h-3 w-3 text-indigo-500" />
                   Task Status
                 </h4>
-                <div className="space-y-1.5">
-                  {[
-                    {
-                      label: "Pending",
-                      value: data?.tasks.pending || 0,
-                      color: "bg-gray-400",
-                    },
-                    {
-                      label: "In Progress",
-                      value: data?.tasks.inProgress || 0,
-                      color: "bg-blue-500",
-                    },
-                    {
-                      label: "Submitted",
-                      value: data?.tasks.submitted || 0,
-                      color: "bg-purple-500",
-                    },
-                    {
-                      label: "Completed",
-                      value: data?.tasks.completed || 0,
-                      color: "bg-emerald-500",
-                    },
-                    {
-                      label: "Overdue",
-                      value: data?.tasks.overdue || 0,
-                      color: "bg-rose-500",
-                    },
-                    {
-                      label: "Rejected",
-                      value: data?.tasks.rejected || 0,
-                      color: "bg-red-500",
-                    },
-                  ].map((status) => (
-                    <div
-                      key={status.label}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-[10px] text-gray-500">
-                        {status.label}
-                      </span>
-                      <div className="flex items-center gap-2 flex-1 mx-2">
-                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${status.color} rounded-full transition-all`}
-                            style={{
-                              width: `${data?.tasks.total
-                                  ? (status.value / data.tasks.total) * 100
-                                  : 0
-                                }%`,
-                            }}
-                          />
+                <div className="space-y-2">
+                  {statusRows.map((s, i) => {
+                    const pct = data?.tasks.total
+                      ? (s.value / data.tasks.total) * 100
+                      : 0;
+                    return (
+                      <div
+                        key={s.label}
+                        className="flex items-center justify-between"
+                      >
+                        <span className="w-20 shrink-0 text-[10px] text-slate-500">
+                          {s.label}
+                        </span>
+                        <div className="mx-2 flex-1">
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/70">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{
+                                duration: prefersReducedMotion ? 0 : 0.5,
+                                delay: 0.05 + i * 0.03,
+                                ease: "easeOut",
+                              }}
+                              className={`h-full rounded-full ${s.color}`}
+                            />
+                          </div>
                         </div>
+                        <span className="w-6 shrink-0 text-right text-xs font-medium text-slate-700">
+                          {s.value}
+                        </span>
                       </div>
-                      <span className="text-xs font-medium text-gray-700">
-                        {status.value}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
+              {/* Quick Actions */}
+              {data?.quickActions && data.quickActions.length > 0 && (
+                <div>
+                  <h4 className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <Zap className="h-3 w-3 text-indigo-500" />
+                    Quick Actions
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {data.quickActions.map((a, i) => (
+                      <motion.div
+                        key={a.href}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 + i * 0.03 }}
+                        whileHover={{ y: -2 }}
+                      >
+                        <Link
+                          href={a.href}
+                          onClick={() => setIsOpen(false)}
+                          className={`group flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-white shadow-sm transition ${a.color} hover:shadow-md`}
+                        >
+                          {a.icon}
+                          <span className="truncate">{a.label}</span>
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Footer */}
-              <div className="pt-2 border-t border-gray-100">
+              <div className="border-t border-slate-100 pt-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setIsOpen(false);
                     fetchAssistantData();
                   }}
-                  className="w-full text-center text-[10px] text-gray-400 hover:text-gray-600 transition py-1"
+                  className="w-full py-1 text-center text-[10px] text-slate-400 transition hover:text-slate-600"
                 >
                   Click to refresh • v1.0
                 </button>
@@ -743,17 +787,17 @@ export default function AssistantWizard() {
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
-          width: 3px;
+          width: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
           background: transparent;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #d1d5db;
+          background: #cbd5e1;
           border-radius: 10px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #9ca3af;
+          background: #94a3b8;
         }
       `}</style>
     </>

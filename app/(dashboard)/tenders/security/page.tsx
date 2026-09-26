@@ -290,6 +290,7 @@ export default function TenderSecurityPage() {
           if (!o) closeNotify();
         }}
         entity={notifyRow?.entity ?? ""}
+        variant="security"
         onSend={async (emails, note) => {
           if (!notifyRow) return;
 

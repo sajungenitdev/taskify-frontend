@@ -102,7 +102,7 @@ export function TenderDetailLost({ data }: Props) {
                   </span>
                   <span
                     className={`text-[11px] ${item.checked
-                        ? "text-slate-500 line-through"
+                        ? "text-slate-500 "
                         : "text-slate-700"
                       }`}
                   >

@@ -167,33 +167,23 @@ export interface Tender {
 
 /* ============================================================
  * TENDER OVERVIEW / DASHBOARD TYPES
- * ✅ These match the shapes your UI components expect.
  * ============================================================ */
 
-/**
- * Shape expected by `TenderOverviewStats.tsx` — `StatItem`
- */
 export interface TenderOverviewStat {
   label: string;
-  value: string;                    // ✅ string only (matches component)
+  value: string;
   change?: number;
   tone?: "neutral" | "positive" | "negative" | "warn";
   icon?: string;
 }
 
-/**
- * Shape expected by `TenderOverviewPipeline.tsx` — `PipelineStage`
- */
 export interface TenderPipelineRow {
-  id: string;                       // ✅ matches component
-  label: string;                    // ✅ matches component
-  count: number;                    // ✅ matches component
-  color: string;                    // ✅ matches component
+  id: string;
+  label: string;
+  count: number;
+  color: string;
 }
 
-/**
- * Combined overview payload returned by `GET /tenders/overview`.
- */
 export interface TenderOverviewData {
   stats: TenderOverviewStat[];
   pipeline: TenderPipelineRow[];
@@ -203,9 +193,6 @@ export interface TenderOverviewData {
   recentActivity: TenderActivity[];
 }
 
-/**
- * Shape expected by `TenderOverviewUpcoming.tsx` — `UpcomingTender`
- */
 export interface UpcomingTender {
   id: string;
   tenderer: string;
@@ -213,25 +200,19 @@ export interface UpcomingTender {
   deadline?: string;
   daysLeft: number;
   priority?: "high" | "medium" | "low";
-  value?: string;        // ✅ string
+  value?: string;
   currency?: string;
   stage?: TenderStage;
 }
 
-/**
- * Shape expected by `TenderOverviewPerformance.tsx` — `MonthPerformance`
- */
 export interface PerformanceDataPoint {
   month: string;
-  won: number;                      // ✅ required (matches component)
-  lost: number;                     // ✅ required
-  submitted: number;                // ✅ required
+  won: number;
+  lost: number;
+  submitted: number;
   value?: number;
 }
 
-/**
- * Performance summary response.
- */
 export interface PerformanceResponse {
   data: PerformanceDataPoint[];
   winRate: number;
@@ -241,9 +222,6 @@ export interface PerformanceResponse {
   totalValue?: number;
 }
 
-/**
- * Shape expected by `TenderOverviewRecent.tsx` — `TenderActivity`
- */
 export interface TenderActivity {
   id: string;
   kind:
@@ -272,21 +250,14 @@ export interface SubmissionRow {
   readiness: number;
 }
 
-/* Status union — must match `DocStatus` in
-   components/tender/submission/DocTaskRow.tsx */
 export type DocTaskStatus = "Done" | "In Progress" | "Pending";
 
 export interface SubmissionDocTask {
-  /** Server-assigned id. Absent on unsaved drafts. */
   _id?: string;
-  /** Alias for `_id` — set by `sanitizeSubmissionDetail` so the
-   *  DocTask component (which uses `id`) can consume the shape. */
   id: string;
   title: string;
   owner: string;
   status: DocTaskStatus;
-  /** Always present after `sanitizeSubmissionDetail` (falls back to
-   *  "No file uploaded yet" when empty). */
   fileName: string;
   fileUrl?: string;
 }
@@ -299,7 +270,6 @@ export interface SubmissionDetail {
   readiness: number;
   docTasks: SubmissionDocTask[];
   checklist: TenderChecklistItem[];
-  /** Competitors / bidders — same shape as Tender.otherParticipants */
   otherParticipants?: TenderOtherParticipant[];
   info: {
     advertisementFile?: string;
@@ -315,6 +285,16 @@ export interface SubmissionDetail {
     attachments: TenderAttachment[];
     eligibility?: string;
   };
+}
+
+/* ============================================================
+ * NOTIFY FINANCE TYPES
+ * ============================================================ */
+
+export interface NotifyFinanceResult {
+  recipients: string[];
+  sent: number;
+  failed: number;
 }
 
 /* ============================================================
@@ -514,6 +494,19 @@ export const tenderApi = {
       headers: authHeaders(),
     });
     return handle<void>(r);
+  },
+
+  /* ✅ NEW — Notify Finance about pending banking docs */
+  async notifyFinance(
+    id: string,
+    body: { emails: string[]; note?: string },
+  ): Promise<NotifyFinanceResult> {
+    const r = await fetch(`${API_BASE}/tenders/${id}/notify-finance`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(body),
+    });
+    return handle<NotifyFinanceResult>(r);
   },
 };
 

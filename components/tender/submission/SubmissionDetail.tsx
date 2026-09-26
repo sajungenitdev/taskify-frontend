@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  Bell,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -59,13 +60,18 @@ export interface SubmissionDetailData {
     isCustom?: boolean;
   }[];
   info: SubmissionInfoPayload;
-  notifyAction?: { label: string; onClick: () => void };
+  /** ✅ Notify Finance trigger — opens the modal in the parent */
+  notifyAction?: {
+    label: string;
+    onClick: () => void;
+    loading?: boolean;
+    disabled?: boolean;
+  };
 }
 
 interface Props {
   data: SubmissionDetailData;
   onTaskMutated?: () => void;
-  /** Optional final-submit action — rendered in the header (top-right) */
   submitAction?: {
     label: string;
     onClick: () => void;
@@ -115,7 +121,7 @@ export function SubmissionDetail({
     if (adInputRef.current) adInputRef.current.value = "";
   }, [data.id, data.docTasks]);
 
-  /* ---------- Doc tasks ---------- */
+  /* ---------- Doc tasks (unchanged) ---------- */
   const addTask = () => {
     const draft: DocTask = {
       id: `draft-${Date.now()}`,
@@ -151,12 +157,12 @@ export function SubmissionDetail({
       prev.map((t) =>
         t.id === id
           ? {
-            ...t,
-            title: finalTitle,
-            owner: finalOwner,
-            status: safeStatus,
-            isDraft: false,
-          }
+              ...t,
+              title: finalTitle,
+              owner: finalOwner,
+              status: safeStatus,
+              isDraft: false,
+            }
           : t,
       ),
     );
@@ -197,12 +203,12 @@ export function SubmissionDetail({
             prev.map((t) =>
               t.id === created._id
                 ? {
-                  ...t,
-                  fileName: att.name,
-                  fileUrl: fullFileUrl(att.url),
-                  status: "Done",
-                  pendingFile: null,
-                }
+                    ...t,
+                    fileName: att.name,
+                    fileUrl: fullFileUrl(att.url),
+                    status: "Done",
+                    pendingFile: null,
+                  }
                 : t,
             ),
           );
@@ -272,11 +278,11 @@ export function SubmissionDetail({
         prev.map((t) =>
           t.id === taskId
             ? {
-              ...t,
-              fileName: att.name,
-              fileUrl: fullFileUrl(att.url),
-              status: "Done",
-            }
+                ...t,
+                fileName: att.name,
+                fileUrl: fullFileUrl(att.url),
+                status: "Done",
+              }
             : t,
         ),
       );
@@ -291,7 +297,7 @@ export function SubmissionDetail({
     }
   };
 
-  /* ---------- Advertisement: upload ---------- */
+  /* ---------- Advertisement (unchanged) ---------- */
   const uploadAdvertisement = async (file: File) => {
     setUploadingAd(true);
     const loadingId = toast.loading(`Uploading ${file.name}...`);
@@ -314,7 +320,6 @@ export function SubmissionDetail({
     }
   };
 
-  /* ---------- Advertisement: delete ---------- */
   const deleteAdvertisement = () => {
     if (!data.info.advertisementFile) return;
     confirmToast({
@@ -342,7 +347,7 @@ export function SubmissionDetail({
     });
   };
 
-  /* ---------- Top-level attachments ---------- */
+  /* ---------- Attachments (unchanged) ---------- */
   const handleAttachFile = async (file: File) => {
     setUploadingAtt(true);
     const loadingId = toast.loading(`Uploading ${file.name}...`);
@@ -387,9 +392,7 @@ export function SubmissionDetail({
 
   return (
     <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      {/* ============================================================
-       * HEADER — deadline pill, title, readiness + Submit button
-       * ============================================================ */}
+      {/* ============ HEADER ============ */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-amber-100 px-5 py-4">
         <div className="min-w-0">
           <span className="inline-flex items-center rounded-md border border-orange-200 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
@@ -406,9 +409,33 @@ export function SubmissionDetail({
           </div>
         </div>
 
-        {/* ✅ Submit button — right side of the header */}
-        {submitAction && (
-          <div className="flex shrink-0 items-center">
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Notify Finance — opens modal in parent */}
+          {data.notifyAction && (
+            <button
+              type="button"
+              onClick={data.notifyAction.onClick}
+              disabled={
+                data.notifyAction.loading || data.notifyAction.disabled
+              }
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-[12px] font-bold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#a97400]/40 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {data.notifyAction.loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Notifying...
+                </>
+              ) : (
+                <>
+                  <Bell className="h-4 w-4 text-[#a97400]" />
+                  {data.notifyAction.label}
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Submit Tender */}
+          {submitAction && (
             <button
               type="button"
               onClick={submitAction.onClick}
@@ -427,8 +454,8 @@ export function SubmissionDetail({
                 </>
               )}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
@@ -441,10 +468,11 @@ export function SubmissionDetail({
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
-                  ? "text-slate-900"
-                  : "text-slate-500 hover:text-slate-800"
-                  }`}
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
+                  active
+                    ? "text-slate-900"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
               >
                 {t}
                 {active && (
@@ -473,9 +501,7 @@ export function SubmissionDetail({
         )}
       </div>
 
-      {/* ============================================================
-       * Tender Preparation
-       * ============================================================ */}
+      {/* Tender Preparation */}
       {tab === "Tender Preparation" && showDetails && (
         <div className="grid grid-cols-1 lg:grid-cols-2">
           <div className="p-5">
@@ -512,9 +538,7 @@ export function SubmissionDetail({
         </div>
       )}
 
-      {/* ============================================================
-       * Tender Info
-       * ============================================================ */}
+      {/* Tender Info — unchanged from your original */}
       {tab === "Tender Info" && (
         <div className="grid grid-cols-1 items-stretch gap-8 p-5 lg:grid-cols-2">
           <div className="flex h-full flex-col gap-4">
@@ -790,3 +814,5 @@ function InfoField({
     </div>
   );
 }
+
+export default SubmissionDetail;

@@ -19,6 +19,7 @@ import { tenderApi } from "@/lib/api/tender.api";
 import { confirmToast } from "@/lib/confirmToast";
 import { BidderList } from "@/components/tender/BidderList";
 import { AddBidderModal, BidderRow } from "@/components/tender/AddBidderModal";
+import { SecurityNotifyModal } from "@/components/tender/modal/SecurityNotifyModal";
 
 export default function TenderSubmissionPage() {
     const router = useRouter();
@@ -26,6 +27,10 @@ export default function TenderSubmissionPage() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [bidderModalOpen, setBidderModalOpen] = useState(false);
+
+    /* ✅ Notify Finance modal state */
+    const [notifyOpen, setNotifyOpen] = useState(false);
+    const [notifying, setNotifying] = useState(false);
 
     /* Auto-select the first row once data arrives */
     useEffect(() => {
@@ -96,6 +101,41 @@ export default function TenderSubmissionPage() {
                 await handleSaveBidders([]);
             },
         });
+    };
+
+    /* ---------- Notify Finance — called by the modal ---------- */
+    const handleNotifySend = async (emails: string[], note?: string) => {
+        if (!detail) return;
+
+        setNotifying(true);
+        const loadingId = toast.loading("Notifying finance...");
+        try {
+            // ✅ Now hits the real backend endpoint with emails + note
+            const res = await tenderApi.notifyFinance(detail.id, {
+                emails,
+                note,
+            });
+            const sent = res?.sent ?? emails.length;
+            const failed = res?.failed ?? 0;
+
+            toast.success(
+                failed === 0
+                    ? `Finance notified (${sent} recipient${sent === 1 ? "" : "s"})`
+                    : `Notified ${sent} (${failed} failed)`,
+                { id: loadingId },
+            );
+
+            setNotifyOpen(false);
+        } catch (e) {
+            toast.error(
+                (e as Error).message || "Failed to notify finance",
+                { id: loadingId },
+            );
+            // Rethrow so the modal can stay open and show its own error state
+            throw e;
+        } finally {
+            setNotifying(false);
+        }
     };
 
     /* ---------- Final Submit ---------- */
@@ -186,14 +226,13 @@ export default function TenderSubmissionPage() {
                                     };
                                 })(),
                                 notifyAction: {
-                                    label: "Notify Finance — Banking Docs Pending",
-                                    onClick: () => {
-                                        // TODO: notification endpoint when it exists
-                                    },
+                                    label: "Notify Finance",
+                                    // ✅ Just opens the modal — no API call here
+                                    onClick: () => setNotifyOpen(true),
+                                    loading: notifying,
                                 },
                             }}
                             onTaskMutated={() => refetchDetail()}
-                            /* ✅ Submit button now lives inside the header of SubmissionDetail */
                             submitAction={{
                                 label: "Submit Tender",
                                 onClick: handleFinalSubmit,
@@ -201,7 +240,6 @@ export default function TenderSubmissionPage() {
                             }}
                         />
 
-                        {/* ---------- Other Participants (Bidders) ---------- */}
                         <BidderList
                             bidders={detail.otherParticipants ?? []}
                             onAdd={() => setBidderModalOpen(true)}
@@ -212,13 +250,24 @@ export default function TenderSubmissionPage() {
                 )}
             </div>
 
-            {/* ---------- Add / Edit Bidders Modal ---------- */}
+            {/* ---------- Bidders Modal ---------- */}
             {detail && (
                 <AddBidderModal
                     open={bidderModalOpen}
                     onOpenChange={setBidderModalOpen}
                     initial={detail.otherParticipants ?? []}
                     onSave={handleSaveBidders}
+                />
+            )}
+
+            {/* ---------- Notify Finance Modal ---------- */}
+            {detail && (
+                <SecurityNotifyModal
+                    open={notifyOpen}
+                    onOpenChange={setNotifyOpen}
+                    entity={detail.tenderer}
+                    variant="submission"
+                    onSend={handleNotifySend}
                 />
             )}
         </main>

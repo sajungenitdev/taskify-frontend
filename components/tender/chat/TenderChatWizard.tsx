@@ -2,17 +2,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
     MessageSquare,
     X,
-    Minimize2,
+    Minus,
     Send,
     Paperclip,
     Loader2,
     FileText,
     ShieldCheck,
     User as UserIcon,
+    Check,
+    MoveUpRight,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +25,7 @@ import {
     type ChatAttachment,
 } from "@/lib/api/tenderChat.api";
 import { useTenderChatSocket } from "@/hooks/tender/useTenderChatSocket";
+import Link from "next/link";
 
 function fullFileUrl(url: string) {
     if (!url) return "";
@@ -35,9 +38,10 @@ function fullFileUrl(url: string) {
 }
 
 interface Props {
-    tenderId: string;
+    tenderId?: string | null;
     tenderTitle?: string;
     open?: boolean;
+    globalUnread?: number;
     onOpenChange?: (o: boolean) => void;
     onDismiss?: () => void;
 }
@@ -103,7 +107,8 @@ async function fetchUnreadOnce(id: string, force = false) {
 export default function TenderChatWizard({
     tenderId,
     tenderTitle,
-    open = true,
+    open = false,
+    globalUnread,
     onOpenChange,
     onDismiss,
 }: Props) {
@@ -111,28 +116,43 @@ export default function TenderChatWizard({
     const socketCtx = useSocket();
     const socket = (socketCtx as any)?.socket ?? socketCtx;
 
+    const prefersReducedMotion = useReducedMotion();
+
     const [messages, setMessages] = useState<ChatMessage[]>(
-        () => cachedMessages(tenderId) ?? [],
+        () => (tenderId ? cachedMessages(tenderId) ?? [] : []),
     );
     const [unread, setUnread] = useState<number>(
-        () => cachedUnread(tenderId) ?? 0,
+        () => (tenderId ? cachedUnread(tenderId) ?? 0 : 0),
     );
     const [input, setInput] = useState("");
     const [pending, setPending] = useState<ChatAttachment[]>([]);
     const [sending, setSending] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(
-        () => cachedMessages(tenderId) === null,
+        () => (tenderId ? cachedMessages(tenderId) === null : false),
     );
     const [isHovered, setIsHovered] = useState(false);
+    const [justArrived, setJustArrived] = useState<string | null>(null);
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileRef = useRef<HTMLInputElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const sendingRef = useRef(false);
+    const flashTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const MotionLink = motion.create(Link);
+
+    const effectiveUnread =
+        typeof globalUnread === "number" ? globalUnread : unread;
 
     useEffect(() => {
         sendingRef.current = sending;
     }, [sending]);
+
+    useEffect(() => {
+        return () => {
+            if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+        };
+    }, []);
 
     const isMgmt = useMemo(
         () => MGMT_ROLES.includes(user?.role || ""),
@@ -163,11 +183,17 @@ export default function TenderChatWizard({
     );
 
     useEffect(() => {
-        if (!tenderId) return;
+        if (!tenderId) {
+            setMessages([]);
+            setUnread(0);
+            setLoading(false);
+            return;
+        }
         refresh(false);
     }, [tenderId, open, refresh]);
 
-    useTenderChatSocket(socket, tenderId, (incoming) => {
+    useTenderChatSocket(socket, tenderId || "", (incoming) => {
+        if (!tenderId) return;
         const myRole = isMgmt ? "management" : "user";
         const fromOtherSide = incoming.senderRole !== myRole;
 
@@ -178,6 +204,12 @@ export default function TenderChatWizard({
             return next;
         });
 
+        if (fromOtherSide) {
+            if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+            setJustArrived(incoming._id);
+            flashTimerRef.current = setTimeout(() => setJustArrived(null), 900);
+        }
+
         if (open) {
             setUnread(0);
         } else if (fromOtherSide) {
@@ -187,13 +219,32 @@ export default function TenderChatWizard({
 
     useEffect(() => {
         if (!open) return;
-        scrollRef.current?.scrollTo({
-            top: scrollRef.current.scrollHeight,
-            behavior: "smooth",
+        requestAnimationFrame(() => {
+            scrollRef.current?.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: prefersReducedMotion ? "auto" : "smooth",
+            });
         });
-    }, [messages, open]);
+    }, [messages, open, prefersReducedMotion]);
+
+    useEffect(() => {
+        const el = textareaRef.current;
+        if (!el) return;
+        el.style.height = "auto";
+        el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+    }, [input]);
+
+    useEffect(() => {
+        if (!open) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onOpenChange?.(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, onOpenChange]);
 
     const uploadOne = async (file: File) => {
+        if (!tenderId) return;
         setUploading(true);
         try {
             const att = await tenderChatApi.upload(tenderId, file);
@@ -210,6 +261,7 @@ export default function TenderChatWizard({
     };
 
     const handlePaste = async (e: React.ClipboardEvent) => {
+        if (!tenderId) return;
         const items = Array.from(e.clipboardData?.items || []);
         const imageFiles: File[] = [];
         const otherFiles: File[] = [];
@@ -230,6 +282,7 @@ export default function TenderChatWizard({
     };
 
     const handleSend = async () => {
+        if (!tenderId) return;
         const text = input.trim();
         if (!text && pending.length === 0) return;
 
@@ -279,321 +332,479 @@ export default function TenderChatWizard({
         }
     };
 
-    /* ============================================================
-     * COLLAPSED BUBBLE
-     * Renders when `open === false`. Stays fixed at bottom-right.
-     * ============================================================ */
-    if (!open) {
-        return (
-            <div className="fixed bottom-6 right-6 z-[99999]">
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.6 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 22 }}
-                    className="relative"
-                >
-                    {unread > 0 && (
-                        <span className="pointer-events-none absolute inset-0 rounded-full bg-amber-500 opacity-40 animate-ping" />
-                    )}
+    const handleOpen = () => {
+        setIsHovered(false);
+        onOpenChange?.(true);
+        setUnread(0);
+    };
 
-                    <button
-                        type="button"
-                        onClick={() => {
-                            onOpenChange?.(true);
-                            setUnread(0);
-                        }}
-                        onMouseEnter={() => setIsHovered(true)}
-                        onMouseLeave={() => setIsHovered(false)}
-                        className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-gradient-to-tr from-[#8f6100] to-[#b37c03] text-white shadow-2xl transition hover:scale-105 active:scale-95"
-                        aria-label="Open chat"
-                    >
-                        <MessageSquare className="h-6 w-6" />
+    const handleMinimize = () => {
+        onOpenChange?.(false);
+    };
 
-                        {unread > 0 && (
-                            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow ring-2 ring-white">
-                                {unread > 9 ? "9+" : unread}
-                            </span>
-                        )}
-                    </button>
+    const handleClose = () => {
+        onOpenChange?.(false);
+        onDismiss?.();
+    };
 
-                    {/* Small X to dismiss bubble entirely */}
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onDismiss?.();
-                        }}
-                        className="absolute -left-1 -top-1 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow transition hover:bg-rose-50 hover:text-rose-600"
-                        title="Close chat completely"
-                        aria-label="Close chat"
-                    >
-                        <X size={11} />
-                    </button>
-
-                    {/* Hover tooltip */}
-                    {isHovered && (
-                        <div className="pointer-events-none absolute bottom-full right-0 mb-3 whitespace-nowrap rounded-xl bg-slate-900/90 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-sm">
-                            <span className="flex items-center gap-1.5 font-medium">
-                                <MessageSquare className="h-3.5 w-3.5 text-amber-400" />
-                                {tenderTitle
-                                    ? tenderTitle.length > 24
-                                        ? `${tenderTitle.slice(0, 24)}…`
-                                        : tenderTitle
-                                    : "Support Chat"}
-                            </span>
-                        </div>
-                    )}
-                </motion.div>
-            </div>
-        );
-    }
-
-    /* ============================================================
-     * EXPANDED PANEL
-     * Renders when `open === true`.
-     * ============================================================ */
     return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="fixed bottom-6 right-6 z-[99999] flex h-[560px] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
-        >
-            {/* Header */}
-            <div className="flex shrink-0 items-center justify-between bg-gradient-to-r from-[#a97400] to-[#8f6100] px-4 py-3 text-white">
-                <div className="flex min-w-0 items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 shrink-0" />
-                    <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">Tender Support</p>
-                        <p className="truncate text-[10px] text-white/80">
-                            {tenderTitle || "Live chat"}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-1">
-                    <button
-                        type="button"
-                        onClick={() => onOpenChange?.(false)}
-                        className="cursor-pointer rounded p-1 text-white/80 transition hover:bg-white/10 hover:text-white"
-                        title="Minimize to floating bubble"
-                        aria-label="Minimize"
+        <>
+            <AnimatePresence mode="wait">
+                {/* ============================================================
+         * FLOATING BUTTON (Minimized State)
+         * ============================================================ */}
+                {!open ? (
+                    <motion.div
+                        key="floating-btn"
+                        initial={{ opacity: 0, scale: 0.6, y: 15 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.6, y: 15 }}
+                        transition={{
+                            type: prefersReducedMotion ? "tween" : "spring",
+                            stiffness: 400,
+                            damping: 28,
+                            mass: 0.8,
+                        }}
+                        className="fixed bottom-2 right-3 z-[99999] origin-bottom-right"
                     >
-                        <Minimize2 size={16} />
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onOpenChange?.(false)}
-                        className="cursor-pointer rounded p-1 text-white/80 transition hover:bg-white/10 hover:text-white"
-                        title="Minimize to floating bubble"
-                        aria-label="Close"
-                    >
-                        <X size={16} />
-                    </button>
-                </div>
-            </div>
+                        <div className="relative">
+                            <span className="pointer-events-none absolute -inset-1.5 rounded-full bg-amber-500/25 blur-lg" />
 
-            {/* Messages Body */}
-            <div
-                ref={scrollRef}
-                className="flex-1 space-y-3 overflow-y-auto bg-slate-50 p-3"
-            >
-                {loading && messages.length === 0 && (
-                    <div className="flex justify-center py-6">
-                        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                    </div>
-                )}
+                            {effectiveUnread > 0 && !prefersReducedMotion && (
+                                <span className="pointer-events-none absolute inset-0 animate-ping rounded-full bg-amber-500 opacity-40" />
+                            )}
 
-                {!loading && messages.length === 0 && (
-                    <div className="mx-auto mt-12 max-w-[220px] text-center">
-                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                            <MessageSquare className="h-5 w-5 text-amber-600" />
-                        </div>
-                        <p className="text-xs font-semibold text-slate-700">
-                            Start the conversation
-                        </p>
-                        <p className="mt-1 text-[11px] text-slate-500">
-                            Ask questions, share details, or send attachments.
-                        </p>
-                    </div>
-                )}
-
-                {messages.map((m) => {
-                    const mine = isMgmt
-                        ? m.senderRole === "management"
-                        : m.senderRole === "user";
-                    const isMgmtMsg = m.senderRole === "management";
-
-                    return (
-                        <div
-                            key={m._id}
-                            className={`flex ${mine ? "justify-end" : "justify-start"}`}
-                        >
-                            <div
-                                className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs shadow-sm ${mine
-                                    ? "rounded-br-sm bg-[#a97400] text-white"
-                                    : "rounded-bl-sm border border-slate-200 bg-white text-slate-800"
-                                    }`}
+                            <motion.button
+                                type="button"
+                                onClick={handleOpen}
+                                onMouseEnter={() => setIsHovered(true)}
+                                onMouseLeave={() => setIsHovered(false)}
+                                whileHover={prefersReducedMotion ? undefined : { scale: 1.07 }}
+                                whileTap={{ scale: 0.94 }}
+                                aria-label="Open support chat"
+                                className="relative flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border border-white/80 bg-gradient-to-tr from-[#8f6100] via-[#a97400] to-[#c98e18] text-white shadow-[0_12px_32px_-6px_rgba(143,97,0,0.55)] transition-shadow hover:shadow-[0_16px_36px_-6px_rgba(143,97,0,0.7)] focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/60"
                             >
-                                {!mine && (
-                                    <div className="mb-1 flex items-center gap-1.5">
-                                        {isMgmtMsg ? (
-                                            <ShieldCheck className="h-3 w-3 text-amber-600" />
-                                        ) : (
-                                            <UserIcon className="h-3 w-3 text-slate-400" />
-                                        )}
-                                        <span
-                                            className={`text-[10px] font-semibold ${isMgmtMsg ? "text-amber-700" : "text-slate-500"
-                                                }`}
-                                        >
-                                            {isMgmtMsg ? "Support" : m.senderName}
+                                <MessageSquare className="h-6 w-6 drop-shadow-sm" />
+                                <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-b from-white/30 via-white/10 to-transparent" />
+
+                                {effectiveUnread > 0 && (
+                                    <motion.span
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        transition={{
+                                            type: "spring",
+                                            stiffness: 500,
+                                            damping: 22,
+                                        }}
+                                        className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white shadow-md ring-2 ring-white"
+                                    >
+                                        {effectiveUnread > 9 ? "9+" : effectiveUnread}
+                                    </motion.span>
+                                )}
+                            </motion.button>
+
+                            <AnimatePresence>
+                                {isHovered && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                                        transition={{ duration: 0.14 }}
+                                        className="pointer-events-none absolute bottom-full right-0 mb-3 whitespace-nowrap rounded-xl border border-white/10 bg-slate-900/95 px-3 py-1.5 text-xs text-white shadow-xl backdrop-blur-md"
+                                    >
+                                        <span className="flex items-center gap-1.5 font-medium">
+                                            <MessageSquare className="h-3.5 w-3.5 text-amber-400" />
+                                            {tenderTitle
+                                                ? tenderTitle.length > 26
+                                                    ? `${tenderTitle.slice(0, 26)}…`
+                                                    : tenderTitle
+                                                : effectiveUnread > 0
+                                                    ? `${effectiveUnread} unread message${effectiveUnread > 1 ? "s" : ""}`
+                                                    : "Tender Support"}
                                         </span>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+                ) : (
+                    /* ============================================================
+                     * EXPANDED CHAT PANEL (Open State)
+                     * ============================================================ */
+                    <motion.div
+                        key="chat-panel"
+                        initial={{ opacity: 0, scale: 0.85, y: 25 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{
+                            opacity: 0,
+                            scale: 0.85,
+                            y: 25,
+                            transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] },
+                        }}
+                        transition={{
+                            type: prefersReducedMotion ? "tween" : "spring",
+                            stiffness: 380,
+                            damping: 30,
+                            mass: 0.85,
+                        }}
+                        className="fixed bottom-6 right-6 z-[99999] flex h-[580px] w-[380px] max-w-[calc(100vw-2rem)] origin-bottom-right flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white/95 shadow-[0_24px_60px_-16px_rgba(15,23,42,0.35)] ring-1 ring-black/5 backdrop-blur-xl"
+                    >
+                        {/* Header */}
+                        <div className="relative shrink-0 overflow-hidden bg-gradient-to-r from-[#a97400] via-[#96660a] to-[#8f6100] px-4 py-3 text-white">
+                            <span className="pointer-events-none absolute -top-8 right-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+
+                            <div className="relative flex min-w-0 items-center justify-between gap-2">
+                                <div className="flex min-w-0 items-center gap-2.5">
+                                    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
+                                        <ShieldCheck className="h-4 w-4" />
+                                        <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#8f6100] bg-emerald-400" />
                                     </div>
-                                )}
-
-                                {m.attachments?.length > 0 && (
-                                    <div className="mb-2 space-y-1.5">
-                                        {m.attachments.map((a, i) =>
-                                            a.kind === "image" ? (
-                                                <a
-                                                    key={i}
-                                                    href={fullFileUrl(a.url)}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="block overflow-hidden rounded-lg border border-black/10"
-                                                >
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img
-                                                        src={fullFileUrl(a.url)}
-                                                        alt={a.name}
-                                                        className="max-h-48 w-full object-cover"
-                                                        loading="lazy"
-                                                    />
-                                                </a>
-                                            ) : (
-                                                <a
-                                                    key={i}
-                                                    href={fullFileUrl(a.url)}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] ${mine
-                                                        ? "bg-white/15 text-white"
-                                                        : "bg-slate-100 text-slate-700"
-                                                        }`}
-                                                >
-                                                    <FileText className="h-3.5 w-3.5 shrink-0" />
-                                                    <span className="truncate">{a.name}</span>
-                                                </a>
-                                            ),
-                                        )}
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold leading-tight">
+                                            Tender Support
+                                        </p>
+                                        <p className="truncate text-[10px] text-white/80">
+                                            {tenderTitle || "Live chat · online"}
+                                        </p>
                                     </div>
-                                )}
+                                </div>
 
-                                {m.body && (
-                                    <p className="whitespace-pre-wrap break-words leading-relaxed">
-                                        {m.body}
-                                    </p>
-                                )}
-
-                                <p
-                                    className={`mt-1 text-right text-[9px] ${mine ? "text-white/70" : "text-slate-400"
-                                        }`}
-                                >
-                                    {new Date(m.createdAt).toLocaleTimeString([], {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                    })}
-                                </p>
+                                <div className="flex items-center gap-1">
+                                    <MotionLink
+                                        href="/tenders/support"
+                                        whileTap={{ scale: 0.9 }}
+                                        className="cursor-pointer rounded-md p-1.5 text-white/85 transition hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                        title="Open Support Inbox"
+                                        aria-label="Open Support Inbox"
+                                    >
+                                        <MoveUpRight size={16} />
+                                    </MotionLink>
+                                    <motion.button
+                                        type="button"
+                                        onClick={handleMinimize}
+                                        whileTap={{ scale: 0.9 }}
+                                        className="cursor-pointer rounded-md p-1.5 text-white/85 transition hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                        title="Minimize chat"
+                                        aria-label="Minimize"
+                                    >
+                                        <Minus size={16} />
+                                    </motion.button>
+                                    <motion.button
+                                        type="button"
+                                        onClick={handleClose}
+                                        whileTap={{ scale: 0.9 }}
+                                        className="cursor-pointer rounded-md p-1.5 text-white/85 transition hover:bg-white/15 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                        title="Close chat"
+                                        aria-label="Close"
+                                    >
+                                        <X size={16} />
+                                    </motion.button>
+                                </div>
                             </div>
                         </div>
-                    );
-                })}
-            </div>
 
-            {/* Attachments Preview */}
-            {pending.length > 0 && (
-                <div className="flex shrink-0 flex-wrap gap-2 border-t border-slate-100 bg-white px-3 py-2">
-                    {pending.map((a) => (
+                        {/* Messages Body */}
                         <div
-                            key={a.url}
-                            className="relative flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1"
+                            ref={scrollRef}
+                            className="flex-1 space-y-3 overflow-y-auto bg-gradient-to-b from-slate-50/90 to-slate-100/70 p-3.5 [scrollbar-width:thin] [scrollbar-color:#cbd5e1_transparent]"
                         >
-                            <FileText className="h-3.5 w-3.5 text-slate-500" />
-                            <span className="max-w-[120px] truncate text-[11px] text-slate-600">
-                                {a.name}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setPending((p) => p.filter((x) => x.url !== a.url))
-                                }
-                                className="cursor-pointer rounded p-0.5 text-slate-400 hover:text-rose-600"
-                                aria-label="Remove"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
+                            {!tenderId ? (
+                                <div className="mx-auto mt-16 max-w-[240px] text-center">
+                                    <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 shadow-inner">
+                                        <MessageSquare className="h-6 w-6 text-amber-600" />
+                                    </div>
+                                    <p className="text-xs font-semibold text-slate-700">
+                                        Select a Conversation
+                                    </p>
+                                    <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                                        Click "Reply" or "Talk" on any tender in the inbox to begin chatting.
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    {loading && messages.length === 0 && (
+                                        <div className="flex justify-center py-8">
+                                            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                        </div>
+                                    )}
+
+                                    {!loading && messages.length === 0 && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mx-auto mt-14 max-w-[240px] text-center"
+                                        >
+                                            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 shadow-inner">
+                                                <MessageSquare className="h-6 w-6 text-amber-600" />
+                                            </div>
+                                            <p className="text-xs font-semibold text-slate-700">
+                                                Start the conversation
+                                            </p>
+                                            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+                                                Ask questions, share details, or upload attachments.
+                                            </p>
+                                        </motion.div>
+                                    )}
+
+                                    <AnimatePresence initial={false}>
+                                        {messages.map((m) => {
+                                            const mine = isMgmt
+                                                ? m.senderRole === "management"
+                                                : m.senderRole === "user";
+                                            const isMgmtMsg = m.senderRole === "management";
+                                            const flash = justArrived === m._id;
+
+                                            return (
+                                                <motion.div
+                                                    key={m._id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.96 }}
+                                                    transition={{
+                                                        type: "spring",
+                                                        stiffness: 420,
+                                                        damping: 32,
+                                                    }}
+                                                    className={`flex ${mine ? "justify-end" : "justify-start"}`}
+                                                >
+                                                    <div
+                                                        className={`group relative max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs shadow-sm transition-shadow ${mine
+                                                                ? "rounded-br-md bg-gradient-to-br from-[#a97400] to-[#8f6100] text-white shadow-[0_4px_16px_-4px_rgba(143,97,0,0.5)]"
+                                                                : "rounded-bl-md border border-slate-200/90 bg-white text-slate-800 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.06)]"
+                                                            } ${flash ? "ring-2 ring-amber-400" : ""}`}
+                                                    >
+                                                        {!mine && (
+                                                            <div className="mb-1 flex items-center gap-1.5">
+                                                                {isMgmtMsg ? (
+                                                                    <ShieldCheck className="h-3 w-3 text-amber-600" />
+                                                                ) : (
+                                                                    <UserIcon className="h-3 w-3 text-slate-400" />
+                                                                )}
+                                                                <span
+                                                                    className={`text-[10px] font-semibold ${isMgmtMsg
+                                                                            ? "text-amber-700"
+                                                                            : "text-slate-500"
+                                                                        }`}
+                                                                >
+                                                                    {isMgmtMsg ? "Support" : m.senderName}
+                                                                </span>
+                                                            </div>
+                                                        )}
+
+                                                        {m.attachments?.length > 0 && (
+                                                            <div className="mb-2 space-y-1.5">
+                                                                {m.attachments.map((a, i) =>
+                                                                    a.kind === "image" ? (
+                                                                        <a
+                                                                            key={i}
+                                                                            href={fullFileUrl(a.url)}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className="block overflow-hidden rounded-xl border border-black/10 ring-1 ring-black/5 transition-transform hover:scale-[1.01]"
+                                                                        >
+                                                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                            <img
+                                                                                src={fullFileUrl(a.url)}
+                                                                                alt={a.name}
+                                                                                className="max-h-48 w-full object-cover"
+                                                                                loading="lazy"
+                                                                            />
+                                                                        </a>
+                                                                    ) : (
+                                                                        <a
+                                                                            key={i}
+                                                                            href={fullFileUrl(a.url)}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                            className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] transition ${mine
+                                                                                    ? "bg-white/15 text-white hover:bg-white/25"
+                                                                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                                                                }`}
+                                                                        >
+                                                                            <FileText className="h-3.5 w-3.5 shrink-0" />
+                                                                            <span className="truncate">{a.name}</span>
+                                                                        </a>
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {m.body && (
+                                                            <p className="whitespace-pre-wrap break-words leading-relaxed">
+                                                                {m.body}
+                                                            </p>
+                                                        )}
+
+                                                        <div
+                                                            className={`mt-1 flex items-center justify-end gap-1 text-[9px] ${mine ? "text-white/75" : "text-slate-400"
+                                                                }`}
+                                                        >
+                                                            <span>
+                                                                {new Date(m.createdAt).toLocaleTimeString([], {
+                                                                    hour: "2-digit",
+                                                                    minute: "2-digit",
+                                                                })}
+                                                            </span>
+                                                            {mine && <Check className="h-2.5 w-2.5" />}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })}
+                                    </AnimatePresence>
+
+                                    <AnimatePresence>
+                                        {sending && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 6 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: 6 }}
+                                                className="flex justify-end"
+                                            >
+                                                <div className="rounded-2xl rounded-br-md bg-gradient-to-br from-[#a97400] to-[#8f6100] px-3 py-2 shadow-sm">
+                                                    <div className="flex items-center gap-1">
+                                                        {[0, 1, 2].map((i) => (
+                                                            <motion.span
+                                                                key={i}
+                                                                className="h-1.5 w-1.5 rounded-full bg-white/90"
+                                                                animate={{
+                                                                    y: [0, -3, 0],
+                                                                    opacity: [0.5, 1, 0.5],
+                                                                }}
+                                                                transition={{
+                                                                    duration: 0.9,
+                                                                    repeat: Infinity,
+                                                                    delay: i * 0.15,
+                                                                    ease: "easeInOut",
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </>
+                            )}
                         </div>
-                    ))}
-                </div>
-            )}
 
-            {/* Input Area */}
-            <div className="shrink-0 border-t border-slate-100 bg-white p-3">
-                <div className="flex items-end gap-2">
-                    <button
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={uploading}
-                        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
-                        aria-label="Attach file"
-                    >
-                        {uploading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Paperclip className="h-4 w-4" />
-                        )}
-                    </button>
-                    <input
-                        ref={fileRef}
-                        type="file"
-                        multiple
-                        className="hidden"
-                        onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            if (files.length) uploadMany(files);
-                            e.target.value = "";
-                        }}
-                    />
+                        {/* Attachments Preview Area */}
+                        <AnimatePresence>
+                            {pending.length > 0 && (
+                                <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="shrink-0 overflow-hidden border-t border-slate-100 bg-white"
+                                >
+                                    <div className="flex flex-wrap gap-2 px-3 py-2">
+                                        {pending.map((a) => (
+                                            <motion.div
+                                                key={a.url}
+                                                layout
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                exit={{ opacity: 0, scale: 0.9 }}
+                                                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 shadow-sm"
+                                            >
+                                                <FileText className="h-3.5 w-3.5 text-slate-500" />
+                                                <span className="max-w-[120px] truncate text-[11px] text-slate-600">
+                                                    {a.name}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        setPending((p) =>
+                                                            p.filter((x) => x.url !== a.url),
+                                                        )
+                                                    }
+                                                    className="cursor-pointer rounded p-0.5 text-slate-400 transition hover:text-rose-600"
+                                                    aria-label="Remove attachment"
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                    <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onPaste={handlePaste}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSend();
-                            }
-                        }}
-                        rows={1}
-                        placeholder="Type a message…"
-                        className="max-h-24 min-h-[36px] flex-1 resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#a97400] focus:bg-white focus:outline-none"
-                    />
+                        {/* Input Bar */}
+                        <div className="shrink-0 border-t border-slate-100 bg-white p-3">
+                            <div className="flex items-end gap-2">
+                                <motion.button
+                                    type="button"
+                                    onClick={() => fileRef.current?.click()}
+                                    disabled={uploading || !tenderId}
+                                    whileTap={{ scale: 0.94 }}
+                                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-label="Attach file"
+                                >
+                                    {uploading ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Paperclip className="h-4 w-4" />
+                                    )}
+                                </motion.button>
+                                <input
+                                    ref={fileRef}
+                                    type="file"
+                                    multiple
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files || []);
+                                        if (files.length) uploadMany(files);
+                                        e.target.value = "";
+                                    }}
+                                />
 
-                    <button
-                        type="button"
-                        onClick={handleSend}
-                        disabled={sending || (!input.trim() && pending.length === 0)}
-                        className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-[#a97400] text-white transition hover:bg-[#8f6100] disabled:opacity-50"
-                        aria-label="Send"
-                    >
-                        {sending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                            <Send className="h-4 w-4" />
-                        )}
-                    </button>
-                </div>
-            </div>
-        </motion.div>
+                                <textarea
+                                    ref={textareaRef}
+                                    value={input}
+                                    disabled={!tenderId}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onPaste={handlePaste}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSend();
+                                        }
+                                    }}
+                                    rows={1}
+                                    placeholder={
+                                        tenderId
+                                            ? "Type a message…"
+                                            : "Select a conversation first…"
+                                    }
+                                    className="max-h-24 min-h-[36px] flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 placeholder:text-slate-400 transition focus:border-[#a97400] focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/40 disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+
+                                <motion.button
+                                    type="button"
+                                    onClick={handleSend}
+                                    disabled={
+                                        !tenderId ||
+                                        sending ||
+                                        (!input.trim() && pending.length === 0)
+                                    }
+                                    whileTap={{ scale: 0.94 }}
+                                    className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-gradient-to-br from-[#a97400] to-[#8f6100] text-white shadow-sm transition hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-label="Send message"
+                                >
+                                    {sending ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <Send className="h-4 w-4" />
+                                    )}
+                                </motion.button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </>
     );
 }

@@ -144,6 +144,7 @@ export function TenderDetailReview({
   const [adInputKey, setAdInputKey] = useState(0);
 
   /* ---------------- Chat ---------------- */
+  // chatOpen = false ensures the round floating bubble renders on initial load / refresh
   const [chatOpen, setChatOpen] = useState(false);
 
   /* ---------------- Refs ---------------- */
@@ -166,6 +167,7 @@ export function TenderDetailReview({
     setPendingFile(null);
     setFileInputKey((k) => k + 1);
     setAdInputKey((k) => k + 1);
+    setChatOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.id]);
 
@@ -278,7 +280,7 @@ export function TenderDetailReview({
         {/* ---------- Header ---------- */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 px-5 py-3">
           <div className="flex items-center gap-3">
-            <span className="rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+            <span className="rounded-md border w-[150px] text-center border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
               Tender Review
             </span>
             <h2 className="text-sm font-bold text-slate-900">
@@ -350,8 +352,9 @@ export function TenderDetailReview({
                     )}
 
                     <label
-                      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${uploadingAd ? "pointer-events-none opacity-60" : ""
-                        }`}
+                      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${
+                        uploadingAd ? "pointer-events-none opacity-60" : ""
+                      }`}
                     >
                       {uploadingAd ? (
                         <>
@@ -406,8 +409,9 @@ export function TenderDetailReview({
                   </div>
 
                   <label
-                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#a97400] px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#8f6100] ${uploadingAd ? "pointer-events-none opacity-60" : ""
-                      }`}
+                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#a97400] px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#8f6100] ${
+                      uploadingAd ? "pointer-events-none opacity-60" : ""
+                    }`}
                   >
                     {uploadingAd ? (
                       <>
@@ -563,8 +567,9 @@ export function TenderDetailReview({
 
               <div className="mt-3 flex items-center gap-2">
                 <label
-                  className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${saving ? "pointer-events-none opacity-60" : ""
-                    }`}
+                  className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${
+                    saving ? "pointer-events-none opacity-60" : ""
+                  }`}
                 >
                   <Upload className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="truncate text-slate-500">
@@ -619,14 +624,13 @@ export function TenderDetailReview({
         </div>
       </section>
 
-      {chatOpen && (
-        <TenderChatWizard
-          tenderId={data.id}
-          tenderTitle={`${data.tenderer} — ${data.title}`}
-          open={true}
-          onOpenChange={(o) => setChatOpen(o)}
-        />
-      )}
+      {/* TenderChatWizard stays continuously mounted so the floating bubble is visible on load/refresh */}
+      <TenderChatWizard
+        tenderId={data.id}
+        tenderTitle={`${data.tenderer} — ${data.title}`}
+        open={chatOpen}
+        onOpenChange={(o) => setChatOpen(o)}
+      />
     </>
   );
 }
