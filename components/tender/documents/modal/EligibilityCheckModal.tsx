@@ -1,7 +1,7 @@
 // components/tender/documents/modal/EligibilityCheckModal.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -9,6 +9,9 @@ import {
   Sparkles,
   Loader2,
   X,
+  ListChecks,
+  RotateCcw,
+  AlertTriangle,
 } from "lucide-react";
 import type { Tender, TenderEligibilityRequirement } from "@/lib/api/tender.api";
 
@@ -36,11 +39,25 @@ interface Props {
 }
 
 /* ============================================================
- * Rule engine — now sourced from the tender's CHECKLIST.
- *   • checked   → Meets
- *   • unchecked → Gap
- *   • if no checklist exists yet, fall back to a friendly
- *     "nothing to check yet" state (no fake rules).
+ * Default eligibility criteria — used when the tender has no
+ * saved checklist yet. These mirror the standard checklist a
+ * typical BD eGP/RFQ tender requires.
+ * ============================================================ */
+const DEFAULT_CRITERIA: string[] = [
+  "Valid Trade License",
+  "VAT / BIN Certificate",
+  "Income Tax Clearance",
+  "Bank Solvency Certificate",
+  "Tender Security (Pay Order / BG)",
+  "Performance Security Ready",
+  "Similar Work Experience",
+  "Sufficient Annual Turnover",
+  "ISO / Quality Certifications",
+  "Authorized Dealer Certificate",
+];
+
+/* ============================================================
+ * Rule engine
  * ============================================================ */
 function runEligibility(tender: Tender): EligibilityResult {
   const checklist = Array.isArray((tender as any)?.checklist)
@@ -51,9 +68,29 @@ function runEligibility(tender: Tender): EligibilityResult {
     }[])
     : [];
 
-  const rows: EligibilityRow[] = checklist.map((it) => ({
-    requirement: it.label || "Untitled requirement",
-    ourRecord: it.checked ? "Marked complete" : "Not marked yet",
+  /* If the tender has a saved checklist, use it. Otherwise seed
+     with the default criteria (unchecked → treated as "gap" until
+     the user explicitly ticks them in the checklist modal). */
+  const source =
+    checklist.length > 0
+      ? checklist.map((it) => ({
+        label: it.label || "Untitled requirement",
+        checked: !!it.checked,
+        seeded: false,
+      }))
+      : DEFAULT_CRITERIA.map((label) => ({
+        label,
+        checked: false,
+        seeded: true,
+      }));
+
+  const rows: EligibilityRow[] = source.map((it) => ({
+    requirement: it.label,
+    ourRecord: it.checked
+      ? "Marked complete"
+      : it.seeded
+        ? "Not yet verified"
+        : "Not marked yet",
     match: it.checked ? "meets" : "gap",
   }));
 
@@ -62,28 +99,22 @@ function runEligibility(tender: Tender): EligibilityResult {
   const meets = rows.filter((r) => r.match !== "gap").length;
 
   const overall: EligibilityResult["overall"] =
-    rows.length === 0
-      ? "Review Required"
-      : gaps.length === 0
-        ? "Ready"
-        : gaps.length === 1
-          ? "Review Required"
-          : "Not Ready";
+    gaps.length === 0
+      ? "Ready"
+      : gaps.length <= 3
+        ? "Review Required"
+        : "Not Ready";
 
   /* ---------- AI-style note ---------- */
   let note = "";
-  if (rows.length === 0) {
-    note =
-      "No checklist items recorded yet. Open the Submission Checklist to add or tick the requirements, then re-run this check.";
-  } else if (gaps.length === 0) {
+  if (gaps.length === 0) {
     note = `Meets all ${rows.length} criteria. Safe to approve for participation.`;
-  } else if (gaps.length === 1) {
-    const g = gaps[0];
-    note = `Meets ${meets} of ${rows.length} criteria. The only gap is "${g.requirement}" — confirm this with the responsible person before committing.`;
+  } else if (gaps.length <= 3) {
+    const g = gaps.map((r) => r.requirement).join(", ");
+    note = `Meets ${meets} of ${rows.length} criteria. Remaining gaps: ${g}. Confirm with the responsible person before committing.`;
   } else {
-    note = `Meets only ${meets} of ${rows.length} criteria. ${gaps.length} gaps found: ${gaps
-      .map((g) => g.requirement)
-      .join(", ")}. Do not proceed without resolving these.`;
+    const preview = gaps.slice(0, 3).map((g) => g.requirement).join(", ");
+    note = `Meets only ${meets} of ${rows.length} criteria. ${gaps.length} gaps found — including: ${preview}${gaps.length > 3 ? ", …" : ""}. Do not proceed without resolving these.`;
   }
 
   return { rows, overall, note };
@@ -102,11 +133,15 @@ export function EligibilityCheckModal({
   const [checking, setChecking] = useState(true);
   const [result, setResult] = useState<EligibilityResult | null>(null);
 
+  /* Per-row manual override — user can flip Meets / Gap inline */
+  const [overrides, setOverrides] = useState<Record<number, MatchState>>({});
+
   /* Run check when modal opens */
   useEffect(() => {
     if (!open || !tender) return;
     setChecking(true);
     setResult(null);
+    setOverrides({});
     const t = setTimeout(() => {
       setResult(runEligibility(tender));
       setChecking(false);
@@ -128,15 +163,52 @@ export function EligibilityCheckModal({
     };
   }, [open, onOpenChange]);
 
+  /* Recompute the note as overrides change */
+  const displayResult = useMemo<EligibilityResult | null>(() => {
+    if (!result) return null;
+    const rows = result.rows.map((r, i) => {
+      const override = overrides[i];
+      if (!override) return r;
+      return {
+        ...r,
+        match: override,
+        ourRecord:
+          override === "meets" ? "Confirmed by user" : r.ourRecord,
+      };
+    });
+
+    const gaps = rows.filter((r) => r.match === "gap");
+    const meets = rows.filter((r) => r.match !== "gap").length;
+
+    const overall: EligibilityResult["overall"] =
+      gaps.length === 0
+        ? "Ready"
+        : gaps.length <= 3
+          ? "Review Required"
+          : "Not Ready";
+
+    let note = "";
+    if (gaps.length === 0) {
+      note = `Meets all ${rows.length} criteria. Safe to approve for participation.`;
+    } else if (gaps.length <= 3) {
+      const g = gaps.map((r) => r.requirement).join(", ");
+      note = `Meets ${meets} of ${rows.length} criteria. Remaining gaps: ${g}.`;
+    } else {
+      const preview = gaps.slice(0, 3).map((g) => g.requirement).join(", ");
+      note = `Meets only ${meets} of ${rows.length} criteria. ${gaps.length} gaps found — including: ${preview}${gaps.length > 3 ? ", …" : ""}.`;
+    }
+
+    return { rows, overall, note };
+  }, [result, overrides]);
+
   if (!open || !tender) return null;
 
   /* Convert local rows → TenderEligibilityRequirement[] for the parent */
   const buildRequirementsForParent = (): TenderEligibilityRequirement[] => {
-    if (!result) return [];
-    return result.rows.map((row, idx) => {
+    if (!displayResult) return [];
+    return displayResult.rows.map((row, idx) => {
       let match: TenderEligibilityRequirement["match"] = "Partial";
-      if (row.match === "meets") match = "Meets";
-      else if (row.match === "within") match = "Meets";
+      if (row.match === "meets" || row.match === "within") match = "Meets";
       else if (row.match === "gap") match = "Gap";
 
       return {
@@ -148,6 +220,15 @@ export function EligibilityCheckModal({
     });
   };
 
+  const toggleRow = (idx: number, current: MatchState) => {
+    const next: MatchState = current === "meets" ? "gap" : "meets";
+    setOverrides((prev) => ({ ...prev, [idx]: next }));
+  };
+
+  const resetOverrides = () => setOverrides({});
+
+  const hasOverrides = Object.keys(overrides).length > 0;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
@@ -158,16 +239,18 @@ export function EligibilityCheckModal({
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-base font-bold text-slate-900">
               {tender.tenderer} — {tender.title}
             </h2>
             <p className="mt-0.5 text-[11px] text-slate-500">
               Eligibility &amp; Suitability Check
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {!checking && result && <StatusPill overall={result.overall} />}
+          <div className="flex shrink-0 items-center gap-3">
+            {!checking && displayResult && (
+              <StatusPill overall={displayResult.overall} />
+            )}
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -188,19 +271,39 @@ export function EligibilityCheckModal({
                 Reading the tender checklist and computing eligibility…
               </p>
             </div>
-          ) : !result ? null : result.rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-16">
-              <MinusCircle className="h-6 w-6 text-slate-300" />
-              <p className="text-xs text-slate-500">
-                No checklist items recorded yet.
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Open the Submission Checklist on this tender to add items, then
-                run this check again.
-              </p>
-            </div>
-          ) : (
+          ) : !displayResult ? null : (
             <>
+              {/* Info banner */}
+              {/* Info / warning banner */}
+              {(() => {
+                const hasChecklist = ((tender as any)?.checklist?.length ?? 0) > 0;
+                return hasChecklist ? (
+                  <div className="mb-3 flex items-start gap-2 rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2">
+                    <ListChecks className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky-600" />
+                    <p className="text-[11.5px] leading-relaxed text-sky-800">
+                      Loaded from this tender's saved checklist. Tick items here to
+                      override.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#a97400]" />
+                    <div className="min-w-0">
+                      <p className="text-[11.5px] font-bold leading-tight text-[#8a6a2b]">
+                        Showing default eligibility criteria
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-relaxed text-[#8a6a2b]/90">
+                        No checklist entries exist for this tender yet. The items below
+                        are <strong>static defaults</strong> for reference — tick each
+                        one you can confirm, or open the Submission Checklist to add
+                        real requirements specific to this tender.
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Rows */}
               <div className="overflow-hidden rounded-lg border border-slate-200">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50/60 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -211,8 +314,13 @@ export function EligibilityCheckModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {result.rows.map((row, i) => (
-                      <tr key={i}>
+                    {displayResult.rows.map((row, i) => (
+                      <tr
+                        key={i}
+                        className="cursor-pointer transition hover:bg-slate-50/60"
+                        onClick={() => toggleRow(i, row.match)}
+                        title="Click to toggle Meets / Gap"
+                      >
                         <td className="px-4 py-3 text-[12px] font-medium text-slate-700">
                           {row.requirement}
                         </td>
@@ -228,6 +336,7 @@ export function EligibilityCheckModal({
                 </table>
               </div>
 
+              {/* AI note */}
               <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50/60 p-4">
                 <div className="mb-1.5 flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-[#a97400]" />
@@ -236,9 +345,20 @@ export function EligibilityCheckModal({
                   </p>
                 </div>
                 <p className="text-[12px] leading-relaxed text-slate-700">
-                  {result.note}
+                  {displayResult.note}
                 </p>
               </div>
+
+              {hasOverrides && (
+                <button
+                  type="button"
+                  onClick={resetOverrides}
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Reset overrides
+                </button>
+              )}
             </>
           )}
         </div>
@@ -252,7 +372,7 @@ export function EligibilityCheckModal({
               onApprove?.(requirements);
               onOpenChange(false);
             }}
-            disabled={checking || (result?.rows.length ?? 0) === 0}
+            disabled={checking || !displayResult}
             className="inline-flex h-9 items-center justify-center rounded-lg bg-[#a97400] px-4 text-xs font-semibold text-white shadow-sm hover:bg-[#8f6100] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Approve for Participation

@@ -279,17 +279,22 @@ export function TenderDetailReview({
       <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
         {/* ---------- Header ---------- */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 px-5 py-3">
-          <div className="flex items-center gap-3">
-            <span className="rounded-md border w-[150px] text-center border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+          {/* LEFT: badge + title */}
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <span className="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2 py-0.5 text-center text-[10px] font-bold uppercase tracking-wider text-amber-700">
               Tender Review
             </span>
-            <h2 className="text-sm font-bold text-slate-900">
+            <h2
+              className="min-w-0 max-w-[60%] truncate text-sm font-bold text-slate-900"
+              title={`${data.tenderer} — ${data.title}`}
+            >
               {data.tenderer} — {data.title}
             </h2>
           </div>
 
+          {/* RIGHT: action buttons */}
           {showApprovalButtons && (
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={handleDiscuss}
@@ -352,9 +357,8 @@ export function TenderDetailReview({
                     )}
 
                     <label
-                      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${
-                        uploadingAd ? "pointer-events-none opacity-60" : ""
-                      }`}
+                      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50 ${uploadingAd ? "pointer-events-none opacity-60" : ""
+                        }`}
                     >
                       {uploadingAd ? (
                         <>
@@ -409,9 +413,8 @@ export function TenderDetailReview({
                   </div>
 
                   <label
-                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#a97400] px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#8f6100] ${
-                      uploadingAd ? "pointer-events-none opacity-60" : ""
-                    }`}
+                    className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-[#a97400] px-3 py-1.5 text-[10px] font-semibold text-white transition hover:bg-[#8f6100] ${uploadingAd ? "pointer-events-none opacity-60" : ""
+                      }`}
                   >
                     {uploadingAd ? (
                       <>
@@ -567,9 +570,8 @@ export function TenderDetailReview({
 
               <div className="mt-3 flex items-center gap-2">
                 <label
-                  className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${
-                    saving ? "pointer-events-none opacity-60" : ""
-                  }`}
+                  className={`flex h-9 flex-1 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-[11px] text-slate-700 transition hover:bg-slate-50 ${saving ? "pointer-events-none opacity-60" : ""
+                    }`}
                 >
                   <Upload className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                   <span className="truncate text-slate-500">

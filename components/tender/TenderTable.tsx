@@ -5,9 +5,16 @@ import {
   ClipboardIcon,
   ExternalLink,
   Pencil,
+  Search,
   Trash2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
+  X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 /* ============================================================
  * Types
@@ -18,12 +25,18 @@ interface Column {
   label: string;
   align?: "left" | "right";
   width?: string;
+  /** Enable sorting on this column. Default: true */
+  sortable?: boolean;
 }
 
 interface Row {
   id: string;
   cells: Record<string, ReactNode>;
   disabled?: boolean;
+  /** Raw searchable string(s) — used by the built-in search bar */
+  searchText?: string;
+  /** Raw sortable value(s) — used by column sorting */
+  sortValues?: Record<string, string | number | null | undefined>;
 }
 
 interface Props {
@@ -31,16 +44,27 @@ interface Props {
   rows: Row[];
   selectedId?: string | null;
   onRowClick?: (id: string) => void;
-  moreCount?: number;
 
-  /* Actions — only rendered when `showActions` is true */
+  /* Actions */
   onDelete?: (id: string) => void;
   onView?: (id: string) => void;
   onEdit?: (id: string) => void;
-  /** When false, action icons are hidden (e.g. for Lost/Won/Drafts tabs) */
   showActions?: boolean;
 
   toolbar?: ReactNode;
+
+  /* ---------- Search + Pagination ---------- */
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  pageSize?: number;
+  hidePagination?: boolean;
+
+  /* ---------- Page-size selector ---------- */
+  pageSizeOptions?: number[];
+
+  /* ---------- Sorting ---------- */
+  defaultSortKey?: string;
+  defaultSortDir?: "asc" | "desc";
 }
 
 /* ============================================================
@@ -52,45 +76,197 @@ export function TenderTable({
   rows,
   selectedId,
   onRowClick,
-  moreCount = 0,
   onDelete,
   onEdit,
   onView,
   showActions = false,
   toolbar,
+
+  searchable = false,
+  searchPlaceholder = "Search…",
+  pageSize,
+  hidePagination = false,
+  pageSizeOptions = [10, 25, 50, 80, 100],
+
+  defaultSortKey,
+  defaultSortDir = "desc",
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
 
-  const collapsedLimit = moreCount > 0 ? rows.length - moreCount : rows.length;
-  const visibleRows = expanded ? rows : rows.slice(0, collapsedLimit);
-  const hiddenCount = moreCount > 0 && !expanded ? moreCount : 0;
+  const initialSize = pageSize ?? pageSizeOptions[0] ?? 10;
+  const [size, setSize] = useState<number>(initialSize);
 
-  /* Only show the actions column if explicitly enabled AND at least
-     one handler is provided */
+  const [sortKey, setSortKey] = useState<string | null>(defaultSortKey ?? null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(defaultSortDir);
+
+  /* ---------- Search filter ---------- */
+  const filtered = useMemo(() => {
+    if (!searchable) return rows;
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      if (r.searchText) return r.searchText.toLowerCase().includes(q);
+      return Object.values(r.cells)
+        .filter((v) => typeof v === "string" || typeof v === "number")
+        .join(" ")
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [rows, query, searchable]);
+
+  /* ---------- Sort ---------- */
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const copy = [...filtered];
+    copy.sort((a, b) => {
+      const av = a.sortValues?.[sortKey];
+      const bv = b.sortValues?.[sortKey];
+
+      const aMissing = av === undefined || av === null || av === "";
+      const bMissing = bv === undefined || bv === null || bv === "";
+      if (aMissing && bMissing) return 0;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+
+      const as = String(av).toLowerCase();
+      const bs = String(bv).toLowerCase();
+      if (as < bs) return sortDir === "asc" ? -1 : 1;
+      if (as > bs) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return copy;
+  }, [filtered, sortKey, sortDir]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, rows.length, size, sortKey, sortDir]);
+
+  /* ---------- Pagination math ---------- */
+  const total = sorted.length;
+  const paginate = !hidePagination && size > 0;
+  const totalPages = paginate ? Math.max(1, Math.ceil(total / size)) : 1;
+  const safePage = Math.min(Math.max(page, 1), totalPages);
+  const startIdx = paginate ? (safePage - 1) * size : 0;
+  const endIdx = paginate ? startIdx + size : total;
+  const visibleRows = sorted.slice(startIdx, endIdx);
+
   const hasActions =
     showActions && Boolean(onDelete || onView || onEdit);
 
+  const showToolbar = toolbar || searchable || paginate;
+  const showFooter = paginate && total > 0;
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-      {toolbar && (
-        <div className="border-b border-slate-100 px-5 py-3">{toolbar}</div>
+      {/* ============ TOOLBAR ============ */}
+      {showToolbar && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            {toolbar ? <div>{toolbar}</div> : null}
+
+            {searchable && (
+              <div className="relative w-full max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-[12px] text-slate-800 placeholder:text-slate-400 transition focus:border-[#a97400] focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {paginate && (
+            <div className="flex shrink-0 items-center gap-2">
+              <label
+                htmlFor="tender-page-size"
+                className="text-[11px] font-semibold text-slate-500"
+              >
+                Show
+              </label>
+              <select
+                id="tender-page-size"
+                value={size}
+                onChange={(e) => setSize(Number(e.target.value))}
+                className="h-9 cursor-pointer rounded-lg border border-slate-200 bg-white pl-3 pr-7 text-[12px] font-semibold text-slate-700 transition focus:border-[#a97400] focus:outline-none focus:ring-2 focus:ring-amber-300/40"
+              >
+                {pageSizeOptions.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
       )}
 
+      {/* ============ TABLE ============ */}
       <div className="w-full overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/60 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              {columns.map((c) => (
-                <th
-                  key={c.key}
-                  className={`px-5 py-3 ${
-                    c.align === "right" ? "text-right" : ""
-                  }`}
-                  style={c.width ? { width: c.width } : undefined}
-                >
-                  {c.label}
-                </th>
-              ))}
+              {columns.map((c) => {
+                const sortable = c.sortable !== false;
+                const isSorted = sortKey === c.key;
+                return (
+                  <th
+                    key={c.key}
+                    className={`px-5 py-3 ${c.align === "right" ? "text-right" : ""
+                      }`}
+                    style={c.width ? { width: c.width } : undefined}
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        onClick={() => handleSort(c.key)}
+                        className={`inline-flex items-center gap-1 transition hover:text-slate-700 ${c.align === "right" ? "flex-row-reverse" : ""
+                          } ${isSorted ? "text-slate-700" : ""}`}
+                        title={`Sort by ${c.label}`}
+                      >
+                        {c.label}
+                        {isSorted ? (
+                          sortDir === "asc" ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="h-2.5 w-2.5 opacity-40" />
+                        )}
+                      </button>
+                    ) : (
+                      <span>{c.label}</span>
+                    )}
+                  </th>
+                );
+              })}
 
               {hasActions && (
                 <th className="w-[110px] px-5 py-3 text-right">Actions</th>
@@ -109,18 +285,15 @@ export function TenderTable({
                     if (disabled) return;
                     onRowClick?.(r.id);
                   }}
-                  className={`transition-colors ${
-                    disabled ? "opacity-60" : "cursor-pointer"
-                  } ${
-                    selected ? "bg-amber-50/60" : "hover:bg-slate-50/70"
-                  }`}
+                  className={`transition-colors ${disabled ? "opacity-60" : "cursor-pointer"
+                    } ${selected ? "bg-amber-50/60" : "hover:bg-slate-50/70"
+                    }`}
                 >
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={`px-5 py-3 align-middle ${
-                        c.align === "right" ? "text-right" : ""
-                      }`}
+                      className={`px-5 py-3 align-middle ${c.align === "right" ? "text-right" : ""
+                        }`}
                     >
                       {r.cells[c.key]}
                     </td>
@@ -183,7 +356,9 @@ export function TenderTable({
                   colSpan={columns.length + (hasActions ? 1 : 0)}
                   className="px-5 py-10 text-center text-[12px] text-slate-400"
                 >
-                  No records yet.
+                  {searchable && query
+                    ? `No results for "${query}".`
+                    : "No records yet."}
                 </td>
               </tr>
             )}
@@ -191,16 +366,91 @@ export function TenderTable({
         </table>
       </div>
 
-      {moreCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
-          className="w-full border-t border-slate-100 px-5 py-2.5 text-left text-[11px] font-semibold text-[#b8860b] hover:bg-slate-50"
-        >
-          {expanded
-            ? "− Show fewer Tenders"
-            : `+ Show more Tenders (${hiddenCount})`}
-        </button>
+      {/* ============ PAGINATION FOOTER ============ */}
+      {showFooter && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/40 px-5 py-3">
+          <p className="text-[11px] text-slate-500">
+            Showing{" "}
+            <span className="font-semibold text-slate-700">
+              {startIdx + 1}
+            </span>
+            –{" "}
+            <span className="font-semibold text-slate-700">{endIdx}</span>{" "}
+            of <span className="font-semibold text-slate-700">{total}</span>
+            {query && searchable && (
+              <span className="ml-1 text-slate-400">
+                (filtered from {rows.length})
+              </span>
+            )}
+          </p>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Prev
+            </button>
+
+            <div className="hidden items-center gap-0.5 sm:flex">
+              {(() => {
+                const pages: (number | "…")[] = [];
+                const add = (n: number | "…") => pages.push(n);
+                const last = totalPages;
+
+                if (last <= 7) {
+                  for (let i = 1; i <= last; i++) add(i);
+                } else {
+                  add(1);
+                  if (safePage > 3) add("…");
+                  const from = Math.max(2, safePage - 1);
+                  const to = Math.min(last - 1, safePage + 1);
+                  for (let i = from; i <= to; i++) add(i);
+                  if (safePage < last - 2) add("…");
+                  add(last);
+                }
+
+                return pages.map((p, idx) =>
+                  p === "…" ? (
+                    <span
+                      key={`gap-${idx}`}
+                      className="px-1.5 text-[11px] text-slate-400"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPage(p)}
+                      className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[11px] font-semibold transition ${p === safePage
+                          ? "bg-[#a97400] text-white shadow-sm"
+                          : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                    >
+                      {p}
+                    </button>
+                  ),
+                );
+              })()}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Next page"
+            >
+              Next
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -239,8 +489,7 @@ export function DocsStatusBadge({ status }: { status?: string }) {
   };
 
   const label = status?.trim() || "Docs pending";
-  const styles =
-    map[label] ?? "border-slate-200 bg-slate-50 text-slate-600";
+  const styles = map[label] ?? "border-slate-200 bg-slate-50 text-slate-600";
 
   return (
     <span
@@ -254,13 +503,12 @@ export function DocsStatusBadge({ status }: { status?: string }) {
 export function DeadlineCell({ days }: { days: number }) {
   return (
     <span
-      className={`font-mono text-[11px] font-semibold ${
-        days <= 3
+      className={`font-mono text-[11px] font-semibold ${days <= 3
           ? "text-rose-600"
           : days <= 7
             ? "text-orange-600"
             : "text-slate-700"
-      }`}
+        }`}
     >
       {days} days
     </span>
@@ -268,7 +516,20 @@ export function DeadlineCell({ days }: { days: number }) {
 }
 
 export function LinkIconCell() {
+  return <ExternalLink className="ml-auto h-3.5 w-3.5 text-slate-400" />;
+}
+
+/* ✅ NEW — Auto-discovered badge for crawler-sourced tenders */
+export function AutoDiscoveredBadge() {
   return (
-    <ExternalLink className="ml-auto h-3.5 w-3.5 text-slate-400" />
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-[#f4ead6] px-2 py-0.5 text-[10px] font-bold text-[#8a6a2b]"
+      title="Automatically discovered by the crawler"
+    >
+      <span aria-hidden className="text-[11px] leading-none">
+        🤖
+      </span>
+      Auto-discovered
+    </span>
   );
 }

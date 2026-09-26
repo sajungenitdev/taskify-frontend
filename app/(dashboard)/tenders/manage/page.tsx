@@ -13,6 +13,7 @@ import {
   TenderTypeBadge,
   DocsStatusBadge,
   DeadlineCell,
+  AutoDiscoveredBadge,
 } from "@/components/tender/TenderTable";
 import { TenderDetailReview } from "@/components/tender/TenderDetailReview";
 import { TenderDetailActive } from "@/components/tender/TenderDetailActive";
@@ -36,7 +37,7 @@ import SiteDirectory from "@/components/tender/site-directory/SiteDirectory";
 
 /* ---------- Column schemas ---------- */
 const COLUMNS_POTENTIAL = [
-  { key: "tenderer", label: "Tenderer", width: "20%" },
+  { key: "tenderer", label: "Tenderer", width: "22%" },
   { key: "description", label: "Description", width: "34%" },
   { key: "type", label: "Type", width: "10%" },
   { key: "recorded", label: "Recorded", width: "14%" },
@@ -102,16 +103,46 @@ function budgetLabel(n?: number) {
   return `৳${n.toLocaleString("en-IN")}`;
 }
 
+/* Whether a tender row came from the crawler */
+function isCrawledTender(t: Tender) {
+  return (t as any).recordedBy === "Auto-discovered";
+}
+
+/* Tenderer cell — shows the tenderer name + Auto-discovered badge when crawled */
+function TendererCell({ t }: { t: Tender }) {
+  const crawled = isCrawledTender(t);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="font-medium text-slate-800">{t.tenderer}</span>
+      {crawled && <AutoDiscoveredBadge />}
+    </div>
+  );
+}
+
 function mapRows(
   stage: "potential" | "active" | "submitted" | "lost" | "won" | "drafts",
   tenders: Tender[],
 ) {
   return tenders.map((t) => {
+    /* Common searchable text — tenderer + title + type + description */
+    const searchText = [
+      t.tenderer,
+      t.title,
+      t.tenderType,
+      t.description,
+      isCrawledTender(t) ? "auto-discovered crawled" : "manual",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const tendererCell = <TendererCell t={t} />;
+
     if (stage === "potential") {
       return {
         id: t._id,
+        searchText,
         cells: {
-          tenderer: t.tenderer,
+          tenderer: tendererCell,
           description: t.title,
           type: <TenderTypeBadge type={t.tenderType} />,
           recorded: fmtDate(t.createdAt),
@@ -122,8 +153,9 @@ function mapRows(
     if (stage === "active") {
       return {
         id: t._id,
+        searchText,
         cells: {
-          tenderer: t.tenderer,
+          tenderer: tendererCell,
           type: <TenderTypeBadge type={t.tenderType} />,
           deadline: <DeadlineCell days={daysLeft(t.lastDateOfSubmission)} />,
           value: t.tentativeBudget ? budgetLabel(t.tentativeBudget) : "—",
@@ -134,8 +166,9 @@ function mapRows(
     if (stage === "submitted") {
       return {
         id: t._id,
+        searchText,
         cells: {
-          tenderer: t.tenderer,
+          tenderer: tendererCell,
           description: t.title,
           submitted: fmtDate(t.submittedAt ?? t.updatedAt),
           awaiting: `${daysLeft(t.submittedAt)} days`,
@@ -145,8 +178,9 @@ function mapRows(
     if (stage === "won") {
       return {
         id: t._id,
+        searchText,
         cells: {
-          tenderer: t.tenderer,
+          tenderer: tendererCell,
           description: t.title,
           bidValue: t.bidValue ? budgetLabel(t.bidValue) : "—",
           date: fmtDate(t.updatedAt),
@@ -156,8 +190,9 @@ function mapRows(
     if (stage === "drafts") {
       return {
         id: t._id,
+        searchText,
         cells: {
-          tenderer: t.tenderer,
+          tenderer: tendererCell,
           description: t.title,
           type: <TenderTypeBadge type={t.tenderType} />,
           recorded: fmtDate(t.createdAt),
@@ -167,8 +202,9 @@ function mapRows(
     // lost
     return {
       id: t._id,
+      searchText: `${searchText} ${t.lossReason ?? ""}`,
       cells: {
-        tenderer: t.tenderer,
+        tenderer: tendererCell,
         description: t.title,
         reason: t.lossReason || "—",
         date: fmtDate(t.lostAt ?? t.updatedAt),
@@ -182,6 +218,9 @@ export default function TenderManagePage() {
   return <TenderManageContent />;
 }
 
+/* ---------- Sub-tab type for Potential ---------- */
+type PotentialSource = "all" | "manual" | "crawled";
+
 function TenderManageContent() {
   const { groups, stats, loading, refetch } = useTenderStats();
   const [tab, setTab] = useState<TenderTab>("potential");
@@ -193,6 +232,11 @@ function TenderManageContent() {
   );
   const [checklistTender, setChecklistTender] = useState<Tender | null>(
     null,
+  );
+
+  /* ✅ Sub-tab inside Potential: default = Manual */
+  const [potentialSource, setPotentialSource] = useState<PotentialSource>(
+    "manual",
   );
 
   /* ✅ Local cache for eligibility results — keyed by tender id */
@@ -236,6 +280,30 @@ function TenderManageContent() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lostPrompt]);
 
+  /* ---------- Potential sub-tab filtering ---------- */
+  const manualRows = useMemo(
+    () =>
+      groups.potential.filter(
+        (t) => (t as any).recordedBy !== "Auto-discovered",
+      ),
+    [groups.potential],
+  );
+
+  const crawledRows = useMemo(
+    () =>
+      groups.potential.filter(
+        (t) => (t as any).recordedBy === "Auto-discovered",
+      ),
+    [groups.potential],
+  );
+
+  /* Which list feeds the Potential table */
+  const potentialRows = useMemo(() => {
+    if (potentialSource === "manual") return manualRows;
+    if (potentialSource === "crawled") return crawledRows;
+    return groups.potential;
+  }, [potentialSource, manualRows, crawledRows, groups.potential]);
+
   const currentRows =
     tab === "site-directory" ? [] : (groups[tab] ?? []);
   const selected =
@@ -256,6 +324,8 @@ function TenderManageContent() {
   const handleTabChange = (next: TenderTab) => {
     setTab(next);
     setSelectedId(null);
+    /* Reset Potential sub-tab back to Manual when leaving Potential */
+    if (next !== "potential") setPotentialSource("manual");
   };
 
   const handleSubmitTender = async (tender: Tender) => {
@@ -373,7 +443,6 @@ function TenderManageContent() {
     requirements?: TenderEligibilityRequirement[],
   ) => {
     try {
-      /* Persist to MongoDB — may fail silently if backend not ready */
       if (requirements && requirements.length > 0) {
         await tenderApi.update(tender._id, {
           eligibilityRequirements: requirements,
@@ -451,18 +520,57 @@ function TenderManageContent() {
               <>
                 <TenderTable
                   columns={COLUMNS_POTENTIAL}
-                  rows={mapRows("potential", groups.potential)}
+                  rows={mapRows("potential", potentialRows)}
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
                   onDelete={handleDelete}
                   onView={handleViewPotential}
                   onEdit={handleEdit}
                   showActions
+                  searchable
+                  searchPlaceholder="Search tenderer or description…"
+                  pageSize={10}
+                  toolbar={
+                    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+                      {(
+                        [
+                          { id: "all", label: "All", count: groups.potential.length },
+                          { id: "manual", label: "Manual", count: manualRows.length },
+                          { id: "crawled", label: "Crawled", count: crawledRows.length },
+                        ] as const
+                      ).map((s) => {
+                        const active = potentialSource === s.id;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setPotentialSource(s.id)}
+                            className={`inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[11.5px] font-semibold transition ${
+                              active
+                                ? "bg-[#a97400] text-white shadow-sm"
+                                : "text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {s.label}
+                            <span
+                              className={`inline-flex h-4 min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                                active
+                                  ? "bg-white/25 text-white"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {s.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  }
                 />
+
                 {selected && (
                   <TenderDetailReview
                     key={selected._id}
-                    /* ✅ OVERRIDE eligibility with locally-cached modal results */
                     data={{
                       ...toReviewDetail(selected),
                       eligibility: (() => {
@@ -543,6 +651,9 @@ function TenderManageContent() {
                   onView={handleViewActive}
                   onEdit={handleEdit}
                   showActions
+                  searchable
+                  searchPlaceholder="Search active tenders…"
+                  pageSize={10}
                 />
                 {selected && (
                   <TenderDetailActive
@@ -566,6 +677,9 @@ function TenderManageContent() {
                   onView={handleViewSubmitted}
                   onEdit={handleEdit}
                   showActions
+                  searchable
+                  searchPlaceholder="Search submitted tenders…"
+                  pageSize={10}
                 />
                 {selected && (
                   <TenderDetailSubmitted
@@ -586,6 +700,9 @@ function TenderManageContent() {
                   rows={mapRows("lost", groups.lost)}
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
+                  searchable
+                  searchPlaceholder="Search lost tenders or loss reason…"
+                  pageSize={10}
                 />
                 {selected && (
                   <TenderDetailLost
@@ -604,6 +721,9 @@ function TenderManageContent() {
                   rows={mapRows("won", groups.won)}
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
+                  searchable
+                  searchPlaceholder="Search won tenders…"
+                  pageSize={10}
                 />
                 {selected && (
                   <TenderDetailSubmitted
@@ -635,6 +755,9 @@ function TenderManageContent() {
                       rows={mapRows("drafts", groups.drafts)}
                       selectedId={selected?._id ?? null}
                       onRowClick={setSelectedId}
+                      searchable
+                      searchPlaceholder="Search drafts…"
+                      pageSize={10}
                     />
                     {selected && (
                       <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-5">
@@ -767,7 +890,6 @@ function TenderManageContent() {
         tender={eligibilityTender}
         onApprove={(requirements) => {
           if (eligibilityTender) {
-            /* Save modal results locally, keyed by tender id */
             setEligibilityResults((prev) => ({
               ...prev,
               [eligibilityTender._id]: requirements.map((r) => ({
@@ -798,10 +920,8 @@ function TenderManageContent() {
         onSave={async (items) => {
           if (!checklistTender) return;
           try {
-            /* 1. Save to backend */
             await tenderApi.updateChecklist(checklistTender._id, items);
 
-            /* 2. Convert checklist → Meets/Gap rows, save in local state */
             const rows = items.map((it) => ({
               requirement: it.label,
               match: it.checked ? "Meets" : "Gap",
