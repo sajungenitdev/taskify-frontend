@@ -8,12 +8,37 @@ type Props = AlertSection;
 
 const ITEMS_PER_CARD = 3;
 
+/* ============================================================
+ * Section-aware destination mapping
+ * keyed by the AlertSection.icon so every card routes to the
+ * correct page.
+ * ============================================================ */
+const HREF_BY_ICON: Record<AlertSection["icon"], string> = {
+  /* NEW HOT RFQS / TENDERS */
+  flame: "/tenders/manage",
+
+  /* IMMEDIATE SUBMISSION DEADLINES → active tab on manage */
+  clock: "/tenders/manage?tab=active",
+
+  /* TENDER / PERFORMANCE SECURITY MATURING */
+  lock: "/tenders/security",
+
+  /* BILLABLE — DELIVERED, READY TO INVOICE */
+  file: "/tenders/submissions",
+
+  /* DELIVERY DEADLINES — WON TENDERS IN EXECUTION */
+  target: "/tenders/manage?tab=won",
+};
+
 export function TenderAlertList({ title, icon, color, items }: Props) {
   // Normalize: always exactly 3 slots
   const visibleItems: (AlertItem | null)[] = Array.from(
     { length: ITEMS_PER_CARD },
     (_, i) => items[i] ?? null,
   );
+
+  /* ✅ Resolve the destination for this card */
+  const href = HREF_BY_ICON[icon] ?? "/tenders/manage";
 
   const getIcon = () => {
     const cls = "h-4 w-4";
@@ -70,8 +95,9 @@ export function TenderAlertList({ title, icon, color, items }: Props) {
         {visibleItems.map((item, idx) =>
           item ? (
             <li key={item.id ?? idx}>
+              {/* ✅ Each row links to the destination resolved for this section */}
               <Link
-                href="/tenders/submissions"
+                href={href}
                 className="flex items-center justify-between gap-4 px-5 py-3.5 transition hover:bg-slate-50/80 focus:bg-slate-50/80 focus:outline-none"
               >
                 <div className="min-w-0">
