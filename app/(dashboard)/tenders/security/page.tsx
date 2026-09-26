@@ -33,8 +33,16 @@ const TYPES: SecurityType[] = [
   "Bank Guarantee",
 ];
 
+type SecurityTab = "pending" | "done";
+
 export default function TenderSecurityPage() {
-  /* ---------- Notify modal state ---------- */
+  /* ============================================================
+   * 1. All state declarations FIRST (so nothing is referenced
+   *    before its declaration line).
+   * ============================================================ */
+
+  const [activeTab, setActiveTab] = useState<SecurityTab>("pending");
+
   const [notifyRow, setNotifyRow] = useState<{
     id: string;
     entity: string;
@@ -47,25 +55,36 @@ export default function TenderSecurityPage() {
     docs: "all",
   });
 
-  /* ---------- Edit tracking ---------- */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPatch, setEditPatch] = useState<Partial<SecurityRowUI>>({});
 
-  /* ---------- Per-action loading flags ---------- */
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // ✅ Moved UP — must be declared before any useMemo references it
+  const [draft, setDraft] = useState<SecurityRowUI | null>(null);
+
+  /* ============================================================
+   * 2. Data fetching
+   * ============================================================ */
 
   const { rows, loading, refetch } = useSecurity({
     entity: filters.entity === "all" ? undefined : filters.entity,
     type: filters.type === "all" ? undefined : filters.type,
-    docs: filters.docs === "all" ? undefined : filters.docs,
+    // Docs filter is now driven by tabs — always pass undefined so both
+    // lists are fetched at once and split client-side.
+    docs: undefined,
     limit: 200,
   });
 
   const { stats, loading: statsLoading, refetch: refetchStats } =
     useSecurityStats();
 
-  const uiRows: SecurityRowUI[] = useMemo(() => {
+  /* ============================================================
+   * 3. Derived rows
+   * ============================================================ */
+
+  const allRows: SecurityRowUI[] = useMemo(() => {
     const base = rows.map(toSecurityUIRow);
     if (!editingId) return base;
     return base.map((r) =>
@@ -73,13 +92,45 @@ export default function TenderSecurityPage() {
     );
   }, [rows, editingId, editPatch]);
 
-  /* ---------- Draft ---------- */
-  const [draft, setDraft] = useState<SecurityRowUI | null>(null);
+  const pendingRows = useMemo(
+    () =>
+      allRows.filter(
+        (r) => r.docsStatus === "Missing" || Boolean(r.isDraft),
+      ),
+    [allRows],
+  );
+
+  const doneRows = useMemo(
+    () => allRows.filter((r) => r.docsStatus === "Attached"),
+    [allRows],
+  );
+
+  const visibleRows = useMemo(() => {
+    const base = activeTab === "pending" ? pendingRows : doneRows;
+    if (draft && activeTab === "pending") return [...base, draft];
+    return base;
+  }, [activeTab, pendingRows, doneRows, draft]);
+
+  const counts = useMemo(
+    () => ({
+      pending: pendingRows.length,
+      done: doneRows.length,
+    }),
+    [pendingRows, doneRows],
+  );
+
+  /* ============================================================
+   * 4. Handlers
+   * ============================================================ */
 
   const addRecord = () => {
-    if (uiRows.some((r) => r.isDraft)) return;
+    if (allRows.some((r) => r.isDraft)) return;
     if (editingId) return;
     if (savingId || deletingId) return;
+
+    // Force switch to Pending tab so the draft is visible
+    setActiveTab("pending");
+
     setDraft({
       id: `draft-${crypto.randomUUID()}`,
       entity: ENTITIES[0],
@@ -93,7 +144,6 @@ export default function TenderSecurityPage() {
     });
   };
 
-  /* ---------- Save draft ---------- */
   const saveRow = async (r: SecurityRowUI) => {
     if (!r.clientDescription.trim()) {
       toast.error("Description is required");
@@ -121,7 +171,6 @@ export default function TenderSecurityPage() {
     }
   };
 
-  /* ---------- Update draft/edit patch ---------- */
   const updateRow = (id: string, patch: Partial<SecurityRowUI>) => {
     if (draft && draft.id === id) {
       setDraft({ ...draft, ...patch });
@@ -132,7 +181,6 @@ export default function TenderSecurityPage() {
     }
   };
 
-  /* ---------- Start edit ---------- */
   const startEdit = (id: string) => {
     if (draft) return;
     if (savingId || deletingId || notifyingId) return;
@@ -140,7 +188,6 @@ export default function TenderSecurityPage() {
     setEditPatch({});
   };
 
-  /* ---------- Save edit ---------- */
   const saveEdit = async (id: string) => {
     if (savingId === id) return;
 
@@ -180,14 +227,12 @@ export default function TenderSecurityPage() {
     }
   };
 
-  /* ---------- Cancel edit ---------- */
   const cancelEdit = () => {
     if (savingId === editingId) return;
     setEditingId(null);
     setEditPatch({});
   };
 
-  /* ---------- Delete ---------- */
   const deleteRow = async (id: string) => {
     if (deletingId === id) return;
 
@@ -209,10 +254,9 @@ export default function TenderSecurityPage() {
     }
   };
 
-  /* ---------- Notify ---------- */
   const openNotify = (id: string) => {
     if (notifyingId) return;
-    const row = uiRows.find((r) => r.id === id);
+    const row = allRows.find((r) => r.id === id);
     if (!row) return;
     setNotifyingId(id);
     setNotifyRow({ id: row.id, entity: row.entity });
@@ -227,6 +271,10 @@ export default function TenderSecurityPage() {
     () => (stats ? toSecurityStatsTiles(stats) : []),
     [stats],
   );
+
+  /* ============================================================
+   * 5. Render
+   * ============================================================ */
 
   return (
     <main className="min-h-screen bg-[#faf7f0] pb-16 text-slate-900">
@@ -253,11 +301,54 @@ export default function TenderSecurityPage() {
           onChange={setFilters}
         />
 
+        {/* ---------- Pending / Done Tabs ---------- */}
+        <div className="flex items-center gap-1 border-b border-slate-200">
+          {(
+            [
+              { id: "pending", label: "Pending", count: counts.pending },
+              { id: "done", label: "Done", count: counts.done },
+            ] as const
+          ).map((t) => {
+            const active = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setActiveTab(t.id);
+                  if (t.id === "done" && draft) setDraft(null);
+                  if (editingId) {
+                    setEditingId(null);
+                    setEditPatch({});
+                  }
+                }}
+                className={`relative inline-flex items-center gap-2 px-4 py-2.5 text-[12px] font-semibold transition-colors ${active
+                  ? "text-slate-900"
+                  : "text-slate-500 hover:text-slate-800"
+                  }`}
+              >
+                {t.label}
+                <span
+                  className={`inline-flex h-5 min-w-[22px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold ${active
+                    ? "bg-[#a97400] text-white"
+                    : "bg-slate-100 text-slate-600"
+                    }`}
+                >
+                  {t.count}
+                </span>
+                {active && (
+                  <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-[#a97400]" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         {loading ? (
           <div className="h-[300px] animate-pulse rounded-xl border border-slate-200/80 bg-white" />
         ) : (
           <SecurityTable
-            rows={draft ? [...uiRows, draft] : uiRows}
+            rows={visibleRows}
             entities={ENTITIES}
             types={TYPES}
             savingId={savingId}
@@ -281,7 +372,7 @@ export default function TenderSecurityPage() {
           />
         )}
 
-        <SecurityFooter rows={uiRows} />
+        <SecurityFooter rows={visibleRows} />
       </div>
 
       <SecurityNotifyModal
@@ -310,7 +401,7 @@ export default function TenderSecurityPage() {
               (e as Error).message || "Failed to send notification",
               { id: loadingId },
             );
-            throw e; // keep modal open on error
+            throw e;
           }
         }}
       />

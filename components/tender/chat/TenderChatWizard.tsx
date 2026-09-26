@@ -342,10 +342,10 @@ export default function TenderChatWizard({
         onOpenChange?.(false);
     };
 
-    const handleClose = () => {
-        onOpenChange?.(false);
-        onDismiss?.();
-    };
+    // const handleClose = () => {
+    //     onOpenChange?.(false);
+    //     onDismiss?.();
+    // };
 
     return (
         <>
@@ -489,7 +489,7 @@ export default function TenderChatWizard({
                                     >
                                         <Minus size={16} />
                                     </motion.button>
-                                    <motion.button
+                                    {/* <motion.button
                                         type="button"
                                         onClick={handleClose}
                                         whileTap={{ scale: 0.9 }}
@@ -498,7 +498,7 @@ export default function TenderChatWizard({
                                         aria-label="Close"
                                     >
                                         <X size={16} />
-                                    </motion.button>
+                                    </motion.button> */}
                                 </div>
                             </div>
                         </div>

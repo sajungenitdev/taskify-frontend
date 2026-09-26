@@ -155,8 +155,7 @@ export function TenderTable({
   const endIdx = paginate ? startIdx + size : total;
   const visibleRows = sorted.slice(startIdx, endIdx);
 
-  const hasActions =
-    showActions && Boolean(onDelete || onView || onEdit);
+  const hasActions = showActions && Boolean(onDelete || onView || onEdit);
 
   const showToolbar = toolbar || searchable || paginate;
   const showFooter = paginate && total > 0;
@@ -238,16 +237,18 @@ export function TenderTable({
                 return (
                   <th
                     key={c.key}
-                    className={`px-5 py-3 ${c.align === "right" ? "text-right" : ""
-                      }`}
+                    className={`px-5 py-3 ${
+                      c.align === "right" ? "text-right" : ""
+                    }`}
                     style={c.width ? { width: c.width } : undefined}
                   >
                     {sortable ? (
                       <button
                         type="button"
                         onClick={() => handleSort(c.key)}
-                        className={`inline-flex items-center gap-1 transition hover:text-slate-700 ${c.align === "right" ? "flex-row-reverse" : ""
-                          } ${isSorted ? "text-slate-700" : ""}`}
+                        className={`inline-flex items-center gap-1 transition hover:text-slate-700 ${
+                          c.align === "right" ? "flex-row-reverse" : ""
+                        } ${isSorted ? "text-slate-700" : ""}`}
                         title={`Sort by ${c.label}`}
                       >
                         {c.label}
@@ -285,15 +286,18 @@ export function TenderTable({
                     if (disabled) return;
                     onRowClick?.(r.id);
                   }}
-                  className={`transition-colors ${disabled ? "opacity-60" : "cursor-pointer"
-                    } ${selected ? "bg-amber-50/60" : "hover:bg-slate-50/70"
-                    }`}
+                  className={`transition-colors ${
+                    disabled ? "opacity-60" : "cursor-pointer"
+                  } ${
+                    selected ? "bg-amber-50/60" : "hover:bg-slate-50/70"
+                  }`}
                 >
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={`px-5 py-3 align-middle ${c.align === "right" ? "text-right" : ""
-                        }`}
+                      className={`px-5 py-3 align-middle ${
+                        c.align === "right" ? "text-right" : ""
+                      }`}
                     >
                       {r.cells[c.key]}
                     </td>
@@ -427,10 +431,11 @@ export function TenderTable({
                       key={p}
                       type="button"
                       onClick={() => setPage(p)}
-                      className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[11px] font-semibold transition ${p === safePage
+                      className={`inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-[11px] font-semibold transition ${
+                        p === safePage
                           ? "bg-[#a97400] text-white shadow-sm"
                           : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
+                      }`}
                     >
                       {p}
                     </button>
@@ -503,12 +508,13 @@ export function DocsStatusBadge({ status }: { status?: string }) {
 export function DeadlineCell({ days }: { days: number }) {
   return (
     <span
-      className={`font-mono text-[11px] font-semibold ${days <= 3
+      className={`font-mono text-[11px] font-semibold ${
+        days <= 3
           ? "text-rose-600"
           : days <= 7
             ? "text-orange-600"
             : "text-slate-700"
-        }`}
+      }`}
     >
       {days} days
     </span>
@@ -519,7 +525,7 @@ export function LinkIconCell() {
   return <ExternalLink className="ml-auto h-3.5 w-3.5 text-slate-400" />;
 }
 
-/* ✅ NEW — Auto-discovered badge for crawler-sourced tenders */
+/* ✅ Auto-discovered badge for crawler-sourced tenders */
 export function AutoDiscoveredBadge() {
   return (
     <span
@@ -530,6 +536,21 @@ export function AutoDiscoveredBadge() {
         🤖
       </span>
       Auto-discovered
+    </span>
+  );
+}
+
+/* ✅ NEW — Manual badge for user-created tenders */
+export function ManualBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700"
+      title="Manually entered by a user"
+    >
+      <span aria-hidden className="text-[11px] leading-none">
+        🧑‍💻
+      </span>
+      Manual
     </span>
   );
 }

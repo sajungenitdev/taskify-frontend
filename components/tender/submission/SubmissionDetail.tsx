@@ -20,6 +20,37 @@ import { docTaskApi, tenderApi } from "@/lib/api/tender.api";
 import { confirmToast } from "@/lib/confirmToast";
 import toast from "react-hot-toast";
 
+/* ============================================================
+ * Auth helper — reads the logged-in user from the same keys
+ * your app uses elsewhere.
+ * ============================================================ */
+function getLoggedInUser(): string {
+  if (typeof window === "undefined") return "—";
+  try {
+    const raw =
+      localStorage.getItem("user") ||
+      localStorage.getItem("authUser") ||
+      localStorage.getItem("currentUser") ||
+      sessionStorage.getItem("user") ||
+      "";
+    if (!raw) return "—";
+    const parsed = JSON.parse(raw);
+    return (
+      parsed?.name ||
+      parsed?.fullName ||
+      parsed?.username ||
+      parsed?.email ||
+      "—"
+    );
+  } catch {
+    return "—";
+  }
+}
+
+/* ============================================================
+ * Public types
+ * ============================================================ */
+
 export interface SubmissionAttachment {
   _id?: string;
   name: string;
@@ -60,7 +91,7 @@ export interface SubmissionDetailData {
     isCustom?: boolean;
   }[];
   info: SubmissionInfoPayload;
-  /** ✅ Notify Finance trigger — opens the modal in the parent */
+  /** Notify Finance trigger — opens the modal in the parent */
   notifyAction?: {
     label: string;
     onClick: () => void;
@@ -83,6 +114,10 @@ interface Props {
 const TABS = ["Tender Preparation", "Tender Info"] as const;
 type Tab = (typeof TABS)[number];
 
+/* ============================================================
+ * File URL / size helpers
+ * ============================================================ */
+
 function fullFileUrl(url: string) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
@@ -98,6 +133,10 @@ function fileSizeLabel(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/* ============================================================
+ * Component
+ * ============================================================ */
 
 export function SubmissionDetail({
   data,
@@ -121,12 +160,15 @@ export function SubmissionDetail({
     if (adInputRef.current) adInputRef.current.value = "";
   }, [data.id, data.docTasks]);
 
-  /* ---------- Doc tasks (unchanged) ---------- */
+  /* ------------------------------------------------------------
+   * Doc tasks
+   * ------------------------------------------------------------ */
+
   const addTask = () => {
     const draft: DocTask = {
       id: `draft-${Date.now()}`,
       title: "",
-      owner: "",
+      owner: getLoggedInUser(), // ✅ auto-filled from login
       fileName: "No file uploaded yet",
       status: "Pending",
       isDraft: true,
@@ -145,24 +187,26 @@ export function SubmissionDetail({
     if (!task) return;
 
     const finalTitle = task.title.trim() || "Untitled task";
-    const finalOwner = task.owner.trim() || "—";
+    const finalOwner = task.owner.trim() || getLoggedInUser();
 
+    // Status is auto-derived — no dropdown anymore
     const hasPendingFile = !!task.pendingFile;
-    const safeStatus: DocStatus =
-      task.status === "Done" && !hasPendingFile && !task.fileUrl
-        ? "Pending"
-        : task.status;
+    const safeStatus: DocStatus = hasPendingFile
+      ? "In Progress"
+      : task.fileUrl
+        ? "Done"
+        : "Pending";
 
     setTasks((prev) =>
       prev.map((t) =>
         t.id === id
           ? {
-              ...t,
-              title: finalTitle,
-              owner: finalOwner,
-              status: safeStatus,
-              isDraft: false,
-            }
+            ...t,
+            title: finalTitle,
+            owner: finalOwner,
+            status: safeStatus,
+            isDraft: false,
+          }
           : t,
       ),
     );
@@ -203,12 +247,12 @@ export function SubmissionDetail({
             prev.map((t) =>
               t.id === created._id
                 ? {
-                    ...t,
-                    fileName: att.name,
-                    fileUrl: fullFileUrl(att.url),
-                    status: "Done",
-                    pendingFile: null,
-                  }
+                  ...t,
+                  fileName: att.name,
+                  fileUrl: fullFileUrl(att.url),
+                  status: "Done",
+                  pendingFile: null,
+                }
                 : t,
             ),
           );
@@ -278,11 +322,11 @@ export function SubmissionDetail({
         prev.map((t) =>
           t.id === taskId
             ? {
-                ...t,
-                fileName: att.name,
-                fileUrl: fullFileUrl(att.url),
-                status: "Done",
-              }
+              ...t,
+              fileName: att.name,
+              fileUrl: fullFileUrl(att.url),
+              status: "Done",
+            }
             : t,
         ),
       );
@@ -297,7 +341,10 @@ export function SubmissionDetail({
     }
   };
 
-  /* ---------- Advertisement (unchanged) ---------- */
+  /* ------------------------------------------------------------
+   * Advertisement
+   * ------------------------------------------------------------ */
+
   const uploadAdvertisement = async (file: File) => {
     setUploadingAd(true);
     const loadingId = toast.loading(`Uploading ${file.name}...`);
@@ -347,7 +394,10 @@ export function SubmissionDetail({
     });
   };
 
-  /* ---------- Attachments (unchanged) ---------- */
+  /* ------------------------------------------------------------
+   * Attachments
+   * ------------------------------------------------------------ */
+
   const handleAttachFile = async (file: File) => {
     setUploadingAtt(true);
     const loadingId = toast.loading(`Uploading ${file.name}...`);
@@ -390,6 +440,10 @@ export function SubmissionDetail({
     });
   };
 
+  /* ------------------------------------------------------------
+   * Render
+   * ------------------------------------------------------------ */
+
   return (
     <section className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       {/* ============ HEADER ============ */}
@@ -410,7 +464,6 @@ export function SubmissionDetail({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
-          {/* Notify Finance — opens modal in parent */}
           {data.notifyAction && (
             <button
               type="button"
@@ -434,7 +487,6 @@ export function SubmissionDetail({
             </button>
           )}
 
-          {/* Submit Tender */}
           {submitAction && (
             <button
               type="button"
@@ -458,7 +510,7 @@ export function SubmissionDetail({
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ============ TABS ============ */}
       <div className="flex items-center justify-between border-b border-slate-100 px-5">
         <div className="flex items-center gap-1">
           {TABS.map((t) => {
@@ -468,11 +520,10 @@ export function SubmissionDetail({
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${
-                  active
+                className={`relative inline-flex items-center px-3 py-2.5 text-[12px] font-semibold transition-colors ${active
                     ? "text-slate-900"
                     : "text-slate-500 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 {t}
                 {active && (
@@ -501,11 +552,11 @@ export function SubmissionDetail({
         )}
       </div>
 
-      {/* Tender Preparation */}
+      {/* ============ Tender Preparation ============ */}
       {tab === "Tender Preparation" && showDetails && (
         <div className="grid grid-cols-1 lg:grid-cols-2">
           <div className="p-5">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Document Tasks
             </p>
 
@@ -538,7 +589,7 @@ export function SubmissionDetail({
         </div>
       )}
 
-      {/* Tender Info — unchanged from your original */}
+      {/* ============ Tender Info ============ */}
       {tab === "Tender Info" && (
         <div className="grid grid-cols-1 items-stretch gap-8 p-5 lg:grid-cols-2">
           <div className="flex h-full flex-col gap-4">
@@ -795,6 +846,10 @@ export function SubmissionDetail({
     </section>
   );
 }
+
+/* ============================================================
+ * Small info row
+ * ============================================================ */
 
 function InfoField({
   label,

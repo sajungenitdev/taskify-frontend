@@ -1,6 +1,6 @@
 "use client";
 
-interface StatItem {
+export interface StatItem {
   label: string;
   value: string;
   hint?: string;

@@ -191,7 +191,7 @@ export function SecurityNotifyModal({
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.94, y: 20 }}
                         transition={spring}
-                        className="relative z-10 w-full max-w-[600px] overflow-hidden rounded-2xl border border-white/60 bg-white shadow-[0_24px_60px_-16px_rgba(15,23,42,0.4)] ring-1 ring-black/5"
+                        className="relative z-10 w-full max-w-[600px] overflow-hidden rounded-2xl bg-white shadow-[0_24px_60px_-16px_rgba(15,23,42,0.4)] ring-1 ring-black/5"
                     >
                         {/* ============ HEADER ============ */}
                         <div className="relative overflow-hidden bg-gradient-to-r from-[#a97400] via-[#96660a] to-[#8f6100] px-6 py-4 text-white">

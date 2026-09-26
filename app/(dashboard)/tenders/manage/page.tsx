@@ -14,6 +14,7 @@ import {
   DocsStatusBadge,
   DeadlineCell,
   AutoDiscoveredBadge,
+  ManualBadge, // ✅ NEW
 } from "@/components/tender/TenderTable";
 import { TenderDetailReview } from "@/components/tender/TenderDetailReview";
 import { TenderDetailActive } from "@/components/tender/TenderDetailActive";
@@ -103,18 +104,31 @@ function budgetLabel(n?: number) {
   return `৳${n.toLocaleString("en-IN")}`;
 }
 
-/* Whether a tender row came from the crawler */
+/* ✅ Robust crawler detection — matches multiple backend flags */
 function isCrawledTender(t: Tender) {
-  return (t as any).recordedBy === "Auto-discovered";
+  const anyT = t as any;
+  if (anyT.autoDiscovered === true) return true;
+  if (anyT.source === "crawler") return true;
+  if (typeof anyT.recordedBy === "string") {
+    const r = anyT.recordedBy.toLowerCase();
+    if (r.includes("auto") || r.includes("crawl")) return true;
+  }
+  if (
+    typeof anyT.note === "string" &&
+    anyT.note.toLowerCase().includes("auto")
+  ) {
+    return true;
+  }
+  return false;
 }
 
-/* Tenderer cell — shows the tenderer name + Auto-discovered badge when crawled */
+/* ✅ Tenderer cell — shows the correct badge based on source */
 function TendererCell({ t }: { t: Tender }) {
   const crawled = isCrawledTender(t);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="font-medium text-slate-800">{t.tenderer}</span>
-      {crawled && <AutoDiscoveredBadge />}
+      {crawled ? <AutoDiscoveredBadge /> : <ManualBadge />}
     </div>
   );
 }
@@ -124,7 +138,6 @@ function mapRows(
   tenders: Tender[],
 ) {
   return tenders.map((t) => {
-    /* Common searchable text — tenderer + title + type + description */
     const searchText = [
       t.tenderer,
       t.title,
@@ -234,17 +247,14 @@ function TenderManageContent() {
     null,
   );
 
-  /* ✅ Sub-tab inside Potential: default = Manual */
   const [potentialSource, setPotentialSource] = useState<PotentialSource>(
     "manual",
   );
 
-  /* ✅ Local cache for eligibility results — keyed by tender id */
   const [eligibilityResults, setEligibilityResults] = useState<
     Record<string, { requirement: string; match: string }[]>
   >({});
 
-  /* ---------- Lost-reason prompt ---------- */
   const [lostPrompt, setLostPrompt] = useState<{
     tender: Tender;
     reason: string;
@@ -280,24 +290,17 @@ function TenderManageContent() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lostPrompt]);
 
-  /* ---------- Potential sub-tab filtering ---------- */
+  /* ---------- Potential sub-tab filtering (uses shared helper) ---------- */
   const manualRows = useMemo(
-    () =>
-      groups.potential.filter(
-        (t) => (t as any).recordedBy !== "Auto-discovered",
-      ),
+    () => groups.potential.filter((t) => !isCrawledTender(t)),
     [groups.potential],
   );
 
   const crawledRows = useMemo(
-    () =>
-      groups.potential.filter(
-        (t) => (t as any).recordedBy === "Auto-discovered",
-      ),
+    () => groups.potential.filter((t) => isCrawledTender(t)),
     [groups.potential],
   );
 
-  /* Which list feeds the Potential table */
   const potentialRows = useMemo(() => {
     if (potentialSource === "manual") return manualRows;
     if (potentialSource === "crawled") return crawledRows;
@@ -324,7 +327,6 @@ function TenderManageContent() {
   const handleTabChange = (next: TenderTab) => {
     setTab(next);
     setSelectedId(null);
-    /* Reset Potential sub-tab back to Manual when leaving Potential */
     if (next !== "potential") setPotentialSource("manual");
   };
 
@@ -673,9 +675,7 @@ function TenderManageContent() {
                   rows={mapRows("submitted", groups.submitted)}
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
-                  // onDelete={handleDelete}
-                  onView={handleViewSubmitted}
-                  // onEdit={handleEdit}
+                  // onView={handleViewSubmitted}
                   showActions
                   searchable
                   searchPlaceholder="Search submitted tenders…"
@@ -883,7 +883,6 @@ function TenderManageContent() {
         }}
       />
 
-      {/* ✅ EligibilityCheckModal — persists results to local state */}
       <EligibilityCheckModal
         open={!!eligibilityTender}
         onOpenChange={(o) => !o && setEligibilityTender(null)}

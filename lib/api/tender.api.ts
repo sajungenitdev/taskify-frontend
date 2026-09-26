@@ -175,12 +175,20 @@ export interface TenderOverviewStat {
   change?: number;
   tone?: "neutral" | "positive" | "negative" | "warn";
   icon?: string;
+  hint?: string;
+  highlighted?: boolean;
 }
 
 export interface TenderPipelineRow {
   id: string;
   label: string;
   count: number;
+  color: string;
+  hint?: string;
+}
+export interface PipelineSegment {
+  label: string;
+  value: number;
   color: string;
 }
 
@@ -213,6 +221,8 @@ export interface PerformanceDataPoint {
   value?: number;
 }
 
+// lib/api/tender.api.ts (partial)
+
 export interface PerformanceResponse {
   data: PerformanceDataPoint[];
   winRate: number;
@@ -220,18 +230,22 @@ export interface PerformanceResponse {
   totalWon?: number;
   totalLost?: number;
   totalValue?: number;
+  pipelineMix?: PipelineSegment[];
+  wonValue?: string;
+  wonValueShort?: string;  // NEW: e.g. "৳13.6L"
+  lostCount?: number;
 }
 
 export interface TenderActivity {
   id: string;
   kind:
-  | "chat"
-  | "discussed"
-  | "lost"
-  | "stage_change"
-  | "submitted"
-  | "uploaded"
-  | "won";
+    | "chat"
+    | "discussed"
+    | "lost"
+    | "stage_change"
+    | "submitted"
+    | "uploaded"
+    | "won";
   tenderer: string;
   message: string;
   timeAgo: string;
