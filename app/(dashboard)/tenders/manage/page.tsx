@@ -673,9 +673,9 @@ function TenderManageContent() {
                   rows={mapRows("submitted", groups.submitted)}
                   selectedId={selected?._id ?? null}
                   onRowClick={setSelectedId}
-                  onDelete={handleDelete}
+                  // onDelete={handleDelete}
                   onView={handleViewSubmitted}
-                  onEdit={handleEdit}
+                  // onEdit={handleEdit}
                   showActions
                   searchable
                   searchPlaceholder="Search submitted tenders…"
