@@ -340,7 +340,7 @@ export default function AssistantWizard() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.6, y: 15 }}
             transition={spring}
-            className="fixed bottom-20 right-4 z-50 origin-bottom-right"
+            className="fixed bottom-2 right-3 z-50 origin-bottom-right"
           >
             <div className="relative">
               {/* Soft halo */}

@@ -365,7 +365,7 @@ export default function TenderChatWizard({
                             damping: 28,
                             mass: 0.8,
                         }}
-                        className="fixed bottom-2 right-3 z-[99999] origin-bottom-right"
+                        className="fixed bottom-20 right-3 z-[99999] origin-bottom-right"
                     >
                         <div className="relative">
                             <span className="pointer-events-none absolute -inset-1.5 rounded-full bg-amber-500/25 blur-lg" />
@@ -570,8 +570,8 @@ export default function TenderChatWizard({
                                                 >
                                                     <div
                                                         className={`group relative max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs shadow-sm transition-shadow ${mine
-                                                                ? "rounded-br-md bg-gradient-to-br from-[#a97400] to-[#8f6100] text-white shadow-[0_4px_16px_-4px_rgba(143,97,0,0.5)]"
-                                                                : "rounded-bl-md border border-slate-200/90 bg-white text-slate-800 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.06)]"
+                                                            ? "rounded-br-md bg-gradient-to-br from-[#a97400] to-[#8f6100] text-white shadow-[0_4px_16px_-4px_rgba(143,97,0,0.5)]"
+                                                            : "rounded-bl-md border border-slate-200/90 bg-white text-slate-800 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.06)]"
                                                             } ${flash ? "ring-2 ring-amber-400" : ""}`}
                                                     >
                                                         {!mine && (
@@ -583,8 +583,8 @@ export default function TenderChatWizard({
                                                                 )}
                                                                 <span
                                                                     className={`text-[10px] font-semibold ${isMgmtMsg
-                                                                            ? "text-amber-700"
-                                                                            : "text-slate-500"
+                                                                        ? "text-amber-700"
+                                                                        : "text-slate-500"
                                                                         }`}
                                                                 >
                                                                     {isMgmtMsg ? "Support" : m.senderName}
@@ -618,8 +618,8 @@ export default function TenderChatWizard({
                                                                             target="_blank"
                                                                             rel="noreferrer"
                                                                             className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] transition ${mine
-                                                                                    ? "bg-white/15 text-white hover:bg-white/25"
-                                                                                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                                                                ? "bg-white/15 text-white hover:bg-white/25"
+                                                                                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                                                                                 }`}
                                                                         >
                                                                             <FileText className="h-3.5 w-3.5 shrink-0" />
