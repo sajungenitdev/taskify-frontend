@@ -84,7 +84,7 @@ export function TenderAIIntelligence({ matches, crawledAt, loading }: Props) {
                   {match.matches}
                 </p>
                 <Link
-                  href="/tender/manage"
+                  href="/tenders/manage"
                   type="button"
                   className="mt-2 cursor-pointer text-[11px] font-semibold text-[#a97400] hover:underline"
                 >
