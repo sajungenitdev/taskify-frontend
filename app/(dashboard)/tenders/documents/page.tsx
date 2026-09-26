@@ -29,7 +29,10 @@ import { toCompanyDocUI, type CompanyDocUI } from "@/lib/api/mappers";
 import { AddDocModal } from "@/components/tender/documents/modal/AddDocModal";
 import { ViewDocModal } from "@/components/tender/documents/modal/ViewDocModal";
 import { confirmToast } from "@/lib/confirmToast";
-import { useCompanyDocBundle } from "@/hooks/tender/useCompanyDocBundle";
+import {
+  useCompanyDocBundle,
+  invalidateBundleCache,
+} from "@/hooks/tender/useCompanyDocBundle";
 
 /* ---------- Config ---------- */
 const SECTORS = ["Power & Energy", "Financial", "Government"];
@@ -46,16 +49,13 @@ async function loadImportTargets(): Promise<ImportTarget[]> {
   if (TARGET_IN_FLIGHT) return TARGET_IN_FLIGHT;
 
   TARGET_IN_FLIGHT = (async () => {
-    /* One call — both drafts + non-drafts, capped at 200 */
     const res = await tenderApi.list({ includeDrafts: true, limit: 200 });
 
-    const list: ImportTarget[] = res.data
+    const list: ImportTarget[] = (res?.data ?? [])
       .filter((t) => !t.draft)
       .map((t) => {
         const group: ImportTarget["group"] =
-          t.stage === "potential"
-            ? "Potential"
-            : "Submission";
+          t.stage === "potential" ? "Potential" : "Submission";
         return {
           id: t._id,
           label: `${t.tenderer} — ${t.title}`,
@@ -85,7 +85,7 @@ export default function CompanyDocsPage() {
     volume: "all",
   });
 
-  /* ONE call returns list + counts */
+  /* DocsTab and CompanyDocCategory now have identical ids — pass directly */
   const { rows, counts, loading, refetch } = useCompanyDocBundle({
     category: tab,
     sector: tab === "experience" ? filters.sector : undefined,
@@ -93,10 +93,11 @@ export default function CompanyDocsPage() {
     volume: tab === "experience" ? filters.volume : undefined,
   });
 
-  const docs: CompanyDocUI[] = useMemo(
-    () => rows.map(toCompanyDocUI),
-    [rows],
-  );
+  /* ✅ Safe map — hook guarantees array, but double-guard is cheap */
+  const docs: CompanyDocUI[] = useMemo(() => {
+    if (!Array.isArray(rows)) return [];
+    return rows.map(toCompanyDocUI);
+  }, [rows]);
 
   /* ---------- Import targets ---------- */
   const [targets, setTargets] = useState<ImportTarget[]>(
@@ -138,11 +139,13 @@ export default function CompanyDocsPage() {
       });
       const target = targets.find((t) => t.id === importTargetId);
       toast.success(
-        `${selectedIds.size} document${selectedIds.size === 1 ? "" : "s"
-        } imported to ${target?.label ?? "tender"}`,
+        `${selectedIds.size} document${selectedIds.size === 1 ? "" : "s"} imported to ${target?.label ?? "tender"}`,
       );
       setSelectedIds(new Set());
       setImportTargetId(null);
+
+      invalidateBundleCache();
+      await refetch();
     } catch (e) {
       toast.error((e as Error).message || "Import failed");
     }
@@ -164,7 +167,6 @@ export default function CompanyDocsPage() {
   }) => {
     try {
       if (renewDoc) {
-        /* RENEW */
         await companyDocApi.renewDoc(renewDoc.id, {
           validityDate: payload.validityDate!,
           issuedOn: payload.issuedOn,
@@ -185,7 +187,6 @@ export default function CompanyDocsPage() {
         }
         setRenewDoc(null);
       } else {
-        /* CREATE */
         const created = await companyDocApi.create({
           category: payload.category ?? tab,
           title: payload.title,
@@ -215,6 +216,7 @@ export default function CompanyDocsPage() {
       }
 
       setAddOpen(false);
+      invalidateBundleCache();
       await refetch();
     } catch (e) {
       toast.error((e as Error).message || "Save failed");
@@ -234,6 +236,7 @@ export default function CompanyDocsPage() {
         try {
           await companyDocApi.remove(doc.id);
           toast.success("Document deleted", { id: loadingId });
+          invalidateBundleCache();
           await refetch();
         } catch (e) {
           toast.error((e as Error).message || "Delete failed", {
